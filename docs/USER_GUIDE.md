@@ -67,7 +67,7 @@ If you authenticate with an admin key, you'll have access to additional administ
 - **System Metrics**: Monitor query performance, rebuild metrics, and system health
 - **Usage Analytics**: Track changelog growth, user satisfaction, and context accuracy
 
-The admin dashboard is accessible via the 📊 icon in the top header bar (visible only to admin users).
+The admin dashboard is accessible via the chart icon in the top header bar (visible only to admin users).
 
 ![Admin Dashboard Telemetry](images/admin-dashboard-telemetry.png)
 
@@ -105,6 +105,7 @@ Once you have a campaign:
 - **Campaign timeline**: Build chronological timeline views across sessions and world state changes
 - **Entity Graph**: Automatically track NPCs, locations, and relationships
 - **Loot and rewards**: Generate loot ideas, get magic item reward suggestions, and track distributed items in your campaign data
+- **Rules reference**: Ask mechanics questions and get citation-first answers from indexed rulebooks plus house rules
 
 ### Multiple Campaigns
 
@@ -218,8 +219,8 @@ After adding a file to a campaign, LoreSmith automatically extracts entities (NP
 ![Shards Overlay](images/shards-overlay.png)
 
 4. For each shard, you can:
-   - **Approve** (✓): Accept the shard and add it to your campaign
-   - **Reject** (✗): Mark it as incorrect or not relevant
+   - **Approve**: Accept the shard and add it to your campaign
+   - **Reject**: Mark it as incorrect or not relevant
    - **View Details**: Click the arrow to see full information
 
 5. You can select multiple shards and approve or reject them in bulk using the checkboxes
@@ -513,6 +514,19 @@ Behind the scenes, timeline views combine:
 
 This is useful for returning-player recaps, long-arc continuity checks, and prep documents.
 
+### Using the rules reference agent
+
+You can ask rules questions directly in chat. The rules reference agent searches your indexed campaign resources and checks house rules for conflicts.
+
+Example prompts:
+
+- "How does grappling work in 5e?"
+- "What is the rule for concentration checks?"
+- "Look up the stat block for wolf."
+- "Does our house rule on healing override the default rule here?"
+
+For best results, make sure your rulebooks or SRD files are uploaded and linked to the campaign.
+
 ## Tips and Best Practices
 
 ### Organizing Your Library
@@ -557,7 +571,7 @@ If you see a file with a "Failed" status in your resource library:
 
 ![File Processing Failure](images/file-processing-failure.png)
 
-- Click the retry button (🔄) next to the failed file to attempt processing again
+- Click the retry button next to the failed file to attempt processing again
 - Check that the file format is supported (PDF, images, text documents)
 - Verify the file isn't corrupted - try opening it locally first
 - Check file size (max 100MB - Cloudflare Workers memory limit with buffer)
@@ -603,4 +617,4 @@ LoreSmith uses GraphRAG (Graph Retrieval Augmented Generation):
 
 ---
 
-**Happy Campaign Planning!** 🎲✨
+**Happy campaign planning!**

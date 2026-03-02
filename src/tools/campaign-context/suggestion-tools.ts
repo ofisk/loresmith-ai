@@ -29,6 +29,7 @@ import {
 	createToolSuccess,
 	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
@@ -79,36 +80,23 @@ export const getCampaignSuggestions = tool({
 
 			// If we have environment, work directly with the database
 			if (env) {
-				const userId = extractUsernameFromJwt(jwt);
+				const access = await requireCampaignAccessForTool({
+					env: env as Env,
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in access) {
+					return access;
+				}
+				const { campaign, userId } = access;
 				console.log(
 					"[Tool] getCampaignSuggestions - User ID extracted:",
 					userId
 				);
 
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						AUTH_CODES.INVALID_KEY,
-						toolCallId
-					);
-				}
-
 				// Verify campaign exists and belongs to user using DAO
 				const daoFactory = getDAOFactory(env as Env);
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-				if (!campaign) {
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found or access denied",
-						404,
-						toolCallId
-					);
-				}
 
 				const gmError = await requireGMRole(
 					env as Env,

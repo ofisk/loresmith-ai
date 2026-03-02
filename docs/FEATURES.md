@@ -4,7 +4,7 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 ## Core Features
 
-### 🎲 Campaign Management
+### Campaign management
 
 **Campaign Creation & Organization**
 
@@ -27,7 +27,7 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 - Campaign selection dropdown drives AI responses
 - AI can assist with campaign creation and setup
 
-### 📚 Resource Library
+### Resource library
 
 **File Upload & Storage**
 
@@ -106,7 +106,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Search across all resources
 - Filter by campaign, type, or tags
 
-### 🤖 AI-Powered Assistant
+### AI-powered assistant
 
 **Conversational Interface**
 
@@ -126,7 +126,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Provides actionable suggestions
 - Analyzes your current state to offer relevant next steps
 
-### 🔍 GraphRAG Technology
+### GraphRAG technology
 
 **Knowledge Graph**
 
@@ -149,7 +149,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Discovers entity connections
 - Contextually relevant results
 
-### 📝 Session Planning
+### Session planning
 
 **Session Digests**
 
@@ -186,7 +186,14 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - `addTimelineEventTool`: Adds manual GM timeline notes as metadata-marked changelog entries for out-of-session events
 - Timeline output includes session markers, key events, world state changes, and open thread context
 
-### 🌐 Entity Management
+**Rules reference agent**
+
+- `searchRulesTool`: Searches indexed campaign rule sources and house rules for cited excerpts relevant to a rules question
+- `lookupStatBlockTool`: Finds creature or NPC stat block excerpts from indexed resources by name, with citations
+- `resolveRulesConflictTool`: Resolves official vs house-rule precedence for a rules question and returns effective rule guidance
+- Handles missing coverage by clearly indicating when the needed rulebook is not indexed
+
+### Entity management
 
 **Automatic Extraction**
 
@@ -212,7 +219,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 
 ## Advanced Features
 
-### 🔐 Security & Privacy
+### Security and privacy
 
 **Authentication**
 
@@ -228,7 +235,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Campaign access control
 - Secure file uploads
 
-### ⚡ Performance
+### Performance
 
 **Caching**
 
@@ -244,7 +251,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Database query optimization
 - Edge deployment for low latency
 
-### 📊 Analytics & Monitoring
+### Analytics and monitoring
 
 **Telemetry** (Admin Only)
 
@@ -271,11 +278,11 @@ The admin dashboard is accessible to users who authenticate with the admin key. 
 - **User Satisfaction**: DM satisfaction ratings and feedback
 - **Context Accuracy**: Context accuracy measurements and trends
 
-To access the admin dashboard, click the 📊 icon in the top header bar (visible only to admin users).
+To access the admin dashboard, click the chart icon in the top header bar (visible only to admin users).
 
 ## User Experience Features
 
-### 🎨 Interface
+### Interface
 
 **Modern UI**
 
@@ -291,7 +298,7 @@ To access the admin dashboard, click the 📊 icon in the top header bar (visibl
 - Real-time notifications
 - Streaming AI responses
 
-### 🔔 Notifications
+### Notifications
 
 **Progress Updates**
 
@@ -311,7 +318,7 @@ To access the admin dashboard, click the 📊 icon in the top header bar (visibl
 
 ## Integration Features
 
-### 🔌 API Access
+### API access
 
 **RESTful API**
 
@@ -328,7 +335,7 @@ To access the admin dashboard, click the 📊 icon in the top header bar (visibl
 - Context assembly
 - Session management
 
-### 📤 Export & Import
+### Export and import
 
 **Data Portability**
 
@@ -339,7 +346,7 @@ To access the admin dashboard, click the 📊 icon in the top header bar (visibl
 
 ## Future Features (Roadmap)
 
-### 🚀 Planned Enhancements
+### Planned enhancements
 
 - **Collaboration**: Shared campaigns and resources
 - **Templates**: Campaign and resource templates

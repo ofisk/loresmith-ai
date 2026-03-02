@@ -9,7 +9,9 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
+	requireCampaignAccessByUserIdForTool,
 	runWithEnvOrApi,
+	type ToolEnv,
 	type ToolExecuteOptions,
 } from "../utils";
 
@@ -142,18 +144,13 @@ Total tracked items: ${statusRecords.length}`;
 					const campaignDAO = daoFactory.campaignDAO;
 					const checklistStatusDAO = daoFactory.checklistStatusDAO;
 
-					const campaign = await campaignDAO.getCampaignByIdWithMapping(
+					const access = await requireCampaignAccessByUserIdForTool({
+						env: env as ToolEnv,
 						campaignId,
-						userId
-					);
-					if (!campaign) {
-						return createToolError(
-							"Campaign not found or access denied",
-							`Campaign ${campaignId} not found for user ${userId}`,
-							404,
-							toolCallId
-						);
-					}
+						userId,
+						toolCallId,
+					});
+					if ("toolCallId" in access) return access;
 
 					const role = await campaignDAO.getCampaignRole(campaignId, userId);
 					if (!canSeeSpoilersForCampaignRole(role)) {

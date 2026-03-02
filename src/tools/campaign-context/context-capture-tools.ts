@@ -13,8 +13,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
@@ -118,32 +118,38 @@ export const captureConversationalContext = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					AUTH_CODES.INVALID_KEY,
-					toolCallId
-				);
-			}
-
 			// Verify campaign exists and belongs to user
 			const daoFactory = getDAOFactory(env);
 			const campaignDAO = daoFactory.campaignDAO;
-			const campaign = await campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				const errorCode = (
+					access.result?.data as { errorCode?: number } | undefined
+				)?.errorCode;
+				if (errorCode === 404) {
+					return createToolError(
+						"Campaign not found",
+						"Campaign not found",
+						404,
+						toolCallId
+					);
+				}
+				if (errorCode === 401) {
+					return createToolError(
+						"Invalid authentication token",
+						"Authentication failed",
+						AUTH_CODES.INVALID_KEY,
+						toolCallId
+					);
+				}
+				return access;
 			}
+			const { userId, campaign } = access;
 
 			const role = await campaignDAO.getCampaignRole(campaignId, userId);
 			if (role && READONLY_ROLES.has(role)) {
@@ -358,31 +364,37 @@ export const saveContextExplicitly = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					AUTH_CODES.INVALID_KEY,
-					toolCallId
-				);
-			}
-
 			// Verify campaign exists and belongs to user
 			const campaignDAO = getDAOFactory(env).campaignDAO;
-			const campaign = await campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				const errorCode = (
+					access.result?.data as { errorCode?: number } | undefined
+				)?.errorCode;
+				if (errorCode === 404) {
+					return createToolError(
+						"Campaign not found",
+						"Campaign not found",
+						404,
+						toolCallId
+					);
+				}
+				if (errorCode === 401) {
+					return createToolError(
+						"Invalid authentication token",
+						"Authentication failed",
+						AUTH_CODES.INVALID_KEY,
+						toolCallId
+					);
+				}
+				return access;
 			}
+			const { userId, campaign } = access;
 
 			const role = await campaignDAO.getCampaignRole(campaignId, userId);
 			if (role && READONLY_ROLES.has(role)) {

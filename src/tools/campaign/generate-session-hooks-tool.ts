@@ -8,8 +8,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
@@ -57,33 +57,29 @@ export const generateSessionHooks = tool({
 			console.log("[Tool] generateSessionHooks - JWT provided:", !!jwt);
 
 			if (env) {
-				const userId = extractUsernameFromJwt(jwt);
-				console.log("[Tool] generateSessionHooks - User ID extracted:", userId);
-
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						401,
-						toolCallId
-					);
-				}
-
 				const daoFactory = getDAOFactory(env as { DB: D1Database });
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-
-				if (!campaign) {
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
-						toolCallId
-					);
+				const access = await requireCampaignAccessForTool({
+					env: env as { DB: D1Database },
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in access) {
+					const errorCode = (
+						access.result?.data as { errorCode?: number } | undefined
+					)?.errorCode;
+					if (errorCode === 404) {
+						return createToolError(
+							"Campaign not found",
+							"Campaign not found",
+							404,
+							toolCallId
+						);
+					}
+					return access;
 				}
+				const { userId } = access;
+				console.log("[Tool] generateSessionHooks - User ID extracted:", userId);
 
 				const gmError = await requireGMRole(
 					env as { DB: D1Database },

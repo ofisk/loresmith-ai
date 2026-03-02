@@ -18,8 +18,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
@@ -124,18 +124,6 @@ export const planSession = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			console.log("[Tool] planSession - User ID extracted:", userId);
-
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
-
 			if (!env.DB || !env.VECTORIZE) {
 				return createToolError(
 					"Database or vector index not available",
@@ -146,20 +134,18 @@ export const planSession = tool({
 			}
 
 			const daoFactory = getDAOFactory(env);
-
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				return access;
 			}
+			const { userId, campaign } = access;
+
+			console.log("[Tool] planSession - User ID extracted:", userId);
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;

@@ -12,8 +12,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	runWithEnvOrApi,
 	type ToolExecuteOptions,
@@ -114,27 +114,24 @@ export const detectCommunitiesTool = tool({
 						toolCallId
 					);
 				},
-				dbCall: async (env, _userId) => {
-					const daoFactory = getDAOFactory(env as { DB: D1Database });
-					const campaign =
-						await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-							campaignId,
-							_userId
-						);
-
-					if (!campaign) {
-						return createToolError(
-							"Campaign not found",
-							"Campaign not found or access denied",
-							404,
-							toolCallId
-						);
+				dbCall: async (env) => {
+					const access = await requireCampaignAccessForTool({
+						env: env as { DB: D1Database },
+						campaignId,
+						jwt,
+						toolCallId,
+					});
+					if ("toolCallId" in access) {
+						return access;
 					}
+					const { userId } = access;
+
+					const daoFactory = getDAOFactory(env as { DB: D1Database });
 
 					const gmError = await requireGMRole(
 						env as { DB: D1Database },
 						campaignId,
-						_userId,
+						userId,
 						toolCallId
 					);
 					if (gmError) return gmError;
@@ -290,31 +287,17 @@ export const getCommunitiesTool = tool({
 			}
 
 			// Direct database access
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
-
 			const daoFactory = getDAOFactory(env as { DB: D1Database });
-
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env: env as { DB: D1Database },
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				return access;
 			}
+			const { userId } = access;
 
 			const gmError = await requireGMRole(
 				env as { DB: D1Database },
@@ -414,33 +397,18 @@ export const getCommunityHierarchyTool = tool({
 			}
 
 			// Direct database access
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
-
 			// Get DAO factory and utilities
 			const daoFactory = getDAOFactory(env as { DB: D1Database });
-
-			// Verify campaign ownership using DAO
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env: env as { DB: D1Database },
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				return access;
 			}
+			const { userId } = access;
 
 			const gmError = await requireGMRole(
 				env as { DB: D1Database },

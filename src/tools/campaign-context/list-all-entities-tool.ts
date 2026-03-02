@@ -3,15 +3,15 @@ import { z } from "zod";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { isEntityStub } from "@/lib/entity-content-merge";
 import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
-import { AUTH_CODES, type ToolResult } from "../../app-constants";
+import type { ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
 } from "../utils";
 
@@ -92,31 +92,29 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					AUTH_CODES.INVALID_KEY,
-					toolCallId
-				);
-			}
-
 			const daoFactory = getDAOFactory(env);
 			const campaignDAO = daoFactory.campaignDAO;
-			const campaign = await campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				const errorCode = (
+					access.result?.data as { errorCode?: number } | undefined
+				)?.errorCode;
+				if (errorCode === 404) {
+					return createToolError(
+						"Campaign not found",
+						"Campaign not found",
+						404,
+						toolCallId
+					);
+				}
+				return access;
 			}
+			const { userId } = access;
 
 			const role = await campaignDAO.getCampaignRole(campaignId, userId);
 			const shouldSanitizeForPlayer = role && PLAYER_ROLES.has(role);

@@ -8,7 +8,7 @@ import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import {
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolEnv,
 	type ToolExecuteOptions,
@@ -70,16 +70,6 @@ export const generateDigestFromNotesTool = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
-
 			const env = options?.env;
 			if (!env) {
 				return createToolError(
@@ -91,21 +81,16 @@ export const generateDigestFromNotesTool = tool({
 			}
 
 			const daoFactory = getDAOFactory(env);
-
-			// Verify campaign exists and user has access
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env: env as ToolEnv,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				return access;
 			}
+			const { userId, campaign } = access;
 
 			const gmError = await requireGMRole(
 				env as ToolEnv,

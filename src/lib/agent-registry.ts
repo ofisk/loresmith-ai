@@ -88,6 +88,9 @@ export class AgentRegistryService {
 				"../agents/session-digest-agent"
 			);
 			const { LootRewardAgent } = await import("../agents/loot-reward-agent");
+			const { RulesReferenceAgent } = await import(
+				"../agents/rules-reference-agent"
+			);
 			const { AgentRouter } = await import("./agent-router");
 
 			// Register Campaign Agent
@@ -187,6 +190,15 @@ export class AgentRegistryService {
 				LootRewardAgent.agentMetadata.tools,
 				LootRewardAgent.agentMetadata.systemPrompt,
 				LootRewardAgent.agentMetadata.description
+			);
+
+			// Register Rules Reference Agent
+			AgentRouter.registerAgent(
+				RulesReferenceAgent.agentMetadata.type as AgentType,
+				RulesReferenceAgent,
+				RulesReferenceAgent.agentMetadata.tools,
+				RulesReferenceAgent.agentMetadata.systemPrompt,
+				RulesReferenceAgent.agentMetadata.description
 			);
 
 			AgentRegistryService.initialized = true;

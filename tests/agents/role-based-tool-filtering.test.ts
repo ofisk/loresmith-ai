@@ -13,6 +13,10 @@ import {
 	gmRecapToolsBundle,
 	playerRecapToolsBundle,
 } from "../../src/tools/campaign-context/recap-agent-tools-bundle";
+import {
+	gmRulesReferenceToolsBundle,
+	playerRulesReferenceToolsBundle,
+} from "../../src/tools/campaign-context/rules-reference-tools-bundle";
 import { playerCharacterSheetTools } from "../../src/tools/character-sheet";
 
 describe("Role-based tool filtering", () => {
@@ -149,6 +153,24 @@ describe("Role-based tool filtering", () => {
 			expect(
 				(playerLootRewardToolsBundle as any).trackDistributedLootTool
 			).toBeUndefined();
+		});
+	});
+
+	describe("Rules reference tools bundles", () => {
+		it("gmRulesReferenceToolsBundle should include rules search and conflict tools", () => {
+			expect(gmRulesReferenceToolsBundle.searchRulesTool).toBeDefined();
+			expect(gmRulesReferenceToolsBundle.lookupStatBlockTool).toBeDefined();
+			expect(
+				gmRulesReferenceToolsBundle.resolveRulesConflictTool
+			).toBeDefined();
+		});
+
+		it("playerRulesReferenceToolsBundle should include read-only rules tools", () => {
+			expect(playerRulesReferenceToolsBundle.searchRulesTool).toBeDefined();
+			expect(playerRulesReferenceToolsBundle.lookupStatBlockTool).toBeDefined();
+			expect(
+				playerRulesReferenceToolsBundle.resolveRulesConflictTool
+			).toBeDefined();
 		});
 	});
 

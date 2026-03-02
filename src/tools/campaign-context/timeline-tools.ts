@@ -18,8 +18,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolEnv,
 	type ToolExecuteOptions,
@@ -433,37 +433,16 @@ async function validateCampaignAndUser(
 	jwt: string | null | undefined,
 	toolCallId: string
 ) {
-	const userId = extractUsernameFromJwt(jwt);
-	if (!userId) {
-		return {
-			error: createToolError(
-				"Invalid authentication token",
-				"Authentication failed",
-				401,
-				toolCallId
-			),
-			userId: null,
-			campaignName: null,
-		} as const;
-	}
-
-	const daoFactory = getDAOFactory(env);
-	const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+	const access = await requireCampaignAccessForTool({
+		env,
 		campaignId,
-		userId
-	);
-	if (!campaign) {
-		return {
-			error: createToolError(
-				"Campaign not found",
-				"Campaign not found or access denied",
-				404,
-				toolCallId
-			),
-			userId: null,
-			campaignName: null,
-		} as const;
+		jwt,
+		toolCallId,
+	});
+	if ("toolCallId" in access) {
+		return { error: access, userId: null, campaignName: null } as const;
 	}
+	const { userId, campaign } = access;
 
 	const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 	if (gmError) {

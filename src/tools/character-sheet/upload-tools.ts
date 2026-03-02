@@ -9,6 +9,7 @@ import {
 	createToolSuccess,
 	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
 } from "../utils";
 
@@ -50,32 +51,29 @@ export const uploadCharacterSheet = tool({
 
 			// If we have environment, work directly with the database
 			if (env?.DB) {
-				const userId = extractUsernameFromJwt(jwt);
-				console.log("[Tool] uploadCharacterSheet - User ID extracted:", userId);
-
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						401,
-						toolCallId
-					);
-				}
-
 				const daoFactory = getDAOFactory(env);
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-				if (!campaign) {
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
-						toolCallId
-					);
+				const access = await requireCampaignAccessForTool({
+					env,
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in access) {
+					const errorCode = (
+						access.result?.data as { errorCode?: number } | undefined
+					)?.errorCode;
+					if (errorCode === 404) {
+						return createToolError(
+							"Campaign not found",
+							"Campaign not found",
+							404,
+							toolCallId
+						);
+					}
+					return access;
 				}
+				const { userId } = access;
+				console.log("[Tool] uploadCharacterSheet - User ID extracted:", userId);
 
 				const characterId = crypto.randomUUID();
 				const now = new Date().toISOString();

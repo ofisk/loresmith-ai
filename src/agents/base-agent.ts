@@ -45,6 +45,7 @@ const RULES_AWARE_AGENT_TYPES = new Set([
 	"campaign-analysis",
 	"recap",
 	"session-digest",
+	"rules-reference",
 ]);
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */

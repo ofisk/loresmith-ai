@@ -214,7 +214,7 @@ The legacy `CampaignRAGService` (using `campaign_context_chunks` table) has been
 
 ### Migration Status
 
-✅ **Complete**: All campaign context queries migrated to GraphRAG
+**Complete**: All campaign context queries migrated to GraphRAG
 
 - `searchCampaignContext` tool uses `PlanningContextService`
 - Entity extraction integrated with shard creation

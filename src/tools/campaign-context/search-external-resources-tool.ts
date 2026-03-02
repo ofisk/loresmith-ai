@@ -2,13 +2,12 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
 import { AUTH_CODES, type ToolResult } from "../../app-constants";
-import { getDAOFactory } from "../../dao/dao-factory";
 import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
 } from "../utils";
 
@@ -52,37 +51,39 @@ export const searchExternalResources = tool({
 			console.log("[Tool] searchExternalResources - JWT provided:", !!jwt);
 
 			if (env) {
-				const userId = extractUsernameFromJwt(jwt);
+				const access = await requireCampaignAccessForTool({
+					env: env as { DB: D1Database },
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in access) {
+					const errorCode = (
+						access.result?.data as { errorCode?: number } | undefined
+					)?.errorCode;
+					if (errorCode === 404) {
+						return createToolError(
+							"Campaign not found",
+							"Campaign not found",
+							404,
+							toolCallId
+						);
+					}
+					if (errorCode === 401) {
+						return createToolError(
+							"Invalid authentication token",
+							"Authentication failed",
+							AUTH_CODES.INVALID_KEY,
+							toolCallId
+						);
+					}
+					return access;
+				}
+				const { userId } = access;
 				console.log(
 					"[Tool] searchExternalResources - User ID extracted:",
 					userId
 				);
-
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						AUTH_CODES.INVALID_KEY,
-						toolCallId
-					);
-				}
-
-				const campaignDAO = getDAOFactory(
-					env as { DB: D1Database }
-				).campaignDAO;
-				const campaign = await campaignDAO.getCampaignByIdWithMapping(
-					campaignId,
-					userId
-				);
-
-				if (!campaign) {
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
-						toolCallId
-					);
-				}
 
 				// Pre-filled search links; not live results. Real search would require a search API (Serper, Tavily, etc.).
 				const suggestedSearchLinks = [

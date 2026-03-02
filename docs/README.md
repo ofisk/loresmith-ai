@@ -2,7 +2,7 @@
 
 Welcome to the LoreSmith AI documentation! This directory contains comprehensive guides for both users and developers.
 
-## 📚 Documentation Index
+## Documentation index
 
 ### For Users
 
@@ -117,12 +117,12 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
 
 - **[Clear Production Data](CLEAR_PRODUCTION_DATA.md)** - Data cleanup procedures
 
-## 🚀 Quick Links
+## Quick links
 
 - **[Main README](../README.md)** - Project overview and quick start
 - **[License](../LICENSE)** - MIT License details
 
-## 📖 Documentation Structure
+## Documentation structure
 
 ```
 docs/
@@ -137,7 +137,7 @@ docs/
 └── ...                     # Additional technical docs
 ```
 
-## 🎯 Finding What You Need
+## Finding what you need
 
 ### I want to...
 
@@ -171,7 +171,7 @@ docs/
 - Read [Contributing](CONTRIBUTING.md)
 - Check [Testing Guide](TESTING_GUIDE.md)
 
-## 📝 Documentation Standards
+## Documentation standards
 
 All documentation should:
 
@@ -181,7 +181,7 @@ All documentation should:
 - Keep information up to date
 - Follow markdown best practices
 
-## 🔄 Keeping Documentation Updated
+## Keeping documentation updated
 
 Documentation is updated alongside code changes. If you find outdated information:
 

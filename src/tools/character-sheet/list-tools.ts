@@ -7,8 +7,8 @@ import { AUTH_CODES } from "../../shared-config";
 import {
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
 } from "../utils";
 
@@ -48,29 +48,26 @@ export const listCharacterSheets = tool({
 					"[listCharacterSheets] Running in Durable Object context, calling database directly"
 				);
 
-				const userId = extractUsernameFromJwt(jwt);
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						401,
-						toolCallId
-					);
-				}
-
 				const daoFactory = getDAOFactory(env);
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-				if (!campaign) {
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
-						toolCallId
-					);
+				const access = await requireCampaignAccessForTool({
+					env,
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in access) {
+					const errorCode = (
+						access.result?.data as { errorCode?: number } | undefined
+					)?.errorCode;
+					if (errorCode === 404) {
+						return createToolError(
+							"Campaign not found",
+							"Campaign not found",
+							404,
+							toolCallId
+						);
+					}
+					return access;
 				}
 
 				const characterSheets =

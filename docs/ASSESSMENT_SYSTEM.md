@@ -130,7 +130,7 @@ Users **never see raw numerical scores** in the UI. Instead, they see:
 1. **Campaign State**: "Your campaign is Taking Root"
 2. **Encouraging Description**: "Your campaign is establishing its foundations - the roots are growing strong."
 3. **Summary Message**: "Your campaign is Taking Root (30/100). Every great adventure starts with a single step!"
-4. **Growth Note**: "Remember: As you add new NPCs, locations, plot hooks, and other elements, your campaign state may shift to reflect areas needing detail. This is healthy growth—your world is expanding and evolving!"
+4. **Growth Note**: "Remember: As you add new NPCs, locations, plot hooks, and other elements, your campaign state may shift to reflect areas needing detail. This is healthy growth - your world is expanding and evolving!"
 5. **Next Steps**: Specific actionable tasks to reach the next milestone
 
 ### What Agents See

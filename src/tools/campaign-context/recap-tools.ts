@@ -8,8 +8,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireCanSeeSpoilersForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
@@ -74,20 +74,16 @@ export const generateGMContextRecapTool = tool({
 			}
 			const { userId } = access;
 
-			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) {
+				return campaignAccess;
 			}
+			const { campaign } = campaignAccess;
 
 			const recapService = new RecapService(
 				env as import("@/middleware/auth").Env
@@ -192,30 +188,16 @@ export const generatePlayerContextRecapTool = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
-
-			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) {
+				return campaignAccess;
 			}
+			const { campaign } = campaignAccess;
 
 			const playerRecapPrompt =
 				"The user is a player. Greet them and offer to help with: (1) Session summary—what their character experienced and threads they remember. (2) In-character summary—one paragraph for the table (who their PC is, recent goals, emotional state). (3) Roleplay support—dialogue lines, reactions, decision beats for upcoming scenes. (4) Character notes—checklist of allies, debts, deadlines, goals. Use only information the character would reasonably know; do not reveal future plot, NPC secrets, solutions, or unrevealed content. Do not mention spoilers or permissions—just deliver the experience.";
@@ -310,19 +292,16 @@ export const getSessionReadoutContext = tool({
 			}
 			const { userId } = access;
 
-			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) {
+				return campaignAccess;
 			}
+			const daoFactory = getDAOFactory(env);
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;

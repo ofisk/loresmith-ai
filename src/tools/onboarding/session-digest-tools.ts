@@ -6,7 +6,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
+	requireCampaignAccessForTool,
+	type ToolEnv,
 	type ToolExecuteOptions,
 } from "../utils";
 
@@ -44,16 +45,6 @@ export const getRecentSessionDigestsTool = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
-
 			const env = options?.env;
 			if (!env) {
 				return createToolError(
@@ -65,18 +56,14 @@ export const getRecentSessionDigestsTool = tool({
 			}
 
 			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const access = await requireCampaignAccessForTool({
+				env: env as ToolEnv,
 				campaignId,
-				userId
-			);
-
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) {
+				return access;
 			}
 
 			const allDigests =

@@ -27,12 +27,12 @@ Thank you for your interest in contributing to LoreSmith AI! This document provi
 **Always use the `@/` alias for imports from `src/`:**
 
 ```typescript
-// ✅ Good
+// Good
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 import { API_CONFIG } from "@/shared-config";
 
-// ❌ Bad
+// Bad
 import { AuthService } from "../../services/core/auth-service";
 import { Campaign } from "../types/campaign";
 ```
@@ -55,12 +55,12 @@ Services are organized into logical subdirectories:
 **All service files must use the `-service.ts` suffix:**
 
 ```typescript
-// ✅ Good
+// Good
 src / services / core / auth - service.ts;
 src / services / file / job - status - service.ts;
 src / services / campaign / campaign - service.ts;
 
-// ❌ Bad
+// Bad
 src / services / auth.ts;
 src / services / jobStatus.ts;
 src / services / campaign / planning - context - service.ts;
@@ -82,14 +82,14 @@ Services should:
 Always prefer specific types or `unknown`:
 
 ```typescript
-// ✅ Good
+// Good
 interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   [key: string]: unknown; // Use unknown, not any
 }
 
-// ❌ Bad
+// Bad
 interface ApiResponse {
   [key: string]: any;
 }
@@ -100,7 +100,7 @@ interface ApiResponse {
 When working with `unknown` types, use type guards:
 
 ```typescript
-// ✅ Good
+// Good
 if (
   data &&
   typeof data === "object" &&
@@ -111,7 +111,7 @@ if (
   // Use campaignId safely
 }
 
-// ❌ Bad
+// Bad
 const campaignId = data.campaignId; // TypeScript error
 ```
 
@@ -120,7 +120,7 @@ const campaignId = data.campaignId; // TypeScript error
 Always extend the `Env` interface from `@/middleware/auth` for route handlers:
 
 ```typescript
-// ✅ Good
+// Good
 import type { Env } from "@/middleware/auth";
 
 export async function handleRoute(c: Context<{ Bindings: Env }>) {
