@@ -7,9 +7,11 @@ import {
 } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
-import { getEnvVar } from "@/lib/env-utils";
 import { LOOT_REWARD_PROMPTS } from "@/lib/prompts/loot-reward-prompts";
-import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import {
+	createProviderForTier,
+	getDefaultProviderApiKey,
+} from "@/services/llm/llm-provider-utils";
 import {
 	commonSchemas,
 	createToolError,
@@ -68,16 +70,10 @@ function isNoOutputError(error: unknown): boolean {
 }
 
 async function getLlmProvider(env: unknown, toolCallId: string) {
-	const providerEnvVar =
-		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-			? "ANTHROPIC_API_KEY"
-			: "OPENAI_API_KEY";
-	const providerApiKeyRaw = await getEnvVar(
+	const providerApiKey = await getDefaultProviderApiKey(
 		env as Record<string, unknown>,
-		providerEnvVar,
 		false
 	);
-	const providerApiKey = providerApiKeyRaw.trim();
 	if (!providerApiKey) {
 		return {
 			error: createToolError(
@@ -90,12 +86,11 @@ async function getLlmProvider(env: unknown, toolCallId: string) {
 		} as const;
 	}
 
-	const provider = createLLMProvider({
-		provider: MODEL_CONFIG.PROVIDER.DEFAULT,
+	const provider = createProviderForTier({
 		apiKey: providerApiKey,
-		defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
-		defaultTemperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-		defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+		tier: "SESSION_PLANNING",
+		temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+		maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 	});
 	return { error: null, provider } as const;
 }

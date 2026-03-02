@@ -26,6 +26,7 @@ const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 2000; // 2 seconds
 const MAX_BACKOFF_MS = 300000; // 5 minutes
 const RATE_LIMIT_BACKOFF_MULTIPLIER = 2;
+const MAX_CHUNKS_PER_EXTRACTION_RUN = 3;
 
 /**
  * Calculate exponential backoff delay for rate limits
@@ -80,6 +81,21 @@ function isAuthenticationError(error: unknown): boolean {
 		message.includes("unauthorized") ||
 		(message.includes("401") && message.includes("api"))
 	);
+}
+
+function parseProgressMarker(
+	value: string | null | undefined
+): { processedChunks: number; totalChunks: number } | null {
+	if (!value) return null;
+	const match = value.match(/^PROGRESS:(\d+)\/(\d+)$/);
+	if (!match) return null;
+	const processedChunks = Number.parseInt(match[1], 10);
+	const totalChunks = Number.parseInt(match[2], 10);
+	if (!Number.isFinite(processedChunks) || !Number.isFinite(totalChunks)) {
+		return null;
+	}
+	if (processedChunks < 0 || totalChunks <= 0) return null;
+	return { processedChunks, totalChunks };
 }
 
 export class EntityExtractionQueueService {
@@ -225,7 +241,10 @@ export class EntityExtractionQueueService {
 					);
 				}
 
-				// Process entity extraction
+				const progress = parseProgressMarker(item.last_error);
+				const resumeFromChunk = progress?.processedChunks ?? 0;
+
+				// Process entity extraction window (checkpointed so cron CPU limits can resume)
 				const result = await stageEntitiesFromResource({
 					env,
 					username: item.username,
@@ -235,6 +254,15 @@ export class EntityExtractionQueueService {
 					campaignRagBasePath,
 					llmApiKey,
 					openaiApiKey,
+					resumeFromChunk,
+					maxChunksPerRun: MAX_CHUNKS_PER_EXTRACTION_RUN,
+					onChunkCheckpoint: async ({ processedChunks, totalChunks }) => {
+						await queueDAO.updateProcessingProgress(
+							item.id,
+							processedChunks,
+							totalChunks
+						);
+					},
 					attribution:
 						item.proposed_by != null
 							? { proposedBy: item.proposed_by, approvedBy: item.username }
@@ -246,6 +274,22 @@ export class EntityExtractionQueueService {
 						result.error ||
 							`Entity extraction failed for resource ${item.resource_id}`
 					);
+				}
+
+				if (result.completed === false) {
+					const nextChunk = result.nextChunkIndex ?? resumeFromChunk;
+					const totalChunks = result.totalChunks ?? progress?.totalChunks ?? 0;
+					await queueDAO.markAsPending(
+						item.id,
+						totalChunks > 0
+							? `PROGRESS:${nextChunk}/${totalChunks}`
+							: item.last_error
+					);
+					processed++;
+					console.log(
+						`[EntityExtractionQueue] Checkpointed resource ${item.resource_id} at chunk ${nextChunk}/${totalChunks}; will resume next run`
+					);
+					continue;
 				}
 
 				// Mark as completed

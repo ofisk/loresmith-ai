@@ -196,15 +196,57 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 	}
 
 	/**
+	 * Persist extraction progress while remaining in processing status.
+	 */
+	async updateProcessingProgress(
+		id: number,
+		processedChunks: number,
+		totalChunks: number
+	): Promise<void> {
+		const sql = `
+      UPDATE entity_extraction_queue
+      SET status = 'processing',
+          last_error = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+		await this.execute(sql, [`PROGRESS:${processedChunks}/${totalChunks}`, id]);
+	}
+
+	/**
 	 * Mark a queue item as completed
 	 */
 	async markAsCompleted(id: number): Promise<void> {
 		const sql = `
       UPDATE entity_extraction_queue
-      SET status = 'completed', processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      SET status = 'completed',
+          last_error = NULL,
+          error_code = NULL,
+          next_retry_at = NULL,
+          processed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
 		await this.execute(sql, [id]);
+	}
+
+	/**
+	 * Mark an item back to pending while preserving progress metadata.
+	 */
+	async markAsPending(
+		id: number,
+		progressMessage?: string | null
+	): Promise<void> {
+		const sql = `
+      UPDATE entity_extraction_queue
+      SET status = 'pending',
+          last_error = ?,
+          error_code = NULL,
+          next_retry_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+		await this.execute(sql, [progressMessage ?? null, id]);
 	}
 
 	/**
