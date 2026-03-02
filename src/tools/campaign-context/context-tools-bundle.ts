@@ -21,6 +21,7 @@ import {
 	getPlanningTaskProgress,
 	recordPlanningTasks,
 } from "./planning-task-tools";
+import { exportHandoutTool, generateHandoutTool } from "./player-handout-tools";
 import { generateContextRecapTool } from "./recap-tools";
 import {
 	listAllEntities,
@@ -66,6 +67,8 @@ export const campaignContextToolsBundle = {
 	completePlanningTask,
 	generateContextRecapTool,
 	captureConversationalContext,
+	generateHandoutTool,
+	exportHandoutTool,
 };
 
 /** Player-facing subset: search, list (sanitized), campaign details, message history */

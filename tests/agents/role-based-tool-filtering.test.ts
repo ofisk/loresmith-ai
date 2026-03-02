@@ -61,6 +61,8 @@ describe("Role-based tool filtering", () => {
 			expect(
 				campaignContextToolsBundle.checkHouseRuleConflictTool
 			).toBeDefined();
+			expect(campaignContextToolsBundle.generateHandoutTool).toBeDefined();
+			expect(campaignContextToolsBundle.exportHandoutTool).toBeDefined();
 		});
 
 		it("playerCampaignContextToolsBundle should exclude GM-only tools", () => {
@@ -99,6 +101,12 @@ describe("Role-based tool filtering", () => {
 			).toBeUndefined();
 			expect(
 				(playerCampaignContextToolsBundle as any).getDocumentContent
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).generateHandoutTool
+			).toBeUndefined();
+			expect(
+				(playerCampaignContextToolsBundle as any).exportHandoutTool
 			).toBeUndefined();
 		});
 	});
