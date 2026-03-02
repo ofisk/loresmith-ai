@@ -313,6 +313,7 @@ export const API_CONFIG = {
 		},
 		BILLING: {
 			CHECKOUT: "/billing/checkout",
+			CHANGE_PLAN: "/billing/change-plan",
 			PORTAL: "/billing/portal",
 			WEBHOOK: "/billing/webhook",
 			STATUS: "/billing/status",

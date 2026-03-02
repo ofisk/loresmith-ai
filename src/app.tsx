@@ -1085,9 +1085,7 @@ export default function Chat() {
 	}, [authState.isAuthenticated, fetchAllStagedShards]);
 
 	if (showBillingPage) {
-		return (
-			<BillingPage onBack={() => window.history.replaceState(null, "", "/")} />
-		);
+		return <BillingPage onBack={() => (window.location.href = "/")} />;
 	}
 
 	if (joinToken) {

@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import type Stripe from "stripe";
 import { getDAOFactory } from "@/dao/dao-factory";
+import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/routes/register-routes";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
@@ -31,6 +32,40 @@ function getUserAuth(
 		(c as { userAuth?: { username: string; isAdmin?: boolean } }).userAuth ??
 		null
 	);
+}
+
+const PRICE_KEYS = {
+	basic: {
+		monthly: "STRIPE_PRICE_BASIC_MONTHLY",
+		annual: "STRIPE_PRICE_BASIC_ANNUAL",
+	},
+	pro: {
+		monthly: "STRIPE_PRICE_PRO_MONTHLY",
+		annual: "STRIPE_PRICE_PRO_ANNUAL",
+	},
+} as const;
+
+async function getPriceIdForTier(
+	env: Env,
+	tier: "basic" | "pro",
+	interval: "monthly" | "annual"
+): Promise<string | null> {
+	let priceId = await getEnvVar(env, PRICE_KEYS[tier][interval], false);
+	if (!priceId && interval === "annual") {
+		priceId = await getEnvVar(env, PRICE_KEYS[tier].monthly, false);
+	}
+	return priceId ?? null;
+}
+
+async function getTierFromPriceId(
+	env: Env,
+	priceId: string
+): Promise<"basic" | "pro"> {
+	const proPrices = [
+		await getEnvVar(env, PRICE_KEYS.pro.monthly, false),
+		await getEnvVar(env, PRICE_KEYS.pro.annual, false),
+	].filter(Boolean);
+	return proPrices.includes(priceId) ? "pro" : "basic";
 }
 
 /** Sync subscription from Stripe when local DB is missing or stale (e.g. webhook was missed). */
@@ -68,11 +103,7 @@ async function syncSubscriptionFromStripe(
 			: sub.items.data[0]?.price?.id;
 	if (!priceId) return false;
 
-	const proPrices = [
-		await getEnvVar(env, "STRIPE_PRICE_PRO_MONTHLY", false),
-		await getEnvVar(env, "STRIPE_PRICE_PRO_ANNUAL", false),
-	].filter(Boolean);
-	const tier = proPrices.includes(priceId) ? "pro" : "basic";
+	const tier = await getTierFromPriceId(env, priceId);
 
 	const periodEnd = sub.current_period_end
 		? new Date(sub.current_period_end * 1000).toISOString()
@@ -153,21 +184,7 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 		return c.json({ error: "Invalid interval. Use monthly or annual." }, 400);
 	}
 
-	const priceKeys: Record<string, Record<string, string>> = {
-		basic: {
-			monthly: "STRIPE_PRICE_BASIC_MONTHLY",
-			annual: "STRIPE_PRICE_BASIC_ANNUAL",
-		},
-		pro: {
-			monthly: "STRIPE_PRICE_PRO_MONTHLY",
-			annual: "STRIPE_PRICE_PRO_ANNUAL",
-		},
-	};
-	const priceKey = priceKeys[tier][interval];
-	let priceId = await getEnvVar(c.env, priceKey, false);
-	if (!priceId && interval === "annual") {
-		priceId = await getEnvVar(c.env, priceKeys[tier].monthly, false);
-	}
+	const priceId = await getPriceIdForTier(c.env, tier, interval);
 	if (!priceId) {
 		return c.json(
 			{ error: "Billing not configured. Missing Stripe price ID." },
@@ -225,6 +242,91 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 	});
 
 	return c.json({ url: session.url });
+}
+
+export async function handleBillingChangePlan(c: ContextWithAuth) {
+	const auth = getUserAuth(c);
+	if (!auth?.username) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+
+	const body = await c.req.json().catch(() => ({}));
+	const tier = body?.tier as string;
+	if (tier !== "basic" && tier !== "pro") {
+		return c.json({ error: "Invalid tier. Use basic or pro." }, 400);
+	}
+
+	const dao = getDAOFactory(c.env);
+	const sub = await dao.subscriptionDAO.getByUsername(auth.username);
+	if (!sub?.stripe_subscription_id) {
+		return c.json(
+			{ error: "No active subscription. Subscribe first to change plans." },
+			400
+		);
+	}
+
+	if (sub.status !== "active") {
+		return c.json(
+			{ error: "Subscription is not active. Manage billing in the portal." },
+			400
+		);
+	}
+
+	const currentTier = sub.tier as "basic" | "pro";
+	if (currentTier === tier) {
+		return c.json({ error: "Already on this plan." }, 400);
+	}
+
+	const stripe = await getStripe(c.env);
+	const stripeSub = await stripe.subscriptions.retrieve(
+		sub.stripe_subscription_id
+	);
+	const subscriptionItem = stripeSub.items.data[0];
+	if (!subscriptionItem) {
+		return c.json({ error: "Invalid subscription." }, 500);
+	}
+
+	const currentPriceId =
+		typeof subscriptionItem.price === "string"
+			? subscriptionItem.price
+			: subscriptionItem.price?.id;
+	if (!currentPriceId) {
+		return c.json({ error: "Could not determine current plan." }, 500);
+	}
+
+	const isAnnual =
+		currentPriceId ===
+			(await getEnvVar(c.env, PRICE_KEYS.basic.annual, false)) ||
+		currentPriceId === (await getEnvVar(c.env, PRICE_KEYS.pro.annual, false));
+	const interval = isAnnual ? "annual" : "monthly";
+
+	const newPriceId = await getPriceIdForTier(c.env, tier, interval);
+	if (!newPriceId) {
+		return c.json(
+			{ error: "Billing not configured. Missing Stripe price ID." },
+			503
+		);
+	}
+
+	await stripe.subscriptions.update(sub.stripe_subscription_id, {
+		items: [{ id: subscriptionItem.id, price: newPriceId }],
+		metadata: { username: auth.username, tier },
+		proration_behavior: "create_prorations",
+	});
+
+	const periodEnd = stripeSub.current_period_end
+		? new Date(stripeSub.current_period_end * 1000).toISOString()
+		: undefined;
+	await dao.subscriptionDAO.upsertByStripeSubscriptionId(
+		sub.stripe_subscription_id,
+		{
+			tier,
+			status: "active",
+			current_period_end: periodEnd,
+		}
+	);
+
+	return c.json({ success: true, tier });
 }
 
 export async function handleBillingPortal(c: ContextWithAuth) {
@@ -339,11 +441,34 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 				? new Date(sub.current_period_end * 1000).toISOString()
 				: undefined;
 
-			await dao.subscriptionDAO.upsertByStripeSubscriptionId(subId, {
-				status:
-					event.type === "customer.subscription.deleted" ? "canceled" : status,
+			const resolvedStatus: SubscriptionStatus =
+				event.type === "customer.subscription.deleted" ? "canceled" : status;
+			const updatePayload: Parameters<
+				typeof dao.subscriptionDAO.upsertByStripeSubscriptionId
+			>[1] = {
+				status: resolvedStatus,
 				current_period_end: periodEnd,
-			});
+			};
+
+			// Sync tier from price when subscription is updated (plan change, etc.)
+			if (
+				event.type === "customer.subscription.updated" &&
+				(status === "active" || status === "trialing") &&
+				sub.items?.data?.[0]
+			) {
+				const priceId =
+					typeof sub.items.data[0].price === "string"
+						? sub.items.data[0].price
+						: sub.items.data[0].price?.id;
+				if (priceId) {
+					updatePayload.tier = await getTierFromPriceId(c.env, priceId);
+				}
+			}
+
+			await dao.subscriptionDAO.upsertByStripeSubscriptionId(
+				subId,
+				updatePayload
+			);
 			break;
 		}
 		default:

@@ -30,6 +30,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
 	const [upgrading, setUpgrading] = useState<string | null>(null);
+	const [changingPlan, setChangingPlan] = useState<string | null>(null);
 	const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
 
 	const jwt =
@@ -149,6 +150,41 @@ export function BillingPage({ onBack }: BillingPageProps) {
 		}
 	}
 
+	async function handleChangePlan(tier: "basic" | "pro") {
+		if (!jwt) return;
+		setChangingPlan(tier);
+		setCheckoutMessage(null);
+		try {
+			const res = await fetch(
+				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.BILLING.CHANGE_PLAN),
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${jwt}`,
+					},
+					body: JSON.stringify({ tier }),
+				}
+			);
+			const json = (await res.json()) as {
+				success?: boolean;
+				error?: string;
+			};
+			if (json.success) {
+				setCheckoutMessage("Plan updated successfully.");
+				fetchStatus();
+			} else {
+				setCheckoutMessage(json.error ?? "Failed to change plan");
+			}
+		} catch (err) {
+			setCheckoutMessage(
+				err instanceof Error ? err.message : "Failed to change plan"
+			);
+		} finally {
+			setChangingPlan(null);
+		}
+	}
+
 	if (!jwt) {
 		return (
 			<div className="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
@@ -248,14 +284,37 @@ export function BillingPage({ onBack }: BillingPageProps) {
 						</p>
 					)}
 					{isPaid && (
-						<button
-							type="button"
-							onClick={handleManageSubscription}
-							disabled={!!upgrading}
-							className="mt-4 text-sm text-neutral-600 dark:text-neutral-400 hover:underline disabled:opacity-50"
-						>
-							Manage subscription
-						</button>
+						<div className="mt-4 flex flex-wrap items-center gap-3">
+							{status.tier === "basic" && (
+								<PrimaryActionButton
+									onClick={() => handleChangePlan("pro")}
+									disabled={!!changingPlan || !!upgrading}
+									className="text-sm"
+								>
+									{changingPlan === "pro" ? "Updating..." : "Upgrade to Pro"}
+								</PrimaryActionButton>
+							)}
+							{status.tier === "pro" && (
+								<button
+									type="button"
+									onClick={() => handleChangePlan("basic")}
+									disabled={!!changingPlan || !!upgrading}
+									className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+								>
+									{changingPlan === "basic"
+										? "Updating..."
+										: "Downgrade to Basic"}
+								</button>
+							)}
+							<button
+								type="button"
+								onClick={handleManageSubscription}
+								disabled={!!upgrading || !!changingPlan}
+								className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline disabled:opacity-50"
+							>
+								Manage subscription
+							</button>
+						</div>
 					)}
 				</div>
 
