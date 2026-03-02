@@ -210,6 +210,92 @@ export async function requireGMRole(
 }
 
 /**
+ * Require campaign-level access for a JWT user.
+ * Returns the authenticated userId and campaign record when access is allowed.
+ */
+export async function requireCampaignAccessForTool(params: {
+	env: ToolEnv;
+	campaignId: string;
+	jwt: string | null | undefined;
+	toolCallId: string;
+}): Promise<
+	| {
+			userId: string;
+			campaign: {
+				campaignId: string;
+				name: string;
+				description: string | null;
+				metadata: string | null;
+			};
+	  }
+	| ToolResult
+> {
+	const { env, campaignId, jwt, toolCallId } = params;
+	const userId = extractUsernameFromJwt(jwt);
+	if (!userId) {
+		return createToolError(
+			"Invalid authentication token",
+			"Authentication failed",
+			401,
+			toolCallId
+		);
+	}
+
+	const access = await requireCampaignAccessByUserIdForTool({
+		env,
+		campaignId,
+		userId,
+		toolCallId,
+	});
+	if ("toolCallId" in access) {
+		return access;
+	}
+
+	return { userId, campaign: access.campaign };
+}
+
+export async function requireCampaignAccessByUserIdForTool(params: {
+	env: ToolEnv;
+	campaignId: string;
+	userId: string;
+	toolCallId: string;
+}): Promise<
+	| {
+			campaign: {
+				campaignId: string;
+				name: string;
+				description: string | null;
+				metadata: string | null;
+			};
+	  }
+	| ToolResult
+> {
+	const { env, campaignId, userId, toolCallId } = params;
+	const daoFactory = getDAOFactory(env);
+	const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+		campaignId,
+		userId
+	);
+	if (!campaign) {
+		return createToolError(
+			"Campaign not found",
+			"Campaign not found or access denied",
+			404,
+			toolCallId
+		);
+	}
+
+	return {
+		campaign: {
+			campaignId: campaign.campaignId,
+			name: campaign.name,
+			description: campaign.description ?? null,
+			metadata: campaign.metadata ?? null,
+		},
+	};
+}
+
+/**
  * Execute API request with standard error handling
  */
 export async function executeApiRequest(

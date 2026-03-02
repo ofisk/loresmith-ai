@@ -4,7 +4,7 @@
 
 LoreSmith AI helps you organize your game campaign resources, plan sessions, and manage your world with intelligent AI assistance. Upload documents, create campaigns, and let AI help you prepare engaging adventures.
 
-## 🧪 About This Project
+## About This Project
 
 LoreSmith was developed as an experimental project exploring two key areas:
 
@@ -20,7 +20,7 @@ LoreSmith was developed as an experimental project exploring two key areas:
 
 The project serves as both a functional application and a reference implementation for building complex, full-stack applications entirely on Cloudflare's edge platform. It demonstrates patterns for state management, data persistence, real-time features, and AI integration in an edge-first architecture.
 
-## 🎯 What is LoreSmith?
+## What is LoreSmith?
 
 LoreSmith is an AI-powered campaign planning tool that combines:
 
@@ -29,28 +29,29 @@ LoreSmith is an AI-powered campaign planning tool that combines:
 - **Session Planning**: Get AI-assisted session outlines and campaign guidance
 - **World State Tracking**: Automatically track changes to your campaign world as sessions progress
 
-## ✨ Key Features
+## Key features
 
-- **📚 Resource Library**: Upload PDFs, documents, and images (up to 500MB per file) with AI-powered extraction and indexing
+- **Resource library**: Upload PDFs, documents, and images (up to 500MB per file) with AI-powered extraction and indexing
 
   ![Add Resource](docs/images/add-resource-modal.png)
 
-- **🎲 Campaign Management**: Create and organize multiple campaigns with dedicated contexts
+- **Campaign management**: Create and organize multiple campaigns with dedicated contexts
 
   ![Create Campaign](docs/images/create-campaign-modal.png)
 
-- **🤖 AI-Powered Chat**: Conversational AI assistant that understands your campaign context
+- **AI-powered chat**: Conversational AI assistant that understands your campaign context
 
   ![AI Help](docs/images/ai-help-conversation.png)
 
-- **🔍 Intelligent Search**: Semantic search across your resources and campaign content using GraphRAG
-- **📝 Session Digests**: Automatically capture and track session summaries with world state changes
-- **🕰️ Campaign timeline tools**: Build chronological timelines from session digests and world state changes, including manual GM timeline notes
-- **🌐 World Knowledge Graph**: Entity extraction and relationship mapping for comprehensive campaign understanding
-- **💎 Loot & Reward Agent**: Generate encounter loot, suggest story-relevant magic items, and track distributed rewards as campaign items
-- **🔐 Bring Your Own API Key**: Users provide their own OpenAI API key for full control over AI costs
+- **Intelligent search**: Semantic search across your resources and campaign content using GraphRAG
+- **Session digests**: Automatically capture and track session summaries with world state changes
+- **Campaign timeline tools**: Build chronological timelines from session digests and world state changes, including manual GM timeline notes
+- **World knowledge graph**: Entity extraction and relationship mapping for comprehensive campaign understanding
+- **Loot and reward agent**: Generate encounter loot, suggest story-relevant magic items, and track distributed rewards as campaign items
+- **Rules reference agent**: Answer rules questions from indexed rulebooks and house rules with citation-first responses
+- **Bring your own API key**: Users provide their own OpenAI API key for full control over AI costs
 
-## 🚀 Quick Start
+## Quick start
 
 ### For Users
 
@@ -101,7 +102,7 @@ npm start                # Terminal 2: Frontend
 
 Access the application at `http://localhost:5173`
 
-## 🏗️ Architecture
+## Architecture
 
 LoreSmith is built on modern serverless architecture for scalability and global performance:
 
@@ -136,7 +137,7 @@ graph TB
     end
 ```
 
-## 📖 Documentation
+## Documentation
 
 ### For Users
 
@@ -158,7 +159,7 @@ graph TB
 - **[Model Configuration](docs/MODEL_CONFIGURATION.md)** - AI model configuration
 - **[File Processing](docs/FILE_ANALYSIS_SYSTEM.md)** - File upload and processing pipeline
 
-## 🔑 Authentication
+## Authentication
 
 LoreSmith uses JWT-based authentication with the following flow:
 
@@ -169,7 +170,7 @@ LoreSmith uses JWT-based authentication with the following flow:
 
 See [Authentication Flow](docs/AUTHENTICATION_FLOW.md) for detailed documentation.
 
-## 🎮 How It Works
+## How it works
 
 ### 1. Resource Upload & Processing
 
@@ -200,10 +201,11 @@ The AI assistant helps you:
 - Generate session outlines based on campaign context
 - Track world state changes after sessions
 - Build timeline views across sessions and changelog history
+- Answer mechanics questions from indexed rules content with source citations
 - Maintain continuity across sessions
 - Plan future encounters and story beats
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -248,7 +250,7 @@ npm run deploy          # Deploy to production
 npm run migrate         # Run database migrations
 ```
 
-## 🔒 Security
+## Security
 
 - **JWT Authentication**: Secure token-based authentication
 - **API key validation**: LLM provider API keys are validated before use
@@ -256,7 +258,7 @@ npm run migrate         # Run database migrations
 - **Session Expiration**: Automatic cleanup of expired sessions
 - **Edge Security**: All requests validated at the Cloudflare edge
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
@@ -266,11 +268,11 @@ We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.
 4. Add tests for new functionality
 5. Submit a pull request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙋 Support
+## Support
 
 - **Documentation**: Check our [docs](docs/) directory
 - **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/ofisk/loresmith-ai/issues)
@@ -278,4 +280,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ for game masters and storytellers everywhere**
+**Built for game masters and storytellers everywhere**

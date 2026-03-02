@@ -10,6 +10,7 @@ import {
 	createToolError,
 	createToolSuccess,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireCanSeeSpoilersForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
@@ -81,19 +82,16 @@ export const recordPlanningTasks = tool({
 			}
 			const { userId } = access;
 
-			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
-			}
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) return campaignAccess;
+			const { campaign } = campaignAccess;
+
+			const daoFactory = getDAOFactory(env);
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
@@ -201,19 +199,16 @@ export const getPlanningTaskProgress = tool({
 			}
 			const { userId } = access;
 
-			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
-			}
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) return campaignAccess;
+			const { campaign } = campaignAccess;
+
+			const daoFactory = getDAOFactory(env);
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
@@ -318,19 +313,15 @@ export const completePlanningTask = tool({
 			}
 			const { userId } = access;
 
-			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
 				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
-			}
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) return campaignAccess;
+
+			const daoFactory = getDAOFactory(env);
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;

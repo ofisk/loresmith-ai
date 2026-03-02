@@ -159,7 +159,7 @@ If the script fails partway through:
 
 ### Safety Notes
 
-⚠️ **WARNING**: This script will delete ALL data in:
+**Warning**: This script will delete ALL data in:
 
 - R2 bucket (all uploaded files)
 - D1 database (all campaigns, users, etc.)

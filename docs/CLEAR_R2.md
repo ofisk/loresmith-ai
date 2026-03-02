@@ -100,7 +100,7 @@ export CF_ACCOUNT_ID='f67932e71175b3ee7c945c6bb84c5259'
 
 ## What Gets Deleted
 
-**⚠️ Warning**: This will delete ALL files in the R2 bucket!
+**Warning**: This will delete ALL files in the R2 bucket!
 
 - All uploaded files
 - All file metadata objects
@@ -186,21 +186,21 @@ If using AWS CLI method:
 ## Example Output
 
 ```
-🗂️  R2 Storage Cleanup
+R2 Storage Cleanup
 ======================
-📦 Bucket: loresmith-files
-🏢 Account: f67932e71175b3ee7c945c6bb84c5259
+Bucket: loresmith-files
+Account: f67932e71175b3ee7c945c6bb84c5259
 
-🔑 Using Cloudflare API...
-📋 Fetching objects...
-📊 Found 15 objects in this batch
-🗑️  Deleted: users/123/file.pdf
-🗑️  Deleted: staging/temp-abc123
+Using Cloudflare API...
+Fetching objects...
+Found 15 objects in this batch
+Deleted: users/123/file.pdf
+Deleted: staging/temp-abc123
 ...
-✅ Reached end of object listing
+Reached end of object listing
 
-🎉 R2 cleanup completed!
-   📊 Total deleted: 15 objects
+R2 cleanup completed!
+   Total deleted: 15 objects
 ```
 
 ## References

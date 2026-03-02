@@ -18,6 +18,11 @@ import {
 } from "./entity-tools";
 import { generateContextRecapTool } from "./recap-tools";
 import {
+	lookupStatBlockTool,
+	resolveRulesConflictTool,
+	searchRulesTool,
+} from "./rules-reference-tools";
+import {
 	listAllEntities,
 	searchCampaignContext,
 	searchExternalResources,
@@ -54,6 +59,9 @@ export {
 	listHouseRulesTool,
 	updateHouseRuleTool,
 	checkHouseRuleConflictTool,
+	searchRulesTool,
+	lookupStatBlockTool,
+	resolveRulesConflictTool,
 	// World state tools
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
@@ -80,6 +88,9 @@ export const campaignContextTools = {
 	listHouseRulesTool,
 	updateHouseRuleTool,
 	checkHouseRuleConflictTool,
+	searchRulesTool,
+	lookupStatBlockTool,
+	resolveRulesConflictTool,
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
 	updateRelationshipWorldStateTool,

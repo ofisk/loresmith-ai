@@ -16,6 +16,7 @@ export type AgentType =
 	| "resources"
 	| "session-digest"
 	| "loot-reward"
+	| "rules-reference"
 	| "shards";
 
 export interface AgentIntent {

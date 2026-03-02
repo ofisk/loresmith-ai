@@ -105,17 +105,17 @@ No additional environment variables required. The system uses existing authentic
 ### Shard Generation
 
 - **Type**: `shards_generated`
-- **Message**: "🎉 X new shards generated from 'filename'! Check your 'Campaign Name' campaign to review them."
+- **Message**: "X new shards generated from 'filename'! Check your 'Campaign Name' campaign to review them."
 
 ### File Upload
 
 - **Type**: `file_uploaded`
-- **Message**: "✅ 'filename' has been uploaded successfully (X MB)"
+- **Message**: "'filename' has been uploaded successfully (X MB)"
 
 ### Campaign Creation
 
 - **Type**: `campaign_created`
-- **Message**: "🎯 Your campaign 'Campaign Name' has been created successfully!"
+- **Message**: "Your campaign 'Campaign Name' has been created successfully!"
 
 ### Success/Error
 
@@ -145,13 +145,13 @@ The system replaces the previous approach of embedding metadata in chat messages
 **Before:**
 
 ```
-🎉 24 new shards generated from "file.pdf"! Check your campaign to review them. Campaign: 5d79f59a-7528-4517-93ab-4177f518950c
+24 new shards generated from "file.pdf"! Check your campaign to review them. Campaign: 5d79f59a-7528-4517-93ab-4177f518950c
 ```
 
 **After:**
 
 ```
-🎉 24 new shards generated from "file.pdf"! Check your "Campaign Name" campaign to review them.
+24 new shards generated from "file.pdf"! Check your "Campaign Name" campaign to review them.
 ```
 
 ## Performance Considerations

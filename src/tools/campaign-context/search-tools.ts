@@ -15,8 +15,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
 } from "../utils";
 import { parseQueryIntent } from "./search-tools-query-intent";
@@ -224,20 +224,39 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
 			// If we have environment, use semantic search
 			if (env) {
-				const userId = extractUsernameFromJwt(jwt);
+				const access = await requireCampaignAccessForTool({
+					env,
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in access) {
+					const errorCode = (
+						access.result?.data as { errorCode?: number } | undefined
+					)?.errorCode;
+					if (errorCode === 404) {
+						return createToolError(
+							"Campaign not found",
+							"Campaign not found",
+							404,
+							toolCallId
+						);
+					}
+					if (errorCode === 401) {
+						return createToolError(
+							"Invalid authentication token",
+							"Authentication failed",
+							AUTH_CODES.INVALID_KEY,
+							toolCallId
+						);
+					}
+					return access;
+				}
+				const { userId, campaign } = access;
 				console.log(
 					"[Tool] searchCampaignContext - User ID extracted:",
 					userId
 				);
-
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						AUTH_CODES.INVALID_KEY,
-						toolCallId
-					);
-				}
 
 				// Declare name similarity tracking variables at function scope
 				// so they're accessible when filtering results later
@@ -250,22 +269,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 				console.log(
 					`[Tool] searchCampaignContext - Verifying campaign ${campaignId} for user ${userId}`
 				);
-				const campaign = await campaignDAO.getCampaignByIdWithMapping(
-					campaignId,
-					userId
-				);
-
-				if (!campaign) {
-					console.error(
-						`[Tool] searchCampaignContext - Campaign ${campaignId} not found for user ${userId}`
-					);
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
-						toolCallId
-					);
-				}
 
 				console.log(
 					`[Tool] searchCampaignContext - Verified campaign: ${campaign.name} (ID: ${campaign.campaignId})`

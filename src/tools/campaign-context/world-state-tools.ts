@@ -1,7 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
-import { getDAOFactory } from "@/dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { API_CONFIG } from "@/shared-config";
 import type { WorldStateChangelogPayload } from "@/types/world-state";
@@ -11,6 +10,7 @@ import {
 	createToolSuccess,
 	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessByUserIdForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
@@ -215,13 +215,13 @@ export const recordWorldEventTool = tool({
 		if (env) {
 			const userId = extractUsernameFromJwt(jwt);
 			if (userId) {
-				const daoFactory = getDAOFactory(env);
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-				if (campaign) {
+				const access = await requireCampaignAccessByUserIdForTool({
+					env,
+					campaignId,
+					userId,
+					toolCallId,
+				});
+				if (!("toolCallId" in access)) {
 					const gmError = await requireGMRole(
 						env,
 						campaignId,
@@ -303,13 +303,13 @@ export const updateEntityWorldStateTool = tool({
 		if (env) {
 			const userId = extractUsernameFromJwt(jwt);
 			if (userId) {
-				const daoFactory = getDAOFactory(env);
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-				if (campaign) {
+				const access = await requireCampaignAccessByUserIdForTool({
+					env,
+					campaignId,
+					userId,
+					toolCallId,
+				});
+				if (!("toolCallId" in access)) {
 					const gmError = await requireGMRole(
 						env,
 						campaignId,
@@ -401,13 +401,13 @@ export const updateRelationshipWorldStateTool = tool({
 		if (env) {
 			const userId = extractUsernameFromJwt(jwt);
 			if (userId) {
-				const daoFactory = getDAOFactory(env);
-				const campaign =
-					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-						campaignId,
-						userId
-					);
-				if (campaign) {
+				const access = await requireCampaignAccessByUserIdForTool({
+					env,
+					campaignId,
+					userId,
+					toolCallId,
+				});
+				if (!("toolCallId" in access)) {
 					const gmError = await requireGMRole(
 						env,
 						campaignId,

@@ -113,11 +113,11 @@ After clearing data:
 
 ## Important Notes
 
-⚠️ **This is a destructive operation** - all data will be permanently deleted.
+**This is a destructive operation** - all data will be permanently deleted.
 
-⚠️ **No backup is created** - ensure you have backups if needed.
+**No backup is created** - ensure you have backups if needed.
 
-⚠️ **Production impact** - this will affect all users and data.
+**Production impact** - this will affect all users and data.
 
 ## Troubleshooting
 

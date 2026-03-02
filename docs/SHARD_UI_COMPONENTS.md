@@ -4,19 +4,19 @@ A flexible system for displaying and editing both structured and unstructured sh
 
 ## Features
 
-### 🎯 **Automatic Type Detection**
+### **Automatic type detection**
 
 - Detects known structured shard types (spells, monsters, items, etc.)
 - Falls back to flexible display for custom/unstructured shards
 - Extensible system for adding new structured types
 
-### 🎨 **Adaptive UI Components**
+### **Adaptive UI components**
 
 - **StructuredShardCard**: Clean, organized display for known types - dynamically renders whatever properties are present
 - **FlexibleShardCard**: Flexible display for custom shards with inline editing
 - **PropertyField**: Generic editable field component supporting strings, numbers, arrays, and objects
 
-### 🔧 **Advanced Features**
+### **Advanced features**
 
 - **Bulk Operations**: Select and perform actions on multiple shards
 - **Advanced Filtering**: Search, filter by type, confidence, and selection status
@@ -169,7 +169,7 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
 // In src/components/shard/ShardTypeDetector.ts
 const icons: Record<string, string> = {
   // ... existing icons
-  custom_type: "🔧",
+  custom_type: "tool",
 };
 ```
 

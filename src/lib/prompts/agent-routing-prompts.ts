@@ -38,6 +38,7 @@ Routing rules:
 - Entity graph operations (extract entities from text, create relationship, detect communities, entity graph) → "entity-graph"
 - Session recaps (record session, session digest, what happened last session, create a new digest for a session that just happened) → "session-digest"
 - Loot and rewards (encounter loot, dragon hoard treasure, meaningful magic item rewards, track distributed loot) → "loot-reward"
+- Rules reference questions (grappling, concentration checks, action economy, spellcasting rules, stat block lookups, "what does the rule say", "does our house rule apply") → "rules-reference"
 - General help/how-to questions about using the application → "onboarding"
 
 Respond with: agent_name|confidence|reason
@@ -57,6 +58,9 @@ Examples:
 - "What loot should the players find after defeating the bandit captain?" → loot-reward|95|Loot generation
 - "Suggest a meaningful magic item reward for the ranger who completed her quest" → loot-reward|95|Magic item recommendation
 - "Track this distributed item for the party inventory" → loot-reward|95|Loot tracking
+- "How does grappling work in 5e?" → rules-reference|95|Rules lookup
+- "What is the rule for concentration checks?" → rules-reference|95|Rules lookup
+- "Does our house rule on healing apply here?" → rules-reference|95|Rules conflict resolution
 - "let's do a readout" / "construct the readout" / "give me the session plan" / "I'm ready for the readout" → recap|95|Session plan readout (from completed next steps)
 - "how do I upload files?" → onboarding|85|General help`;
 }

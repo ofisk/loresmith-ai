@@ -10,8 +10,8 @@ import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
-	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "../utils";
@@ -210,29 +210,16 @@ export const generateLootTool = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
+			const access = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) return access;
+			const { userId, campaign } = access;
 
 			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
-			}
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
@@ -376,29 +363,16 @@ export const suggestMagicItemTool = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
+			const access = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) return access;
+			const { userId, campaign } = access;
 
 			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
-			}
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
@@ -576,29 +550,16 @@ export const trackDistributedLootTool = tool({
 				);
 			}
 
-			const userId = extractUsernameFromJwt(jwt);
-			if (!userId) {
-				return createToolError(
-					"Invalid authentication token",
-					"Authentication failed",
-					401,
-					toolCallId
-				);
-			}
+			const access = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in access) return access;
+			const { userId, campaign } = access;
 
 			const daoFactory = getDAOFactory(env);
-			const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
-				campaignId,
-				userId
-			);
-			if (!campaign) {
-				return createToolError(
-					"Campaign not found",
-					"Campaign not found or access denied",
-					404,
-					toolCallId
-				);
-			}
 
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;

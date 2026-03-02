@@ -33,11 +33,11 @@ npm run dev:setup
 
 This script will:
 
-- ✅ Check prerequisites
-- ✅ Create configuration files
-- ✅ Set up Cloudflare resources
-- ✅ Run database migrations
-- ✅ Validate the setup
+- Check prerequisites
+- Create configuration files
+- Set up Cloudflare resources
+- Run database migrations
+- Validate the setup
 
 ### 2. Manual Configuration
 
@@ -211,10 +211,10 @@ Run the validation script to check your setup:
 
 This will verify:
 
-- ✅ Wrangler CLI installed and logged in
-- ✅ Configuration files exist
-- ✅ Cloudflare resources created
-- ✅ Database migrations applied
+- Wrangler CLI installed and logged in
+- Configuration files exist
+- Cloudflare resources created
+- Database migrations applied
 
 ## Cost Estimation
 

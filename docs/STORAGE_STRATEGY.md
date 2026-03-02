@@ -17,11 +17,11 @@ This document outlines the optimal storage strategy for different types of data 
 
 **Current Usage:**
 
-- ✅ Campaigns and campaign metadata
-- ✅ Campaign resources and relationships
-- ✅ File chunks for RAG processing
-- ✅ File metadata and search indexes
-- ✅ Campaign context and character data
+- Campaigns and campaign metadata
+- Campaign resources and relationships
+- File chunks for RAG processing
+- File metadata and search indexes
+- Campaign context and character data
 
 **Schema:**
 
@@ -46,10 +46,10 @@ campaign_characters (id, campaign_id, character_name, backstory, metadata, creat
 
 **Current Usage:**
 
-- ✅ Document files (primary storage)
-- ✅ File metadata as separate objects
-- ✅ Character sheet files
-- ✅ Images and other binary assets
+- Document files (primary storage)
+- File metadata as separate objects
+- Character sheet files
+- Images and other binary assets
 
 **Structure:**
 
@@ -69,9 +69,9 @@ uploads/{username}/{filename}.metadata - File metadata
 
 **Current Usage:**
 
-- ✅ UserFileTracker (session-based file tracking)
-- ✅ CampaignManager (simplified - could be moved to D1)
-- ✅ Chat sessions (if implemented)
+- UserFileTracker (session-based file tracking)
+- CampaignManager (simplified - could be moved to D1)
+- Chat sessions (if implemented)
 
 ### 4. KV (Key-Value) - Fast Lookups
 
@@ -85,8 +85,8 @@ uploads/{username}/{filename}.metadata - File metadata
 
 **Current Usage:**
 
-- ❌ Not currently implemented
-- 🔄 Recommended for future additions
+- Not currently implemented
+- Recommended for future additions
 
 ## Recommended Optimizations
 

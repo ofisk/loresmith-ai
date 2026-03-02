@@ -577,17 +577,17 @@ Is estimated memory > 100MB?
 
 ## Current Status
 
-✅ **Safe for**: Graphs up to ~50k entities, 200k relationships (~50-80MB)
-⚠️ **Monitor**: Graphs 40k-60k entities (warnings logged)
-❌ **Requires optimization**: Graphs >60k entities (errors with guidance)
+**Safe for**: Graphs up to ~50k entities, 200k relationships (~50-80MB)
+**Monitor**: Graphs 40k-60k entities (warnings logged)
+**Requires optimization**: Graphs >60k entities (errors with guidance)
 
 ## Implementation Status
 
-- ✅ Memory estimation function implemented
-- ✅ Pre-flight checks with warnings/errors
-- ✅ Minimal graph loading (90% memory savings)
-- ✅ Safety limits enforced
-- ⏳ Graph sampling (ready to implement)
-- ⏳ Durable Object support (design ready)
-- ⏳ Incremental processing (design ready)
-- ⏳ Graph reduction utilities (design ready)
+- Memory estimation function implemented
+- Pre-flight checks with warnings/errors
+- Minimal graph loading (90% memory savings)
+- Safety limits enforced
+- Graph sampling (ready to implement)
+- Durable Object support (design ready)
+- Incremental processing (design ready)
+- Graph reduction utilities (design ready)
