@@ -13,8 +13,7 @@ interface NotificationContextType {
 	clearNotifications: () => void;
 	// Active, user-visible notifications (toast list)
 	activeNotifications: NotificationPayload[];
-	/** Dismiss by server id (string) or timestamp (number) */
-	dismissNotification: (timestampOrId: number | string) => void;
+	dismissNotification: (timestamp: number) => void;
 	clearActiveNotifications: () => void;
 }
 
@@ -228,13 +227,9 @@ export function NotificationProvider({
 			enabled: shouldConnect, // Only connect if authenticated
 		});
 
-	const dismissNotification = (timestampOrId: number | string) => {
+	const dismissNotification = (timestamp: number) => {
 		setActiveNotifications((prev) =>
-			prev.filter((n) =>
-				typeof timestampOrId === "string"
-					? n.id !== timestampOrId
-					: n.timestamp !== timestampOrId
-			)
+			prev.filter((notification) => notification.timestamp !== timestamp)
 		);
 	};
 

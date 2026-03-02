@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NOTIFICATION_TYPES } from "../../constants/notification-types";
 import type { NotificationPayload } from "../../durable-objects/notification-hub";
@@ -37,72 +37,6 @@ export function NotificationBell({
 
 	// Ensure document is available for portal
 	useEffect(() => setMounted(true), []);
-
-	/** Renders message with campaign name and file/display name bold and unquoted when present in data */
-	function renderMessage(notification: NotificationPayload) {
-		const message = notification.message;
-		if (typeof message !== "string") return message;
-		const campaignName = notification.data?.campaignName as string | undefined;
-		const fileName = notification.data?.fileName as string | undefined;
-		const addedBy = notification.data?.addedBy as string | undefined;
-
-		// Helper: split text by quoted name and return [text, bold(name), text, ...]
-		function boldQuoted(
-			text: string,
-			name: string,
-			keyPrefix: string
-		): ReactNode[] {
-			const quoted = `"${name}"`;
-			if (!name || !text.includes(quoted)) return [text];
-			const parts = text.split(quoted);
-			const out: ReactNode[] = [];
-			parts.forEach((part, i) => {
-				if (i > 0)
-					out.push(
-						<strong key={`${keyPrefix}-${i}`} className="font-semibold">
-							{name}
-						</strong>
-					);
-				out.push(part);
-			});
-			return out;
-		}
-
-		// First bold campaign name, then bold file name in any string segments
-		let content: ReactNode[] = [message];
-		if (campaignName && message.includes(`"${campaignName}"`)) {
-			content = content.flatMap((node) =>
-				typeof node === "string"
-					? boldQuoted(node, campaignName, "campaign")
-					: [node]
-			);
-		}
-		if (
-			fileName &&
-			typeof message === "string" &&
-			message.includes(`"${fileName}"`)
-		) {
-			content = content.flatMap((node, idx) =>
-				typeof node === "string"
-					? boldQuoted(node, fileName, `file-${idx}`)
-					: [node]
-			);
-		}
-		if (
-			addedBy &&
-			typeof message === "string" &&
-			message.includes(`"${addedBy}"`)
-		) {
-			content = content.flatMap((node, idx) =>
-				typeof node === "string"
-					? boldQuoted(node, addedBy, `addedBy-${idx}`)
-					: [node]
-			);
-		}
-		if (content.length === 1 && typeof content[0] === "string")
-			return content[0];
-		return <span>{content}</span>;
-	}
 
 	const getIcon = (type: string) => {
 		switch (type) {
@@ -218,58 +152,56 @@ export function NotificationBell({
 								</div>
 							) : (
 								<div className="divide-y divide-gray-700">
-									{notifications.map((notification, index) => {
-										const notificationId =
-											notification.id ?? `${notification.timestamp}-${index}`;
-										return (
-											<div
-												key={notificationId}
-												className={`p-3 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 transition-colors ${getTypeStyles(notification.type)}`}
-											>
-												<div className="flex items-start space-x-3">
-													<div className="flex-shrink-0 text-lg">
-														{getIcon(notification.type)}
-													</div>
-
-													<div className="flex-1 min-w-0">
-														<h4 className="text-sm font-medium mb-1 text-gray-100">
-															{notification.title}
-														</h4>
-														<p className="text-sm opacity-90 text-gray-300">
-															{renderMessage(notification)}
-														</p>
-														<p className="text-xs opacity-70 mt-1 text-gray-400">
-															{new Date(
-																notification.timestamp
-															).toLocaleTimeString()}
-														</p>
-													</div>
-
-													<button
-														type="button"
-														onClick={() => onDismiss(notificationId)}
-														className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
-														aria-label="Dismiss notification"
-													>
-														<svg
-															className="w-4 h-4"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<title>Dismiss</title>
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																strokeWidth={2}
-																d="M6 18L18 6M6 6l12 12"
-															/>
-														</svg>
-													</button>
+									{notifications.map((notification, index) => (
+										<div
+											key={`${notification.timestamp}-${index}`}
+											className={`p-3 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 transition-colors ${getTypeStyles(notification.type)}`}
+										>
+											<div className="flex items-start space-x-3">
+												<div className="flex-shrink-0 text-lg">
+													{getIcon(notification.type)}
 												</div>
+
+												<div className="flex-1 min-w-0">
+													<h4 className="text-sm font-medium mb-1 text-gray-100">
+														{notification.title}
+													</h4>
+													<p className="text-sm opacity-90 text-gray-300">
+														{notification.message}
+													</p>
+													<p className="text-xs opacity-70 mt-1 text-gray-400">
+														{new Date(
+															notification.timestamp
+														).toLocaleTimeString()}
+													</p>
+												</div>
+
+												<button
+													type="button"
+													onClick={() =>
+														onDismiss(`${notification.timestamp}-${index}`)
+													}
+													className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
+													aria-label="Dismiss notification"
+												>
+													<svg
+														className="w-4 h-4"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<title>Dismiss</title>
+														<path
+															strokeLinecap="round"
+															strokeLinejoin="round"
+															strokeWidth={2}
+															d="M6 18L18 6M6 6l12 12"
+														/>
+													</svg>
+												</button>
 											</div>
-										);
-									})}
+										</div>
+									))}
 								</div>
 							)}
 						</div>
