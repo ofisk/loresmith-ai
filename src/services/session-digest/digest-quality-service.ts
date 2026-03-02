@@ -34,6 +34,7 @@ export interface DigestQualityResult {
 }
 
 export interface DigestQualityServiceOptions {
+	llmApiKey?: string;
 	openaiApiKey?: string;
 	db?: D1Database;
 	vectorize?: VectorizeIndex;
@@ -41,16 +42,38 @@ export interface DigestQualityServiceOptions {
 }
 
 export class DigestQualityService {
+	private readonly llmApiKey?: string;
 	private readonly openaiApiKey?: string;
 	private readonly db?: D1Database;
 	private readonly vectorize?: VectorizeIndex;
 	private readonly env?: any;
 
 	constructor(options: DigestQualityServiceOptions = {}) {
+		this.llmApiKey = options.llmApiKey;
 		this.openaiApiKey = options.openaiApiKey;
 		this.db = options.db;
 		this.vectorize = options.vectorize;
 		this.env = options.env;
+	}
+
+	private getResolvedLlmApiKey(): string | undefined {
+		if (this.llmApiKey?.trim()) return this.llmApiKey.trim();
+		const providerKeyName =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? "ANTHROPIC_API_KEY"
+				: "OPENAI_API_KEY";
+		const fromEnv = this.env?.[providerKeyName];
+		return typeof fromEnv === "string" && fromEnv.trim().length > 0
+			? fromEnv.trim()
+			: undefined;
+	}
+
+	private getResolvedOpenAIApiKey(): string | undefined {
+		if (this.openaiApiKey?.trim()) return this.openaiApiKey.trim();
+		const fromEnv = this.env?.OPENAI_API_KEY;
+		return typeof fromEnv === "string" && fromEnv.trim().length > 0
+			? fromEnv.trim()
+			: undefined;
 	}
 
 	/**
@@ -60,12 +83,13 @@ export class DigestQualityService {
 		digestData: SessionDigestData,
 		campaignId?: string
 	): Promise<DigestQualityResult> {
+		const llmApiKey = this.getResolvedLlmApiKey();
 		const completeness = this.checkCompleteness(digestData);
 
 		let specificity = { score: 10, issues: [] as string[] };
 		const consistency = await this.checkConsistency(digestData, campaignId);
 		let relevance = { score: 10, issues: [] as string[] };
-		if (this.openaiApiKey) {
+		if (llmApiKey) {
 			try {
 				const combined = await this.checkSpecificityAndRelevance(digestData);
 				specificity = combined.specificity;
@@ -195,7 +219,8 @@ export class DigestQualityService {
 		specificity: { score: number; issues: string[] };
 		relevance: { score: number; issues: string[] };
 	}> {
-		if (!this.openaiApiKey) {
+		const llmApiKey = this.getResolvedLlmApiKey();
+		if (!llmApiKey) {
 			return {
 				specificity: { score: 10, issues: [] },
 				relevance: { score: 10, issues: [] },
@@ -247,7 +272,7 @@ Return:
 		try {
 			const llmProvider = createLLMProvider({
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-				apiKey: this.openaiApiKey,
+				apiKey: llmApiKey,
 				defaultModel: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: 2200,
@@ -316,8 +341,11 @@ Return:
 		});
 
 		// If we have AI and GraphRAG available, use them for advanced consistency checks
+		const llmApiKey = this.getResolvedLlmApiKey();
+		const openaiApiKey = this.getResolvedOpenAIApiKey();
 		if (
-			this.openaiApiKey &&
+			llmApiKey &&
+			openaiApiKey &&
 			campaignId &&
 			this.db &&
 			this.vectorize &&
@@ -354,7 +382,15 @@ Return:
 		digestData: SessionDigestData,
 		campaignId: string
 	): Promise<string[]> {
-		if (!this.openaiApiKey || !this.db || !this.vectorize || !this.env) {
+		const llmApiKey = this.getResolvedLlmApiKey();
+		const openaiApiKey = this.getResolvedOpenAIApiKey();
+		if (
+			!llmApiKey ||
+			!openaiApiKey ||
+			!this.db ||
+			!this.vectorize ||
+			!this.env
+		) {
 			return [];
 		}
 
@@ -362,7 +398,7 @@ Return:
 		const digestText = this.digestDataToText(digestData);
 
 		const entityExtractionService = new EntityExtractionService(
-			this.openaiApiKey || null
+			llmApiKey || null
 		);
 
 		let extractedEntities: Array<{
@@ -377,7 +413,7 @@ Return:
 				campaignId,
 				sourceId: `digest-consistency-check-${Date.now()}`,
 				sourceType: "session_digest",
-				llmApiKey: this.openaiApiKey,
+				llmApiKey,
 			});
 
 			extractedEntities = extracted.map((entity) => ({
@@ -400,7 +436,7 @@ Return:
 		const planningContextService = createPlanningContextService(
 			this.db,
 			this.vectorize,
-			this.openaiApiKey,
+			openaiApiKey,
 			this.env
 		);
 		if (!planningContextService) {
@@ -526,7 +562,7 @@ Return:
 
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-			apiKey: this.openaiApiKey,
+			apiKey: llmApiKey,
 			defaultModel: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 			defaultTemperature: 0.1,
 			defaultMaxTokens: 1500,

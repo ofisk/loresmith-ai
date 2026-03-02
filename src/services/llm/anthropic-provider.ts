@@ -1,5 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { APICallError, generateText, Output } from "ai";
+import { APICallError, generateText } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
 import { OpenAIAPIKeyError } from "@/lib/errors";
 import type {
@@ -36,6 +36,22 @@ function getUsageTokens(usage: unknown): number {
 	return (
 		typed?.totalTokens ?? (typed?.inputTokens ?? 0) + (typed?.outputTokens ?? 0)
 	);
+}
+
+function stripMarkdownCodeFence(text: string): string {
+	const trimmed = text.trim();
+	const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+	return fenceMatch ? fenceMatch[1].trim() : trimmed;
+}
+
+function extractJsonObjectText(text: string): string | null {
+	const stripped = stripMarkdownCodeFence(text);
+	const firstBrace = stripped.indexOf("{");
+	const lastBrace = stripped.lastIndexOf("}");
+	if (firstBrace >= 0 && lastBrace > firstBrace) {
+		return stripped.slice(firstBrace, lastBrace + 1);
+	}
+	return null;
 }
 
 /**
@@ -118,7 +134,7 @@ export class AnthropicProvider implements LLMProvider {
 		const schemaInstructions = parsedSchema
 			? `\n\nYou MUST return JSON that conforms to this JSON Schema:\n${JSON.stringify(parsedSchema)}`
 			: "";
-		const finalPrompt = `Respond with valid JSON only.\n\n${prompt}${schemaInstructions}`;
+		const finalPrompt = `Respond with valid JSON only. Do not wrap the JSON in markdown fences.\n\n${prompt}${schemaInstructions}`;
 
 		try {
 			const anthropic = createAnthropic({ apiKey: this.apiKey });
@@ -128,12 +144,17 @@ export class AnthropicProvider implements LLMProvider {
 				prompt: finalPrompt,
 				temperature,
 				maxOutputTokens: maxTokens,
-				output: Output.json(),
 			});
-			const output = result.output;
-			if (output === undefined || output === null) {
+
+			const rawText = result.text;
+			if (!rawText || rawText.trim().length === 0) {
 				throw new Error("Anthropic API returned empty structured output");
 			}
+			const jsonText = extractJsonObjectText(rawText);
+			if (!jsonText) {
+				throw new Error("Anthropic API returned non-JSON structured output");
+			}
+			const output = JSON.parse(jsonText) as T;
 
 			const tokens = getUsageTokens(result.usage);
 			if (tokens > 0 && options.onUsage) {

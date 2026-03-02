@@ -790,7 +790,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						dataStream.write({ type: "text-start", id: TEXT_PART_ID });
 						let fullText = "";
 						for await (const chunk of result.textStream) {
-							const sanitizedChunk = sanitizeGeneratedAssistantText(chunk);
+							let sanitizedChunk = sanitizeGeneratedAssistantText(chunk);
+							// Repair sentence spacing across stream chunk boundaries:
+							// if previous chunk ended with punctuation and this one starts with
+							// an uppercase letter, insert a joining space.
+							if (
+								fullText.length > 0 &&
+								sanitizedChunk.length > 0 &&
+								/[.!?]$/.test(fullText) &&
+								/^[A-Z]/.test(sanitizedChunk)
+							) {
+								sanitizedChunk = ` ${sanitizedChunk}`;
+							}
 							fullText += sanitizedChunk;
 							dataStream.write({
 								type: "text-delta",
