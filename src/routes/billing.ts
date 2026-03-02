@@ -33,6 +33,63 @@ function getUserAuth(
 	);
 }
 
+/** Sync subscription from Stripe when local DB is missing or stale (e.g. webhook was missed). */
+async function syncSubscriptionFromStripe(
+	env: Env,
+	username: string,
+	email: string | null | undefined,
+	existingCustomerId: string | null
+): Promise<boolean> {
+	const stripe = await getStripe(env).catch(() => null);
+	if (!stripe) return false;
+
+	let customerId = existingCustomerId;
+	if (!customerId && email) {
+		const customers = await stripe.customers.list({ email, limit: 1 });
+		if (customers.data.length === 0) return false;
+		customerId = customers.data[0].id;
+	}
+	if (!customerId) return false;
+
+	const subs = await stripe.subscriptions.list({
+		customer: customerId,
+		status: "all",
+		limit: 10,
+	});
+	const activeSub = subs.data.find(
+		(s) => s.status === "active" || s.status === "trialing"
+	);
+	if (!activeSub) return false;
+
+	const sub = activeSub;
+	const priceId =
+		typeof sub.items.data[0]?.price === "string"
+			? sub.items.data[0].price
+			: sub.items.data[0]?.price?.id;
+	if (!priceId) return false;
+
+	const proPrices = [
+		await getEnvVar(env, "STRIPE_PRICE_PRO_MONTHLY", false),
+		await getEnvVar(env, "STRIPE_PRICE_PRO_ANNUAL", false),
+	].filter(Boolean);
+	const tier = proPrices.includes(priceId) ? "pro" : "basic";
+
+	const periodEnd = sub.current_period_end
+		? new Date(sub.current_period_end * 1000).toISOString()
+		: undefined;
+
+	const dao = getDAOFactory(env);
+	await dao.subscriptionDAO.upsertFromStripe({
+		username,
+		stripe_customer_id: customerId,
+		stripe_subscription_id: sub.id,
+		tier: tier as "basic" | "pro",
+		status: "active",
+		current_period_end: periodEnd,
+	});
+	return true;
+}
+
 export async function handleBillingStatus(c: ContextWithAuth) {
 	const auth = getUserAuth(c);
 	if (!auth?.username) {
@@ -40,7 +97,24 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 	}
 
 	const subService = getSubscriptionService(c.env);
-	const tier = await subService.getTier(auth.username, auth.isAdmin);
+	let tier = await subService.getTier(auth.username, auth.isAdmin);
+
+	// If local DB says free but user might have a Stripe subscription (e.g. webhook was missed), sync from Stripe
+	if (tier === "free") {
+		const dao = getDAOFactory(c.env);
+		const user = await dao.authUserDAO.getUserByUsername(auth.username);
+		const existingSub = await dao.subscriptionDAO.getByUsername(auth.username);
+		const synced = await syncSubscriptionFromStripe(
+			c.env,
+			auth.username,
+			user?.email,
+			existingSub?.stripe_customer_id ?? null
+		);
+		if (synced) {
+			tier = await subService.getTier(auth.username, auth.isAdmin);
+		}
+	}
+
 	const limits = subService.getTierLimits(tier);
 
 	const dao = getDAOFactory(c.env);
