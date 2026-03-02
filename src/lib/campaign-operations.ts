@@ -75,7 +75,7 @@ export async function createCampaign(options: CreateCampaignOptions) {
 export async function addResourceToCampaign(options: AddResourceOptions) {
 	const {
 		env,
-		username: _username,
+		username: actorUsername,
 		campaignId,
 		resourceId,
 		fileKey,
@@ -98,7 +98,13 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
 		`[CampaignOps] Added resource ${fileKey} to campaign ${campaignId}`
 	);
 
-	// Notify all campaign members that a file was added
+	// Notify all campaign members; use display name (sidebar label) when available
+	const resource = await campaignDAO.getCampaignResourceById(
+		resourceId,
+		campaignId
+	);
+	const displayName = resource?.display_name ?? fileName;
+
 	const campaign = await campaignDAO.getCampaignById(campaignId);
 	if (campaign) {
 		try {
@@ -109,11 +115,12 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
 				() => ({
 					type: NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
 					title: "File added to campaign",
-					message: `📄 "${fileName}" was added to "${campaign.name}".`,
+					message: `📄 "${displayName}" was added to "${campaign.name}" by "${actorUsername}".`,
 					data: {
 						campaignId,
 						campaignName: campaign.name,
-						fileName,
+						fileName: displayName,
+						addedBy: actorUsername,
 					},
 				}),
 				[]

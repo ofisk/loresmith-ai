@@ -130,4 +130,37 @@ describe("NotificationHub", () => {
 
 		expect(response.status).toBe(404);
 	});
+
+	it("should handle dismiss request", async () => {
+		const request = new Request("http://localhost/dismiss", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ id: "123:abc-uuid" }),
+		});
+		const response = await notificationHub.fetch(request);
+		expect(response.status).toBe(200);
+		const result = (await response.json()) as { success: boolean };
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject dismiss without id", async () => {
+		const request = new Request("http://localhost/dismiss", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({}),
+		});
+		const response = await notificationHub.fetch(request);
+		expect(response.status).toBe(400);
+	});
+
+	it("should handle clear request", async () => {
+		const request = new Request("http://localhost/clear", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+		});
+		const response = await notificationHub.fetch(request);
+		expect(response.status).toBe(200);
+		const result = (await response.json()) as { success: boolean };
+		expect(result.success).toBe(true);
+	});
 });

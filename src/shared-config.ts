@@ -427,6 +427,8 @@ export const API_CONFIG = {
 			MINT_STREAM: "/notifications/mint-stream",
 			PUBLISH: "/notifications/publish",
 			STREAM_SUBSCRIBE: "/notifications/stream/subscribe",
+			DISMISS: "/notifications/dismiss",
+			CLEAR: "/notifications/clear",
 		},
 		TELEMETRY: {
 			RATINGS: "/telemetry/ratings",
