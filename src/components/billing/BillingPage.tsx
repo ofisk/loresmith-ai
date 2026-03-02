@@ -29,6 +29,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 	const [loading, setLoading] = useState(true);
 	const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
 	const [upgrading, setUpgrading] = useState<string | null>(null);
+	const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
 
 	const jwt =
 		typeof window !== "undefined"
@@ -92,7 +93,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${jwt}`,
 					},
-					body: JSON.stringify({ tier }),
+					body: JSON.stringify({ tier, interval }),
 				}
 			);
 			const json = (await res.json()) as { url?: string; error?: string };
@@ -252,10 +253,41 @@ export function BillingPage({ onBack }: BillingPageProps) {
 
 				{status.tier === "free" && (
 					<div className="space-y-4">
-						<h2 className="text-lg font-semibold">Upgrade</h2>
+						<div className="flex items-center justify-between">
+							<h2 className="text-lg font-semibold">Upgrade</h2>
+							<div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 bg-neutral-100 dark:bg-neutral-800">
+								<button
+									type="button"
+									onClick={() => setInterval("monthly")}
+									className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+										interval === "monthly"
+											? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 font-medium shadow-sm"
+											: "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+									}`}
+								>
+									Monthly
+								</button>
+								<button
+									type="button"
+									onClick={() => setInterval("annual")}
+									className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+										interval === "annual"
+											? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 font-medium shadow-sm"
+											: "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+									}`}
+								>
+									Annual
+									<span className="ml-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+										Save ~15%
+									</span>
+								</button>
+							</div>
+						</div>
 						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="p-6 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-								<h3 className="font-semibold">Basic — $9/month</h3>
+								<h3 className="font-semibold">
+									Basic — {interval === "monthly" ? "$9/month" : "$92/year"}
+								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 									5 campaigns, 25 files, 25MB storage, higher rate limits
 								</p>
@@ -270,7 +302,9 @@ export function BillingPage({ onBack }: BillingPageProps) {
 								</PrimaryActionButton>
 							</div>
 							<div className="p-6 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-								<h3 className="font-semibold">Pro — $18/month</h3>
+								<h3 className="font-semibold">
+									Pro — {interval === "monthly" ? "$18/month" : "$184/year"}
+								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 									Unlimited campaigns, 100 files, 100MB, 2× rate limits
 								</p>

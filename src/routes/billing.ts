@@ -71,15 +71,29 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 
 	const body = await c.req.json().catch(() => ({}));
 	const tier = (body?.tier as string) || "basic";
+	const interval = (body?.interval as string) || "monthly";
 	if (tier !== "basic" && tier !== "pro") {
 		return c.json({ error: "Invalid tier. Use basic or pro." }, 400);
 	}
+	if (interval !== "monthly" && interval !== "annual") {
+		return c.json({ error: "Invalid interval. Use monthly or annual." }, 400);
+	}
 
-	const priceKey =
-		tier === "basic"
-			? "STRIPE_PRICE_BASIC_MONTHLY"
-			: "STRIPE_PRICE_PRO_MONTHLY";
-	const priceId = await getEnvVar(c.env, priceKey, false);
+	const priceKeys: Record<string, Record<string, string>> = {
+		basic: {
+			monthly: "STRIPE_PRICE_BASIC_MONTHLY",
+			annual: "STRIPE_PRICE_BASIC_ANNUAL",
+		},
+		pro: {
+			monthly: "STRIPE_PRICE_PRO_MONTHLY",
+			annual: "STRIPE_PRICE_PRO_ANNUAL",
+		},
+	};
+	const priceKey = priceKeys[tier][interval];
+	let priceId = await getEnvVar(c.env, priceKey, false);
+	if (!priceId && interval === "annual") {
+		priceId = await getEnvVar(c.env, priceKeys[tier].monthly, false);
+	}
 	if (!priceId) {
 		return c.json(
 			{ error: "Billing not configured. Missing Stripe price ID." },

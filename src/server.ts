@@ -8,6 +8,7 @@ import {
 	scheduled as scheduledFn,
 } from "@/queue-consumer";
 import { type Env, registerRoutes } from "@/routes/register-routes";
+import { API_CONFIG } from "@/shared-config";
 import type { RebuildQueueMessage } from "@/types/rebuild-queue";
 
 export { Chat } from "@/durable-objects/chat";
@@ -34,6 +35,29 @@ app.use("*", async (c, next) => {
 			status: 204,
 			headers: getCorsHeaders(c.req.raw, c.env),
 		});
+	}
+
+	// Restrict usage to U.S. (e.g. Anthropic ToS). Exclude Stripe webhook (server-to-server).
+	const country =
+		c.req.header("CF-IPCountry") ??
+		(c.req.raw as Request & { cf?: { country?: string } }).cf?.country ??
+		"";
+	if (
+		country &&
+		country !== "US" &&
+		path !== API_CONFIG.apiRoute(API_CONFIG.ENDPOINTS.BILLING.WEBHOOK)
+	) {
+		for (const [key, value] of Object.entries(
+			getCorsHeaders(c.req.raw, c.env)
+		)) {
+			c.header(key, value);
+		}
+		return c.json(
+			{
+				error: "Service is only available in the United States.",
+			},
+			403
+		);
 	}
 
 	try {
