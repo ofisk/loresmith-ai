@@ -88,9 +88,9 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 			return c.json({ error: "Campaign name is required" }, 400);
 		}
 
-		// Check campaign limit for subscription tier
+		// Check campaign limit for subscription tier (admins bypass)
 		const subService = getSubscriptionService(c.env);
-		const tier = await subService.getTier(userAuth.username);
+		const tier = await subService.getTier(userAuth.username, userAuth.isAdmin);
 		const limits = subService.getTierLimits(tier);
 		const campaignDAO = getDAOFactory(c.env).campaignDAO;
 		const campaigns = await campaignDAO.getCampaignsByUser(userAuth.username);

@@ -40,7 +40,7 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 	}
 
 	const subService = getSubscriptionService(c.env);
-	const tier = await subService.getTier(auth.username);
+	const tier = await subService.getTier(auth.username, auth.isAdmin);
 	const limits = subService.getTierLimits(tier);
 
 	const dao = getDAOFactory(c.env);

@@ -67,7 +67,7 @@ export class LibraryService {
 
 			// Admin users have unlimited storage; others use tier-based limits
 			const subService = getSubscriptionService(this.env);
-			const tier = await subService.getTier(username);
+			const tier = await subService.getTier(username, isAdmin);
 			const limits = subService.getTierLimits(tier);
 			const limitBytes = isAdmin ? Infinity : limits.storageBytes;
 			const remainingBytes = isAdmin
@@ -115,7 +115,7 @@ export class LibraryService {
 		}
 
 		const subService = getSubscriptionService(this.env);
-		const tier = await subService.getTier(username);
+		const tier = await subService.getTier(username, isAdmin);
 		const limits = subService.getTierLimits(tier);
 
 		// Check file count limit

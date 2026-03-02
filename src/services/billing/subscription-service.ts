@@ -9,7 +9,16 @@ import type { Env } from "@/middleware/auth";
 export class SubscriptionService {
 	constructor(private env: Env) {}
 
-	async getTier(username: string): Promise<SubscriptionTier> {
+	/**
+	 * Get subscription tier for a user. Admins bypass billing and receive pro limits.
+	 */
+	async getTier(
+		username: string,
+		isAdmin?: boolean
+	): Promise<SubscriptionTier> {
+		if (isAdmin) {
+			return "pro";
+		}
 		const dao = getDAOFactory(this.env).subscriptionDAO;
 		const sub = await dao.getByUsername(username);
 		if (!sub || sub.status !== "active") {
