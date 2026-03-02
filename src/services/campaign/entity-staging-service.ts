@@ -19,6 +19,7 @@ import {
 import type { Env } from "@/middleware/auth";
 import { CharacterSheetDetectionService } from "@/services/character-sheet/character-sheet-detection-service";
 import { CharacterSheetParserService } from "@/services/character-sheet/character-sheet-parser-service";
+import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -83,6 +84,30 @@ export interface EntityStagingOptions {
 		processedChunks: number;
 		totalChunks: number;
 	}) => Promise<void> | void;
+}
+
+const IN_RUN_SEMANTIC_DUPLICATE_THRESHOLD = 0.9;
+
+function buildSemanticCandidateText(name: string, content: unknown): string {
+	const contentText =
+		typeof content === "string" ? content : JSON.stringify(content || {});
+	return `${name} ${contentText}`.trim();
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+	if (a.length === 0 || b.length === 0 || a.length !== b.length) {
+		return 0;
+	}
+	let dot = 0;
+	let magA = 0;
+	let magB = 0;
+	for (let i = 0; i < a.length; i++) {
+		dot += a[i] * b[i];
+		magA += a[i] * a[i];
+		magB += b[i] * b[i];
+	}
+	if (magA === 0 || magB === 0) return 0;
+	return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
 /**
@@ -690,6 +715,52 @@ export async function stageEntitiesFromResource(
 			metadata: Record<string, unknown>;
 		};
 		const relationPayloads: RelationPayload[] = [];
+		const resolvedEntityIdByExtractedId = new Map<string, string>();
+		const inRunCandidates: Array<{
+			entityId: string;
+			entityType: string;
+			embedding: number[];
+		}> = [];
+		const embeddingCache = new Map<string, number[] | null>();
+		const embeddingProvider = new ProviderEmbeddingService({
+			openaiApiKey,
+			aiBinding: (env as any).AI,
+		});
+
+		const getCachedEmbedding = async (
+			text: string
+		): Promise<number[] | null> => {
+			const key = text.trim();
+			if (!key) return null;
+			if (embeddingCache.has(key)) {
+				return embeddingCache.get(key) ?? null;
+			}
+			try {
+				const embedding = await embeddingProvider.generateEmbedding(key);
+				embeddingCache.set(key, embedding);
+				return embedding;
+			} catch {
+				embeddingCache.set(key, null);
+				return null;
+			}
+		};
+
+		const registerInRunCandidate = (
+			entityId: string,
+			entityType: string,
+			embedding: number[] | null
+		) => {
+			if (!embedding || embedding.length === 0) return;
+			const existingCandidate = inRunCandidates.find(
+				(c) => c.entityId === entityId
+			);
+			if (existingCandidate) {
+				existingCandidate.embedding = embedding;
+				existingCandidate.entityType = entityType;
+				return;
+			}
+			inRunCandidates.push({ entityId, entityType, embedding });
+		};
 
 		/** Deep equality for content; used to skip approved entities when no new information. */
 		function contentUnchanged(
@@ -746,6 +817,12 @@ export async function stageEntitiesFromResource(
 			const entityId = extracted.id;
 			const updatedRelations = extracted.relations;
 			const entityType = normalizeEntityType(extracted.entityType ?? "");
+			const normalizedName = (extracted.name ?? "").trim();
+			const contentForSemantic = buildSemanticCandidateText(
+				normalizedName,
+				extracted.content
+			);
+			const currentEmbedding = await getCachedEmbedding(contentForSemantic);
 
 			const entityMetadata: Record<string, unknown> = {
 				...extracted.metadata,
@@ -767,9 +844,9 @@ export async function stageEntitiesFromResource(
 			};
 
 			const existing = await daoFactory.entityDAO.getEntityById(entityId);
-			const normalizedName = (extracted.name ?? "").trim();
 
 			if (existing) {
+				resolvedEntityIdByExtractedId.set(entityId, existing.id);
 				const existingMetadata =
 					(existing.metadata as Record<string, unknown>) || {};
 				const mergedContent = mergeEntityContent(
@@ -838,26 +915,52 @@ export async function stageEntitiesFromResource(
 						metadata: rel.metadata,
 					})),
 				});
+				registerInRunCandidate(existing.id, entityType, currentEmbedding);
 				continue;
 			}
 
-			const entityText =
-				typeof extracted.content === "string"
-					? extracted.content
-					: JSON.stringify(extracted.content || {});
-			const contentForSemantic = `${normalizedName} ${entityText}`.trim();
-			const duplicateEntity =
-				await SemanticDuplicateDetectionService.findDuplicateEntity({
-					content: contentForSemantic,
-					campaignId,
-					name: normalizedName,
-					entityType,
-					excludeEntityId: entityId,
-					env,
-					openaiApiKey,
-				});
+			let duplicateEntity: Awaited<
+				ReturnType<typeof daoFactory.entityDAO.getEntityById>
+			> = null;
+
+			if (currentEmbedding) {
+				let bestInRun: { entityId: string; score: number } | null = null;
+				for (const candidate of inRunCandidates) {
+					if (candidate.entityType !== entityType) continue;
+					const score = cosineSimilarity(currentEmbedding, candidate.embedding);
+					if (score >= IN_RUN_SEMANTIC_DUPLICATE_THRESHOLD) {
+						if (!bestInRun || score > bestInRun.score) {
+							bestInRun = { entityId: candidate.entityId, score };
+						}
+					}
+				}
+				if (bestInRun) {
+					duplicateEntity = await daoFactory.entityDAO.getEntityById(
+						bestInRun.entityId
+					);
+					if (duplicateEntity) {
+						console.log(
+							`[EntityStaging] In-run semantic duplicate "${normalizedName}" matches "${duplicateEntity.name}" (${duplicateEntity.id}) score ${bestInRun.score.toFixed(3)}`
+						);
+					}
+				}
+			}
+
+			if (!duplicateEntity) {
+				duplicateEntity =
+					await SemanticDuplicateDetectionService.findDuplicateEntity({
+						content: contentForSemantic,
+						campaignId,
+						name: normalizedName,
+						entityType,
+						excludeEntityId: entityId,
+						env,
+						openaiApiKey,
+					});
+			}
 
 			if (duplicateEntity) {
+				resolvedEntityIdByExtractedId.set(entityId, duplicateEntity.id);
 				const existingMetadata =
 					(duplicateEntity.metadata as Record<string, unknown>) || {};
 				const mergedContent = mergeEntityContent(
@@ -927,6 +1030,11 @@ export async function stageEntitiesFromResource(
 						metadata: rel.metadata,
 					})),
 				});
+				registerInRunCandidate(
+					duplicateEntity.id,
+					entityType,
+					currentEmbedding
+				);
 				continue;
 			}
 
@@ -945,6 +1053,7 @@ export async function stageEntitiesFromResource(
 				sourceId: normalizedResource.id,
 			});
 			createdCount++;
+			resolvedEntityIdByExtractedId.set(entityId, entityId);
 			for (const rel of updatedRelations) {
 				relationPayloads.push({
 					fromEntityId: entityId,
@@ -970,11 +1079,27 @@ export async function stageEntitiesFromResource(
 					metadata: rel.metadata,
 				})),
 			});
+			registerInRunCandidate(entityId, entityType, currentEmbedding);
 		}
 
 		// Pass 2: create all relationships (all entities now exist)
 		const graphService = new EntityGraphService(daoFactory.entityDAO);
+		const dedupedRelationPayloads = new Map<string, RelationPayload>();
 		for (const rel of relationPayloads) {
+			const resolvedFrom =
+				resolvedEntityIdByExtractedId.get(rel.fromEntityId) || rel.fromEntityId;
+			const resolvedTo =
+				resolvedEntityIdByExtractedId.get(rel.toEntityId) || rel.toEntityId;
+			if (resolvedFrom === resolvedTo) continue;
+			const relationKey = `${resolvedFrom}:${resolvedTo}:${rel.relationshipType}`;
+			if (dedupedRelationPayloads.has(relationKey)) continue;
+			dedupedRelationPayloads.set(relationKey, {
+				...rel,
+				fromEntityId: resolvedFrom,
+				toEntityId: resolvedTo,
+			});
+		}
+		for (const rel of dedupedRelationPayloads.values()) {
 			try {
 				await graphService.upsertEdge({
 					campaignId,
