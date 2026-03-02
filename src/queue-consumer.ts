@@ -1,3 +1,4 @@
+import { MODEL_CONFIG } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
@@ -499,20 +500,23 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							`[RebuildCron] Found ${communitiesWithFallbackNames.length} communities with fallback names for campaign ${campaignId}, generating summaries...`
 						);
 
-						// Get OpenAI API key from environment
-						const openaiApiKeyRaw = await getEnvVar(
+						const providerKeyEnvVar =
+							MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+								? "ANTHROPIC_API_KEY"
+								: "OPENAI_API_KEY";
+						const providerApiKeyRaw = await getEnvVar(
 							env,
-							"OPENAI_API_KEY",
+							providerKeyEnvVar,
 							false
 						);
-						const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
+						const providerApiKey = providerApiKeyRaw.trim() || undefined;
 
-						if (openaiApiKey) {
+						if (providerApiKey) {
 							// Create summary service
 							const summaryService = new CommunitySummaryService(
 								daoFactory.entityDAO,
 								daoFactory.communitySummaryDAO,
-								openaiApiKey
+								providerApiKey
 							);
 
 							// Generate summaries for all communities with fallback names
@@ -522,7 +526,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							for (const community of communitiesWithFallbackNames) {
 								try {
 									await summaryService.generateOrGetSummary(community, {
-										openaiApiKey,
+										providerApiKey,
 									});
 									successCount++;
 									console.log(
@@ -543,7 +547,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							);
 						} else {
 							console.warn(
-								`[RebuildCron] OpenAI API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
+								`[RebuildCron] ${MODEL_CONFIG.PROVIDER.DEFAULT} API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
 							);
 						}
 					}

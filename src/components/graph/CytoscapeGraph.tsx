@@ -133,8 +133,7 @@ export function CytoscapeGraph({
 				} else {
 					const communityNode = node as CommunityNode;
 					const nodeLabel =
-						communityNode.name ||
-						`Community ${communityNode.id.slice(0, 8)} (${communityNode.size})`;
+						communityNode.name || `Unnamed community (${communityNode.size})`;
 					els.push({
 						data: {
 							id: communityNode.id,

@@ -22,7 +22,7 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
  * Keep OpenAI on the larger budget while using a safer ceiling for Anthropic.
  */
 const MAX_EXTRACTION_RESPONSE_TOKENS =
-	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 4096 : 16384;
+	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 2000 : 16384;
 
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
@@ -335,7 +335,9 @@ CONTENT END`;
 				errorMessage.includes("AI_NoOutputGeneratedError") ||
 				errorMessage.includes("No object generated") ||
 				errorMessage.includes("AI_NoObjectGeneratedError") ||
-				errorMessage.includes("could not parse the response");
+				errorMessage.includes("could not parse the response") ||
+				errorMessage.includes("AI_RetryError") ||
+				errorMessage.includes("Failed after 3 attempts");
 
 			// No output from model: return null so caller can treat as empty extraction
 			if (isNoOutput) {

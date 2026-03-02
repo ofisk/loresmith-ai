@@ -354,21 +354,11 @@ export async function stageEntitiesFromResource(
 			);
 		}
 
-		// Chunk content to respect provider TPM limits and structured output reliability.
-		// Token estimation: ~4 characters per token for English text
-		// We need to account for:
-		// - System prompt: ~3,000 tokens
-		// - Max response: provider-aware budget (Anthropic is lower for reliability)
-		// - Content: 30,000 - prompt - response budget
-		// Using conservative estimate to leave safety margin for prompt variations
+		// Chunk content conservatively for provider reliability.
+		// Anthropic structured extraction is far more stable with smaller chunks.
+		const MAX_CHUNK_SIZE =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 12000 : 42464;
 		const CHARS_PER_TOKEN = 4;
-		const PROMPT_TOKENS_ESTIMATE = 3000;
-		const MAX_RESPONSE_TOKENS =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 4096 : 16384;
-		const TPM_LIMIT = 30000;
-		const MAX_CONTENT_TOKENS =
-			TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
-		const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN);
 
 		const chunks =
 			fileContent.length > MAX_CHUNK_SIZE

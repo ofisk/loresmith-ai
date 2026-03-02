@@ -356,10 +356,10 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
 				communityName = getCommunityName(community, summary);
 			} catch {
 				// Ignore errors loading summary, use fallback
-				communityName = `Community ${communityId.slice(0, 8)} (${community.entityIds.length})`;
+				communityName = `Unnamed community (${community.entityIds.length})`;
 			}
 		} else {
-			communityName = `Community ${communityId.slice(0, 8)} (${community.entityIds.length})`;
+			communityName = `Unnamed community (${community.entityIds.length})`;
 		}
 
 		return c.json({

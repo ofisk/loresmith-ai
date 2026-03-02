@@ -90,8 +90,7 @@ export function CommunityEntityView({
 					← Back to communities
 				</Button>
 				<h2 className="text-lg font-semibold">
-					{entityGraphData.communityName ||
-						`Community: ${communityId.slice(0, 8)}`}
+					{entityGraphData.communityName || "Unnamed community"}
 				</h2>
 				<div className="text-sm text-neutral-600 dark:text-neutral-400">
 					{entityGraphData.nodes.length} entities,{" "}
