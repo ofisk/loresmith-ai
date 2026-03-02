@@ -60,6 +60,17 @@ function writeTextChunks(
 	write({ type: "text-end", id });
 }
 
+/**
+ * Normalize stylistic tokens we do not want in assistant generations.
+ * Keeps output natural while avoiding "AI-looking" punctuation/styling.
+ */
+function sanitizeGeneratedAssistantText(text: string): string {
+	return text
+		.replace(/\s*\u2014\s*/g, " - ")
+		.replace(/\p{Extended_Pictographic}/gu, "")
+		.replace(/[\u200D\uFE0F]/g, "");
+}
+
 function createDataStreamResponse(options: {
 	execute: (dataStream: { write: (chunk: object) => void }) => Promise<void>;
 }): Response {
@@ -773,11 +784,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						dataStream.write({ type: "text-start", id: TEXT_PART_ID });
 						let fullText = "";
 						for await (const chunk of result.textStream) {
-							fullText += chunk;
+							const sanitizedChunk = sanitizeGeneratedAssistantText(chunk);
+							fullText += sanitizedChunk;
 							dataStream.write({
 								type: "text-delta",
 								id: TEXT_PART_ID,
-								delta: chunk,
+								delta: sanitizedChunk,
 							});
 						}
 						dataStream.write({ type: "text-end", id: TEXT_PART_ID });

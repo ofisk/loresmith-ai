@@ -179,6 +179,13 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - `trackDistributedLootTool`: Records distributed rewards as `item` entities and links recipients/locations in the entity graph
 - Supports follow-up campaign questions like "what rewards has the party already received?"
 
+**Campaign timeline tools**
+
+- `buildTimelineTool`: Builds a chronological timeline from session digests plus live/archived world state changelog entries
+- `queryTimelineRangeTool`: Filters timeline events by date/session range or entity keywords with pagination support
+- `addTimelineEventTool`: Adds manual GM timeline notes as metadata-marked changelog entries for out-of-session events
+- Timeline output includes session markers, key events, world state changes, and open thread context
+
 ### 🌐 Entity Management
 
 **Automatic Extraction**

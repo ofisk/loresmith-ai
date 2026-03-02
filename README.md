@@ -45,6 +45,7 @@ LoreSmith is an AI-powered campaign planning tool that combines:
 
 - **🔍 Intelligent Search**: Semantic search across your resources and campaign content using GraphRAG
 - **📝 Session Digests**: Automatically capture and track session summaries with world state changes
+- **🕰️ Campaign timeline tools**: Build chronological timelines from session digests and world state changes, including manual GM timeline notes
 - **🌐 World Knowledge Graph**: Entity extraction and relationship mapping for comprehensive campaign understanding
 - **💎 Loot & Reward Agent**: Generate encounter loot, suggest story-relevant magic items, and track distributed rewards as campaign items
 - **🔐 Bring Your Own API Key**: Users provide their own OpenAI API key for full control over AI costs
@@ -198,6 +199,7 @@ The AI assistant helps you:
 
 - Generate session outlines based on campaign context
 - Track world state changes after sessions
+- Build timeline views across sessions and changelog history
 - Maintain continuity across sessions
 - Plan future encounters and story beats
 
