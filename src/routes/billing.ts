@@ -181,6 +181,7 @@ export async function handleBillingPortal(c: ContextWithAuth) {
 export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 	const sig = c.req.header("Stripe-Signature");
 	if (!sig) {
+		console.warn("[BillingWebhook] Missing Stripe-Signature header");
 		return c.json({ error: "Missing Stripe-Signature" }, 400);
 	}
 
@@ -196,6 +197,10 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 		event = Stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : "Invalid signature";
+		console.warn(
+			"[BillingWebhook] Signature verification failed - ensure STRIPE_WEBHOOK_SECRET matches the signing secret from Stripe Dashboard for this endpoint:",
+			msg
+		);
 		return c.json({ error: msg }, 400);
 	}
 
@@ -206,10 +211,25 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 			const session = event.data.object as Stripe.Checkout.Session;
 			const subId = session.subscription as string;
 			const metadata = session.metadata ?? {};
-			const username = metadata.username as string;
+			let username = metadata.username as string | undefined;
 			const tier = (metadata.tier as "basic" | "pro") || "basic";
 
+			// Fallback: look up user by customer email if metadata.username missing
 			if (!username) {
+				const email =
+					(session.customer_details?.email as string) ??
+					(session.customer_email as string);
+				if (email) {
+					const user = await dao.authUserDAO.getUserByEmail(email);
+					if (user) username = user.username;
+				}
+			}
+
+			if (!username) {
+				console.warn(
+					"[BillingWebhook] checkout.session.completed missing username in metadata and could not resolve from customer email. metadata:",
+					JSON.stringify(metadata)
+				);
 				return c.json({ error: "Missing username in session metadata" }, 400);
 			}
 

@@ -22,6 +22,9 @@ export const ALLOWED_RETURN_ORIGINS: readonly string[] = [
 	"http://localhost:3000",
 	"http://localhost:8787",
 	"https://loresmith.ai",
+	"http://loresmith.ai",
+	"https://www.loresmith.ai",
+	"http://www.loresmith.ai",
 ];
 
 /** Google OAuth endpoints */
