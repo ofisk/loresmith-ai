@@ -1,5 +1,8 @@
 import { BaseDAOClass } from "./base-dao";
 
+// D1 has a relatively small SQL parameter ceiling; keep IN() batches conservative.
+const D1_IN_CLAUSE_BATCH_SIZE = 90;
+
 // Raw row shape returned directly from D1 queries against the `communities` table.
 export interface CommunityRecord {
 	id: string;
@@ -402,21 +405,37 @@ export class CommunityDAO extends BaseDAOClass {
 			return [];
 		}
 
-		const placeholders = entityIds.map(() => "?").join(", ");
-		const sql = `
+		const recordsById = new Map<string, CommunityRecord>();
+
+		for (let i = 0; i < entityIds.length; i += D1_IN_CLAUSE_BATCH_SIZE) {
+			const chunk = entityIds.slice(i, i + D1_IN_CLAUSE_BATCH_SIZE);
+			if (chunk.length === 0) continue;
+
+			const placeholders = chunk.map(() => "?").join(", ");
+			const sql = `
       SELECT DISTINCT c.*
       FROM communities c
       INNER JOIN community_entities ce ON c.id = ce.community_id
       WHERE c.campaign_id = ?
         AND ce.entity_id IN (${placeholders})
-      ORDER BY c.level ASC, c.created_at DESC
     `;
+			const chunkRecords = await this.queryAll<CommunityRecord>(sql, [
+				campaignId,
+				...chunk,
+			]);
+			for (const record of chunkRecords) {
+				recordsById.set(record.id, record);
+			}
+		}
 
-		const records = await this.queryAll<CommunityRecord>(sql, [
-			campaignId,
-			...entityIds,
-		]);
-		return this.mapCommunityRecords(records);
+		const dedupedSortedRecords = Array.from(recordsById.values()).sort(
+			(a, b) => {
+				if (a.level !== b.level) return a.level - b.level;
+				return b.created_at.localeCompare(a.created_at);
+			}
+		);
+
+		return this.mapCommunityRecords(dedupedSortedRecords);
 	}
 
 	/**
@@ -429,24 +448,28 @@ export class CommunityDAO extends BaseDAOClass {
 			return new Map();
 		}
 
-		const placeholders = communityIds.map(() => "?").join(", ");
-		const sql = `
+		const result = new Map<string, string[]>();
+
+		for (let i = 0; i < communityIds.length; i += D1_IN_CLAUSE_BATCH_SIZE) {
+			const chunk = communityIds.slice(i, i + D1_IN_CLAUSE_BATCH_SIZE);
+			if (chunk.length === 0) continue;
+			const placeholders = chunk.map(() => "?").join(", ");
+			const sql = `
       SELECT community_id, entity_id 
       FROM community_entities 
       WHERE community_id IN (${placeholders})
       ORDER BY community_id, entity_id
     `;
-		const records = await this.queryAll<{
-			community_id: string;
-			entity_id: string;
-		}>(sql, communityIds);
-
-		const result = new Map<string, string[]>();
-		for (const record of records) {
-			if (!result.has(record.community_id)) {
-				result.set(record.community_id, []);
+			const records = await this.queryAll<{
+				community_id: string;
+				entity_id: string;
+			}>(sql, chunk);
+			for (const record of records) {
+				if (!result.has(record.community_id)) {
+					result.set(record.community_id, []);
+				}
+				result.get(record.community_id)!.push(record.entity_id);
 			}
-			result.get(record.community_id)!.push(record.entity_id);
 		}
 
 		// Ensure all communityIds have an entry (even if empty)
