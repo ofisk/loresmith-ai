@@ -111,7 +111,8 @@ export class EntityExtractionQueueService {
 	 */
 	static async processQueue(
 		env: Env,
-		username?: string
+		username?: string,
+		maxItems: number = 10
 	): Promise<{ processed: number; failed: number }> {
 		const queueDAO = new EntityExtractionQueueDAO(env.DB);
 		const daoFactory = getDAOFactory(env);
@@ -138,8 +139,8 @@ export class EntityExtractionQueueService {
 
 		// Get pending queue items
 		const queueItems = username
-			? await queueDAO.getPendingQueueItemsForUser(username, 10)
-			: await queueDAO.getPendingQueueItems(10);
+			? await queueDAO.getPendingQueueItemsForUser(username, maxItems)
+			: await queueDAO.getPendingQueueItems(maxItems);
 
 		if (queueItems.length === 0) {
 			return { processed: 0, failed: 0 };
@@ -317,6 +318,7 @@ export class EntityExtractionQueueService {
 	static async processPendingQueueItems(env: Env): Promise<void> {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
+			const MAX_JOBS_PER_SCHEDULED_RUN = 1;
 
 			// First, clean up stuck processing items
 			await EntityExtractionQueueService.cleanupStuckProcessingItems(env);
@@ -339,10 +341,17 @@ export class EntityExtractionQueueService {
 			let totalFailed = 0;
 
 			for (const username of usernames) {
+				const remainingBudget =
+					MAX_JOBS_PER_SCHEDULED_RUN - (totalProcessed + totalFailed);
+				if (remainingBudget <= 0) {
+					break;
+				}
+
 				try {
 					const result = await EntityExtractionQueueService.processQueue(
 						env,
-						username
+						username,
+						remainingBudget
 					);
 					totalProcessed += result.processed;
 					totalFailed += result.failed;
