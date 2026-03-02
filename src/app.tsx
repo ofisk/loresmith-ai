@@ -483,6 +483,7 @@ export default function Chat() {
 
 	const agentMessages = chatMessages as Message[];
 	const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
+	const setShowAuthModal = modalState.setShowAuthModal;
 
 	const fetchChatHistoryPage = useCallback(
 		async (
@@ -500,7 +501,7 @@ export default function Chat() {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
 			if (response.status === 401) {
-				modalState.setShowAuthModal(true);
+				setShowAuthModal(true);
 				return { messages: [] };
 			}
 			if (!response.ok) return { messages: [] };
@@ -508,7 +509,7 @@ export default function Chat() {
 				.json()
 				.catch(() => ({ messages: [] }))) as ChatHistoryResponse;
 		},
-		[modalState]
+		[setShowAuthModal]
 	);
 
 	// Tracks user message contents to hide in the UI (button-triggered prompts); never cleared so they stay hidden
@@ -611,7 +612,6 @@ export default function Chat() {
 	// Restore chat history from API; when conversationId changes, clear and load that conversation's history.
 	// Unauthenticated users are routed to the auth flow (no shared anon key to avoid data leaks).
 	// Fault tolerant: new conversationId format may return empty; treat errors as empty messages.
-	const setShowAuthModal = modalState.setShowAuthModal;
 	useEffect(() => {
 		if (!authReady) return;
 
