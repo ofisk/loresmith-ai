@@ -56,7 +56,7 @@ describe("MessageHistoryDAO", () => {
 		expect(mockPreparedStatement.bind).toHaveBeenCalledWith(
 			"session-1",
 			"session-1",
-			100
+			500
 		);
 	});
 
