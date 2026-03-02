@@ -354,20 +354,21 @@ export async function stageEntitiesFromResource(
 			);
 		}
 
-		// Chunk content to respect GPT-4o TPM (tokens per minute) limits: 30,000 tokens per request
+		// Chunk content to respect provider TPM limits and structured output reliability.
 		// Token estimation: ~4 characters per token for English text
 		// We need to account for:
 		// - System prompt: ~3,000 tokens
-		// - Max response: ~16,384 tokens (MAX_EXTRACTION_RESPONSE_TOKENS)
-		// - Content: 30,000 - 3,000 - 16,384 = ~10,616 tokens = ~42,000 characters
+		// - Max response: provider-aware budget (Anthropic is lower for reliability)
+		// - Content: 30,000 - prompt - response budget
 		// Using conservative estimate to leave safety margin for prompt variations
 		const CHARS_PER_TOKEN = 4;
 		const PROMPT_TOKENS_ESTIMATE = 3000;
-		const MAX_RESPONSE_TOKENS = 16384;
+		const MAX_RESPONSE_TOKENS =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 4096 : 16384;
 		const TPM_LIMIT = 30000;
 		const MAX_CONTENT_TOKENS =
 			TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
-		const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters (~10.6k tokens)
+		const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN);
 
 		const chunks =
 			fileContent.length > MAX_CHUNK_SIZE

@@ -18,16 +18,11 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 /**
  * Maximum tokens for entity extraction responses.
  *
- * GPT-4o supports up to 128k tokens in the context window, but we limit the response
- * to 16,384 tokens (~12,000 words) to:
- * 1. Keep response sizes manageable for parsing and processing
- * 2. Reduce API costs for large extractions
- * 3. Ensure consistent performance across different document sizes
- *
- * This limit allows for extraction of hundreds of entities while staying well within
- * the model's capabilities and reasonable cost bounds.
+ * Anthropic structured generation is more reliable with smaller output budgets.
+ * Keep OpenAI on the larger budget while using a safer ceiling for Anthropic.
  */
-const MAX_EXTRACTION_RESPONSE_TOKENS = 16384;
+const MAX_EXTRACTION_RESPONSE_TOKENS =
+	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 4096 : 16384;
 
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
@@ -337,7 +332,10 @@ CONTENT END`;
 				error instanceof Error ? error.message : "Unknown error";
 			const isNoOutput =
 				errorMessage.includes("No output generated") ||
-				errorMessage.includes("AI_NoOutputGeneratedError");
+				errorMessage.includes("AI_NoOutputGeneratedError") ||
+				errorMessage.includes("No object generated") ||
+				errorMessage.includes("AI_NoObjectGeneratedError") ||
+				errorMessage.includes("could not parse the response");
 
 			// No output from model: return null so caller can treat as empty extraction
 			if (isNoOutput) {
