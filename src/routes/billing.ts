@@ -309,28 +309,23 @@ export async function handleBillingChangePlan(c: ContextWithAuth) {
 		);
 	}
 
-	// Use always_invoice for upgrades so the customer is charged immediately for the
-	// prorated difference. With create_prorations they'd get the upgrade free until
-	// next billing. For downgrades, always_invoice applies the credit immediately.
+	// Use pending_if_incomplete so the subscription only updates when payment succeeds.
+	// We do NOT update our DB here - we rely on customer.subscription.updated webhook
+	// which fires when the pending update is applied (after successful payment).
 	await stripe.subscriptions.update(sub.stripe_subscription_id, {
 		items: [{ id: subscriptionItem.id, price: newPriceId }],
 		metadata: { username: auth.username, tier },
 		proration_behavior: "always_invoice",
+		payment_behavior: "pending_if_incomplete",
 	});
 
-	const periodEnd = stripeSub.current_period_end
-		? new Date(stripeSub.current_period_end * 1000).toISOString()
-		: undefined;
-	await dao.subscriptionDAO.upsertByStripeSubscriptionId(
-		sub.stripe_subscription_id,
-		{
-			tier,
-			status: "active",
-			current_period_end: periodEnd,
-		}
-	);
-
-	return c.json({ success: true, tier });
+	return c.json({
+		success: true,
+		tier,
+		pendingPayment: true,
+		message:
+			"You will receive access to the new plan once your payment is confirmed.",
+	});
 }
 
 export async function handleBillingPortal(c: ContextWithAuth) {
