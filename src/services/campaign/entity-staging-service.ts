@@ -497,6 +497,12 @@ export async function stageEntitiesFromResource(
 					errorMessage.includes("rate limit") ||
 					errorMessage.includes("429") ||
 					errorMessage.includes("Too Many Requests");
+				const isAuthenticationError =
+					errorMessage.includes("invalid x-api-key") ||
+					errorMessage.includes("authentication_error") ||
+					errorMessage.includes("invalid api key") ||
+					errorMessage.includes("unauthorized") ||
+					(errorMessage.includes("401") && errorMessage.includes("api"));
 				const isNoOutput =
 					errorMessage.includes("No output generated") ||
 					errorMessage.includes("AI_NoOutputGeneratedError");
@@ -507,6 +513,14 @@ export async function stageEntitiesFromResource(
 						`[EntityStaging] Chunk ${chunkNumber} returned no structured output, treating as empty`
 					);
 					return true;
+				}
+
+				// Authentication/configuration errors are unrecoverable for this run.
+				// Fail immediately instead of retrying every chunk.
+				if (isAuthenticationError) {
+					throw new Error(
+						`Authentication/configuration error during extraction for chunk ${chunkNumber}: ${errorMessage}`
+					);
 				}
 
 				if (isRetry) {

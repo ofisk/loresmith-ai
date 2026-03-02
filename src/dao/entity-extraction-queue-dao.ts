@@ -20,6 +20,54 @@ export interface EntityExtractionQueueItem {
 }
 
 export class EntityExtractionQueueDAO extends BaseDAOClass {
+	/**
+	 * Get current queue depth grouped by status, plus "ready now" count
+	 * (pending + rate_limited that are due for retry).
+	 */
+	async getQueueMetrics(): Promise<{
+		pending: number;
+		processing: number;
+		rateLimited: number;
+		readyNow: number;
+		totalActive: number;
+	}> {
+		const sql = `
+      SELECT
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing,
+        SUM(CASE WHEN status = 'rate_limited' THEN 1 ELSE 0 END) AS rate_limited,
+        SUM(
+          CASE
+            WHEN status = 'pending' THEN 1
+            WHEN status = 'rate_limited' AND (next_retry_at IS NULL OR next_retry_at <= datetime('now')) THEN 1
+            ELSE 0
+          END
+        ) AS ready_now
+      FROM entity_extraction_queue
+      WHERE status IN ('pending', 'processing', 'rate_limited')
+    `;
+
+		const row = await this.queryFirst<{
+			pending: number | null;
+			processing: number | null;
+			rate_limited: number | null;
+			ready_now: number | null;
+		}>(sql, []);
+
+		const pending = row?.pending ?? 0;
+		const processing = row?.processing ?? 0;
+		const rateLimited = row?.rate_limited ?? 0;
+		const readyNow = row?.ready_now ?? 0;
+
+		return {
+			pending,
+			processing,
+			rateLimited,
+			readyNow,
+			totalActive: pending + processing + rateLimited,
+		};
+	}
+
 	/** True if entity_extraction_queue has proposed_by column (migration 0002). Checked per-call for correctness across DBs. */
 	private async hasProposedByColumn(): Promise<boolean> {
 		const rows = await this.queryAll<{ name: string }>(

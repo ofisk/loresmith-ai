@@ -66,6 +66,22 @@ function isRateLimitError(error: unknown): boolean {
 	);
 }
 
+/**
+ * Check if an error is an authentication/key configuration error.
+ * These should fail fast (no retries).
+ */
+function isAuthenticationError(error: unknown): boolean {
+	if (!(error instanceof Error)) return false;
+	const message = error.message.toLowerCase();
+	return (
+		message.includes("invalid x-api-key") ||
+		message.includes("authentication_error") ||
+		message.includes("invalid api key") ||
+		message.includes("unauthorized") ||
+		(message.includes("401") && message.includes("api"))
+	);
+}
+
 export class EntityExtractionQueueService {
 	/**
 	 * Add an entity extraction job to the queue
@@ -225,6 +241,13 @@ export class EntityExtractionQueueService {
 							: undefined,
 				});
 
+				if (!result.success) {
+					throw new Error(
+						result.error ||
+							`Entity extraction failed for resource ${item.resource_id}`
+					);
+				}
+
 				// Mark as completed
 				await queueDAO.markAsCompleted(item.id);
 
@@ -245,8 +268,17 @@ export class EntityExtractionQueueService {
 					errorMessage
 				);
 
-				// Check if it's a rate limit error
-				if (isRateLimitError(error)) {
+				// Authentication errors should fail fast (do not retry).
+				if (isAuthenticationError(error)) {
+					await queueDAO.markAsFailed(
+						item.id,
+						`Authentication/configuration error: ${errorMessage}`,
+						"AUTHENTICATION_ERROR"
+					);
+					console.error(
+						`[EntityExtractionQueue] Failing fast for resource ${item.resource_id} due to authentication error (no retry)`
+					);
+				} else if (isRateLimitError(error)) {
 					const currentRetryCount = item.retry_count + 1;
 
 					if (currentRetryCount >= MAX_RETRIES) {
@@ -318,7 +350,18 @@ export class EntityExtractionQueueService {
 	static async processPendingQueueItems(env: Env): Promise<void> {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
-			const MAX_JOBS_PER_SCHEDULED_RUN = 1;
+			const MAX_JOBS_PER_SCHEDULED_RUN = 2;
+			const SCHEDULED_RUN_INTERVAL_MINUTES = 5;
+
+			const beforeMetrics = await queueDAO.getQueueMetrics();
+			const estimatedRuns = Math.ceil(
+				beforeMetrics.readyNow / MAX_JOBS_PER_SCHEDULED_RUN
+			);
+			const estimatedEtaMinutes =
+				estimatedRuns * SCHEDULED_RUN_INTERVAL_MINUTES;
+			console.log(
+				`[EntityExtractionQueue] Queue status before run: pending=${beforeMetrics.pending}, processing=${beforeMetrics.processing}, rateLimited=${beforeMetrics.rateLimited}, readyNow=${beforeMetrics.readyNow}, budget=${MAX_JOBS_PER_SCHEDULED_RUN}/run, estETA=${estimatedEtaMinutes}m`
+			);
 
 			// First, clean up stuck processing items
 			await EntityExtractionQueueService.cleanupStuckProcessingItems(env);
@@ -368,6 +411,16 @@ export class EntityExtractionQueueService {
 					`[EntityExtractionQueue] Completed processing: ${totalProcessed} processed, ${totalFailed} failed`
 				);
 			}
+
+			const afterMetrics = await queueDAO.getQueueMetrics();
+			const remainingRuns = Math.ceil(
+				afterMetrics.readyNow / MAX_JOBS_PER_SCHEDULED_RUN
+			);
+			const remainingEtaMinutes =
+				remainingRuns * SCHEDULED_RUN_INTERVAL_MINUTES;
+			console.log(
+				`[EntityExtractionQueue] Queue status after run: pending=${afterMetrics.pending}, processing=${afterMetrics.processing}, rateLimited=${afterMetrics.rateLimited}, readyNow=${afterMetrics.readyNow}, estETA=${remainingEtaMinutes}m`
+			);
 		} catch (error) {
 			console.error(
 				"[EntityExtractionQueue] Error processing pending queue items:",
