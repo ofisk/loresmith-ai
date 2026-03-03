@@ -1,7 +1,6 @@
 import { Plus } from "@phosphor-icons/react";
 import { useId, useRef, useState } from "react";
 import { FormButton } from "@/components/button/FormButton";
-import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { EDIT_ROLES } from "@/constants/campaign-roles";
 import { cn } from "@/lib/utils";
@@ -64,22 +63,10 @@ export const ResourceUpload = ({
 	onCreateCampaign,
 	showCampaignSelection = false,
 }: ResourceUploadProps) => {
-	const resourceFilenameId = useId();
-	const resourceDescriptionId = useId();
-	const resourceTagsId = useId();
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-	const [filename, setFilename] = useState("");
-	const [description, setDescription] = useState("");
-	const [tags, setTags] = useState<string[]>([]);
-	const [tagInput, setTagInput] = useState("");
 	const [_isValid, setIsValid] = useState(false);
 	const [uploadSuccess, setUploadSuccess] = useState(false);
 	const [isUploadingAll, setIsUploadingAll] = useState(false);
-	const [initialValues, setInitialValues] = useState({
-		filename: "",
-		description: "",
-		tags: [] as string[],
-	});
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const fileInputId = useId();
 
@@ -137,17 +124,10 @@ export const ResourceUpload = ({
 	const setSelectedFilesState = (validFiles: File[]) => {
 		if (validFiles.length > 0) {
 			setSelectedFiles(validFiles);
-			setFilename(sanitizeFilename(validFiles[0].name));
 			setIsValid(true);
 			setUploadSuccess(false);
-			setInitialValues({
-				filename: sanitizeFilename(validFiles[0].name),
-				description: "",
-				tags: [],
-			});
 		} else {
 			setSelectedFiles([]);
-			setFilename("");
 			setIsValid(false);
 			setUploadSuccess(false);
 		}
@@ -173,10 +153,9 @@ export const ResourceUpload = ({
 			const file = selectedFiles[0];
 			const keepModalOpen = false;
 			await Promise.resolve(
-				onUpload(file, filename, description, tags, { keepModalOpen })
+				onUpload(file, sanitizeFilename(file.name), "", [], { keepModalOpen })
 			);
 			setUploadSuccess(true);
-			setInitialValues({ filename, description, tags });
 			return;
 		}
 		// Multiple files: upload all in sequence, then close on last
@@ -186,7 +165,7 @@ export const ResourceUpload = ({
 				const file = selectedFiles[i];
 				const isLast = i === selectedFiles.length - 1;
 				await Promise.resolve(
-					onUpload(file, sanitizeFilename(file.name), description, tags, {
+					onUpload(file, sanitizeFilename(file.name), "", [], {
 						keepModalOpen: !isLast,
 					})
 				);
@@ -207,35 +186,11 @@ export const ResourceUpload = ({
 		event.preventDefault();
 	};
 
-	const handleAddTag = () => {
-		const trimmedTag = tagInput.trim();
-		if (trimmedTag && !tags.includes(trimmedTag)) {
-			setTags([...tags, trimmedTag]);
-			setTagInput("");
-		}
-	};
-
-	const handleRemoveTag = (tagToRemove: string) => {
-		setTags(tags.filter((tag) => tag !== tagToRemove));
-	};
-
-	const handleTagKeyPress = (event: React.KeyboardEvent) => {
-		if (event.key === "Enter") {
-			event.preventDefault();
-			handleAddTag();
-		}
-	};
-
-	const hasChanges =
-		filename !== initialValues.filename ||
-		description !== initialValues.description ||
-		JSON.stringify(tags) !== JSON.stringify(initialValues.tags);
-
 	const isUploadDisabled =
 		selectedFiles.length === 0 ||
 		loading ||
 		isUploadingAll ||
-		(selectedFiles.length === 1 && uploadSuccess && !hasChanges);
+		(selectedFiles.length === 1 && uploadSuccess);
 
 	return (
 		<div className={cn("p-4 md:p-6 h-full flex flex-col min-h-0", className)}>
@@ -284,10 +239,6 @@ export const ResourceUpload = ({
 											e.preventDefault();
 											e.stopPropagation();
 											setSelectedFiles([]);
-											setFilename("");
-											setDescription("");
-											setTags([]);
-											setTagInput("");
 											setUploadSuccess(false);
 											setIsValid(false);
 											if (fileInputRef.current) {
@@ -349,73 +300,6 @@ export const ResourceUpload = ({
 								</div>
 							)}
 						</label>
-					</div>
-
-					{/* Form Fields - filename only for single file (multi uses each file's name) */}
-					<div className="space-y-3">
-						{selectedFiles.length <= 1 && (
-							<FormField
-								id={resourceFilenameId}
-								label="Filename"
-								placeholder="Name this mighty tome…"
-								value={filename}
-								onValueChange={(value, _isValid) => setFilename(value)}
-								disabled={loading}
-							/>
-						)}
-						<FormField
-							id={resourceDescriptionId}
-							label="Description (optional)"
-							placeholder="Describe the perils and promises within..."
-							value={description}
-							onValueChange={(value, _isValid) => setDescription(value)}
-							disabled={loading}
-						/>
-						<FormField
-							id={resourceTagsId}
-							label="Tags (optional)"
-							placeholder="Mark this tome with its arcane keywords…"
-							value={tagInput}
-							onValueChange={(value, _isValid) => setTagInput(value)}
-							onKeyPress={handleTagKeyPress}
-							disabled={loading}
-						>
-							{tags.length > 0 && (
-								<div className="flex flex-wrap items-center gap-2 mt-2">
-									{tags.map((tag) => (
-										<span
-											key={tag}
-											className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
-										>
-											{tag}
-											<FormButton
-												onClick={() => handleRemoveTag(tag)}
-												className="ml-1.5 p-0.5 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
-												icon={
-													<svg
-														className="h-3 w-3"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke="currentColor"
-													>
-														<title>Remove tag</title>
-														<path
-															strokeLinecap="round"
-															strokeLinejoin="round"
-															strokeWidth={2}
-															d="M6 18L18 6M6 6l12 12"
-														/>
-													</svg>
-												}
-											/>
-										</span>
-									))}
-								</div>
-							)}
-							<div className="text-ob-base-200 text-xs">
-								Example: undead, forest, cursed treasure
-							</div>
-						</FormField>
 					</div>
 				</div>
 
@@ -524,7 +408,7 @@ export const ResourceUpload = ({
 						onClick={() => void handleUpload()}
 						disabled={isUploadDisabled}
 						icon={
-							selectedFiles.length === 1 && uploadSuccess && !hasChanges ? (
+							selectedFiles.length === 1 && uploadSuccess ? (
 								<svg
 									className="w-4 h-4"
 									fill="none"
@@ -546,7 +430,7 @@ export const ResourceUpload = ({
 							? "Uploading…"
 							: selectedFiles.length > 1
 								? "Upload all"
-								: selectedFiles.length === 1 && uploadSuccess && !hasChanges
+								: selectedFiles.length === 1 && uploadSuccess
 									? "Complete"
 									: "Upload"}
 					</FormButton>
@@ -554,10 +438,6 @@ export const ResourceUpload = ({
 						onClick={() => {
 							// Reset form state
 							setSelectedFiles([]);
-							setFilename("");
-							setDescription("");
-							setTags([]);
-							setTagInput("");
 							setUploadSuccess(false);
 							setIsValid(false);
 							// Close the modal
