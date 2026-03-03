@@ -5,6 +5,7 @@
 
 import {
 	getEntityTypeDisplayName,
+	normalizeEntityType,
 	STRUCTURED_ENTITY_TYPES,
 	type StructuredEntityType,
 } from "../../lib/entity-types";
@@ -56,7 +57,13 @@ export function getEditableProperties(shard: Shard): Array<{
 	value: unknown;
 	type: "string" | "number" | "array" | "object";
 }> {
-	const excludeFields = ["id", "metadata", "created_at", "updated_at"];
+	const excludeFields = [
+		"id",
+		"metadata",
+		"created_at",
+		"updated_at",
+		"contentId", // Internal identifier; not shown or editable in UI
+	];
 
 	const properties = Object.entries(shard)
 		.filter(([key]) => !excludeFields.includes(key))
@@ -121,11 +128,15 @@ export function getShardTypeDisplayName(type: string): string {
 		lore: "Lore",
 		rule: "Rule",
 	};
+	if (customDisplayNames[type]) return customDisplayNames[type];
 
-	return (
-		customDisplayNames[type] ||
-		type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
-	);
+	// Normalize aliases (e.g. "npc" -> "npcs") so acronyms display correctly (NPCs)
+	const normalized = normalizeEntityType(type);
+	if (normalized !== "custom" && STRUCTURED_ENTITY_TYPES.includes(normalized)) {
+		return getEntityTypeDisplayName(normalized);
+	}
+
+	return type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 /**

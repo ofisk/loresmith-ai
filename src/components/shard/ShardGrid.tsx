@@ -6,7 +6,7 @@ import {
 	Filter,
 	RefreshCw,
 	Search,
-	Trash2,
+	XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { isStubContentSufficient } from "@/lib/entity-required-fields";
@@ -186,12 +186,13 @@ export function ShardGrid({
 				<div className="flex items-center justify-between mb-4">
 					<div>
 						<h2 className="text-xl font-semibold text-white">
-							Shard Management - STAGED
+							Your verdict awaits
 						</h2>
 						<p className="text-sm text-gray-300 mt-1">
-							Found {filteredShards.length} shards for campaign{" "}
-							{campaignName || campaignId}
-							{resourceName && ` • Resource: ${resourceName}`}
+							{filteredShards.length} shard
+							{filteredShards.length !== 1 ? "s" : ""} ready for a thumbs up or
+							pass • {campaignName || campaignId}
+							{resourceName && ` • ${resourceName}`}
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
@@ -292,19 +293,10 @@ export function ShardGrid({
 				{selectedShards.size > 0 && (
 					<div className="border-t pt-4 mt-4">
 						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<button
-									type="button"
-									onClick={handleSelectAll}
-									className="text-blue-600 hover:text-blue-800 text-sm"
-								>
-									{allSelected ? "Deselect All" : "Select All"}
-								</button>
-								<span className="text-sm text-gray-600">
-									{selectedShards.size} shard
-									{selectedShards.size !== 1 ? "s" : ""} selected
-								</span>
-							</div>
+							<span className="text-sm text-gray-600">
+								{selectedShards.size} shard
+								{selectedShards.size !== 1 ? "s" : ""} selected
+							</span>
 							<div className="flex items-center gap-2">
 								<button
 									type="button"
@@ -325,7 +317,7 @@ export function ShardGrid({
 									onClick={() => handleBulkAction("reject")}
 									className="flex items-center gap-2 font-semibold text-sm transition-colors text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
 								>
-									<Trash2 size={16} />
+									<XCircle size={16} />
 									Reject selected
 								</button>
 								<button
@@ -354,7 +346,7 @@ export function ShardGrid({
 								onChange={handleSelectAll}
 								className="w-4 h-4 bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500"
 							/>
-							Select All
+							Select all
 						</label>
 					</div>
 				)}
