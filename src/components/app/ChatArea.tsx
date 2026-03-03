@@ -234,8 +234,8 @@ export function ChatArea({
 	};
 
 	return (
-		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden mt-[10vh]">
-			{/* Campaign Context Selector - separate div above chat */}
+		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
+			{/* Campaign Context Selector - at top of chat pane */}
 			<div className="px-4 md:px-8 py-2 md:py-3 flex-shrink-0">
 				<select
 					id="campaign-select"
@@ -289,10 +289,13 @@ export function ChatArea({
 				)}
 			</div>
 
-			{/* Input Area */}
+			{/* Spacer - pushes input to bottom */}
+			<div className="flex-1 min-h-0" aria-hidden="true" />
+
+			{/* Input Area - pinned to bottom, grows upward as user types */}
 			<form
 				onSubmit={onFormSubmit}
-				className="chat-input-area px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
+				className="chat-input-area flex-shrink-0 px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
 			>
 				<div className="flex items-center gap-2">
 					<div className="flex-1 relative">
@@ -303,7 +306,7 @@ export function ChatArea({
 									? "Please respond to the tool confirmation above..."
 									: placeholder
 							}
-							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
+							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[25vh] overflow-y-auto resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
 							value={input}
 							onChange={
 								onInputChange as unknown as React.ChangeEventHandler<HTMLInputElement>
