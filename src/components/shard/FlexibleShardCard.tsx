@@ -3,7 +3,7 @@ import {
 	ChevronRight,
 	FileText,
 	Star,
-	Trash2,
+	XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImportanceCalculationError } from "@/lib/errors";
@@ -351,8 +351,7 @@ export function FlexibleShardCard({
 			}
 		}
 
-		// Use contentId if available (for structured shards), otherwise fall back to ID suffix
-		const displayId = (shard as any).contentId || shard.id.slice(-8);
+		const displayId = shard.id.slice(-8);
 		return `${displayName} #${displayId}`;
 	}, [shard, displayName]);
 
@@ -423,7 +422,7 @@ export function FlexibleShardCard({
 	}, [shard, getShardTitle, getShardDescription]);
 
 	const getQuickProperties = () => {
-		// Get 2-3 key properties to show in the collapsed view
+		// Get 2-3 key properties to show in the collapsed view (exclude summary pill)
 		const quickFields = editableProperties
 			.filter(
 				({ key }) =>
@@ -434,6 +433,7 @@ export function FlexibleShardCard({
 						"description",
 						"text",
 						"content",
+						"summary",
 					].includes(key)
 			)
 			.slice(0, 3);
@@ -446,7 +446,7 @@ export function FlexibleShardCard({
 			className={`bg-gray-800 border border-gray-700 rounded-lg ${className}`}
 		>
 			{/* Header */}
-			<div className="p-4 border-b border-gray-700">
+			<div className="p-4">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<input
@@ -469,9 +469,10 @@ export function FlexibleShardCard({
 											handleTitleCancel();
 										}
 									}}
-									className="font-semibold text-lg text-white bg-transparent border-b border-gray-600 focus:border-purple-500 focus:outline-none flex-1"
+									className="font-semibold text-lg text-white bg-transparent focus:border-purple-500 focus:outline-none flex-1"
 								/>
 							</div>
+							<hr className="border-0 border-t border-gray-700 my-2" />
 							<div className="flex items-center gap-2 text-sm text-gray-300">
 								<span className="capitalize">{displayName}</span>
 								{shard.confidence && (
@@ -502,24 +503,35 @@ export function FlexibleShardCard({
 					</div>
 				</div>
 
-				{/* Quick Properties */}
+				{/* Quick Properties (no summary pill); arrays shown as tag pills */}
 				{!isExpanded && getQuickProperties().length > 0 && (
 					<div className="mt-3 flex flex-wrap gap-2">
-						{getQuickProperties().map(({ key, value }) => (
-							<span
-								key={key}
-								className="inline-flex items-center gap-1 px-2 py-1 bg-gray-700 text-gray-200 rounded text-xs"
-							>
-								<span className="font-medium">{key}:</span>
-								<span className="truncate max-w-[100px]">
-									{Array.isArray(value)
-										? value.join(", ")
-										: typeof value === "object" && value !== null
+						{getQuickProperties().map(({ key, value }) =>
+							Array.isArray(value) ? (
+								value.map((item: unknown) => (
+									<span
+										key={`${key}-${typeof item === "object" && item !== null ? JSON.stringify(item) : String(item)}`}
+										className="inline-flex items-center gap-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded text-xs"
+									>
+										{typeof item === "object" && item !== null
+											? JSON.stringify(item)
+											: String(item)}
+									</span>
+								))
+							) : (
+								<span
+									key={key}
+									className="inline-flex items-center gap-1 px-2 py-1 bg-gray-700 text-gray-200 rounded text-xs"
+								>
+									<span className="font-medium">{key}:</span>
+									<span className="truncate max-w-[100px]">
+										{typeof value === "object" && value !== null
 											? JSON.stringify(value)
 											: String(value)}
+									</span>
 								</span>
-							</span>
-						))}
+							)
+						)}
 					</div>
 				)}
 
@@ -620,7 +632,7 @@ export function FlexibleShardCard({
 					{/* Actions */}
 					<div className="flex items-center justify-between pt-3 border-t border-gray-700">
 						<div className="text-xs text-gray-400">
-							Shard ID: {(shard as any).contentId || shard.id.slice(-12)}
+							Shard ID: {shard.id.slice(-12)}
 						</div>
 						{onDelete && (
 							<button
@@ -628,8 +640,8 @@ export function FlexibleShardCard({
 								onClick={() => onDelete(shard.id)}
 								className="flex items-center gap-1 px-3 py-1 text-red-400 hover:text-red-300 text-sm transition-colors"
 							>
-								<Trash2 size={14} />
-								Delete shard
+								<XCircle size={14} />
+								Reject shard
 							</button>
 						)}
 					</div>

@@ -397,13 +397,14 @@ export function StructuredShardCard({
 									const nameField = displayMetadata.display_name || "name";
 									onEdit(shard.id, { [nameField]: e.target.value });
 								}}
-								className="font-semibold text-lg text-white bg-transparent border-b border-gray-600 focus:border-purple-500 focus:outline-none w-full"
+								className="font-semibold text-lg text-white bg-transparent focus:border-purple-500 focus:outline-none w-full"
 							/>
 						) : (
 							<h3 className="font-semibold text-lg text-white truncate">
 								{displayName}
 							</h3>
 						)}
+						<hr className="border-0 border-t border-gray-700 my-2" />
 						<div className="flex items-center gap-2 text-sm text-gray-300 flex-wrap">
 							<span className="capitalize">{typeDisplayName}</span>
 							{subtitleInfo.map((info: string) => (

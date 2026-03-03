@@ -1,4 +1,4 @@
-import { Plus, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 
@@ -192,23 +192,14 @@ export function PropertyField({
 										</div>
 									))}
 							</div>
-							<div className="flex gap-2">
-								<input
-									type="text"
-									value={newArrayItem}
-									onChange={(e) => setNewArrayItem(e.target.value)}
-									onKeyDown={(e) => e.key === "Enter" && addArrayItem()}
-									placeholder="Add tag"
-									className="flex-1 px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
-								/>
-								<button
-									type="button"
-									onClick={addArrayItem}
-									className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-								>
-									<Plus size={14} />
-								</button>
-							</div>
+							<input
+								type="text"
+								value={newArrayItem}
+								onChange={(e) => setNewArrayItem(e.target.value)}
+								onKeyDown={(e) => e.key === "Enter" && addArrayItem()}
+								placeholder="Add tag"
+								className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
+							/>
 						</div>
 					);
 
@@ -286,6 +277,8 @@ export function PropertyField({
 	);
 }
 
+const DEFAULT_NON_DELETABLE_KEYS = ["name", "contentId"];
+
 interface PropertyGridProps {
 	properties: Array<{
 		key: string;
@@ -295,6 +288,8 @@ interface PropertyGridProps {
 	editable?: boolean;
 	onChange?: (key: string, newValue: any) => void;
 	onDelete?: (key: string) => void;
+	/** Keys that must not show a delete button (e.g. name, contentId). Defaults to ["name", "contentId"]. */
+	nonDeletableKeys?: string[];
 	className?: string;
 }
 
@@ -303,21 +298,26 @@ export function PropertyGrid({
 	editable = true,
 	onChange,
 	onDelete,
+	nonDeletableKeys = DEFAULT_NON_DELETABLE_KEYS,
 	className = "",
 }: PropertyGridProps) {
 	return (
 		<div className={`space-y-3 ${className}`}>
-			{properties.map(({ key, value, type }, index) => (
-				<PropertyField
-					key={key || `property-${index}`}
-					name={key || `property-${index}`}
-					value={value}
-					type={type}
-					editable={editable}
-					onChange={onChange}
-					onDelete={onDelete}
-				/>
-			))}
+			{properties.map(({ key, value, type }, index) => {
+				const propKey = key || `property-${index}`;
+				const canDelete = onDelete && !nonDeletableKeys.includes(propKey);
+				return (
+					<PropertyField
+						key={propKey}
+						name={propKey}
+						value={value}
+						type={type}
+						editable={editable}
+						onChange={onChange}
+						onDelete={canDelete ? onDelete : undefined}
+					/>
+				);
+			})}
 		</div>
 	);
 }
