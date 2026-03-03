@@ -77,6 +77,10 @@
 			{
 				"queue": "graph-rebuild-queue",
 				"binding": "GRAPH_REBUILD_QUEUE"
+			},
+			{
+				"queue": "shard-embedding-queue",
+				"binding": "SHARD_EMBEDDING_QUEUE"
 			}
 		],
 		"consumers": [
@@ -88,6 +92,11 @@
 			{
 				"queue": "graph-rebuild-queue",
 				"max_batch_size": 1,
+				"max_retries": 3
+			},
+			{
+				"queue": "shard-embedding-queue",
+				"max_batch_size": 10,
 				"max_retries": 3
 			}
 		]

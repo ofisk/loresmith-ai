@@ -7,32 +7,14 @@ import {
 import { getEnvVar } from "@/lib/env-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
-import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { getGraphServices } from "@/services/graph/graph-service-factory";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
-import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
-
-interface PendingRelation {
-	relationshipType: string;
-	targetId: string;
-	strength?: number | null;
-	metadata?: Record<string, unknown>;
-}
 
 interface DirtyRelationshipRef {
 	fromEntityId: string;
 	toEntityId: string;
 	relationshipType: string;
-}
-
-/**
- * Extract pendingRelations from entity metadata
- */
-function extractPendingRelations(
-	metadata: Record<string, unknown>
-): PendingRelation[] {
-	return (metadata.pendingRelations as Array<PendingRelation>) || [];
 }
 
 /**
@@ -95,36 +77,6 @@ async function checkAndRunCommunityDetection(
 			`[Server] Rebuild not enqueued for campaign ${campaignId}: ${result.reason}`
 		);
 	}
-}
-
-/**
- * Validate entity exists and is in staging status
- */
-async function validateStagingEntity(
-	daoFactory: ReturnType<typeof getDAOFactory>,
-	entityId: string,
-	campaignId: string
-): Promise<{ entity: any; pendingRelations: PendingRelation[] } | null> {
-	const entity = await daoFactory.entityDAO.getEntityById(entityId);
-
-	if (!entity || entity.campaignId !== campaignId) {
-		console.warn(
-			`[Server] Entity ${entityId} not found or wrong campaign, skipping`
-		);
-		return null;
-	}
-
-	const metadata = (entity.metadata as Record<string, unknown>) || {};
-	if (metadata.shardStatus !== "staging") {
-		console.log(
-			`[Server] Entity ${entityId} is not in staging (status: ${metadata.shardStatus}), skipping`
-		);
-		return null;
-	}
-
-	const pendingRelations = extractPendingRelations(metadata);
-
-	return { entity, pendingRelations };
 }
 
 // Get staged entities for a campaign (UI refers to them as "shards")
@@ -279,30 +231,26 @@ export async function handleApproveShards(c: ContextWithAuth) {
 
 		const daoFactory = getDAOFactory(c.env);
 		const graphService = daoFactory.entityGraphService;
-		const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
-		const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
-		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
-		const openaiEmbeddingService = new OpenAIEmbeddingService(openaiApiKey);
+		const graphServices = getGraphServices(c.env as any);
 
 		// Diagnostic: report campaign entity count without materializing all rows.
 		const campaignEntityCount =
 			await daoFactory.entityDAO.getEntityCountByCampaign(campaignId);
 		console.log(`[Server] Campaign has ${campaignEntityCount} total entities.`);
 
-		// Validate first: stub shards must have required fields filled; fail entire request if any are insufficient
+		// Fetch only entities that exist, belong to this campaign, and are in staging (filter in SQL)
+		const validEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+			campaignId,
+			{ entityIds: shardIds, shardStatus: "staging" }
+		);
+
+		// Stub shards must have required fields filled; fail entire request if any are insufficient
 		const insufficientStubs: Array<{
 			entityId: string;
 			name: string;
 			missingFields: string[];
 		}> = [];
-		for (const entityId of shardIds) {
-			const validationResult = await validateStagingEntity(
-				daoFactory,
-				entityId,
-				campaignId
-			);
-			if (!validationResult) continue;
-			const { entity } = validationResult;
+		for (const entity of validEntities) {
 			const meta = (entity.metadata as Record<string, unknown>) || {};
 			if (
 				meta.isStub === true &&
@@ -337,27 +285,9 @@ export async function handleApproveShards(c: ContextWithAuth) {
 			);
 		}
 
-		let approvedCount = 0;
-		const relationshipCount = 0;
-		const touchedEntityIds = new Set<string>();
-		const touchedRelationships: DirtyRelationshipRef[] = [];
-
-		// Approve each entity (shardIds from UI are entity IDs) and create its relationships
-		for (const entityId of shardIds) {
-			const validationResult = await validateStagingEntity(
-				daoFactory,
-				entityId,
-				campaignId
-			);
-
-			if (!validationResult) {
-				continue;
-			}
-
-			const { entity } = validationResult;
+		// Batch entity updates
+		const entityUpdates = validEntities.map((entity) => {
 			const metadata = (entity.metadata as Record<string, unknown>) || {};
-
-			// Update entity status to approved (remove pendingRelations from metadata)
 			const { pendingRelations: _, ...metadataWithoutPending } = metadata;
 			const updatedMetadata = {
 				...metadataWithoutPending,
@@ -365,108 +295,50 @@ export async function handleApproveShards(c: ContextWithAuth) {
 				staged: false,
 				approvedAt: new Date().toISOString(),
 			};
-
-			await daoFactory.entityDAO.updateEntity(entityId, {
+			return {
+				entityId: entity.id,
 				metadata: updatedMetadata,
-				shardStatus: "approved",
-			});
-			touchedEntityIds.add(entityId);
+				shardStatus: "approved" as string,
+			};
+		});
+		if (entityUpdates.length > 0) {
+			await daoFactory.entityDAO.updateEntitiesBatch(entityUpdates);
+		}
 
-			// Ensure entity embedding is indexed in Vectorize for searchability
-			try {
-				// Check if embedding already exists in Vectorize by trying to find similar entities
-				// This will return empty if the embedding doesn't exist
-				let hasEmbedding = false;
-				if (c.env.VECTORIZE) {
-					const existingVectors = await c.env.VECTORIZE.getByIds([entityId]);
-					hasEmbedding = existingVectors && existingVectors.length > 0;
-				}
+		const approvedCount = validEntities.length;
+		const approvedEntityIds = validEntities.map((e) => e.id);
+		const touchedEntityIds = new Set<string>(approvedEntityIds);
+		const touchedRelationships: DirtyRelationshipRef[] = [];
 
-				if (!hasEmbedding) {
-					// Generate and index embedding for this entity
-					// Use the same text generation logic as EntityExtractionPipeline
-					const contentText =
-						typeof entity.content === "string"
-							? entity.content
-							: JSON.stringify(entity.content || {});
-					const entityText = contentText;
-
-					console.log(
-						`[Server] Creating embedding for approved entity: ${entityId} (${entity.name})`
-					);
-
-					const rateLimitService = getLLMRateLimitService(c.env);
-					const embedding = await openaiEmbeddingService.generateEmbedding(
-						entityText,
-						{
-							username: userAuth.username,
-							onUsage: async (usage) => {
-								await rateLimitService.recordUsage(
-									userAuth.username,
-									usage.tokens,
-									usage.queryCount
-								);
-							},
-						}
-					);
-					await embeddingService.upsertEmbedding({
-						entityId: entity.id,
-						campaignId: entity.campaignId,
-						entityType: entity.entityType,
-						embedding,
-						metadata: updatedMetadata,
-					});
-
-					console.log(
-						`[Server] Successfully indexed embedding for entity: ${entityId}`
-					);
-				} else {
-					// Update existing embedding metadata to reflect approval status
-					if (c.env.VECTORIZE) {
-						const existingVectors = await c.env.VECTORIZE.getByIds([entityId]);
-						const existingEmbedding = existingVectors?.[0];
-						if (existingEmbedding?.values) {
-							await embeddingService.upsertEmbedding({
-								entityId: entity.id,
-								campaignId: entity.campaignId,
-								entityType: entity.entityType,
-								embedding: Array.from(existingEmbedding.values),
-								metadata: updatedMetadata,
-							});
-							console.log(
-								`[Server] Updated embedding metadata for entity: ${entityId}`
-							);
-						}
-					}
-				}
-			} catch (error) {
-				console.warn(
-					`[Server] Failed to index embedding for entity ${entityId}:`,
-					error
-				);
-				// Continue with approval even if embedding fails
-			}
-
-			approvedCount++;
-
-			// Update relationship status from staging to approved
-			const relationships = await graphService.getRelationshipsForEntity(
-				campaignId,
-				entityId
-			);
-			for (const rel of relationships) {
+		// Batch load relationships and update staging → approved
+		const relationshipsMap = await graphService.getRelationshipsForEntities(
+			campaignId,
+			approvedEntityIds
+		);
+		const seenEdgeKeys = new Set<string>();
+		const edgesToApprove: Array<{
+			campaignId: string;
+			fromEntityId: string;
+			toEntityId: string;
+			relationshipType: string;
+			strength?: number | null;
+			metadata?: unknown;
+			allowSelfRelation?: boolean;
+		}> = [];
+		for (const rels of relationshipsMap.values()) {
+			for (const rel of rels) {
 				const relMetadata = (rel.metadata as Record<string, unknown>) || {};
 				if (relMetadata.status === "staging") {
-					await graphService.upsertEdge({
+					const key = `${rel.fromEntityId}|${rel.toEntityId}|${rel.relationshipType}`;
+					if (seenEdgeKeys.has(key)) continue;
+					seenEdgeKeys.add(key);
+					edgesToApprove.push({
 						campaignId,
 						fromEntityId: rel.fromEntityId,
 						toEntityId: rel.toEntityId,
 						relationshipType: rel.relationshipType,
 						strength: rel.strength,
-						metadata: {
-							...relMetadata,
-							status: "approved",
-						},
+						metadata: { ...relMetadata, status: "approved" },
 						allowSelfRelation: false,
 					});
 					touchedEntityIds.add(rel.fromEntityId);
@@ -479,18 +351,43 @@ export async function handleApproveShards(c: ContextWithAuth) {
 				}
 			}
 		}
+		if (edgesToApprove.length > 0) {
+			await graphService.upsertEdgesBatch(edgesToApprove);
+		}
+		const relationshipCount = edgesToApprove.length;
 
 		console.log(
 			`[Server] Approved ${approvedCount} entities and created ${relationshipCount} relationships for campaign: ${campaignId}`
 		);
 
-		const approvedEntityIds = Array.from(touchedEntityIds);
-		if (approvedEntityIds.length > 0) {
+		// Defer embedding generation to background queue for faster UI response
+		if (
+			approvedEntityIds.length > 0 &&
+			graphServices.shardEmbeddingQueue &&
+			c.env.VECTORIZE
+		) {
+			try {
+				await graphServices.shardEmbeddingQueue.enqueueShardEmbedding({
+					type: "shard_embedding",
+					entityIds: approvedEntityIds,
+					campaignId,
+					username: userAuth.username,
+				});
+			} catch (error) {
+				console.warn(
+					"[Server] Failed to enqueue shard embedding, embeddings will not be indexed:",
+					error
+				);
+			}
+		}
+
+		const approvedEntityIdsForRebuild = Array.from(touchedEntityIds);
+		if (approvedEntityIdsForRebuild.length > 0) {
 			await checkAndRunCommunityDetection(
 				daoFactory,
 				campaignId,
 				c.env as any,
-				approvedEntityIds,
+				approvedEntityIdsForRebuild,
 				touchedRelationships,
 				userAuth.username
 			);
@@ -561,54 +458,62 @@ export async function handleRejectShards(c: ContextWithAuth) {
 		const daoFactory = getDAOFactory(c.env);
 		const graphService = daoFactory.entityGraphService;
 
-		let rejectedCount = 0;
-		const relationshipCount = 0;
-		const touchedEntityIds = new Set<string>();
-		const touchedRelationships: DirtyRelationshipRef[] = [];
+		// Fetch only entities that exist, belong to this campaign, and are in staging (filter in SQL)
+		const validEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
+			campaignId,
+			{ entityIds: shardIds, shardStatus: "staging" }
+		);
 
-		// Reject each entity (shardIds from UI are entity IDs) - mark as rejected but keep in graph with ignore flag
-		for (const entityId of shardIds) {
-			const validationResult = await validateStagingEntity(
-				daoFactory,
-				entityId,
-				campaignId
-			);
-
-			if (!validationResult) {
-				continue;
-			}
-
-			const { entity } = validationResult;
-
-			// Update entity status to rejected with ignore flag (remove pendingRelations from metadata)
+		// Batch entity updates
+		const entityUpdates = validEntities.map((entity) => {
 			const metadata = (entity.metadata as Record<string, unknown>) || {};
 			const { pendingRelations: _, ...metadataWithoutPending } = metadata;
 			const updatedMetadata = {
 				...metadataWithoutPending,
 				shardStatus: "rejected" as const,
 				rejected: true,
-				ignored: true, // Flag to ignore this entity in graph operations
+				ignored: true,
 				rejectionReason: reason,
 				rejectedAt: new Date().toISOString(),
 			};
-
-			await daoFactory.entityDAO.updateEntity(entityId, {
+			return {
+				entityId: entity.id,
 				metadata: updatedMetadata,
-				shardStatus: "rejected",
-			});
-			touchedEntityIds.add(entityId);
+				shardStatus: "rejected" as string,
+			};
+		});
+		if (entityUpdates.length > 0) {
+			await daoFactory.entityDAO.updateEntitiesBatch(entityUpdates);
+		}
 
-			rejectedCount++;
+		const rejectedCount = validEntities.length;
+		const rejectedEntityIds = validEntities.map((e) => e.id);
+		const touchedEntityIds = new Set<string>(rejectedEntityIds);
+		const touchedRelationships: DirtyRelationshipRef[] = [];
 
-			// Update relationship status from staging to rejected
-			const relationships = await graphService.getRelationshipsForEntity(
-				campaignId,
-				entityId
-			);
-			for (const rel of relationships) {
+		// Batch load relationships and update staging → rejected
+		const relationshipsMap = await graphService.getRelationshipsForEntities(
+			campaignId,
+			rejectedEntityIds
+		);
+		const seenEdgeKeys = new Set<string>();
+		const edgesToReject: Array<{
+			campaignId: string;
+			fromEntityId: string;
+			toEntityId: string;
+			relationshipType: string;
+			strength?: number | null;
+			metadata?: unknown;
+			allowSelfRelation?: boolean;
+		}> = [];
+		for (const rels of relationshipsMap.values()) {
+			for (const rel of rels) {
 				const relMetadata = (rel.metadata as Record<string, unknown>) || {};
 				if (relMetadata.status === "staging") {
-					await graphService.upsertEdge({
+					const key = `${rel.fromEntityId}|${rel.toEntityId}|${rel.relationshipType}`;
+					if (seenEdgeKeys.has(key)) continue;
+					seenEdgeKeys.add(key);
+					edgesToReject.push({
 						campaignId,
 						fromEntityId: rel.fromEntityId,
 						toEntityId: rel.toEntityId,
@@ -633,18 +538,22 @@ export async function handleRejectShards(c: ContextWithAuth) {
 				}
 			}
 		}
+		if (edgesToReject.length > 0) {
+			await graphService.upsertEdgesBatch(edgesToReject);
+		}
+		const relationshipCount = edgesToReject.length;
 
 		console.log(
 			`[Server] Rejected ${rejectedCount} entities and created ${relationshipCount} relationships (marked as ignored) for campaign: ${campaignId}`
 		);
 
-		const rejectedEntityIds = Array.from(touchedEntityIds);
-		if (rejectedEntityIds.length > 0) {
+		const rejectedEntityIdsForRebuild = Array.from(touchedEntityIds);
+		if (rejectedEntityIdsForRebuild.length > 0) {
 			await checkAndRunCommunityDetection(
 				daoFactory,
 				campaignId,
 				c.env as any,
-				rejectedEntityIds,
+				rejectedEntityIdsForRebuild,
 				touchedRelationships,
 				userAuth.username
 			);

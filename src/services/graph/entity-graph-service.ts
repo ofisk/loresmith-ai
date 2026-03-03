@@ -97,6 +97,56 @@ export class EntityGraphService {
 		return created;
 	}
 
+	/**
+	 * Batch upsert edges. More efficient than calling upsertEdge repeatedly.
+	 */
+	async upsertEdgesBatch(inputs: UpsertGraphEdgeInput[]): Promise<void> {
+		if (inputs.length === 0) return;
+
+		const entityIds = new Set<string>();
+		const payloads: CreateEntityRelationshipInput[] = [];
+
+		for (const input of inputs) {
+			const normalizedType = normalizeRelationshipType(input.relationshipType);
+			const normalizedStrength = normalizeRelationshipStrength(input.strength);
+
+			if (!input.allowSelfRelation && input.fromEntityId === input.toEntityId) {
+				throw new SelfReferentialRelationshipError();
+			}
+
+			entityIds.add(input.fromEntityId);
+			entityIds.add(input.toEntityId);
+
+			payloads.push({
+				campaignId: input.campaignId,
+				fromEntityId: input.fromEntityId,
+				toEntityId: input.toEntityId,
+				relationshipType: normalizedType,
+				strength: normalizedStrength,
+				metadata: input.metadata,
+			});
+
+			if (isBidirectionalRelationship(normalizedType)) {
+				const reciprocalType = getReciprocalRelationshipType(normalizedType);
+				if (reciprocalType) {
+					payloads.push({
+						campaignId: input.campaignId,
+						fromEntityId: input.toEntityId,
+						toEntityId: input.fromEntityId,
+						relationshipType: reciprocalType,
+						strength: normalizedStrength,
+						metadata: input.metadata,
+					});
+				}
+			}
+		}
+
+		const campaignId = inputs[0].campaignId;
+		await this.ensureEntitiesInCampaign(campaignId, Array.from(entityIds));
+		await this.entityDAO.upsertRelationshipsBatch(payloads);
+		ContextAssemblyService.invalidateEntityCaches(Array.from(entityIds));
+	}
+
 	async removeEdgeById(relationshipId: string): Promise<void> {
 		// Note: Cache invalidation skipped here since we don't have entity IDs
 		// Cache will expire naturally or be invalidated on next relationship update

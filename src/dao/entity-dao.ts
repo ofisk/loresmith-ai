@@ -293,6 +293,30 @@ export class EntityDAO extends BaseDAOClass {
 		await this.execute(sql, values);
 	}
 
+	/**
+	 * Batch update entities (metadata and shardStatus). Each entity can have different metadata.
+	 */
+	async updateEntitiesBatch(
+		updates: Array<{
+			entityId: string;
+			metadata: Record<string, unknown>;
+			shardStatus: string;
+		}>
+	): Promise<void> {
+		if (updates.length === 0) return;
+
+		const sql = `
+      UPDATE entities
+      SET metadata = ?, shard_status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+		const stmt = this.db.prepare(sql);
+		const batch = updates.map((u) =>
+			stmt.bind(JSON.stringify(u.metadata), u.shardStatus, u.entityId)
+		);
+		await this.db.batch(batch);
+	}
+
 	async getEntityById(entityId: string): Promise<Entity | null> {
 		// Entity IDs are campaign-scoped with format: ${campaignId}_${baseId}
 		// So we only need to check by ID - the campaign is already encoded in the ID
@@ -716,6 +740,49 @@ export class EntityDAO extends BaseDAOClass {
 		}
 
 		return this.mapRelationshipRecord(record);
+	}
+
+	/**
+	 * Batch upsert relationships. Does not return the created records.
+	 */
+	async upsertRelationshipsBatch(
+		relationships: CreateEntityRelationshipInput[]
+	): Promise<void> {
+		if (relationships.length === 0) return;
+
+		const sql = `
+      INSERT INTO entity_relationships (
+        id,
+        campaign_id,
+        from_entity_id,
+        to_entity_id,
+        relationship_type,
+        strength,
+        metadata,
+        created_at,
+        updated_at
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT(from_entity_id, to_entity_id, relationship_type)
+      DO UPDATE SET
+        strength = excluded.strength,
+        metadata = excluded.metadata,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+		const stmt = this.db.prepare(sql);
+		const batch = relationships.map((r) =>
+			stmt.bind(
+				r.id ?? crypto.randomUUID(),
+				r.campaignId,
+				r.fromEntityId,
+				r.toEntityId,
+				r.relationshipType,
+				r.strength ?? null,
+				r.metadata ? JSON.stringify(r.metadata) : null
+			)
+		);
+		await this.db.batch(batch);
 	}
 
 	async deleteRelationship(relationshipId: string): Promise<void> {

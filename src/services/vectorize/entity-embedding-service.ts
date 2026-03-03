@@ -43,6 +43,22 @@ export class EntityEmbeddingService {
 		]);
 	}
 
+	async upsertEmbeddings(items: UpsertEntityEmbeddingOptions[]): Promise<void> {
+		if (items.length === 0) return;
+
+		const index = this.ensureIndex();
+		const vectors = items.map((options) => ({
+			id: options.entityId,
+			values: options.embedding,
+			metadata: {
+				campaignId: options.campaignId,
+				entityType: options.entityType,
+				...(options.metadata ?? {}),
+			},
+		}));
+		await index.upsert(vectors);
+	}
+
 	async deleteEmbedding(entityId: string): Promise<void> {
 		const index = this.ensureIndex();
 		await index.deleteByIds([entityId]);
