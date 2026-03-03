@@ -252,10 +252,10 @@ export function ChatArea({
 				</select>
 			</div>
 
-			{/* Main Content Area */}
+			{/* Main Content Area - capped at 1/3 of viewport height, scrolls when content exceeds */}
 			<div
 				id={chatContainerId}
-				className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12 min-h-0"
+				className="flex-1 min-h-0 max-h-[33vh] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
 			>
 				{messages.length === 0 && !chatHistoryLoading && (
 					<WelcomeMessage
