@@ -5,6 +5,7 @@ import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/routes/register-routes";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
+import { RetryLimitService } from "@/services/retry-limit-service";
 import { DEFAULT_APP_ORIGIN } from "@/shared-config";
 
 async function getStripe(env: Env): Promise<Stripe> {
@@ -167,6 +168,50 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 			monthlyTokens: limits.monthlyTokens,
 		},
 	});
+}
+
+/**
+ * GET /billing/retry-limit-status?fileKeys=key1,key2,key3
+ * Returns per-file retry limit status (read-only, does not increment).
+ * Used by UI to disable retry buttons with tooltip when limit is reached.
+ */
+export async function handleRetryLimitStatus(c: ContextWithAuth) {
+	const auth = getUserAuth(c);
+	if (!auth?.username) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+
+	const url = new URL(c.req.url);
+	const fileKeysParam = url.searchParams.get("fileKeys");
+	const fileKeys = fileKeysParam
+		? fileKeysParam
+				.split(",")
+				.map((k) => k.trim())
+				.filter(Boolean)
+		: [];
+
+	if (fileKeys.length === 0) {
+		return c.json({ status: {} });
+	}
+
+	// Limit to avoid abuse (e.g. 50 keys max)
+	const keysToCheck = fileKeys.slice(0, 50);
+
+	const status: Record<string, { canRetry: boolean; reason?: string }> = {};
+	for (const fileKey of keysToCheck) {
+		const result = await RetryLimitService.checkRetryLimit(
+			auth.username,
+			fileKey,
+			auth.isAdmin ?? false,
+			c.env
+		);
+		status[fileKey] = {
+			canRetry: result.allowed,
+			reason: result.reason,
+		};
+	}
+
+	return c.json({ status });
 }
 
 export async function handleBillingCheckout(c: ContextWithAuth) {

@@ -5,6 +5,7 @@ import {
 	XCircle,
 } from "@phosphor-icons/react";
 import { useCallback } from "react";
+import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FileDAO } from "@/dao";
 import {
 	estimateProcessingTime,
@@ -22,6 +23,10 @@ interface FileStatusIndicatorProps {
 	fileSize?: number;
 	processingError?: string; // JSON string containing error code and metadata
 	onRetry?: (fileKey: string, fileName: string) => void;
+	/** When true, retry button is disabled (e.g. limit reached) */
+	retryLimitDisabled?: boolean;
+	/** Tooltip text when retry is disabled due to limit */
+	retryLimitTooltip?: string;
 }
 
 export function FileStatusIndicator({
@@ -35,6 +40,8 @@ export function FileStatusIndicator({
 	fileSize,
 	processingError,
 	onRetry,
+	retryLimitDisabled = false,
+	retryLimitTooltip,
 }: FileStatusIndicatorProps) {
 	// No local error timeout; rely on SSE-driven updates and server state
 
@@ -194,16 +201,31 @@ export function FileStatusIndicator({
 				fileKey &&
 				fileName &&
 				onRetry &&
-				!isMemoryLimitError && (
-					<button
-						type="button"
-						onClick={handleRetry}
-						className="ml-1 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-						title="Retry processing"
-					>
-						<ArrowClockwise size={12} />
-					</button>
-				)}
+				!isMemoryLimitError &&
+				(() => {
+					const button = (
+						<button
+							type="button"
+							onClick={retryLimitDisabled ? undefined : handleRetry}
+							disabled={retryLimitDisabled}
+							className={`ml-1 p-1 transition-colors ${
+								retryLimitDisabled
+									? "text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"
+									: "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+							}`}
+							title={!retryLimitTooltip ? "Retry processing" : undefined}
+						>
+							<ArrowClockwise size={12} />
+						</button>
+					);
+					return retryLimitTooltip ? (
+						<Tooltip content={retryLimitTooltip}>
+							<span className="inline-flex">{button}</span>
+						</Tooltip>
+					) : (
+						button
+					);
+				})()}
 		</div>
 	);
 }

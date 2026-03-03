@@ -282,6 +282,10 @@ export interface TierLimits {
 	qpd: number;
 	/** Monthly token cap for free tier only; undefined for paid tiers */
 	monthlyTokens?: number;
+	/** Per-file retries per day for indexation/entity extraction retry */
+	retriesPerFilePerDay: number;
+	/** Per-file retries per month for indexation/entity extraction retry */
+	retriesPerFilePerMonth: number;
 }
 
 export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
@@ -294,6 +298,8 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		tpd: 10_000,
 		qpd: 50,
 		monthlyTokens: 10_000,
+		retriesPerFilePerDay: 1,
+		retriesPerFilePerMonth: 3,
 	},
 	basic: {
 		maxCampaigns: 5,
@@ -303,6 +309,8 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		qpm: 10,
 		tpd: 500_000,
 		qpd: 500,
+		retriesPerFilePerDay: 3,
+		retriesPerFilePerMonth: 15,
 	},
 	pro: {
 		maxCampaigns: 999_999, // effectively unlimited
@@ -312,6 +320,8 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		qpm: 20,
 		tpd: 1_000_000,
 		qpd: 1_000,
+		retriesPerFilePerDay: 5,
+		retriesPerFilePerMonth: 50,
 	},
 } as const;
 

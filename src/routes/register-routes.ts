@@ -25,6 +25,7 @@ import {
 	handleBillingPortal,
 	handleBillingStatus,
 	handleBillingWebhook,
+	handleRetryLimitStatus,
 } from "@/routes/billing";
 import {
 	handleApproveShards,
@@ -250,6 +251,11 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.STATUS),
 		requireUserJwt,
 		handleBillingStatus
+	);
+	app.get(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.RETRY_LIMIT_STATUS),
+		requireUserJwt,
+		handleRetryLimitStatus
 	);
 	app.post(
 		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHECKOUT),

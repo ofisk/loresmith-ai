@@ -14,6 +14,7 @@ import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
+import { useRetryLimitStatus } from "@/hooks/useRetryLimitStatus";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getDisplayName } from "@/lib/display-name-utils";
@@ -212,6 +213,11 @@ export function CampaignDetailsModal({
 		// After queuing, mark as processing and start polling
 		setProcessingResources((prev) => new Set(prev).add(resourceId));
 	};
+
+	// Fetch retry limit status for all resources (to disable retry button when limit reached)
+	const limitKeys =
+		resources.length > 0 ? resources.map((r) => r.file_key ?? r.id) : null;
+	const { status: retryLimitStatus } = useRetryLimitStatus(limitKeys);
 
 	const removeResourceFromCampaign = useBaseAsync(
 		useMemo(
@@ -678,6 +684,7 @@ export function CampaignDetailsModal({
 									retryingResourceId={retryingResourceId}
 									onRetry={handleRetryEntityExtraction}
 									canRetryEntityExtraction={isOwner}
+									retryLimitStatus={retryLimitStatus}
 									onAddResource={() => setIsAddResourceModalOpen(true)}
 									canAddResource={canShare}
 									onRemoveResource={handleRemoveResource}

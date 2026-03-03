@@ -20,6 +20,7 @@ interface CampaignResourcesTabProps {
 	retryingResourceId: string | null;
 	onRetry: (resourceId: string) => void;
 	canRetryEntityExtraction?: boolean;
+	retryLimitStatus?: Record<string, { canRetry: boolean; reason?: string }>;
 	onAddResource: () => void;
 	canAddResource?: boolean;
 	onRemoveResource?: (resourceId: string) => void;
@@ -39,6 +40,7 @@ export function CampaignResourcesTab({
 	retryingResourceId,
 	onRetry,
 	canRetryEntityExtraction = true,
+	retryLimitStatus = {},
 	onAddResource,
 	canAddResource = true,
 	onRemoveResource,
@@ -221,38 +223,60 @@ export function CampaignResourcesTab({
 														</span>
 													</Tooltip>
 												) : (
-													<button
-														type="button"
-														onClick={(e) => {
-															e.stopPropagation();
-															onRetry(resource.id);
-														}}
-														disabled={
-															retryingResourceId === resource.id ||
-															processingResources.has(resource.id)
-														}
-														className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-													>
-														{processingResources.has(resource.id) ? (
-															<span className="flex items-center justify-center gap-2">
-																<ArrowClockwise
-																	size={16}
-																	className="animate-spin"
-																/>
-																Processing...
-															</span>
-														) : retryingResourceId === resource.id ? (
-															<span className="flex items-center justify-center gap-2">
-																<ArrowClockwise
-																	size={16}
-																	className="animate-spin"
-																/>
-																Retrying...
-															</span>
+													(() => {
+														const limitKey = resource.file_key ?? resource.id;
+														const limitInfo = retryLimitStatus[limitKey];
+														const limitReached =
+															limitInfo && !limitInfo.canRetry;
+														const tooltipContent = limitReached
+															? (limitInfo?.reason ?? "Retry limit reached")
+															: undefined;
+														const button = (
+															<button
+																type="button"
+																onClick={(e) => {
+																	if (!limitReached) {
+																		e.stopPropagation();
+																		onRetry(resource.id);
+																	}
+																}}
+																disabled={
+																	limitReached ||
+																	retryingResourceId === resource.id ||
+																	processingResources.has(resource.id)
+																}
+																title={tooltipContent}
+																className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+															>
+																{processingResources.has(resource.id) ? (
+																	<span className="flex items-center justify-center gap-2">
+																		<ArrowClockwise
+																			size={16}
+																			className="animate-spin"
+																		/>
+																		Processing...
+																	</span>
+																) : retryingResourceId === resource.id ? (
+																	<span className="flex items-center justify-center gap-2">
+																		<ArrowClockwise
+																			size={16}
+																			className="animate-spin"
+																		/>
+																		Retrying...
+																	</span>
+																) : (
+																	"Retry entity extraction"
+																)}
+															</button>
+														);
+														return tooltipContent ? (
+															<Tooltip content={tooltipContent}>
+																<span className="block w-full">{button}</span>
+															</Tooltip>
 														) : (
-															"Retry entity extraction"
-														)}
-													</button>
+															<span className="block w-full">{button}</span>
+														);
+													})()
 												)}
 												{onRemoveResource && (
 													<button
