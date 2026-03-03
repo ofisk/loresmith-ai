@@ -1,7 +1,6 @@
 import { Plus } from "@phosphor-icons/react";
 import { useId, useRef, useState } from "react";
 import { FormButton } from "@/components/button/FormButton";
-import { FormField } from "@/components/input/FormField";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { EDIT_ROLES } from "@/constants/campaign-roles";
 import { cn } from "@/lib/utils";
@@ -21,13 +20,19 @@ const sanitizeFilename = (filename: string): string => {
 		); // Ensure supported file extensions are lowercase
 };
 
+export interface ResourceUploadOptions {
+	/** When true, parent should not close the modal (e.g. more files to upload). */
+	keepModalOpen?: boolean;
+}
+
 interface ResourceUploadProps {
 	onUpload: (
 		file: File,
 		filename: string,
 		description: string,
-		tags: string[]
-	) => void;
+		tags: string[],
+		options?: ResourceUploadOptions
+	) => void | Promise<void>;
 	onCancel?: () => void;
 	loading?: boolean;
 	className?: string;
@@ -58,25 +63,12 @@ export const ResourceUpload = ({
 	onCreateCampaign,
 	showCampaignSelection = false,
 }: ResourceUploadProps) => {
-	const resourceFilenameId = useId();
-	const resourceDescriptionId = useId();
-	const resourceTagsId = useId();
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-	const [currentFileIndex, setCurrentFileIndex] = useState(0);
-	const [filename, setFilename] = useState("");
-	const [description, setDescription] = useState("");
-	const [tags, setTags] = useState<string[]>([]);
-	const [tagInput, setTagInput] = useState("");
 	const [_isValid, setIsValid] = useState(false);
 	const [uploadSuccess, setUploadSuccess] = useState(false);
-	const [initialValues, setInitialValues] = useState({
-		filename: "",
-		description: "",
-		tags: [] as string[],
-	});
+	const [isUploadingAll, setIsUploadingAll] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-
-	const currentFile = selectedFiles[currentFileIndex];
+	const fileInputId = useId();
 
 	// Show progress bar if upload is in progress
 	if (uploadProgress) {
@@ -89,41 +81,26 @@ export const ResourceUpload = ({
 
 	// Helper function to validate and filter files
 	const validateAndFilterFiles = (files: File[]): File[] => {
-		const allowedMimeTypes = new Set([
-			"application/pdf",
-			"text/plain",
-			"application/msword",
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-			"text/markdown",
-			"application/json",
-			"image/jpeg",
-			"image/jpg",
-			"image/png",
-			"image/webp",
-		]);
-		const allowedExtensions = new Set([
-			"pdf",
-			"txt",
-			"doc",
-			"docx",
-			"md",
-			"mdx",
-			"json",
-			"jpg",
-			"jpeg",
-			"png",
-			"webp",
-		]);
-
-		// Some clients provide an empty/non-standard MIME type; fall back to extension.
+		// Filter by file type (must match RAG-supported types: FileExtractionService + file-upload-security ALLOWED_EXTENSIONS)
+		const allowedExtensions =
+			/\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i;
 		const typeValidFiles = files.filter((file) => {
-			const normalizedMime = file.type.toLowerCase();
-			if (allowedMimeTypes.has(normalizedMime)) {
-				return true;
-			}
-
-			const ext = file.name.split(".").pop()?.toLowerCase() || "";
-			return allowedExtensions.has(ext);
+			const byMime =
+				file.type === "application/pdf" ||
+				file.type === "text/plain" ||
+				file.type === "text/markdown" ||
+				file.type === "text/x-markdown" ||
+				file.type === "application/msword" ||
+				file.type ===
+					"application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+				file.type === "application/json" ||
+				file.type === "image/jpeg" ||
+				file.type === "image/jpg" ||
+				file.type === "image/png" ||
+				file.type === "image/webp";
+			// Fallback: some browsers use generic MIME for .md/.mdx/.json or images
+			const byExt = allowedExtensions.test(file.name);
+			return byMime || byExt;
 		});
 
 		// Filter by file size (100MB max)
@@ -147,25 +124,20 @@ export const ResourceUpload = ({
 	const setSelectedFilesState = (validFiles: File[]) => {
 		if (validFiles.length > 0) {
 			setSelectedFiles(validFiles);
-			setCurrentFileIndex(0);
-			setFilename(sanitizeFilename(validFiles[0].name));
 			setIsValid(true);
 			setUploadSuccess(false);
-			setInitialValues({
-				filename: sanitizeFilename(validFiles[0].name),
-				description: "",
-				tags: [],
-			});
 		} else {
 			setSelectedFiles([]);
-			setFilename("");
 			setIsValid(false);
 			setUploadSuccess(false);
 		}
 	};
 
 	const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const files = Array.from(event.target.files || []);
+		const input = event.target;
+		// Copy FileList to array immediately (live list can invalidate after the event)
+		const fileList = input.files;
+		const files = fileList && fileList.length > 0 ? Array.from(fileList) : [];
 		const validFiles = validateAndFilterFiles(files);
 		if (files.length > 0 && validFiles.length === 0) {
 			alert(
@@ -175,15 +147,31 @@ export const ResourceUpload = ({
 		setSelectedFilesState(validFiles);
 	};
 
-	const handleUpload = () => {
-		if (currentFile) {
-			onUpload(currentFile, filename, description, tags);
+	const handleUpload = async () => {
+		if (selectedFiles.length === 0) return;
+		if (selectedFiles.length === 1) {
+			const file = selectedFiles[0];
+			const keepModalOpen = false;
+			await Promise.resolve(
+				onUpload(file, sanitizeFilename(file.name), "", [], { keepModalOpen })
+			);
 			setUploadSuccess(true);
-			setInitialValues({
-				filename: filename,
-				description: description,
-				tags: tags,
-			});
+			return;
+		}
+		// Multiple files: upload all in sequence, then close on last
+		setIsUploadingAll(true);
+		try {
+			for (let i = 0; i < selectedFiles.length; i++) {
+				const file = selectedFiles[i];
+				const isLast = i === selectedFiles.length - 1;
+				await Promise.resolve(
+					onUpload(file, sanitizeFilename(file.name), "", [], {
+						keepModalOpen: !isLast,
+					})
+				);
+			}
+		} finally {
+			setIsUploadingAll(false);
 		}
 	};
 
@@ -198,60 +186,11 @@ export const ResourceUpload = ({
 		event.preventDefault();
 	};
 
-	const handleAddTag = () => {
-		const trimmedTag = tagInput.trim();
-		if (trimmedTag && !tags.includes(trimmedTag)) {
-			setTags([...tags, trimmedTag]);
-			setTagInput("");
-		}
-	};
-
-	const handleRemoveTag = (tagToRemove: string) => {
-		setTags(tags.filter((tag) => tag !== tagToRemove));
-	};
-
-	const handleTagKeyPress = (event: React.KeyboardEvent) => {
-		if (event.key === "Enter") {
-			event.preventDefault();
-			handleAddTag();
-		}
-	};
-
-	const handleNextFile = () => {
-		if (currentFileIndex < selectedFiles.length - 1) {
-			const nextIndex = currentFileIndex + 1;
-			setCurrentFileIndex(nextIndex);
-			setFilename(sanitizeFilename(selectedFiles[nextIndex].name));
-			setUploadSuccess(false);
-			setInitialValues({
-				filename: sanitizeFilename(selectedFiles[nextIndex].name),
-				description: "",
-				tags: [],
-			});
-		}
-	};
-
-	const handlePreviousFile = () => {
-		if (currentFileIndex > 0) {
-			const prevIndex = currentFileIndex - 1;
-			setCurrentFileIndex(prevIndex);
-			setFilename(sanitizeFilename(selectedFiles[prevIndex].name));
-			setUploadSuccess(false);
-			setInitialValues({
-				filename: sanitizeFilename(selectedFiles[prevIndex].name),
-				description: "",
-				tags: [],
-			});
-		}
-	};
-
-	const hasChanges =
-		filename !== initialValues.filename ||
-		description !== initialValues.description ||
-		JSON.stringify(tags) !== JSON.stringify(initialValues.tags);
-
 	const isUploadDisabled =
-		!currentFile || loading || (uploadSuccess && !hasChanges);
+		selectedFiles.length === 0 ||
+		loading ||
+		isUploadingAll ||
+		(selectedFiles.length === 1 && uploadSuccess);
 
 	return (
 		<div className={cn("p-4 md:p-6 h-full flex flex-col min-h-0", className)}>
@@ -269,26 +208,14 @@ export const ResourceUpload = ({
 			<div className="flex-1 overflow-y-auto flex flex-col justify-between py-3 md:py-6 min-h-0 pr-1">
 				{/* Details Section */}
 				<div className="space-y-6 md:space-y-10">
-					{/* File Upload Area */}
+					{/* File Upload Area - label activates input on real user click so multi-select works (programmatic click() can force single-file in some browsers) */}
 					<div className="flex justify-center">
-						<button
-							type="button"
+						<label
+							htmlFor={fileInputId}
 							className={cn(
-								"w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus:border-gray-400 dark:focus:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
+								"w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus-within:border-gray-400 dark:focus-within:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
 								loading && "opacity-50 pointer-events-none"
 							)}
-							aria-label="Upload resource file"
-							onClick={() => fileInputRef.current?.click()}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									fileInputRef.current?.click();
-								}
-							}}
-							onKeyUp={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									fileInputRef.current?.click();
-								}
-							}}
 							onDrop={handleDrop}
 							onDragOver={handleDragOver}
 							onDragEnter={(e) => e.preventDefault()}
@@ -296,33 +223,30 @@ export const ResourceUpload = ({
 						>
 							<input
 								ref={fileInputRef}
+								id={fileInputId}
 								type="file"
 								accept=".pdf,.txt,.doc,.docx,.md,.mdx,.json,.jpg,.jpeg,.png,.webp"
 								onChange={handleFileSelect}
-								className="hidden"
+								className="sr-only"
 								multiple
+								aria-label="Choose files to upload"
 							/>
-							{currentFile ? (
+							{selectedFiles.length > 0 ? (
 								<div className="text-center relative w-full">
 									<button
 										type="button"
 										onClick={(e) => {
+											e.preventDefault();
 											e.stopPropagation();
 											setSelectedFiles([]);
-											setCurrentFileIndex(0);
-											setFilename("");
-											setDescription("");
-											setTags([]);
-											setTagInput("");
 											setUploadSuccess(false);
 											setIsValid(false);
-											// Reset the file input so the same file can be selected again
 											if (fileInputRef.current) {
 												fileInputRef.current.value = "";
 											}
 										}}
 										className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition"
-										aria-label="Clear file"
+										aria-label="Clear files"
 									>
 										<svg
 											className="w-3 h-3"
@@ -330,7 +254,7 @@ export const ResourceUpload = ({
 											viewBox="0 0 24 24"
 											stroke="currentColor"
 										>
-											<title>Clear file</title>
+											<title>Clear files</title>
 											<path
 												strokeLinecap="round"
 												strokeLinejoin="round"
@@ -339,12 +263,34 @@ export const ResourceUpload = ({
 											/>
 										</svg>
 									</button>
-									<div className="text-ob-base-300 text-sm font-medium mb-2">
-										{currentFile.name}
-									</div>
-									<div className="text-ob-base-200 text-sm">
-										{(currentFile.size / 1024 / 1024).toFixed(2)} MB
-									</div>
+									{selectedFiles.length === 1 ? (
+										<>
+											<div className="text-ob-base-300 text-sm font-medium mb-2">
+												{selectedFiles[0].name}
+											</div>
+											<div className="text-ob-base-200 text-sm">
+												{(selectedFiles[0].size / 1024 / 1024).toFixed(2)} MB
+											</div>
+										</>
+									) : (
+										<>
+											<div className="text-ob-base-300 text-sm font-medium mb-2">
+												{selectedFiles.length} files selected
+											</div>
+											<div className="text-ob-base-200 text-xs max-h-20 overflow-y-auto text-left">
+												{selectedFiles.slice(0, 5).map((f) => (
+													<div key={f.name + f.size} className="truncate">
+														{f.name}
+													</div>
+												))}
+												{selectedFiles.length > 5 && (
+													<div className="text-ob-base-200/80">
+														…and {selectedFiles.length - 5} more
+													</div>
+												)}
+											</div>
+										</>
+									)}
 								</div>
 							) : (
 								<div className="text-center">
@@ -353,72 +299,7 @@ export const ResourceUpload = ({
 									</div>
 								</div>
 							)}
-						</button>
-					</div>
-
-					{/* Form Fields */}
-					<div className="space-y-3">
-						<FormField
-							id={resourceFilenameId}
-							label="Filename"
-							placeholder="Name this mighty tome…"
-							value={filename}
-							onValueChange={(value, _isValid) => setFilename(value)}
-							disabled={loading}
-						/>
-						<FormField
-							id={resourceDescriptionId}
-							label="Description (optional)"
-							placeholder="Describe the perils and promises within..."
-							value={description}
-							onValueChange={(value, _isValid) => setDescription(value)}
-							disabled={loading}
-						/>
-						<FormField
-							id={resourceTagsId}
-							label="Tags (optional)"
-							placeholder="Mark this tome with its arcane keywords…"
-							value={tagInput}
-							onValueChange={(value, _isValid) => setTagInput(value)}
-							onKeyPress={handleTagKeyPress}
-							disabled={loading}
-						>
-							{tags.length > 0 && (
-								<div className="flex flex-wrap items-center gap-2 mt-2">
-									{tags.map((tag) => (
-										<span
-											key={tag}
-											className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full"
-										>
-											{tag}
-											<FormButton
-												onClick={() => handleRemoveTag(tag)}
-												className="ml-1.5 p-0.5 focus:outline-none rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
-												icon={
-													<svg
-														className="h-3 w-3"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke="currentColor"
-													>
-														<title>Remove tag</title>
-														<path
-															strokeLinecap="round"
-															strokeLinejoin="round"
-															strokeWidth={2}
-															d="M6 18L18 6M6 6l12 12"
-														/>
-													</svg>
-												}
-											/>
-										</span>
-									))}
-								</div>
-							)}
-							<div className="text-ob-base-200 text-xs">
-								Example: undead, forest, cursed treasure
-							</div>
-						</FormField>
+						</label>
 					</div>
 				</div>
 
@@ -517,67 +398,46 @@ export const ResourceUpload = ({
 						)}
 					</div>
 				</div>
-
-				{/* Multi-file Navigation Buttons */}
-				{selectedFiles.length > 1 && (
-					<div className="flex justify-center gap-2">
-						{currentFileIndex > 0 && (
-							<FormButton onClick={handlePreviousFile} variant="secondary">
-								Previous File
-							</FormButton>
-						)}
-						{currentFileIndex < selectedFiles.length - 1 && (
-							<FormButton onClick={handleNextFile} variant="secondary">
-								Next File
-							</FormButton>
-						)}
-					</div>
-				)}
 			</div>
 
 			{/* Actions */}
 			<div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
 				<div className="flex gap-2">
-					{currentFile ? (
-						<FormButton
-							variant="primary"
-							onClick={handleUpload}
-							disabled={isUploadDisabled}
-							icon={
-								uploadSuccess && !hasChanges ? (
-									<svg
-										className="w-4 h-4"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<title>Upload complete</title>
-										<path
-											strokeLinecap="round"
-											strokeLinejoin="round"
-											strokeWidth={2}
-											d="M5 13l4 4L19 7"
-										/>
-									</svg>
-								) : undefined
-							}
-						>
-							{uploadSuccess && !hasChanges ? "Complete" : "Upload"}
-						</FormButton>
-					) : (
-						<FormButton variant="primary" disabled={true}>
-							Upload
-						</FormButton>
-					)}
+					<FormButton
+						variant="primary"
+						onClick={() => void handleUpload()}
+						disabled={isUploadDisabled}
+						icon={
+							selectedFiles.length === 1 && uploadSuccess ? (
+								<svg
+									className="w-4 h-4"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<title>Upload complete</title>
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M5 13l4 4L19 7"
+									/>
+								</svg>
+							) : undefined
+						}
+					>
+						{isUploadingAll
+							? "Uploading…"
+							: selectedFiles.length > 1
+								? "Upload all"
+								: selectedFiles.length === 1 && uploadSuccess
+									? "Complete"
+									: "Upload"}
+					</FormButton>
 					<FormButton
 						onClick={() => {
 							// Reset form state
 							setSelectedFiles([]);
-							setCurrentFileIndex(0);
-							setFilename("");
-							setDescription("");
-							setTags([]);
-							setTagInput("");
 							setUploadSuccess(false);
 							setIsValid(false);
 							// Close the modal
