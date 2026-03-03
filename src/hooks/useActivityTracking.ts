@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 
 const LAST_ACTIVITY_STORAGE_KEY = "loresmith-last-activity";
-const RECAP_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+const RECAP_COOLDOWN_MS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
 /**
  * Get the last recap timestamp for a specific campaign
@@ -25,7 +25,7 @@ export function setLastRecapTimestamp(
 
 /**
  * Check if a recap should be shown for a campaign
- * Returns true if no recap has been shown for this campaign OR > 1 hour since last recap
+ * Returns true if no recap has been shown for this campaign OR > 12 hours since last recap
  */
 export function shouldShowRecap(campaignId: string | null): boolean {
 	if (!campaignId) {
