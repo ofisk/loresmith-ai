@@ -252,10 +252,10 @@ export function ChatArea({
 				</select>
 			</div>
 
-			{/* Main Content Area - grows with content up to 1/3 viewport, then scrolls */}
+			{/* Main Content Area - stretches down to input, scrolls when content overflows */}
 			<div
 				id={chatContainerId}
-				className="flex-shrink-0 max-h-[33vh] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
+				className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
 			>
 				{messages.length === 0 && !chatHistoryLoading && (
 					<WelcomeMessage
@@ -289,10 +289,7 @@ export function ChatArea({
 				)}
 			</div>
 
-			{/* Spacer - pushes input to bottom */}
-			<div className="flex-1 min-h-0" aria-hidden="true" />
-
-			{/* Input Area - pinned to bottom, grows upward as user types */}
+			{/* Input Area - at bottom, grows upward over chat as user types */}
 			<form
 				onSubmit={onFormSubmit}
 				className="chat-input-area flex-shrink-0 px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
