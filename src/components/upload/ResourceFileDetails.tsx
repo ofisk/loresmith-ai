@@ -1,4 +1,5 @@
 import { Button } from "@/components/button/Button";
+import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import type { Campaign } from "@/types/campaign";
@@ -10,6 +11,8 @@ interface ResourceFileDetailsProps {
 	onRetryIndexing: (fileKey: string) => Promise<void>;
 	fetchResources: () => Promise<void>;
 	campaigns?: Campaign[];
+	retryLimitDisabled?: boolean;
+	retryLimitTooltip?: string;
 }
 
 /**
@@ -22,6 +25,8 @@ export function ResourceFileDetails({
 	onRetryIndexing,
 	fetchResources,
 	campaigns = [],
+	retryLimitDisabled = false,
+	retryLimitTooltip,
 }: ResourceFileDetailsProps) {
 	const handleRetryIndexing = async () => {
 		await onRetryIndexing(file.file_key);
@@ -145,18 +150,30 @@ export function ResourceFileDetails({
 						file.status === "failed" ||
 						file.status === "error";
 
+					const retryButton = (
+						<Button
+							onClick={retryLimitDisabled ? undefined : handleRetryIndexing}
+							disabled={retryLimitDisabled}
+							variant="secondary"
+							size="sm"
+							className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							Retry Indexing
+						</Button>
+					);
+					const tooltipContent = retryLimitDisabled
+						? (retryLimitTooltip ?? "Retry limit reached")
+						: null;
 					return (
 						isFailedStatus &&
-						!isMemoryLimitError && (
-							<Button
-								onClick={handleRetryIndexing}
-								variant="secondary"
-								size="sm"
-								className="w-full !text-orange-600 dark:!text-orange-400 hover:!text-orange-700 dark:hover:!text-orange-300 border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600"
-							>
-								Retry Indexing
-							</Button>
-						)
+						!isMemoryLimitError &&
+						(tooltipContent ? (
+							<Tooltip content={tooltipContent}>
+								<span className="block w-full">{retryButton}</span>
+							</Tooltip>
+						) : (
+							<span className="block w-full">{retryButton}</span>
+						))
 					);
 				})()}
 				{file.processing_error &&

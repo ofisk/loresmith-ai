@@ -19,6 +19,7 @@ interface ResourceFileItemProps {
 	onRetryIndexing: (fileKey: string) => Promise<void>;
 	fetchResources: () => Promise<void>;
 	campaigns?: Campaign[];
+	retryLimitStatus?: { canRetry: boolean; reason?: string };
 }
 
 /**
@@ -36,6 +37,7 @@ export function ResourceFileItem({
 	onRetryIndexing,
 	fetchResources,
 	campaigns = [],
+	retryLimitStatus,
 }: ResourceFileItemProps) {
 	const progressPercentage = (() => {
 		// Check for campaign addition progress first
@@ -122,6 +124,10 @@ export function ResourceFileItem({
 								fileSize={file.file_size}
 								processingError={file.processing_error}
 								onRetry={onRetryFile}
+								retryLimitDisabled={
+									retryLimitStatus && !retryLimitStatus.canRetry
+								}
+								retryLimitTooltip={retryLimitStatus?.reason}
 								className="flex-shrink-0"
 							/>
 						)}
@@ -156,6 +162,8 @@ export function ResourceFileItem({
 						onRetryIndexing={onRetryIndexing}
 						fetchResources={fetchResources}
 						campaigns={campaigns}
+						retryLimitDisabled={retryLimitStatus && !retryLimitStatus.canRetry}
+						retryLimitTooltip={retryLimitStatus?.reason}
 					/>
 				)}
 			</div>

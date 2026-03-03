@@ -317,6 +317,7 @@ export const API_CONFIG = {
 			PORTAL: "/billing/portal",
 			WEBHOOK: "/billing/webhook",
 			STATUS: "/billing/status",
+			RETRY_LIMIT_STATUS: "/billing/retry-limit-status",
 		},
 		AUTH: {
 			LOGOUT: "/auth/logout",

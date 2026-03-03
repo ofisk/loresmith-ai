@@ -42,6 +42,7 @@ import { ChecklistStatusService } from "@/services/campaign/checklist-status-ser
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
+import { RetryLimitService } from "@/services/retry-limit-service";
 
 // Extend the context to include userAuth
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -779,6 +780,47 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 		}
 
 		console.log("[Server] Found resource for retry:", resource);
+
+		// In-progress check: block retry until current extraction completes
+		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
+		const queueItem = await queueDAO.getQueueItemByResource(
+			campaignId,
+			resourceId
+		);
+		const activeStatuses = ["pending", "processing", "rate_limited"];
+		if (
+			queueItem &&
+			activeStatuses.includes(queueItem.status?.toLowerCase() ?? "")
+		) {
+			return c.json(
+				{
+					success: false,
+					message:
+						"Please wait for the current extraction to complete before retrying.",
+					error: "EXTRACTION_IN_PROGRESS",
+				},
+				409
+			);
+		}
+
+		// Limit check: per-file daily and monthly retry limits
+		const limitKey = resource.file_key ?? resourceId;
+		const retryLimit = await RetryLimitService.checkAndIncrementRetry(
+			userAuth.username,
+			limitKey,
+			userAuth.isAdmin ?? false,
+			c.env
+		);
+		if (!retryLimit.allowed) {
+			return c.json(
+				{
+					success: false,
+					message: retryLimit.reason,
+					error: "RETRY_LIMIT_EXCEEDED",
+				},
+				429
+			);
+		}
 
 		// Queue entity extraction retry (asynchronous)
 		try {

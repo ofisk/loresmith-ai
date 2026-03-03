@@ -19,6 +19,7 @@ import { CommunitySummaryDAO } from "./community-summary-dao";
 import { EntityDAO } from "./entity-dao";
 import { EntityImportanceDAO } from "./entity-importance-dao";
 import { FileDAO } from "./file/file-dao";
+import { FileRetryUsageDAO } from "./file-retry-usage-dao";
 import { GraphRebuildDirtyDAO } from "./graph-rebuild-dirty-dao";
 import { LLMUsageDAO } from "./llm-usage-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
@@ -60,6 +61,7 @@ export interface DAOFactory {
 	campaignResourceProposalDAO: CampaignResourceProposalDAO;
 	subscriptionDAO: SubscriptionDAO;
 	userMonthlyUsageDAO: UserMonthlyUsageDAO;
+	fileRetryUsageDAO: FileRetryUsageDAO;
 	entityGraphService: EntityGraphService;
 	entityImportanceService: EntityImportanceService;
 	rebuildTriggerService: RebuildTriggerService;
@@ -95,6 +97,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly campaignResourceProposalDAO: CampaignResourceProposalDAO;
 	public readonly subscriptionDAO: SubscriptionDAO;
 	public readonly userMonthlyUsageDAO: UserMonthlyUsageDAO;
+	public readonly fileRetryUsageDAO: FileRetryUsageDAO;
 	private _entityGraphService: EntityGraphService | null = null;
 	private _entityImportanceService: EntityImportanceService | null = null;
 	private _rebuildTriggerService: RebuildTriggerService | null = null;
@@ -125,6 +128,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.campaignResourceProposalDAO = new CampaignResourceProposalDAO(db);
 		this.subscriptionDAO = new SubscriptionDAO(db);
 		this.userMonthlyUsageDAO = new UserMonthlyUsageDAO(db);
+		this.fileRetryUsageDAO = new FileRetryUsageDAO(db);
 	}
 
 	async getStorageUsage(username: string): Promise<UserStorageUsage> {

@@ -4,6 +4,7 @@ import { FileDAO } from "@/dao";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { useResourceFileEvents } from "@/hooks/useResourceFileEvents";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import { useRetryLimitStatus } from "@/hooks/useRetryLimitStatus";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
 import {
@@ -59,6 +60,26 @@ export function ResourceList({
 		setProgressByFileKey,
 		fetchResources,
 	});
+
+	// Fetch retry limit status for files that can show retry (error/failed/unindexed, not memory limit)
+	const retryEligibleFileKeys = files
+		.filter((f) => {
+			const isFailed =
+				f.status === FileDAO.STATUS.ERROR ||
+				f.status === "failed" ||
+				f.status === FileDAO.STATUS.UNINDEXED;
+			if (!isFailed) return false;
+			try {
+				const err = f.processing_error ? JSON.parse(f.processing_error) : null;
+				return err?.code !== "MEMORY_LIMIT_EXCEEDED";
+			} catch {
+				return true;
+			}
+		})
+		.map((f) => f.file_key);
+	const { status: retryLimitStatus } = useRetryLimitStatus(
+		retryEligibleFileKeys.length > 0 ? retryEligibleFileKeys : null
+	);
 
 	const handleRetryFile = useCallback(
 		async (fileKey: string, fileName: string) => {
@@ -302,6 +323,7 @@ export function ResourceList({
 						onRetryIndexing={handleRetryIndexing}
 						fetchResources={fetchResources}
 						campaigns={campaigns}
+						retryLimitStatus={retryLimitStatus[file.file_key]}
 					/>
 				))}
 			</div>
