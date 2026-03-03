@@ -17,7 +17,9 @@ import { CommunitySummaryService } from "./services/graph/community-summary-serv
 import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
+import { ShardEmbeddingQueueProcessor } from "./services/graph/shard-embedding-queue-processor";
 import type { RebuildQueueMessage } from "./types/rebuild-queue";
+import type { ShardEmbeddingQueueMessage } from "./types/shard-embedding-queue";
 
 export interface ProcessingMessage {
 	bucket: string;
@@ -263,21 +265,40 @@ function isRebuildQueueMessage(message: any): message is RebuildQueueMessage {
 	);
 }
 
+// Type guard to check if message is a shard embedding queue message
+function isShardEmbeddingQueueMessage(
+	message: any
+): message is ShardEmbeddingQueueMessage {
+	return (
+		message &&
+		typeof message === "object" &&
+		message.type === "shard_embedding" &&
+		Array.isArray(message.entityIds) &&
+		typeof message.campaignId === "string" &&
+		typeof message.username === "string"
+	);
+}
+
 // Export the queue handler function for Wrangler
 export async function queue(
-	batch: MessageBatch<ProcessingMessage | RebuildQueueMessage>,
+	batch: MessageBatch<
+		ProcessingMessage | RebuildQueueMessage | ShardEmbeddingQueueMessage
+	>,
 	env: Env
 ): Promise<void> {
 	console.log(`[Queue] Processing ${batch.messages.length} messages`);
 
 	const fileProcessor = new FileProcessingQueue(env);
 	const rebuildProcessor = new RebuildQueueProcessor(env);
+	const shardEmbeddingProcessor = new ShardEmbeddingQueueProcessor(env);
 
 	for (const message of batch.messages) {
 		try {
 			// Route to appropriate processor based on message type
 			if (isRebuildQueueMessage(message.body)) {
 				await rebuildProcessor.handleMessage(message.body);
+			} else if (isShardEmbeddingQueueMessage(message.body)) {
+				await shardEmbeddingProcessor.handleMessage(message.body);
 			} else {
 				await fileProcessor.handleMessage(message.body as ProcessingMessage);
 			}

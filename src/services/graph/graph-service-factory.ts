@@ -5,6 +5,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/middleware/auth";
 import { RebuildPipelineService } from "./rebuild-pipeline-service";
 import { RebuildQueueService } from "./rebuild-queue-service";
+import { ShardEmbeddingQueueService } from "./shard-embedding-queue-service";
 import { WorldStateChangelogService } from "./world-state-changelog-service";
 
 function normalizeApiKey(value: string): string | undefined {
@@ -15,6 +16,7 @@ function normalizeApiKey(value: string): string | undefined {
 export function getGraphServices(env: Env): {
 	rebuildQueue: RebuildQueueService;
 	worldStateChangelog: WorldStateChangelogService;
+	shardEmbeddingQueue: ShardEmbeddingQueueService | null;
 } {
 	if (!env.GRAPH_REBUILD_QUEUE) {
 		throw new Error("GRAPH_REBUILD_QUEUE binding not configured");
@@ -26,6 +28,9 @@ export function getGraphServices(env: Env): {
 	return {
 		rebuildQueue: new RebuildQueueService(env.GRAPH_REBUILD_QUEUE),
 		worldStateChangelog: new WorldStateChangelogService({ db: env.DB }),
+		shardEmbeddingQueue: env.SHARD_EMBEDDING_QUEUE
+			? new ShardEmbeddingQueueService(env.SHARD_EMBEDDING_QUEUE)
+			: null,
 	};
 }
 

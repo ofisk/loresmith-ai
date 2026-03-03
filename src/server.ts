@@ -10,6 +10,7 @@ import {
 import { type Env, registerRoutes } from "@/routes/register-routes";
 import { API_CONFIG } from "@/shared-config";
 import type { RebuildQueueMessage } from "@/types/rebuild-queue";
+import type { ShardEmbeddingQueueMessage } from "@/types/shard-embedding-queue";
 
 export { Chat } from "@/durable-objects/chat";
 export { NotificationHub } from "./durable-objects";
@@ -89,7 +90,9 @@ export default {
 		return app.fetch(request, env, ctx);
 	},
 	queue: (
-		batch: MessageBatch<ProcessingMessage | RebuildQueueMessage>,
+		batch: MessageBatch<
+			ProcessingMessage | RebuildQueueMessage | ShardEmbeddingQueueMessage
+		>,
 		env: Env,
 		_ctx: ExecutionContext
 	) => {
