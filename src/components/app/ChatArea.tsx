@@ -234,7 +234,7 @@ export function ChatArea({
 	};
 
 	return (
-		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
+		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden mt-[10vh]">
 			{/* Campaign Context Selector - separate div above chat */}
 			<div className="px-4 md:px-8 py-2 md:py-3 flex-shrink-0">
 				<select
@@ -252,10 +252,10 @@ export function ChatArea({
 				</select>
 			</div>
 
-			{/* Main Content Area - capped at 1/3 of viewport height, scrolls when content exceeds */}
+			{/* Main Content Area - grows with content up to 1/3 viewport, then scrolls */}
 			<div
 				id={chatContainerId}
-				className="flex-1 min-h-0 max-h-[33vh] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
+				className="flex-shrink-0 max-h-[33vh] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
 			>
 				{messages.length === 0 && !chatHistoryLoading && (
 					<WelcomeMessage
