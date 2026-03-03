@@ -9,9 +9,9 @@ import {
 } from "@/components/rate-limit";
 import { CampaignDetailsModal } from "@/components/resource-side-panel/CampaignDetailsModal";
 import { CreateCampaignModal } from "@/components/resource-side-panel/CreateCampaignModal";
-import { MultiSelect } from "@/components/select/MultiSelect";
 import { EditFileModal } from "@/components/upload/EditFileModal";
 import { ResourceUpload } from "@/components/upload/ResourceUpload";
+import { EDIT_ROLES } from "@/constants/campaign-roles";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { FileMetadata } from "@/dao";
@@ -19,7 +19,9 @@ import type { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import type { useCampaignAddition } from "@/hooks/useCampaignAddition";
 import type { useLocalNotifications } from "@/hooks/useLocalNotifications";
 import type { useModalState } from "@/hooks/useModalState";
+import { getDisplayName } from "@/lib/display-name-utils";
 import { logger } from "@/lib/logger";
+import { cn } from "@/lib/utils";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import type { Campaign } from "@/types/campaign";
@@ -335,8 +337,9 @@ export function AppModals({
 			>
 				<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 					<h3 className="text-lg font-semibold mb-4">
-						"{modalState.selectedFile ? modalState.selectedFile.file_name : ""}"
-						- Add to Campaign
+						{modalState.selectedFile
+							? getDisplayName(modalState.selectedFile)
+							: ""}
 					</h3>
 					<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
 						Choose which legendary adventures this tome shall join:
@@ -353,20 +356,52 @@ export function AppModals({
 								</div>
 							</div>
 						) : (
-							<div className="space-y-2">
-								<div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-									Select campaigns to add this file to:
-								</div>
-								<MultiSelect
-									options={availableCampaigns.map((campaign) => ({
-										value: campaign.campaignId,
-										label: campaign.name,
-									}))}
-									selectedValues={modalState.selectedCampaigns}
-									onSelectionChange={modalState.setSelectedCampaigns}
-									placeholder="Choose campaigns..."
-									closeOnSelect={true}
-								/>
+							<div className="flex flex-wrap gap-2">
+								{availableCampaigns.map((campaign) => {
+									const isSelected = modalState.selectedCampaigns.includes(
+										campaign.campaignId
+									);
+									const canAddToCampaign =
+										!campaign.role || EDIT_ROLES.has(campaign.role);
+									return (
+										<button
+											key={campaign.campaignId}
+											type="button"
+											onClick={() => {
+												if (!canAddToCampaign) return;
+												if (isSelected) {
+													modalState.setSelectedCampaigns(
+														modalState.selectedCampaigns.filter(
+															(id) => id !== campaign.campaignId
+														)
+													);
+												} else {
+													modalState.setSelectedCampaigns([
+														...modalState.selectedCampaigns,
+														campaign.campaignId,
+													]);
+												}
+											}}
+											disabled={!canAddToCampaign}
+											className={cn(
+												"px-3 py-1.5 text-sm transition-colors rounded border-2",
+												"focus:outline-none",
+												!canAddToCampaign
+													? "font-normal bg-neutral-100 dark:bg-neutral-900 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-800 cursor-not-allowed opacity-70"
+													: isSelected
+														? "font-medium bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+														: "font-normal bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+											)}
+											title={
+												canAddToCampaign
+													? campaign.name
+													: "You do not have permission to add resources to this campaign"
+											}
+										>
+											{campaign.name}
+										</button>
+									);
+								})}
 							</div>
 						)}
 
@@ -395,9 +430,7 @@ export function AppModals({
 											);
 										}}
 									>
-										{availableCampaigns.length === 0
-											? "Close"
-											: "Add to campaign"}
+										{availableCampaigns.length === 0 ? "Close" : "Add"}
 									</FormButton>
 								)}
 								<FormButton
