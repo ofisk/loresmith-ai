@@ -4,6 +4,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 const D1_TRANSIENT_PATTERNS = [
 	"Failed to parse body as JSON",
 	"error code: 1031",
+	"1031", // alternate format
 ];
 
 function isTransientD1Error(error: unknown): boolean {
@@ -11,8 +12,9 @@ function isTransientD1Error(error: unknown): boolean {
 	return D1_TRANSIENT_PATTERNS.some((p) => msg.includes(p));
 }
 
-const MAX_D1_RETRIES = 4;
-const INITIAL_RETRY_DELAY_MS = 200;
+const MAX_D1_RETRIES = 8;
+const INITIAL_RETRY_DELAY_MS = 400;
+const MAX_RETRY_DELAY_MS = 2000;
 
 export interface BaseDAO {
 	db: D1Database;
@@ -31,7 +33,10 @@ export abstract class BaseDAOClass implements BaseDAO {
 				lastError = error;
 				if (attempt === MAX_D1_RETRIES || !isTransientD1Error(error))
 					throw error;
-				const delayMs = INITIAL_RETRY_DELAY_MS * 2 ** attempt;
+				const delayMs = Math.min(
+					INITIAL_RETRY_DELAY_MS * 2 ** attempt,
+					MAX_RETRY_DELAY_MS
+				);
 				await new Promise((r) => setTimeout(r, delayMs));
 			}
 		}
