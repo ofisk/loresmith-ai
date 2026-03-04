@@ -54,7 +54,7 @@
 	},
 	"devDependencies": {
 		"@aws-sdk/client-s3": "^3.893.0",
-		"@biomejs/biome": "^2.3.14",
+		"@biomejs/biome": "^2.4.5",
 		"@cloudflare/vite-plugin": "^1.14.1",
 		"@cloudflare/vitest-pool-workers": "^0.12.8",
 		"@cloudflare/workers-types": "^4.20251221.0",
