@@ -29,23 +29,87 @@ const lootItemSchema = z.object({
 	description: z.string(),
 	mechanicalNotes: z.string().optional(),
 	storyHook: z.string().optional(),
-	estimatedValueGp: z.number().int().nonnegative().optional(),
+	/** Numeric value estimate for the item; unit is game-specific (e.g. gp, gold, credits). */
+	estimatedValue: z.number().int().nonnegative().optional(),
+	/** Unit for estimatedValue (e.g. gp, gold, credits). Omit if implied by setting. */
+	valueUnit: z.string().optional(),
 });
 
-const generatedLootSchema = z.object({
-	summary: z.string(),
-	currency: z
-		.object({
-			cp: z.number().int().nonnegative().default(0),
-			sp: z.number().int().nonnegative().default(0),
-			gp: z.number().int().nonnegative().default(0),
-			pp: z.number().int().nonnegative().default(0),
-		})
-		.optional(),
-	valuables: z.array(z.string()).default([]),
-	items: z.array(lootItemSchema).default([]),
-	distributionNotes: z.array(z.string()).default([]),
-});
+function normalizeLootItem(raw: unknown): unknown {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+	const o = raw as Record<string, unknown>;
+	const nn = (v: unknown) => (v === null || v === undefined ? undefined : v);
+	const num = (v: unknown): number | undefined => {
+		if (typeof v === "number" && !Number.isNaN(v))
+			return Math.max(0, Math.floor(v));
+		if (typeof v === "string") {
+			const n = Number(v);
+			return !Number.isNaN(n) ? Math.max(0, Math.floor(n)) : undefined;
+		}
+		return undefined;
+	};
+	return {
+		name: String(nn(o.name) ?? ""),
+		itemType: String(nn(o.itemType) ?? nn(o.item_type) ?? "item"),
+		rarity: String(nn(o.rarity) ?? "common"),
+		description: String(nn(o.description) ?? ""),
+		mechanicalNotes: nn(o.mechanicalNotes) ?? nn(o.mechanical_notes),
+		storyHook: nn(o.storyHook) ?? nn(o.story_hook),
+		estimatedValue:
+			num(o.estimatedValue) ??
+			num(o.estimated_value) ??
+			num(o.estimatedValueGp) ??
+			num(o.estimated_value_gp),
+		valueUnit:
+			typeof o.valueUnit === "string"
+				? o.valueUnit
+				: typeof o.value_unit === "string"
+					? o.value_unit
+					: undefined,
+	};
+}
+
+/** Normalize currency to Record<unitName, amount>. Game-agnostic (any unit names). */
+function normalizeCurrency(raw: unknown): Record<string, number> {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+	const o = raw as Record<string, unknown>;
+	const num = (v: unknown) =>
+		typeof v === "number"
+			? Math.max(0, Math.floor(v))
+			: typeof v === "string"
+				? Math.max(0, Math.floor(Number(v)))
+				: 0;
+	const result: Record<string, number> = {};
+	for (const [key, val] of Object.entries(o)) {
+		if (typeof key === "string" && key.length > 0) {
+			const n = num(val);
+			if (n > 0) result[key] = n;
+		}
+	}
+	return result;
+}
+
+const generatedLootSchema = z.preprocess(
+	(raw: unknown) => {
+		if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+		const o = raw as Record<string, unknown>;
+		return {
+			summary: o.summary ?? "",
+			currency: o.currency ? normalizeCurrency(o.currency) : {},
+			valuables: Array.isArray(o.valuables) ? o.valuables : [],
+			items: Array.isArray(o.items) ? o.items.map(normalizeLootItem) : [],
+			distributionNotes: o.distributionNotes ?? o.distribution_notes ?? [],
+		};
+	},
+	z.object({
+		summary: z.string(),
+		/** Currency amounts by unit name (game-agnostic: gold, gp, credits, etc.) */
+		currency: z.record(z.string(), z.number().int().nonnegative()),
+		valuables: z.array(z.string()).default([]),
+		items: z.array(lootItemSchema).default([]),
+		distributionNotes: z.array(z.string()).default([]),
+	})
+);
 
 const magicItemSuggestionSchema = z.object({
 	primaryRecommendation: lootItemSchema.extend({
@@ -281,7 +345,7 @@ export const generateLootTool = tool({
 				primaryPrompt: promptText,
 				fallbackPrompt: fallbackPromptText,
 				fallbackJsonHint:
-					'JSON shape: {"summary":"string","currency":{"cp":0,"sp":0,"gp":0,"pp":0},"valuables":["..."],"items":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0}],"distributionNotes":["..."]}',
+					'JSON shape: {"summary":"string","currency":{"unitName":0},"valuables":["..."],"items":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValue":0,"valueUnit":"..."}],"distributionNotes":["..."]}',
 				primaryModel: getGenerationModelForProvider("SESSION_PLANNING"),
 				fallbackModel: getGenerationModelForProvider("INTERACTIVE"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
@@ -290,6 +354,11 @@ export const generateLootTool = tool({
 			});
 			const parsed = generatedLootSchema.safeParse(generated);
 			if (!parsed.success) {
+				console.error("[generateLootTool] Validation failed:", {
+					toolCallId,
+					rawOutput: JSON.stringify(generated).slice(0, 2000),
+					zodError: parsed.error.flatten(),
+				});
 				return createToolError(
 					"Failed to validate generated loot",
 					parsed.error.flatten(),
@@ -439,7 +508,7 @@ export const suggestMagicItemTool = tool({
 				primaryPrompt: promptText,
 				fallbackPrompt: fallbackPromptText,
 				fallbackJsonHint:
-					'JSON shape: {"primaryRecommendation":{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0,"reasoning":"..."},"alternatives":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValueGp":0,"reasoning":"..."}],"usageIdeas":["..."]}',
+					'JSON shape: {"primaryRecommendation":{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValue":0,"valueUnit":"...","reasoning":"..."},"alternatives":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValue":0,"valueUnit":"...","reasoning":"..."}],"usageIdeas":["..."]}',
 				primaryModel: getGenerationModelForProvider("SESSION_PLANNING"),
 				fallbackModel: getGenerationModelForProvider("INTERACTIVE"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,

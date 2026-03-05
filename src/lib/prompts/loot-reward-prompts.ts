@@ -54,6 +54,9 @@ Previously distributed item entities:
 ${params.previousLootSummary}
 
 Generate loot that is narratively coherent, not repetitive with previous rewards, and suitable for the likely party power level.
+
+Return JSON with this exact shape (use these keys). Currency keys are game-specific (e.g. gp/gold for fantasy, credits for sci-fi):
+{"summary":"string","currency":{"unitName":0},"valuables":["string"],"items":[{"name":"string","itemType":"string","rarity":"string","description":"string","mechanicalNotes":"string","storyHook":"string","estimatedValue":0,"valueUnit":"string"}],"distributionNotes":["string"]}
 `.trim();
 }
 
@@ -76,6 +79,8 @@ Request: ${params.userPrompt}
 
 Include currency, valuables, 3-6 items, and short distribution notes.
 Avoid repeating exact prior loot; keep rewards setting-appropriate.
+
+JSON shape: {"summary":"string","currency":{"unitName":0},"valuables":["..."],"items":[{"name":"...","itemType":"...","rarity":"...","description":"...","mechanicalNotes":"...","storyHook":"...","estimatedValue":0,"valueUnit":"..."}],"distributionNotes":["..."]}
 `.trim();
 }
 
