@@ -502,42 +502,21 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					}
 				}
 
-				// Build minimal message context: include current user prompt + agent's previous response
-				// The agent's previous response is included so it can understand conversational references
-				// (e.g., "these", "that", "the name suggestions" referring to what the agent just said)
-				// All older historical context is stored in the database and can be retrieved via getMessageHistory tool
-				// This ensures targeted graph traversal - the LLM fetches only what it needs
+				// Build message context: include recent conversation history so agents can answer
+				// their own questions (e.g. campaign name/tone from prior messages) and understand
+				// references ("these", "that", "try again"). Conversation is keyed by userId+campaignId.
+				// Keep only user/assistant messages for Anthropic compatibility.
 
-				// Find the current user message (most recent user message)
-				const currentUserMessage = this.messages
-					.slice()
-					.reverse()
-					.find((msg) => msg.role === "user");
+				const MAX_CONTEXT_MESSAGES = 20;
 
-				// Find the agent's most recent response (to understand conversational references)
-				const lastAssistantMessage = this.messages
-					.slice()
-					.reverse()
-					.find((msg) => msg.role === "assistant");
-
-				// Build minimal context: current user prompt + agent's previous response
-				// The LLM can use getMessageHistory tool to fetch older history if needed.
-				// Keep only user/assistant messages in `messages` for Anthropic compatibility.
-				const processedMessages: typeof this.messages = [];
+				const userAssistantMessages = this.messages.filter(
+					(msg) => msg.role === "user" || msg.role === "assistant"
+				);
+				const recentMessages = userAssistantMessages.slice(
+					-MAX_CONTEXT_MESSAGES
+				);
+				const processedMessages: typeof this.messages = [...recentMessages];
 				const supplementalSystemContext: string[] = [];
-
-				// Include agent's previous response first (if exists) so it can understand references
-				if (
-					lastAssistantMessage &&
-					lastAssistantMessage !== currentUserMessage
-				) {
-					processedMessages.push(lastAssistantMessage);
-				}
-
-				// Include current user message
-				if (currentUserMessage) {
-					processedMessages.push(currentUserMessage);
-				}
 
 				// Include role context so agents tailor for GM vs player.
 				// Anthropic does not support interleaved system messages in history.
@@ -795,7 +774,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								durationMs: Date.now() - turnStartedAt,
 							});
 							// Record LLM usage for rate limiting (chat consumes quota)
-							if (clientJwt) {
+							// Skip recording for help requests (exempt from limits)
+							const lastUserData = lastUserMessage?.data as
+								| { isHelpRequest?: boolean }
+								| undefined;
+							const isHelpRequest = lastUserData?.isHelpRequest === true;
+							if (clientJwt && !isHelpRequest) {
 								try {
 									const part = clientJwt.split(".")[1] || "";
 									let base64 = part.replace(/-/g, "+").replace(/_/g, "/");

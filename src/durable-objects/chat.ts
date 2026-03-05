@@ -5,6 +5,7 @@ import { AgentRegistryService } from "@/lib/agent-registry";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader, sanitizeApiKey } from "@/lib/auth-utils";
+import { getCampaignIdFromConversationId } from "@/lib/conversation-id-utils";
 import { getEnvVar } from "@/lib/env-utils";
 import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
 import { ModelManager } from "@/lib/model-manager";
@@ -190,7 +191,8 @@ export class Chat extends SimpleChatAgent<Env> {
 						metadata?: unknown;
 						[key: string]: unknown;
 					}>;
-					data?: unknown;
+					data?: { campaignId?: string | null };
+					id?: string;
 				};
 				const rawMessages = body?.messages;
 				if (Array.isArray(rawMessages)) {
@@ -219,6 +221,38 @@ export class Chat extends SimpleChatAgent<Env> {
 							...(data != null && { data }),
 						};
 					});
+					// Ensure last user message has campaignId (from dropdown) when missing
+					const conversationId =
+						body?.id ?? new URL(request.url).pathname.split("/").pop() ?? null;
+					const campaignIdFromConv =
+						getCampaignIdFromConversationId(conversationId);
+					if (campaignIdFromConv) {
+						const lastUserIdx = [...this.messages]
+							.reverse()
+							.findIndex((m) => m.role === "user");
+						if (lastUserIdx !== -1) {
+							const idx = this.messages.length - 1 - lastUserIdx;
+							const msg = this.messages[idx] as {
+								role: string;
+								content: string;
+								data?: Record<string, unknown>;
+							};
+							const hasCampaignId =
+								msg.data &&
+								typeof (msg.data as { campaignId?: unknown }).campaignId ===
+									"string";
+							if (!hasCampaignId) {
+								this.messages[idx] = {
+									...msg,
+									role: msg.role as "user" | "assistant" | "system",
+									data: {
+										...(msg.data ?? {}),
+										campaignId: campaignIdFromConv,
+									},
+								};
+							}
+						}
+					}
 				}
 				const response = await this.onChatMessage(() => {});
 				return response;

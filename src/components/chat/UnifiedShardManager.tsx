@@ -13,7 +13,7 @@ interface UnifiedShardManagerProps {
 export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 	shards,
 	isLoading,
-	onShardsProcessed: _onShardsProcessed,
+	onShardsProcessed,
 	getJwt: _getJwt,
 	onRefresh,
 }) => {
@@ -152,6 +152,7 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 						shards={activeCampaignData.shards}
 						action="show_staged"
 						onShardsUpdated={onRefresh ? async () => onRefresh() : undefined}
+						onShardsProcessed={onShardsProcessed}
 					/>
 				</div>
 			)}

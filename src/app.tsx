@@ -29,7 +29,9 @@ import { useLocalNotifications } from "@/hooks/useLocalNotifications";
 import { useModalState } from "@/hooks/useModalState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
+import { getCachedHelp, setCachedHelp } from "@/lib/help-cache";
 import { getHelpContent } from "@/lib/help-content";
+import { clearJoinIntent, getJoinIntent } from "@/lib/join-intent";
 import { createStatusInterceptingFetch } from "@/lib/stream-status-interceptor";
 import { AuthService } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
@@ -55,6 +57,17 @@ const toolsRequiringConfirmation: (
 ];
 
 const CHAT_HISTORY_PAGE_SIZE = 50;
+
+function extractMessageText(msg: Message): string {
+	if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
+	if (msg.parts?.length) {
+		return msg.parts
+			.filter((p) => p?.type === "text" && typeof p.text === "string")
+			.map((p) => (p as { text: string }).text)
+			.join("\n");
+	}
+	return "";
+}
 
 interface ChatHistoryResponse {
 	messages?: Message[];
@@ -178,6 +191,22 @@ export default function Chat() {
 		modalState.setShowAuthModal,
 	]);
 
+	// Redirect to join page if we have stored intent (e.g. after OAuth or email verification redirect)
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const intent = getJoinIntent();
+		if (!intent) return;
+		const params = new URLSearchParams(window.location.search);
+		const currentToken = params.get("token");
+		const needsRedirect =
+			window.location.pathname !== "/join" || currentToken !== intent.joinToken;
+		if (needsRedirect) {
+			window.location.replace(
+				`/join?token=${encodeURIComponent(intent.joinToken)}`
+			);
+		}
+	}, []);
+
 	// Start tour after authentication (only if not completed)
 	useEffect(() => {
 		console.log(
@@ -263,6 +292,7 @@ export default function Chat() {
 
 	const handleJoinSuccess = useCallback(
 		(campaignId: string) => {
+			clearJoinIntent();
 			window.history.replaceState(null, "", "/");
 			setSelectedCampaignId(campaignId);
 			refetchCampaigns();
@@ -492,6 +522,30 @@ export default function Chat() {
 	const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
 	const setShowAuthModal = modalState.setShowAuthModal;
 
+	// Dispatch CAMPAIGN_CREATED when createCampaign tool completes (chat-based creation)
+	const dispatchedCreateCampaignIdsRef = useRef<Set<string>>(new Set());
+	useEffect(() => {
+		for (const msg of agentMessages) {
+			if (msg.role !== "assistant" || !msg.parts) continue;
+			for (const part of msg.parts) {
+				if (
+					part.type === "tool-invocation" &&
+					part.toolInvocation?.toolName === "createCampaign" &&
+					part.toolInvocation?.state === "result" &&
+					part.toolInvocation.toolCallId
+				) {
+					const id = part.toolInvocation.toolCallId;
+					if (!dispatchedCreateCampaignIdsRef.current.has(id)) {
+						dispatchedCreateCampaignIdsRef.current.add(id);
+						window.dispatchEvent(
+							new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_CREATED, { detail: {} })
+						);
+					}
+				}
+			}
+		}
+	}, [agentMessages]);
+
 	const fetchChatHistoryPage = useCallback(
 		async (
 			sessionId: string,
@@ -566,6 +620,21 @@ export default function Chat() {
 		if (wasStreaming && chatStatus === "ready") {
 			setAgentStatus(null);
 
+			// Cache help response when the last user message was a help request
+			const msgs = agentMessages as Message[];
+			if (msgs.length >= 2) {
+				const last = msgs[msgs.length - 1];
+				const prev = msgs[msgs.length - 2];
+				if (
+					last?.role === "assistant" &&
+					prev?.role === "user" &&
+					(prev?.data as { isHelpRequest?: boolean })?.isHelpRequest === true
+				) {
+					const text = extractMessageText(last);
+					if (text) setCachedHelp("open_help", text);
+				}
+			}
+
 			const jwt = authState.getStoredJwt();
 			if (jwt && authReady) {
 				const url = API_CONFIG.buildUrl(
@@ -614,6 +683,7 @@ export default function Chat() {
 		authReady,
 		authState.getStoredJwt,
 		setChatMessages,
+		agentMessages,
 	]);
 
 	// Restore chat history from API; when conversationId changes, clear and load that conversation's history.
@@ -786,6 +856,21 @@ export default function Chat() {
 	const handleHelpAction = useCallback(
 		(action: string) => {
 			if (action === "open_help") {
+				const cached = getCachedHelp("open_help");
+				if (cached) {
+					append({
+						role: "assistant",
+						content: cached,
+						data: authState.getStoredJwt()
+							? {
+									jwt: authState.getStoredJwt(),
+									campaignId: selectedCampaignId ?? null,
+								}
+							: { campaignId: selectedCampaignId ?? null },
+					});
+					setInput("");
+					return;
+				}
 				const jwt = authState.getStoredJwt();
 				const helpPrompt =
 					"I need help with LoreSmith. Please act as a help agent: explain what you can help me with, give example questions I can ask, and share guidance on app functionality and best practices. Base your response on the product documentation and how the app is designed to be used.";
@@ -794,8 +879,15 @@ export default function Chat() {
 					role: "user",
 					content: helpPrompt,
 					data: jwt
-						? { jwt, campaignId: selectedCampaignId ?? null }
-						: { campaignId: selectedCampaignId ?? null },
+						? {
+								jwt,
+								campaignId: selectedCampaignId ?? null,
+								isHelpRequest: true,
+							}
+						: {
+								campaignId: selectedCampaignId ?? null,
+								isHelpRequest: true,
+							},
 				});
 				setInput("");
 				return;
