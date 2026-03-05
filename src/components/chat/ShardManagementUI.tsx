@@ -28,6 +28,7 @@ interface ShardManagementUIProps {
 	reason?: string;
 	shardIds?: string[]; // For focused approval mode
 	onShardsUpdated?: () => Promise<void>; // Callback to refresh shard data from parent
+	onShardsProcessed?: (shardIds: string[]) => void; // Optimistic removal callback
 }
 
 export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
@@ -42,6 +43,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 	reason: _reason,
 	shardIds: _shardIds,
 	onShardsUpdated,
+	onShardsProcessed,
 }) => {
 	console.log("[ShardManagementUI] Component props:", {
 		campaignId,
@@ -236,7 +238,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 			const result = await response.json();
 			console.log(`[ShardManagementUI] Shard delete result:`, result);
 
-			// Trigger refresh of shard data from parent component
+			onShardsProcessed?.([shardId]);
 			if (onShardsUpdated) {
 				await onShardsUpdated();
 			}
@@ -323,20 +325,24 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 						`[ShardManagementUI] Staging files already processed for ${action}`
 					);
 					// This is actually a success case - the files were already moved
-					// Don't throw an error, just refresh the UI
+					// Refresh the UI so shards disappear
+					onShardsProcessed?.(shardIds);
+					if (onShardsUpdated) {
+						await new Promise((resolve) => setTimeout(resolve, 500));
+						await onShardsUpdated();
+					}
 				} else {
 					throw new Error(`Failed to ${action} shards: ${errorText}`);
 				}
 			} else {
 				const result = await response.json();
 				console.log(`[ShardManagementUI] Bulk ${action} result:`, result);
-			}
-
-			// Trigger refresh of shard data from parent component
-			// Add a small delay to ensure backend operations complete
-			if (onShardsUpdated) {
-				await new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay
-				await onShardsUpdated();
+				onShardsProcessed?.(shardIds);
+				// Trigger refresh of shard data from parent component
+				if (onShardsUpdated) {
+					await new Promise((resolve) => setTimeout(resolve, 500));
+					await onShardsUpdated();
+				}
 			}
 		} catch (error) {
 			console.error(

@@ -5,6 +5,7 @@ import { AgentRegistryService } from "@/lib/agent-registry";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader, sanitizeApiKey } from "@/lib/auth-utils";
+import { getCampaignIdFromConversationId } from "@/lib/conversation-id-utils";
 import { getEnvVar } from "@/lib/env-utils";
 import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
 import { ModelManager } from "@/lib/model-manager";
@@ -190,7 +191,8 @@ export class Chat extends SimpleChatAgent<Env> {
 						metadata?: unknown;
 						[key: string]: unknown;
 					}>;
-					data?: unknown;
+					data?: { jwt?: string; campaignId?: string | null };
+					id?: string;
 				};
 				const rawMessages = body?.messages;
 				if (Array.isArray(rawMessages)) {
@@ -219,6 +221,40 @@ export class Chat extends SimpleChatAgent<Env> {
 							...(data != null && { data }),
 						};
 					});
+					// Ensure last user message has jwt and campaignId for agent tools.
+					// Merge from body.data (transport sends these) and conversationId fallback.
+					const conversationId =
+						body?.id ?? new URL(request.url).pathname.split("/").pop() ?? null;
+					const campaignIdFromConv =
+						getCampaignIdFromConversationId(conversationId);
+					const bodyData = body?.data as
+						| { jwt?: string; campaignId?: string | null }
+						| undefined;
+					const lastUserIdx = [...this.messages]
+						.reverse()
+						.findIndex((m) => m.role === "user");
+					if (lastUserIdx !== -1) {
+						const idx = this.messages.length - 1 - lastUserIdx;
+						const msg = this.messages[idx] as {
+							role: string;
+							content: string;
+							data?: Record<string, unknown>;
+						};
+						const existing = (msg.data ?? {}) as Record<string, unknown>;
+						const merged: Record<string, unknown> = {
+							...existing,
+							...(bodyData?.jwt && { jwt: bodyData.jwt }),
+							campaignId:
+								(typeof bodyData?.campaignId === "string"
+									? bodyData.campaignId
+									: campaignIdFromConv) ?? existing.campaignId,
+						};
+						this.messages[idx] = {
+							...msg,
+							role: msg.role as "user" | "assistant" | "system",
+							data: merged,
+						};
+					}
 				}
 				const response = await this.onChatMessage(() => {});
 				return response;

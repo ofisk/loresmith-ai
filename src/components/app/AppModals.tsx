@@ -20,6 +20,7 @@ import type { useCampaignAddition } from "@/hooks/useCampaignAddition";
 import type { useLocalNotifications } from "@/hooks/useLocalNotifications";
 import type { useModalState } from "@/hooks/useModalState";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { getJoinIntent } from "@/lib/join-intent";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 import { authenticatedFetchWithExpiration } from "@/services/core/auth-service";
@@ -233,6 +234,20 @@ export function AppModals({
 					await authState.acceptToken(token);
 					modalState.setGooglePendingToken(null);
 					modalState.setShowAuthModal(false);
+					// Redirect to join page if user was trying to join before auth
+					const intent = getJoinIntent();
+					if (intent) {
+						const params = new URLSearchParams(window.location.search);
+						const currentToken = params.get("token");
+						const needsRedirect =
+							window.location.pathname !== "/join" ||
+							currentToken !== intent.joinToken;
+						if (needsRedirect) {
+							window.location.replace(
+								`/join?token=${encodeURIComponent(intent.joinToken)}`
+							);
+						}
+					}
 				}}
 			/>
 

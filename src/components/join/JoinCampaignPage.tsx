@@ -6,6 +6,7 @@ import {
 	PlayerCharacterSelectionPanel,
 } from "@/components/campaign/PlayerCharacterSelectionModal";
 import { CAMPAIGN_ROLE_LABELS } from "@/constants/campaign-roles";
+import { clearJoinIntent, setJoinIntent } from "@/lib/join-intent";
 import { API_CONFIG } from "@/shared-config";
 
 interface JoinCampaignPageProps {
@@ -95,6 +96,7 @@ export function JoinCampaignPage({
 				if (cancelled) return;
 
 				if (res.ok && data.success) {
+					clearJoinIntent();
 					setCampaignId(data.campaignId ?? null);
 					setCampaignName(data.campaignName ?? null);
 					setRole(data.role ?? null);
@@ -114,6 +116,13 @@ export function JoinCampaignPage({
 					setRole(data.role ?? null);
 					setCampaignId(data.campaignId ?? null);
 					setStatus("preview");
+					// Store join intent so we can redirect back after auth (handles OAuth redirects, email verification)
+					setJoinIntent({
+						joinToken: token,
+						campaignId: data.campaignId ?? null,
+						campaignName: data.campaignName ?? null,
+						role: data.role ?? null,
+					});
 					// Route unauthenticated users to sign-in; after auth, we stay on /join?token=xxx
 					// and the effect will re-run with the new JWT to complete the join
 					if (!jwt) {
@@ -122,10 +131,12 @@ export function JoinCampaignPage({
 					return;
 				}
 
+				clearJoinIntent();
 				setError(data.error ?? "Invalid or expired link");
 				setStatus("error");
 			} catch (_err) {
 				if (cancelled) return;
+				clearJoinIntent();
 				setError("Failed to load invite");
 				setStatus("error");
 			}
@@ -158,6 +169,7 @@ export function JoinCampaignPage({
 				error?: string;
 			};
 			if (res.ok && data.success && data.campaignId) {
+				clearJoinIntent();
 				setCampaignId(data.campaignId);
 				setCampaignName(data.campaignName ?? null);
 				setRole(data.role ?? null);
@@ -168,10 +180,12 @@ export function JoinCampaignPage({
 				setStatus("success");
 				onJoinSuccess(data.campaignId);
 			} else {
+				clearJoinIntent();
 				setError(data.error ?? "Failed to join campaign");
 				setStatus("error");
 			}
 		} catch {
+			clearJoinIntent();
 			setError("Failed to join campaign");
 			setStatus("error");
 		}
@@ -199,6 +213,7 @@ export function JoinCampaignPage({
 			if (!response.ok) {
 				throw new Error(data.error ?? "Failed to save player character claim");
 			}
+			clearJoinIntent();
 			setStatus("success");
 			onJoinSuccess(campaignId);
 		} catch (claimError) {
