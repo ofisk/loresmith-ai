@@ -1,5 +1,8 @@
 import { stepCountIs, streamText } from "ai";
-import { getGenerationModelForProvider } from "@/app-constants";
+import {
+	getGenerationModelForProvider,
+	JWT_STORAGE_KEY,
+} from "@/app-constants";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
@@ -409,6 +412,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					if (typeof messageData.campaignId === "string") {
 						selectedCampaignId = messageData.campaignId;
 					}
+				}
+				// Fallback: Chat DO stores JWT from Authorization header; use it when message lacks jwt
+				if (!clientJwt && this.ctx?.storage) {
+					clientJwt =
+						(await this.ctx.storage.get<string>(JWT_STORAGE_KEY)) || null;
 				}
 				if (!selectedCampaignId) {
 					// Fallback: use the most recent campaignId found in message metadata
