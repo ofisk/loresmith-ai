@@ -749,11 +749,20 @@ export default function Chat() {
 		if (!chatContainer) return;
 
 		hasAutoScrolledInitialHistoryRef.current = true;
+		const scrollToBottom = () => {
+			chatContainer.scrollTop = chatContainer.scrollHeight;
+		};
+		// Initial scroll after layout
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				chatContainer.scrollTop = chatContainer.scrollHeight;
-			});
+			requestAnimationFrame(scrollToBottom);
 		});
+		// Retry scrolls to catch async content (markdown, images) that changes layout
+		const t1 = setTimeout(scrollToBottom, 100);
+		const t2 = setTimeout(scrollToBottom, 300);
+		return () => {
+			clearTimeout(t1);
+			clearTimeout(t2);
+		};
 	}, [chatHistoryLoaded, agentMessages.length, chatContainerId]);
 
 	useEffect(() => {
