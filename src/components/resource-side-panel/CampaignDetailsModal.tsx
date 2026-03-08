@@ -29,6 +29,13 @@ import { CampaignDigestsTab } from "./CampaignDigestsTab";
 import { CampaignResourcesTab } from "./CampaignResourcesTab";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 
+interface QuotaCheckResult {
+	allowed: boolean;
+	reason?: string;
+	monthlyUsage?: number;
+	monthlyLimit?: number;
+}
+
 interface CampaignDetailsModalProps {
 	campaign: Campaign | null;
 	isOpen: boolean;
@@ -39,6 +46,13 @@ interface CampaignDetailsModalProps {
 		updates: { name?: string; description?: string }
 	) => Promise<void>;
 	_isLoading?: boolean;
+	checkQuotaBeforeAdd?: (fileCount: number) => Promise<QuotaCheckResult>;
+	onShowQuotaWarning?: (payload: {
+		reason: string;
+		monthlyUsage?: number;
+		monthlyLimit?: number;
+		creditsRemaining?: number;
+	}) => void;
 	onAddFileToCampaign?: (
 		fileKey: string,
 		fileName: string
@@ -52,6 +66,8 @@ export function CampaignDetailsModal({
 	onDelete,
 	onUpdate,
 	_isLoading = false,
+	checkQuotaBeforeAdd,
+	onShowQuotaWarning,
 	onAddFileToCampaign,
 }: CampaignDetailsModalProps) {
 	const nameId = useId();
@@ -889,6 +905,27 @@ export function CampaignDetailsModal({
 												selectedResourceKeys.size === 0
 											)
 												return;
+
+											// Pre-check quota before adding (entity extraction consumes tokens)
+											if (
+												checkQuotaBeforeAdd &&
+												onShowQuotaWarning &&
+												selectedResourceKeys.size > 0
+											) {
+												const quotaResult = await checkQuotaBeforeAdd(
+													selectedResourceKeys.size
+												);
+												if (!quotaResult.allowed) {
+													onShowQuotaWarning({
+														reason:
+															quotaResult.reason ??
+															"Token quota would be exceeded.",
+														monthlyUsage: quotaResult.monthlyUsage,
+														monthlyLimit: quotaResult.monthlyLimit,
+													});
+													return;
+												}
+											}
 
 											setIsAddingResources(true);
 											try {

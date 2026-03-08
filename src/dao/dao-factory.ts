@@ -30,6 +30,7 @@ import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
 import { ShardDAO } from "./shard-dao";
 import { SubscriptionDAO } from "./subscription-dao";
+import { UserCreditsDAO } from "./user-credits-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
 import { UserMonthlyUsageDAO } from "./user-monthly-usage-dao";
@@ -61,6 +62,7 @@ export interface DAOFactory {
 	campaignResourceProposalDAO: CampaignResourceProposalDAO;
 	subscriptionDAO: SubscriptionDAO;
 	userMonthlyUsageDAO: UserMonthlyUsageDAO;
+	userCreditsDAO: UserCreditsDAO;
 	fileRetryUsageDAO: FileRetryUsageDAO;
 	entityGraphService: EntityGraphService;
 	entityImportanceService: EntityImportanceService;
@@ -97,6 +99,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly campaignResourceProposalDAO: CampaignResourceProposalDAO;
 	public readonly subscriptionDAO: SubscriptionDAO;
 	public readonly userMonthlyUsageDAO: UserMonthlyUsageDAO;
+	public readonly userCreditsDAO: UserCreditsDAO;
 	public readonly fileRetryUsageDAO: FileRetryUsageDAO;
 	private _entityGraphService: EntityGraphService | null = null;
 	private _entityImportanceService: EntityImportanceService | null = null;
@@ -128,6 +131,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.campaignResourceProposalDAO = new CampaignResourceProposalDAO(db);
 		this.subscriptionDAO = new SubscriptionDAO(db);
 		this.userMonthlyUsageDAO = new UserMonthlyUsageDAO(db);
+		this.userCreditsDAO = new UserCreditsDAO(db);
 		this.fileRetryUsageDAO = new FileRetryUsageDAO(db);
 	}
 

@@ -2,6 +2,7 @@ import { ArrowLeft } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import loresmith from "@/assets/loresmith.png";
+import { CreditPurchaseSection } from "@/components/billing/CreditPurchaseSection";
 import { PrimaryActionButton } from "@/components/button";
 import { Modal } from "@/components/modal/Modal";
 import type { BillingLimits, BillingStatus } from "@/hooks/useBillingStatus";
@@ -47,12 +48,26 @@ export function BillingPage({ onBack }: BillingPageProps) {
 		if (typeof window !== "undefined") {
 			const params = new URLSearchParams(window.location.search);
 			const result = params.get("checkout");
+			const credits = params.get("credits");
 			if (result === "success") {
 				setCheckoutMessage("Subscription activated. Thank you!");
 				window.history.replaceState(null, "", "/billing");
 			} else if (result === "canceled") {
 				setCheckoutMessage("Checkout was canceled.");
 				window.history.replaceState(null, "", "/billing");
+			} else if (credits === "purchased") {
+				setCheckoutMessage(
+					"Credits purchased successfully. Your quota has been updated."
+				);
+				window.history.replaceState(null, "", "/billing");
+			}
+			if (params.get("tab") === "credits") {
+				setTimeout(() => {
+					document.getElementById("credits-section")?.scrollIntoView({
+						behavior: "smooth",
+						block: "start",
+					});
+				}, 100);
 			}
 		}
 	}, []);
@@ -355,16 +370,38 @@ export function BillingPage({ onBack }: BillingPageProps) {
 								<td className="py-2 text-right">{formatNumber(limits.tpd)}</td>
 							</tr>
 							{limits.monthlyTokens !== undefined && (
-								<tr>
-									<td className="py-2">Monthly tokens (free tier)</td>
-									<td className="py-2 text-right">
-										{formatNumber(limits.monthlyTokens)}
-									</td>
-								</tr>
+								<>
+									<tr>
+										<td className="py-2">Monthly tokens (free tier)</td>
+										<td className="py-2 text-right">
+											{status.monthlyUsage !== undefined
+												? `${formatNumber(status.monthlyUsage)} / `
+												: ""}
+											{formatNumber(
+												limits.monthlyTokens + (status.creditsRemaining ?? 0)
+											)}
+										</td>
+									</tr>
+									{(status.creditsRemaining ?? 0) > 0 && (
+										<tr>
+											<td className="py-2">Credits purchased</td>
+											<td className="py-2 text-right">
+												{formatNumber(status.creditsRemaining ?? 0)}
+											</td>
+										</tr>
+									)}
+								</>
 							)}
 						</tbody>
 					</table>
 				</div>
+
+				{status.tier === "free" && (
+					<CreditPurchaseSection
+						status={status}
+						onPurchaseError={(msg) => setCheckoutMessage(msg)}
+					/>
+				)}
 
 				{status.tier === "free" && (
 					<div className="space-y-4">

@@ -339,7 +339,10 @@ export default function Chat() {
 		modalState.hideProposalConfirmModal();
 	}, [modalState]);
 	const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
-		useCampaignAddition(getProposalConfirmation);
+		useCampaignAddition(
+			getProposalConfirmation,
+			modalState.showQuotaWarningModalFn
+		);
 
 	// Activity tracking for recap triggers
 	const {

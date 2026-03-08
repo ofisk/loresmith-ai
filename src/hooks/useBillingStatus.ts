@@ -19,6 +19,8 @@ export interface BillingStatus {
 	status: string;
 	currentPeriodEnd: string | null;
 	limits: BillingLimits;
+	monthlyUsage?: number;
+	creditsRemaining?: number;
 }
 
 export function useBillingStatus() {

@@ -22,7 +22,9 @@ import {
 import {
 	handleBillingChangePlan,
 	handleBillingCheckout,
+	handleBillingCheckoutCredits,
 	handleBillingPortal,
+	handleBillingQuotaStatus,
 	handleBillingStatus,
 	handleBillingWebhook,
 	handleRetryLimitStatus,
@@ -252,6 +254,16 @@ export function registerRoutes(app: Hono<{ Bindings: Env }>) {
 		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.STATUS),
 		requireUserJwt,
 		handleBillingStatus
+	);
+	app.get(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.QUOTA_STATUS),
+		requireUserJwt,
+		handleBillingQuotaStatus
+	);
+	app.post(
+		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHECKOUT_CREDITS),
+		requireUserJwt,
+		handleBillingCheckoutCredits
 	);
 	app.get(
 		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.RETRY_LIMIT_STATUS),

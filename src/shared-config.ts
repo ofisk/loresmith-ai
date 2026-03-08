@@ -313,10 +313,12 @@ export const API_CONFIG = {
 		},
 		BILLING: {
 			CHECKOUT: "/billing/checkout",
+			CHECKOUT_CREDITS: "/billing/checkout-credits",
 			CHANGE_PLAN: "/billing/change-plan",
 			PORTAL: "/billing/portal",
 			WEBHOOK: "/billing/webhook",
 			STATUS: "/billing/status",
+			QUOTA_STATUS: "/billing/quota-status",
 			RETRY_LIMIT_STATUS: "/billing/retry-limit-status",
 		},
 		AUTH: {

@@ -5,6 +5,7 @@ import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/routes/register-routes";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { RetryLimitService } from "@/services/retry-limit-service";
 import { DEFAULT_APP_ORIGIN } from "@/shared-config";
 
@@ -152,6 +153,16 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 	const dao = getDAOFactory(c.env);
 	const sub = await dao.subscriptionDAO.getByUsername(auth.username);
 
+	// Free tier: include monthly usage and credits for quota visibility
+	let monthlyUsage: number | undefined;
+	let creditsRemaining: number | undefined;
+	if (tier === "free" && limits.monthlyTokens !== undefined) {
+		[monthlyUsage, creditsRemaining] = await Promise.all([
+			dao.userMonthlyUsageDAO.getCurrentMonthUsage(auth.username),
+			dao.userCreditsDAO.getCredits(auth.username),
+		]);
+	}
+
 	return c.json({
 		tier,
 		isAdmin: auth.isAdmin ?? false,
@@ -167,7 +178,127 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 			qpd: limits.qpd,
 			monthlyTokens: limits.monthlyTokens,
 		},
+		monthlyUsage,
+		creditsRemaining,
 	});
+}
+
+/**
+ * GET /billing/quota-status?estimatedTokens=5000
+ * Returns quota status for indexing actions (free tier: monthly cap + credits).
+ * Used by UI to show warnings before adding resources.
+ */
+export async function handleBillingQuotaStatus(c: ContextWithAuth) {
+	const auth = getUserAuth(c);
+	if (!auth?.username) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+
+	const url = new URL(c.req.url);
+	const estimatedTokens = Math.min(
+		100_000,
+		Math.max(
+			0,
+			parseInt(url.searchParams.get("estimatedTokens") ?? "5000", 10) || 5000
+		)
+	);
+
+	const rateLimitService = getLLMRateLimitService(c.env);
+	const result = await rateLimitService.checkIndexingQuota(
+		auth.username,
+		auth.isAdmin ?? false,
+		estimatedTokens
+	);
+
+	return c.json({
+		tier: (await getSubscriptionService(c.env).getTier(
+			auth.username,
+			auth.isAdmin
+		)) as string,
+		allowed: result.allowed,
+		wouldExceed: result.wouldExceed,
+		monthlyUsage: result.monthlyUsage,
+		monthlyLimit: result.monthlyLimit,
+		creditsRemaining: result.creditsRemaining,
+		reason: result.reason,
+		nextResetAt: result.nextResetAt,
+	});
+}
+
+/**
+ * POST /billing/checkout-credits
+ * Creates a one-time Stripe checkout for indexing credits (5,000 tokens).
+ */
+export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
+	const auth = getUserAuth(c);
+	if (!auth?.username) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+
+	const priceId = await getEnvVar(
+		c.env,
+		"STRIPE_PRICE_INDEXING_CREDITS_5K",
+		false
+	);
+	if (!priceId) {
+		return c.json(
+			{ error: "Credit purchase not configured. Missing Stripe price ID." },
+			503
+		);
+	}
+
+	const stripe = await getStripe(c.env);
+	const dao = getDAOFactory(c.env);
+	const user = await dao.authUserDAO.getUserByUsername(auth.username);
+	const email = user?.email ?? undefined;
+
+	let customerId: string | undefined;
+	const existingSub = await dao.subscriptionDAO.getByUsername(auth.username);
+	if (existingSub?.stripe_customer_id) {
+		customerId = existingSub.stripe_customer_id;
+	} else if (email) {
+		const customers = await stripe.customers.list({
+			email,
+			limit: 1,
+		});
+		if (customers.data.length > 0) {
+			customerId = customers.data[0].id;
+		}
+	}
+
+	if (!customerId && email) {
+		const customer = await stripe.customers.create({
+			email,
+			metadata: { username: auth.username },
+		});
+		customerId = customer.id;
+	}
+
+	if (!customerId && !email) {
+		return c.json(
+			{ error: "Unable to create checkout: no email on account." },
+			400
+		);
+	}
+
+	const tokens = 5_000;
+	const origin = getOrigin(c.env);
+	const session = await stripe.checkout.sessions.create({
+		mode: "payment",
+		...(customerId
+			? { customer: customerId }
+			: { customer_email: email ?? undefined }),
+		line_items: [{ price: priceId, quantity: 1 }],
+		success_url: `${origin}/billing?credits=purchased`,
+		cancel_url: `${origin}/billing?tab=credits`,
+		metadata: {
+			username: auth.username,
+			product_type: "indexing_credits",
+			tokens: String(tokens),
+		},
+	});
+
+	return c.json({ url: session.url });
 }
 
 /**
@@ -429,12 +560,39 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 	switch (event.type) {
 		case "checkout.session.completed": {
 			const session = event.data.object as Stripe.Checkout.Session;
-			const subId = session.subscription as string;
 			const metadata = session.metadata ?? {};
 			let username = metadata.username as string | undefined;
+
+			// One-time indexing credits purchase (mode: payment)
+			if (metadata.product_type === "indexing_credits") {
+				if (!username) {
+					const email =
+						(session.customer_details?.email as string) ??
+						(session.customer_email as string);
+					if (email) {
+						const user = await dao.authUserDAO.getUserByEmail(email);
+						if (user) username = user.username;
+					}
+				}
+				if (!username) {
+					console.warn(
+						"[BillingWebhook] indexing_credits checkout missing username. metadata:",
+						JSON.stringify(metadata)
+					);
+					return c.json({ error: "Missing username in session metadata" }, 400);
+				}
+				const tokens = parseInt((metadata.tokens as string) || "5000", 10);
+				await dao.userCreditsDAO.addCredits(username, tokens);
+				console.log(
+					`[BillingWebhook] Added ${tokens} indexing credits for ${username}`
+				);
+				return c.json({ received: true });
+			}
+
+			// Subscription checkout (mode: subscription)
+			const subId = session.subscription as string;
 			const tier = (metadata.tier as "basic" | "pro") || "basic";
 
-			// Fallback: look up user by customer email if metadata.username missing
 			if (!username) {
 				const email =
 					(session.customer_details?.email as string) ??

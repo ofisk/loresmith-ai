@@ -249,6 +249,15 @@ export class EntityExtractionError extends Error {
 	}
 }
 
+export class QuotaExceededError extends Error {
+	constructor(message?: string) {
+		super(
+			message || "Token quota exceeded. Purchase credits or upgrade for more."
+		);
+		this.name = "QuotaExceededError";
+	}
+}
+
 export class ImportanceCalculationError extends Error {
 	constructor(
 		message?: string,

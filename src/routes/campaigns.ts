@@ -42,6 +42,7 @@ import { ChecklistStatusService } from "@/services/campaign/checklist-status-ser
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { RetryLimitService } from "@/services/retry-limit-service";
 
 // Extend the context to include userAuth
@@ -642,6 +643,27 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 						"File validation failed. The file may be corrupted or mislabeled.",
 				},
 				400
+			);
+		}
+
+		// 3c) Check indexing quota before adding (entity extraction consumes tokens)
+		const rateLimitService = getLLMRateLimitService(c.env);
+		const quotaResult = await rateLimitService.checkIndexingQuota(
+			userAuth.username,
+			userAuth.isAdmin ?? false,
+			5_000
+		);
+		if (!quotaResult.allowed) {
+			return c.json(
+				{
+					code: "QUOTA_EXCEEDED",
+					error: quotaResult.reason,
+					monthlyUsage: quotaResult.monthlyUsage,
+					monthlyLimit: quotaResult.monthlyLimit,
+					creditsRemaining: quotaResult.creditsRemaining,
+					purchaseCreditsUrl: "/billing?tab=credits",
+				},
+				402
 			);
 		}
 
