@@ -47,6 +47,15 @@ const PRICE_KEYS = {
 	},
 } as const;
 
+/** Indexing credit boost levels: tokens -> env var name for Stripe price ID */
+const CREDIT_BOOST_LEVELS = {
+	50000: "STRIPE_PRICE_INDEXING_CREDITS_50K",
+	200000: "STRIPE_PRICE_INDEXING_CREDITS_200K",
+	500000: "STRIPE_PRICE_INDEXING_CREDITS_500K",
+} as const;
+
+const VALID_CREDIT_AMOUNTS = [50_000, 200_000, 500_000] as const;
+
 async function getPriceIdForTier(
 	env: Env,
 	tier: "basic" | "pro",
@@ -227,7 +236,8 @@ export async function handleBillingQuotaStatus(c: ContextWithAuth) {
 
 /**
  * POST /billing/checkout-credits
- * Creates a one-time Stripe checkout for indexing credits (5,000 tokens).
+ * Creates a one-time Stripe checkout for indexing credits.
+ * Body: { amount: 50000 | 200000 | 500000 } - tokens to purchase.
  */
 export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
 	const auth = getUserAuth(c);
@@ -235,14 +245,30 @@ export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const priceId = await getEnvVar(
-		c.env,
-		"STRIPE_PRICE_INDEXING_CREDITS_5K",
-		false
-	);
+	const body = await c.req.json().catch(() => ({}));
+	const amount = body?.amount as number | undefined;
+	if (
+		typeof amount !== "number" ||
+		!VALID_CREDIT_AMOUNTS.includes(
+			amount as (typeof VALID_CREDIT_AMOUNTS)[number]
+		)
+	) {
+		return c.json(
+			{
+				error: "Invalid amount. Use 50000, 200000, or 500000 tokens.",
+			},
+			400
+		);
+	}
+
+	const envKey =
+		CREDIT_BOOST_LEVELS[amount as keyof typeof CREDIT_BOOST_LEVELS];
+	const priceId = await getEnvVar(c.env, envKey, false);
 	if (!priceId) {
 		return c.json(
-			{ error: "Credit purchase not configured. Missing Stripe price ID." },
+			{
+				error: `Credit purchase not configured. Missing Stripe price ID for ${amount.toLocaleString()} tokens.`,
+			},
 			503
 		);
 	}
@@ -281,7 +307,7 @@ export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
 		);
 	}
 
-	const tokens = 5_000;
+	const tokens = amount;
 	const origin = getOrigin(c.env);
 	const session = await stripe.checkout.sessions.create({
 		mode: "payment",

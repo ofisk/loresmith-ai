@@ -41,6 +41,7 @@ Routing rules:
 - Rules reference questions (grappling, concentration checks, action economy, spellcasting rules, stat block lookups, "what does the rule say", "does our house rule apply") → "rules-reference"
 - Encounter building and scaling (build an encounter, scale this fight, medium-difficulty combat near a location, prepare monster lineup and tactics) → "encounter-builder"
 - General help/how-to questions about using the application → "onboarding"
+- Boost/credits selection (which boost, help me choose, running out of capacity when adding documents, need more room for documents) → "onboarding"
 
 Respond with: agent_name|confidence|reason
 Format: agent_name|confidence|reason
@@ -65,7 +66,8 @@ Examples:
 - "Build a medium-difficulty encounter for a level 7 party near Ashfen Marsh" → encounter-builder|95|Encounter generation
 - "Scale this encounter up for five level 9 characters" → encounter-builder|95|Encounter scaling
 - "let's do a readout" / "construct the readout" / "give me the session plan" / "I'm ready for the readout" → recap|95|Session plan readout (from completed next steps)
-- "how do I upload files?" → onboarding|85|General help`;
+- "how do I upload files?" → onboarding|85|General help
+- "which boost should I get?" / "help me choose a boost" / "I'm running out of capacity" → onboarding|90|Boost selection`;
 }
 
 export const AGENT_ROUTING_PROMPTS = {

@@ -441,7 +441,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									Basic — {interval === "monthly" ? "$9/month" : "$92/year"}
 								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-									5 campaigns, 25 files, 25MB storage, higher rate limits
+									Several campaigns with room for sourcebooks, character sheets,
+									and handouts in each. Great for running one or two tables.
 								</p>
 								<PrimaryActionButton
 									onClick={() => handleCheckout("basic")}
@@ -458,7 +459,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									Pro — {interval === "monthly" ? "$18/month" : "$184/year"}
 								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-									Unlimited campaigns, 100 files, 100MB, 2× rate limits
+									Unlimited campaigns and a large library. Run multiple tables
+									or build a big collection of sourcebooks and adventures.
 								</p>
 								<PrimaryActionButton
 									onClick={() => handleCheckout("pro")}
@@ -487,15 +489,16 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					{confirmPlanChange === "pro" ? (
 						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 							You will be charged a prorated amount immediately for the
-							remainder of your billing period. You will get unlimited
-							campaigns, 100 files, 100MB storage, and higher rate limits.
+							remainder of your billing period. You will get unlimited campaigns
+							and a large library for sourcebooks, adventures, and character
+							sheets.
 						</p>
 					) : (
 						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 							You will receive a prorated credit for the unused portion of your
 							Pro subscription. If you have already exceeded Basic tier limits
-							(5 campaigns, 25 files, 25MB storage), you may be locked out of
-							creating new content until you reduce your usage.
+							(several campaigns and a smaller library), you may be locked out
+							of creating new content until you reduce your usage.
 						</p>
 					)}
 					<div className="flex gap-3 justify-end">
