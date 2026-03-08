@@ -53,7 +53,7 @@
 		"youch": "4.1.0"
 	},
 	"devDependencies": {
-		"@aws-sdk/client-s3": "^3.893.0",
+		"@aws-sdk/client-s3": "^3.1004.0",
 		"@biomejs/biome": "^2.4.5",
 		"@cloudflare/vite-plugin": "^1.14.1",
 		"@cloudflare/vitest-pool-workers": "^0.12.8",
