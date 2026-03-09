@@ -198,6 +198,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 			if (json.success) {
 				setCheckoutMessage(json.message ?? "Plan updated successfully.");
 				fetchStatus();
+				// Refetch again after webhook updates DB (Stripe applies changes async)
+				setTimeout(() => fetchStatus(), 2500);
 			} else {
 				setCheckoutMessage(json.error ?? "Failed to change plan");
 			}
