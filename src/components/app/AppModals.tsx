@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
 import { BlockingAuthenticationModal } from "@/components/BlockingAuthenticationModal";
+import { QuotaWarningModal } from "@/components/billing/QuotaWarningModal";
 import { FormButton } from "@/components/button/FormButton";
 import { Modal } from "@/components/modal/Modal";
 import {
@@ -230,6 +231,12 @@ export function AppModals({
 				isOpen={modalState.showAuthModal}
 				username={authState.username}
 				googlePendingToken={modalState.googlePendingToken}
+				initialError={modalState.authVerifyError}
+				initialSuccessMessage={
+					modalState.authVerifySuccess
+						? "Email verified. You can sign in now."
+						: null
+				}
 				onLoginSuccess={async (token) => {
 					await authState.acceptToken(token);
 					modalState.setGooglePendingToken(null);
@@ -285,6 +292,30 @@ export function AppModals({
 				onClose={modalState.handleCampaignDetailsClose}
 				onDelete={handleCampaignDelete}
 				onUpdate={handleCampaignUpdate}
+				checkQuotaBeforeAdd={async (fileCount: number) => {
+					const jwt = authState.getStoredJwt();
+					if (!jwt) return { allowed: true };
+					const estimatedTokens = Math.min(100_000, 5_000 * fileCount);
+					const res = await fetch(
+						`${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.BILLING.QUOTA_STATUS)}?estimatedTokens=${estimatedTokens}`,
+						{ headers: { Authorization: `Bearer ${jwt}` } }
+					);
+					if (!res.ok) return { allowed: true };
+					const json = (await res.json()) as {
+						allowed?: boolean;
+						reason?: string;
+						monthlyUsage?: number;
+						monthlyLimit?: number;
+						creditsRemaining?: number;
+					};
+					return {
+						allowed: json.allowed ?? true,
+						reason: json.reason,
+						monthlyUsage: json.monthlyUsage,
+						monthlyLimit: json.monthlyLimit,
+					};
+				}}
+				onShowQuotaWarning={modalState.showQuotaWarningModalFn}
 				onAddFileToCampaign={async (fileKey: string, fileName: string) => {
 					if (modalState.selectedCampaign) {
 						return await addFileToCampaigns(
@@ -582,6 +613,17 @@ export function AppModals({
 				onClose={modalState.hideRateLimitModal}
 				nextResetAt={modalState.rateLimitNextResetAt}
 				reason={modalState.rateLimitReason}
+			/>
+
+			{/* Quota warning modal (pre-add resource or 402) */}
+			<QuotaWarningModal
+				isOpen={modalState.showQuotaWarningModal}
+				onClose={modalState.hideQuotaWarningModal}
+				reason={
+					modalState.quotaWarningPayload?.reason ?? "Token quota exceeded."
+				}
+				monthlyUsage={modalState.quotaWarningPayload?.monthlyUsage}
+				monthlyLimit={modalState.quotaWarningPayload?.monthlyLimit}
 			/>
 
 			{/* Usage limits modal */}

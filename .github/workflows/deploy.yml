@@ -21,7 +21,7 @@ jobs:
           cache: "npm"
 
       - run: npm ci
-      - run: npm run build
+      - run: VITE_API_URL=https://loresmith-ai-dev.oren-t-fisk.workers.dev npm run build
 
       - name: Run D1 bootstrap (dev)
         run: ./scripts/d1-bootstrap.sh dev

@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
+import { QuotaExceededError } from "@/lib/errors";
 import {
 	getBlockedExtensionsDescription,
 	isFileAllowedForProposal,
@@ -12,8 +13,16 @@ import { API_CONFIG } from "@/shared-config";
 
 export type ProposalConfirmationFn = (legalNotice: string) => Promise<boolean>;
 
+export type QuotaExceededPayload = {
+	reason: string;
+	monthlyUsage?: number;
+	monthlyLimit?: number;
+	creditsRemaining?: number;
+};
+
 export function useCampaignAddition(
-	getProposalConfirmation?: ProposalConfirmationFn
+	getProposalConfirmation?: ProposalConfirmationFn,
+	onQuotaExceeded?: (payload: QuotaExceededPayload) => void
 ) {
 	// Campaign addition progress tracking
 	const [campaignAdditionProgress, setCampaignAdditionProgress] = useState<
@@ -32,8 +41,10 @@ export function useCampaignAddition(
 				message: string
 			) => void,
 			onSuccess?: () => void,
-			getProposalConfirmationOverride?: ProposalConfirmationFn
+			getProposalConfirmationOverride?: ProposalConfirmationFn,
+			onQuotaExceededOverride?: (payload: QuotaExceededPayload) => void
 		) => {
+			const quotaHandler = onQuotaExceededOverride ?? onQuotaExceeded;
 			const confirmFn =
 				getProposalConfirmationOverride ?? getProposalConfirmation;
 			if (selectedCampaigns.length === 0) {
@@ -113,6 +124,29 @@ export function useCampaignAddition(
 
 					if (!response.ok) {
 						const errorText = await response.text();
+						if (response.status === 402) {
+							try {
+								const errBody = JSON.parse(errorText) as {
+									code?: string;
+									error?: string;
+									monthlyUsage?: number;
+									monthlyLimit?: number;
+									creditsRemaining?: number;
+								};
+								if (errBody.code === "QUOTA_EXCEEDED" && quotaHandler) {
+									quotaHandler({
+										reason: errBody.error ?? "Token quota exceeded.",
+										monthlyUsage: errBody.monthlyUsage,
+										monthlyLimit: errBody.monthlyLimit,
+										creditsRemaining: errBody.creditsRemaining,
+									});
+									throw new QuotaExceededError(errBody.error);
+								}
+							} catch (e) {
+								if (e instanceof QuotaExceededError) throw e;
+								// Fall through to generic error handling
+							}
+						}
 						if (response.status === 403) {
 							try {
 								const errBody = JSON.parse(errorText) as {
@@ -224,12 +258,22 @@ export function useCampaignAddition(
 
 				return lastResourceId;
 			} catch (error) {
+				if (error instanceof QuotaExceededError) {
+					// Quota modal already shown by onQuotaExceeded
+					setCampaignAdditionProgress((prev) => {
+						const newProgress = { ...prev };
+						delete newProgress[fileKey];
+						return newProgress;
+					});
+					setIsAddingToCampaigns(false);
+					return;
+				}
 				console.error("Error adding file to campaigns:", error);
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
 				addLocalNotification(
 					NOTIFICATION_TYPES.ERROR,
-					"Error Adding File to Campaign",
+					"Error adding file to campaign",
 					`Error adding file to campaigns: ${errorMessage}`
 				);
 
@@ -242,7 +286,7 @@ export function useCampaignAddition(
 				setIsAddingToCampaigns(false);
 			}
 		},
-		[getProposalConfirmation]
+		[getProposalConfirmation, onQuotaExceeded]
 	);
 
 	return {

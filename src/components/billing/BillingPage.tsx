@@ -2,6 +2,7 @@ import { ArrowLeft } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "@/app-constants";
 import loresmith from "@/assets/loresmith.png";
+import { CreditPurchaseSection } from "@/components/billing/CreditPurchaseSection";
 import { PrimaryActionButton } from "@/components/button";
 import { Modal } from "@/components/modal/Modal";
 import type { BillingLimits, BillingStatus } from "@/hooks/useBillingStatus";
@@ -47,12 +48,26 @@ export function BillingPage({ onBack }: BillingPageProps) {
 		if (typeof window !== "undefined") {
 			const params = new URLSearchParams(window.location.search);
 			const result = params.get("checkout");
+			const credits = params.get("credits");
 			if (result === "success") {
 				setCheckoutMessage("Subscription activated. Thank you!");
 				window.history.replaceState(null, "", "/billing");
 			} else if (result === "canceled") {
 				setCheckoutMessage("Checkout was canceled.");
 				window.history.replaceState(null, "", "/billing");
+			} else if (credits === "purchased") {
+				setCheckoutMessage(
+					"Credits purchased successfully. Your quota has been updated."
+				);
+				window.history.replaceState(null, "", "/billing");
+			}
+			if (params.get("tab") === "credits") {
+				setTimeout(() => {
+					document.getElementById("credits-section")?.scrollIntoView({
+						behavior: "smooth",
+						block: "start",
+					});
+				}, 100);
 			}
 		}
 	}, []);
@@ -183,6 +198,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 			if (json.success) {
 				setCheckoutMessage(json.message ?? "Plan updated successfully.");
 				fetchStatus();
+				// Refetch again after webhook updates DB (Stripe applies changes async)
+				setTimeout(() => fetchStatus(), 2500);
 			} else {
 				setCheckoutMessage(json.error ?? "Failed to change plan");
 			}
@@ -308,7 +325,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 								<button
 									type="button"
 									onClick={() => setConfirmPlanChange("basic")}
-									disabled={!!status.isAdmin || !!changingPlan || !!upgrading}
+									disabled={!!changingPlan || !!upgrading}
 									className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
 								>
 									{changingPlan === "basic"
@@ -355,16 +372,36 @@ export function BillingPage({ onBack }: BillingPageProps) {
 								<td className="py-2 text-right">{formatNumber(limits.tpd)}</td>
 							</tr>
 							{limits.monthlyTokens !== undefined && (
-								<tr>
-									<td className="py-2">Monthly tokens (free tier)</td>
-									<td className="py-2 text-right">
-										{formatNumber(limits.monthlyTokens)}
-									</td>
-								</tr>
+								<>
+									<tr>
+										<td className="py-2">Monthly tokens (free tier)</td>
+										<td className="py-2 text-right">
+											{status.monthlyUsage !== undefined
+												? `${formatNumber(status.monthlyUsage)} / `
+												: ""}
+											{formatNumber(
+												limits.monthlyTokens + (status.creditsRemaining ?? 0)
+											)}
+										</td>
+									</tr>
+									{(status.creditsRemaining ?? 0) > 0 && (
+										<tr>
+											<td className="py-2">Credits purchased</td>
+											<td className="py-2 text-right">
+												{formatNumber(status.creditsRemaining ?? 0)}
+											</td>
+										</tr>
+									)}
+								</>
 							)}
 						</tbody>
 					</table>
 				</div>
+
+				<CreditPurchaseSection
+					status={status}
+					onPurchaseError={(msg) => setCheckoutMessage(msg)}
+				/>
 
 				{status.tier === "free" && (
 					<div className="space-y-4">
@@ -404,7 +441,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									Basic — {interval === "monthly" ? "$9/month" : "$92/year"}
 								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-									5 campaigns, 25 files, 25MB storage, higher rate limits
+									Several campaigns with room for sourcebooks, character sheets,
+									and handouts in each. Great for running one or two tables.
 								</p>
 								<PrimaryActionButton
 									onClick={() => handleCheckout("basic")}
@@ -421,7 +459,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									Pro — {interval === "monthly" ? "$18/month" : "$184/year"}
 								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-									Unlimited campaigns, 100 files, 100MB, 2× rate limits
+									Unlimited campaigns and a large library. Run multiple tables
+									or build a big collection of sourcebooks and adventures.
 								</p>
 								<PrimaryActionButton
 									onClick={() => handleCheckout("pro")}
@@ -450,15 +489,16 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					{confirmPlanChange === "pro" ? (
 						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 							You will be charged a prorated amount immediately for the
-							remainder of your billing period. You will get unlimited
-							campaigns, 100 files, 100MB storage, and higher rate limits.
+							remainder of your billing period. You will get unlimited campaigns
+							and a large library for sourcebooks, adventures, and character
+							sheets.
 						</p>
 					) : (
 						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 							You will receive a prorated credit for the unused portion of your
 							Pro subscription. If you have already exceeded Basic tier limits
-							(5 campaigns, 25 files, 25MB storage), you may be locked out of
-							creating new content until you reduce your usage.
+							(several campaigns and a smaller library), you may be locked out
+							of creating new content until you reduce your usage.
 						</p>
 					)}
 					<div className="flex gap-3 justify-end">

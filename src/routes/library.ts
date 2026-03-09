@@ -173,6 +173,9 @@ export const handleGetLlmUsage = async (
 				nextResetAt: usage.nextResetAt,
 				atLimit: usage.atLimit,
 				limitType: usage.limitType,
+				monthlyUsage: usage.monthlyUsage,
+				monthlyLimit: usage.monthlyLimit,
+				creditsRemaining: usage.creditsRemaining,
 			},
 			limits,
 		});

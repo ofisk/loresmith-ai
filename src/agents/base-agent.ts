@@ -44,8 +44,8 @@ const TEMPORARY_UNAVAILABLE_MESSAGE =
 	"We're sorry for the inconvenience but Loresmith is temporarily unavailable.";
 const RATE_LIMIT_UPSELL_MESSAGE =
 	"You've hit your usage limit. Visit /billing to upgrade and get higher limits: " +
-	"Basic ($9/mo) — 5 campaigns, 25 files, 25MB storage, higher rate limits. " +
-	"Pro ($18/mo) — Unlimited campaigns, 100 files, 100MB storage, 2× rate limits.";
+	"Basic ($9/mo) — Several campaigns with room for sourcebooks, character sheets, and handouts. Great for one or two tables. " +
+	"Pro ($18/mo) — Unlimited campaigns and a large library. Run multiple tables or build a big collection of sourcebooks and adventures.";
 const LOW_BALANCE_SUPPORT_THROTTLE_MS = 30 * 60 * 1000;
 const LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY =
 	"low-balance-support-last-reported-at";

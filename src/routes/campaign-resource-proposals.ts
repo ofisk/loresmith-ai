@@ -25,6 +25,7 @@ import {
 import type { Env } from "@/middleware/auth";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import type { AuthPayload } from "@/services/core/auth-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
@@ -247,6 +248,27 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				message: "File was already added to campaign",
 				resourceId: existing.resource?.id,
 			});
+		}
+
+		// Check indexing quota before approving (entity extraction consumes tokens)
+		const rateLimitService = getLLMRateLimitService(c.env);
+		const quotaResult = await rateLimitService.checkIndexingQuota(
+			userAuth.username,
+			userAuth.isAdmin ?? false,
+			5_000
+		);
+		if (!quotaResult.allowed) {
+			return c.json(
+				{
+					code: "QUOTA_EXCEEDED",
+					error: quotaResult.reason,
+					monthlyUsage: quotaResult.monthlyUsage,
+					monthlyLimit: quotaResult.monthlyLimit,
+					creditsRemaining: quotaResult.creditsRemaining,
+					purchaseCreditsUrl: "/billing?tab=credits",
+				},
+				402
+			);
 		}
 
 		const resourceId = crypto.randomUUID();

@@ -45,15 +45,15 @@ export async function handleMintStreamToken(
 			.setSubject(userId)
 			.sign(jwtSecret);
 
-		// Create the stream URL with the short-lived token
-		const streamUrl = new URL(
-			API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM),
-			c.req.url
-		);
+		// Use request origin so stream URL points to the same host the client is on
+		// (fixes dev: VITE_API_URL in wrangler.dev is localhost, but deployed dev needs dev Worker URL)
+		const origin = new URL(c.req.url).origin;
+		const streamPath = `/api${API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM}`;
+		const streamUrl = new URL(streamPath, origin);
 		streamUrl.searchParams.set("token", streamToken);
 
 		const response = {
-			streamUrl: streamUrl.toString(),
+			streamUrl: streamUrl.href,
 			expiresIn: 900, // 15 minutes in seconds
 		};
 

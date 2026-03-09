@@ -20,6 +20,9 @@ interface UsageData {
 	atLimit: boolean;
 	limitType?: "minute" | "daily";
 	isAdmin: boolean;
+	monthlyUsage?: number;
+	monthlyLimit?: number;
+	creditsRemaining?: number;
 }
 
 interface RateLimitIndicatorProps {
@@ -180,8 +183,18 @@ export function RateLimitIndicator({
 					Math.max(usage.tpd / usage.tpdLimit, usage.qpd / usage.qpdLimit)
 				)
 			: 0;
-	const pct = Math.max(minutePct, dailyPct);
+	const monthlyPct =
+		usage.monthlyLimit !== undefined &&
+		usage.monthlyLimit > 0 &&
+		usage.monthlyUsage !== undefined
+			? Math.min(1, usage.monthlyUsage / usage.monthlyLimit)
+			: 0;
+	const pct =
+		usage.monthlyLimit !== undefined
+			? monthlyPct
+			: Math.max(minutePct, dailyPct);
 	const nearLimit = pct >= NEAR_LIMIT_THRESHOLD;
+	const isMonthly = usage.monthlyLimit !== undefined;
 
 	return (
 		<div className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -197,8 +210,11 @@ export function RateLimitIndicator({
 			</div>
 			<div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
 				<span>
-					{usage.tpd.toLocaleString()} / {usage.tpdLimit.toLocaleString()}{" "}
-					tokens today
+					{isMonthly &&
+					usage.monthlyUsage !== undefined &&
+					usage.monthlyLimit !== undefined
+						? `${usage.monthlyUsage.toLocaleString()} / ${usage.monthlyLimit.toLocaleString()} tokens this month`
+						: `${usage.tpd.toLocaleString()} / ${usage.tpdLimit.toLocaleString()} tokens today`}
 				</span>
 				{nearLimit && usage.nextResetAt && (
 					<span className="text-amber-600 dark:text-amber-400">

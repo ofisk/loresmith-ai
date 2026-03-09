@@ -48,47 +48,33 @@ export class SubscriptionDAO extends BaseDAOClass {
 	}
 
 	async upsertFromStripe(data: SubscriptionUpsert): Promise<void> {
-		const existing = await this.getByUsername(data.username);
-		const id = existing?.id ?? `sub_${data.username}_${Date.now()}`;
+		const id = `sub_${data.username}_${Date.now()}`;
 		const now = new Date().toISOString();
 
-		if (existing) {
-			const sql = `
-        UPDATE subscriptions SET
-          stripe_customer_id = COALESCE(?, stripe_customer_id),
-          stripe_subscription_id = COALESCE(?, stripe_subscription_id),
-          tier = ?,
-          status = ?,
-          current_period_end = COALESCE(?, current_period_end),
-          updated_at = ?
-        WHERE username = ?
-      `;
-			await this.execute(sql, [
-				data.stripe_customer_id ?? null,
-				data.stripe_subscription_id ?? null,
-				data.tier,
-				data.status,
-				data.current_period_end ?? null,
-				now,
-				data.username,
-			]);
-		} else {
-			const sql = `
-        INSERT INTO subscriptions (id, username, stripe_customer_id, stripe_subscription_id, tier, status, current_period_end, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-			await this.execute(sql, [
-				id,
-				data.username,
-				data.stripe_customer_id ?? null,
-				data.stripe_subscription_id ?? null,
-				data.tier,
-				data.status,
-				data.current_period_end ?? null,
-				now,
-				now,
-			]);
-		}
+		// Use INSERT OR REPLACE to avoid UNIQUE constraint race when webhook and
+		// billing/status sync run concurrently (Workers are multi-tenant).
+		const sql = `
+      INSERT INTO subscriptions (id, username, stripe_customer_id, stripe_subscription_id, tier, status, current_period_end, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(username) DO UPDATE SET
+        stripe_customer_id = COALESCE(excluded.stripe_customer_id, stripe_customer_id),
+        stripe_subscription_id = COALESCE(excluded.stripe_subscription_id, stripe_subscription_id),
+        tier = excluded.tier,
+        status = excluded.status,
+        current_period_end = COALESCE(excluded.current_period_end, current_period_end),
+        updated_at = excluded.updated_at
+    `;
+		await this.execute(sql, [
+			id,
+			data.username,
+			data.stripe_customer_id ?? null,
+			data.stripe_subscription_id ?? null,
+			data.tier,
+			data.status,
+			data.current_period_end ?? null,
+			now,
+			now,
+		]);
 	}
 
 	async upsertByStripeSubscriptionId(

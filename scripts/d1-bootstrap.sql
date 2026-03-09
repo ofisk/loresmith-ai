@@ -531,6 +531,16 @@ CREATE TABLE IF NOT EXISTS user_notifications (
   created_at datetime default current_timestamp
 );
 
+-- One-time indexing credits (0009) - extends free-tier monthly token cap
+CREATE TABLE IF NOT EXISTS user_indexing_credits (
+  username text primary key,
+  tokens_remaining integer not null default 0,
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (username) references users(username) on delete cascade
+);
+CREATE INDEX IF NOT EXISTS idx_user_indexing_credits_username ON user_indexing_credits(username);
+
 -- Create a view for easy querying of analyzed files
 CREATE VIEW IF NOT EXISTS analyzed_files AS
 select 

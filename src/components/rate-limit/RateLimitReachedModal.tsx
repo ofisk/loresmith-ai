@@ -23,8 +23,9 @@ function formatResetTime(iso: string): string {
 }
 
 const TIER_BENEFITS = {
-	basic: "5 campaigns, 25 files, 25MB storage, higher rate limits",
-	pro: "Unlimited campaigns, 100 files, 100MB storage, 2× rate limits",
+	basic:
+		"Several campaigns with room for sourcebooks, character sheets, and handouts. Great for one or two tables.",
+	pro: "Unlimited campaigns and a large library. Run multiple tables or build a big collection of sourcebooks and adventures.",
 } as const;
 
 export function RateLimitReachedModal({
@@ -72,7 +73,15 @@ export function RateLimitReachedModal({
 						</li>
 					</ul>
 				</div>
-				<div className="flex justify-end gap-2">
+				<div className="flex justify-end gap-2 flex-wrap">
+					{reason?.toLowerCase().includes("monthly") && (
+						<a
+							href="/billing?tab=credits"
+							className="px-4 py-2 text-sm font-medium rounded-md bg-neutral-800 dark:bg-neutral-200 text-neutral-100 dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-300"
+						>
+							Buy indexing credits
+						</a>
+					)}
 					<a
 						href="/billing"
 						className="px-4 py-2 text-sm font-medium rounded-md bg-neutral-800 dark:bg-neutral-200 text-neutral-100 dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-300"

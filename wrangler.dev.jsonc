@@ -12,13 +12,15 @@
 		"nodejs_compat_populate_process_env"
 	],
 	"assets": {
-		"directory": "dist/client"
+		"directory": "dist/client",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/auth/*"]
 	},
 	"vars": {
 		"VITE_API_URL": "http://localhost:8787",
-		"CORS_ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:5174",
+		"CORS_ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:5174,https://loresmith-ai-dev.oren-t-fisk.workers.dev",
 		"APP_ORIGIN": "http://localhost:5173",
-		"VERIFICATION_EMAIL_FROM": "noreply@yourdomain.com",
+		"VERIFICATION_EMAIL_FROM": "LoreSmith <noreply@loresmith.ai>",
 		"MAX_INDEX_FILE_BYTES": "4194304",
 		"STAGING_PREFIX": "staging",
 		"READINESS_TIMEOUT_SEC": "600",
@@ -72,17 +74,17 @@
 	"queues": {
 		"producers": [
 			{
-				"queue": "upload-events",
+				"queue": "upload-events-dev",
 				"binding": "FILE_PROCESSING_QUEUE"
 			},
 			{
-				"queue": "file-processing-dlq",
+				"queue": "file-processing-dlq-dev",
 				"binding": "FILE_PROCESSING_DLQ"
 			}
 		],
 		"consumers": [
 			{
-				"queue": "upload-events",
+				"queue": "upload-events-dev",
 				"max_batch_size": 1,
 				"max_retries": 5
 			}

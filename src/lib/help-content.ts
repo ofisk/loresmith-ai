@@ -11,6 +11,8 @@ export function getHelpContent(action: string): string {
 				"- What can the AI help me with for my campaign?\n" +
 				"- How do I plan a session or get story ideas?\n" +
 				"- How do I record a session recap?\n\n" +
+				"**Running low on capacity:**\n" +
+				"- Which boost should I get when adding lots of documents?\n\n" +
 				"Type your question in the chat below and I’ll walk you through it."
 			);
 		case "upload_resource":
@@ -47,6 +49,15 @@ export function getHelpContent(action: string): string {
 				"• Track session history and world state\n" +
 				"• Get AI assistance tailored to your campaign\n\n" +
 				"**Pro Tip:** Create separate campaigns for different stories to keep contexts clean and focused."
+			);
+		case "boost_selection":
+			return (
+				"## Choosing a boost\n\n" +
+				"When you're adding documents to campaigns, the app needs capacity to read and prepare each one. Think about how much you're adding right now:\n\n" +
+				"**Small** – A couple of sourcebooks, a few character sheets, or a small batch of notes. Good for topping up mid-session.\n\n" +
+				"**Standard** – A full campaign's worth: your core setting doc, several adventures, and the handouts you'll need. Covers most import sessions.\n\n" +
+				"**Large** – Multiple campaigns at once, or a large world-building library (dozens of documents). For heavy prep days.\n\n" +
+				"Visit the billing page to purchase. Credits never expire."
 			);
 		case "usage_limits":
 			return (

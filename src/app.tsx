@@ -160,13 +160,14 @@ export default function Chat() {
 	const modalState = useModalState();
 	const authState = useAppAuthentication();
 
-	// On load, if URL hash contains #token=... or #google_pending=... (e.g. after Google OAuth redirect), handle it and clear hash
+	// On load, if URL hash contains #token=..., #google_pending=..., or #verify=... (e.g. after OAuth or email verification redirect), handle it and clear hash
 	useEffect(() => {
 		if (typeof window === "undefined") return;
 		const hash = window.location.hash?.replace(/^#/, "") || "";
 		const params = new URLSearchParams(hash);
 		const token = params.get("token");
 		const googlePending = params.get("google_pending");
+		const verify = params.get("verify");
 		if (token && authState.acceptToken) {
 			authState.acceptToken(token).then(() => {
 				window.history.replaceState(
@@ -184,11 +185,45 @@ export default function Chat() {
 				"",
 				window.location.pathname + window.location.search
 			);
+		} else if (verify) {
+			const verifyErrorMessages: Record<string, string> = {
+				missing_token:
+					"Verification link is incomplete. Please request a new one.",
+				invalid_or_expired:
+					"Verification link expired or invalid. Please request a new one.",
+				error: "Verification failed. Please try again or request a new link.",
+			};
+			const message =
+				verify === "success"
+					? null
+					: (verifyErrorMessages[verify] ??
+						"Verification failed. Please try again.");
+			modalState.setAuthVerifyError(message);
+			modalState.setAuthVerifySuccess(verify === "success");
+			modalState.setShowAuthModal(true);
+			window.history.replaceState(
+				null,
+				"",
+				window.location.pathname + window.location.search
+			);
 		}
 	}, [
 		authState.acceptToken,
 		modalState.setGooglePendingToken,
 		modalState.setShowAuthModal,
+		modalState.setAuthVerifyError,
+	]);
+
+	// Clear verify state when auth modal closes
+	useEffect(() => {
+		if (!modalState.showAuthModal) {
+			modalState.setAuthVerifyError(null);
+			modalState.setAuthVerifySuccess(false);
+		}
+	}, [
+		modalState.showAuthModal,
+		modalState.setAuthVerifyError,
+		modalState.setAuthVerifySuccess,
 	]);
 
 	// Redirect to join page if we have stored intent (e.g. after OAuth or email verification redirect)
@@ -339,7 +374,10 @@ export default function Chat() {
 		modalState.hideProposalConfirmModal();
 	}, [modalState]);
 	const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
-		useCampaignAddition(getProposalConfirmation);
+		useCampaignAddition(
+			getProposalConfirmation,
+			modalState.showQuotaWarningModalFn
+		);
 
 	// Activity tracking for recap triggers
 	const {

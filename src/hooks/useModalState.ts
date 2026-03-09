@@ -9,6 +9,8 @@ export function useModalState() {
 	const [googlePendingToken, setGooglePendingToken] = useState<string | null>(
 		null
 	);
+	const [authVerifyError, setAuthVerifyError] = useState<string | null>(null);
+	const [authVerifySuccess, setAuthVerifySuccess] = useState(false);
 
 	// Log auth modal state changes for debugging
 	useEffect(() => {
@@ -36,6 +38,13 @@ export function useModalState() {
 	>(null);
 	const [rateLimitReason, setRateLimitReason] = useState<string | undefined>();
 	const [showUsageLimitsModal, setShowUsageLimitsModal] = useState(false);
+	const [showQuotaWarningModal, setShowQuotaWarningModal] = useState(false);
+	const [quotaWarningPayload, setQuotaWarningPayload] = useState<{
+		reason: string;
+		monthlyUsage?: number;
+		monthlyLimit?: number;
+		creditsRemaining?: number;
+	} | null>(null);
 
 	// Modal data state
 	const [campaignName, setCampaignName] = useState("");
@@ -140,12 +149,34 @@ export function useModalState() {
 		setShowUsageLimitsModal(false);
 	}, []);
 
+	const showQuotaWarningModalFn = useCallback(
+		(payload: {
+			reason: string;
+			monthlyUsage?: number;
+			monthlyLimit?: number;
+			creditsRemaining?: number;
+		}) => {
+			setQuotaWarningPayload(payload);
+			setShowQuotaWarningModal(true);
+		},
+		[]
+	);
+
+	const hideQuotaWarningModal = useCallback(() => {
+		setShowQuotaWarningModal(false);
+		setQuotaWarningPayload(null);
+	}, []);
+
 	return {
 		// Modal state
 		showAuthModal,
 		setShowAuthModal,
 		googlePendingToken,
 		setGooglePendingToken,
+		authVerifyError,
+		setAuthVerifyError,
+		authVerifySuccess,
+		setAuthVerifySuccess,
 		isCreateCampaignModalOpen,
 		setIsCreateCampaignModalOpen,
 		isCampaignDetailsModalOpen,
@@ -167,6 +198,10 @@ export function useModalState() {
 		showUsageLimitsModal,
 		handleUsageLimitsOpen,
 		handleUsageLimitsClose,
+		showQuotaWarningModal,
+		quotaWarningPayload,
+		showQuotaWarningModalFn,
+		hideQuotaWarningModal,
 
 		// Modal data state
 		campaignName,

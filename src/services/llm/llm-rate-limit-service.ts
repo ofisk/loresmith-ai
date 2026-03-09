@@ -22,6 +22,22 @@ export interface UsageStatus {
 	atLimit: boolean;
 	limitType?: "minute" | "daily";
 	isAdmin: boolean;
+	/** Monthly usage (free tier only) */
+	monthlyUsage?: number;
+	/** Effective monthly limit including credits (free tier only) */
+	monthlyLimit?: number;
+	/** One-time credits remaining (free tier only) */
+	creditsRemaining?: number;
+}
+
+export interface CheckIndexingQuotaResult {
+	allowed: boolean;
+	reason?: string;
+	wouldExceed?: boolean;
+	monthlyUsage?: number;
+	monthlyLimit?: number;
+	creditsRemaining?: number;
+	nextResetAt?: string;
 }
 
 function addSeconds(isoOrSqlite: string, seconds: number): string {
@@ -51,15 +67,18 @@ export class LLMRateLimitService {
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
 
-		// Free tier: check monthly token cap
+		// Free tier: check monthly token cap (base + credits)
 		if (limits.monthlyTokens !== undefined) {
 			const dao = getDAOFactory(this.env);
-			const monthlyUsage =
-				await dao.userMonthlyUsageDAO.getCurrentMonthUsage(username);
-			if (monthlyUsage >= limits.monthlyTokens) {
+			const [monthlyUsage, creditsRemaining] = await Promise.all([
+				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
+				dao.userCreditsDAO.getCredits(username),
+			]);
+			const effectiveLimit = limits.monthlyTokens + creditsRemaining;
+			if (monthlyUsage >= effectiveLimit) {
 				return {
 					allowed: false,
-					reason: `Monthly token limit (${limits.monthlyTokens.toLocaleString()}) exceeded. Upgrade for more.`,
+					reason: `Monthly token limit (${effectiveLimit.toLocaleString()}) exceeded. Upgrade or purchase credits for more.`,
 					nextResetAt: new Date(
 						new Date().getFullYear(),
 						new Date().getMonth() + 1,
@@ -141,6 +160,81 @@ export class LLMRateLimitService {
 		return { allowed: true };
 	}
 
+	/**
+	 * Check if an indexing action (e.g. add resource) would exceed quota.
+	 * For free tier, checks monthly cap + credits. For paid tiers, delegates to checkLimit.
+	 */
+	async checkIndexingQuota(
+		username: string,
+		isAdmin: boolean,
+		estimatedTokens: number = 5_000
+	): Promise<CheckIndexingQuotaResult> {
+		if (isAdmin) {
+			return { allowed: true };
+		}
+
+		const subService = getSubscriptionService(this.env);
+		const tier = await subService.getTier(username);
+		const limits = subService.getTierLimits(tier);
+
+		// Free tier: check monthly cap with estimated tokens
+		if (limits.monthlyTokens !== undefined) {
+			const dao = getDAOFactory(this.env);
+			const [monthlyUsage, creditsRemaining] = await Promise.all([
+				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
+				dao.userCreditsDAO.getCredits(username),
+			]);
+			const effectiveLimit = limits.monthlyTokens + creditsRemaining;
+			const wouldExceed = monthlyUsage + estimatedTokens > effectiveLimit;
+			const alreadyExceeded = monthlyUsage >= effectiveLimit;
+
+			if (alreadyExceeded) {
+				return {
+					allowed: false,
+					reason: `Monthly token limit (${effectiveLimit.toLocaleString()}) exceeded. Purchase credits or upgrade for more.`,
+					wouldExceed: true,
+					monthlyUsage,
+					monthlyLimit: effectiveLimit,
+					creditsRemaining,
+					nextResetAt: new Date(
+						new Date().getFullYear(),
+						new Date().getMonth() + 1,
+						1
+					).toISOString(),
+				};
+			}
+			if (wouldExceed) {
+				return {
+					allowed: false,
+					reason: `This action would exceed your monthly token limit. You have ${(effectiveLimit - monthlyUsage).toLocaleString()} tokens remaining.`,
+					wouldExceed: true,
+					monthlyUsage,
+					monthlyLimit: effectiveLimit,
+					creditsRemaining,
+					nextResetAt: new Date(
+						new Date().getFullYear(),
+						new Date().getMonth() + 1,
+						1
+					).toISOString(),
+				};
+			}
+			return {
+				allowed: true,
+				monthlyUsage,
+				monthlyLimit: effectiveLimit,
+				creditsRemaining,
+			};
+		}
+
+		// Paid tiers: use standard rate limit check
+		const result = await this.checkLimit(username, isAdmin);
+		return {
+			allowed: result.allowed,
+			reason: result.reason,
+			nextResetAt: result.nextResetAt,
+		};
+	}
+
 	async recordUsage(
 		username: string,
 		tokens: number,
@@ -187,10 +281,23 @@ export class LLMRateLimitService {
 			};
 		}
 
-		const dao = getDAOFactory(this.env).llmUsageDAO;
+		const dao = getDAOFactory(this.env);
+
+		// Free tier: include monthly usage and credits for UI
+		let monthlyUsage: number | undefined;
+		let monthlyLimit: number | undefined;
+		let creditsRemaining: number | undefined;
+		if (limits.monthlyTokens !== undefined) {
+			[monthlyUsage, creditsRemaining] = await Promise.all([
+				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
+				dao.userCreditsDAO.getCredits(username),
+			]);
+			monthlyLimit = limits.monthlyTokens + creditsRemaining;
+		}
+
 		const [minute, daily] = await Promise.all([
-			dao.getUsageInLastMinute(username),
-			dao.getUsageInLast24Hours(username),
+			dao.llmUsageDAO.getUsageInLastMinute(username),
+			dao.llmUsageDAO.getUsageInLast24Hours(username),
 		]);
 
 		const tpm = (minute as { tpm?: number }).tpm ?? 0;
@@ -239,6 +346,12 @@ export class LLMRateLimitService {
 					: null;
 		}
 
+		// Free tier: also at limit if monthly cap exceeded
+		const atMonthlyLimit =
+			monthlyLimit !== undefined &&
+			monthlyUsage !== undefined &&
+			monthlyUsage >= monthlyLimit;
+
 		return {
 			tpm,
 			qpm,
@@ -248,10 +361,20 @@ export class LLMRateLimitService {
 			qpmLimit,
 			tpdLimit,
 			qpdLimit,
-			nextResetAt,
-			atLimit: atMinuteLimit || atDailyLimit,
-			limitType,
+			nextResetAt:
+				atMonthlyLimit && limits.monthlyTokens !== undefined
+					? new Date(
+							new Date().getFullYear(),
+							new Date().getMonth() + 1,
+							1
+						).toISOString()
+					: nextResetAt,
+			atLimit: atMinuteLimit || atDailyLimit || atMonthlyLimit,
+			limitType: atMonthlyLimit ? "daily" : limitType,
 			isAdmin: false,
+			monthlyUsage,
+			monthlyLimit,
+			creditsRemaining,
 		};
 	}
 }

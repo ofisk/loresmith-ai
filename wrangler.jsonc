@@ -23,7 +23,8 @@
 		"READINESS_BACKOFF_MS": "2000",
 		"PRODUCTION_URL": "https://loresmith.ai",
 		"APP_ORIGIN": "https://loresmith.ai",
-		"VERIFICATION_EMAIL_FROM": "LoreSmith <support@loresmith.ai>"
+		"VERIFICATION_EMAIL_FROM": "LoreSmith <support@loresmith.ai>",
+		"CORS_ALLOWED_ORIGINS": "https://loresmith.ai,https://www.loresmith.ai,https://loresmith-ai-dev.oren-t-fisk.workers.dev"
 	},
 	"durable_objects": {
 		"bindings": [

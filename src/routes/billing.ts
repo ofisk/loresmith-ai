@@ -5,6 +5,7 @@ import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/routes/register-routes";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { RetryLimitService } from "@/services/retry-limit-service";
 import { DEFAULT_APP_ORIGIN } from "@/shared-config";
 
@@ -17,7 +18,30 @@ async function getStripe(env: Env): Promise<Stripe> {
 	return new Stripe(key);
 }
 
-function getOrigin(env: Env): string {
+/** WebCrypto provider for async signature verification in edge runtimes (Workers) */
+let _webCrypto: Awaited<ReturnType<typeof getWebCryptoAsync>> | null = null;
+async function getWebCryptoAsync() {
+	const { default: Stripe } = await import("stripe");
+	return Stripe.createSubtleCryptoProvider();
+}
+async function getWebCrypto() {
+	if (!_webCrypto) {
+		_webCrypto = await getWebCryptoAsync();
+	}
+	return _webCrypto;
+}
+
+function getOrigin(env: Env, req?: Request): string {
+	// Prefer request origin so redirects go to the host the user is on
+	// (fixes dev deploy: APP_ORIGIN is localhost, but deployed dev should redirect to dev Worker URL)
+	if (req?.url) {
+		try {
+			const urlOrigin = new URL(req.url).origin;
+			if (urlOrigin && urlOrigin !== "null") return urlOrigin;
+		} catch {
+			// fall through to env
+		}
+	}
 	const origin =
 		(typeof env.APP_ORIGIN === "string" && env.APP_ORIGIN) ||
 		(typeof env.PRODUCTION_URL === "string" && env.PRODUCTION_URL);
@@ -45,6 +69,15 @@ const PRICE_KEYS = {
 		annual: "STRIPE_PRICE_PRO_ANNUAL",
 	},
 } as const;
+
+/** Indexing credit boost levels: tokens -> env var name for Stripe price ID */
+const CREDIT_BOOST_LEVELS = {
+	50000: "STRIPE_PRICE_INDEXING_CREDITS_50K",
+	200000: "STRIPE_PRICE_INDEXING_CREDITS_200K",
+	500000: "STRIPE_PRICE_INDEXING_CREDITS_500K",
+} as const;
+
+const VALID_CREDIT_AMOUNTS = [50_000, 200_000, 500_000] as const;
 
 async function getPriceIdForTier(
 	env: Env,
@@ -152,6 +185,16 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 	const dao = getDAOFactory(c.env);
 	const sub = await dao.subscriptionDAO.getByUsername(auth.username);
 
+	// Free tier: include monthly usage and credits for quota visibility
+	let monthlyUsage: number | undefined;
+	let creditsRemaining: number | undefined;
+	if (tier === "free" && limits.monthlyTokens !== undefined) {
+		[monthlyUsage, creditsRemaining] = await Promise.all([
+			dao.userMonthlyUsageDAO.getCurrentMonthUsage(auth.username),
+			dao.userCreditsDAO.getCredits(auth.username),
+		]);
+	}
+
 	return c.json({
 		tier,
 		isAdmin: auth.isAdmin ?? false,
@@ -167,7 +210,145 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 			qpd: limits.qpd,
 			monthlyTokens: limits.monthlyTokens,
 		},
+		monthlyUsage,
+		creditsRemaining,
 	});
+}
+
+/**
+ * GET /billing/quota-status?estimatedTokens=5000
+ * Returns quota status for indexing actions (free tier: monthly cap + credits).
+ * Used by UI to show warnings before adding resources.
+ */
+export async function handleBillingQuotaStatus(c: ContextWithAuth) {
+	const auth = getUserAuth(c);
+	if (!auth?.username) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+
+	const url = new URL(c.req.url);
+	const estimatedTokens = Math.min(
+		100_000,
+		Math.max(
+			0,
+			parseInt(url.searchParams.get("estimatedTokens") ?? "5000", 10) || 5000
+		)
+	);
+
+	const rateLimitService = getLLMRateLimitService(c.env);
+	const result = await rateLimitService.checkIndexingQuota(
+		auth.username,
+		auth.isAdmin ?? false,
+		estimatedTokens
+	);
+
+	return c.json({
+		tier: (await getSubscriptionService(c.env).getTier(
+			auth.username,
+			auth.isAdmin
+		)) as string,
+		allowed: result.allowed,
+		wouldExceed: result.wouldExceed,
+		monthlyUsage: result.monthlyUsage,
+		monthlyLimit: result.monthlyLimit,
+		creditsRemaining: result.creditsRemaining,
+		reason: result.reason,
+		nextResetAt: result.nextResetAt,
+	});
+}
+
+/**
+ * POST /billing/checkout-credits
+ * Creates a one-time Stripe checkout for indexing credits.
+ * Body: { amount: 50000 | 200000 | 500000 } - tokens to purchase.
+ */
+export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
+	const auth = getUserAuth(c);
+	if (!auth?.username) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+
+	const body = await c.req.json().catch(() => ({}));
+	const amount = body?.amount as number | undefined;
+	if (
+		typeof amount !== "number" ||
+		!VALID_CREDIT_AMOUNTS.includes(
+			amount as (typeof VALID_CREDIT_AMOUNTS)[number]
+		)
+	) {
+		return c.json(
+			{
+				error: "Invalid amount. Use 50000, 200000, or 500000 tokens.",
+			},
+			400
+		);
+	}
+
+	const envKey =
+		CREDIT_BOOST_LEVELS[amount as keyof typeof CREDIT_BOOST_LEVELS];
+	const priceId = await getEnvVar(c.env, envKey, false);
+	if (!priceId) {
+		return c.json(
+			{
+				error: `Credit purchase not configured. Missing Stripe price ID for ${amount.toLocaleString()} tokens.`,
+			},
+			503
+		);
+	}
+
+	const stripe = await getStripe(c.env);
+	const dao = getDAOFactory(c.env);
+	const user = await dao.authUserDAO.getUserByUsername(auth.username);
+	const email = user?.email ?? undefined;
+
+	let customerId: string | undefined;
+	const existingSub = await dao.subscriptionDAO.getByUsername(auth.username);
+	if (existingSub?.stripe_customer_id) {
+		customerId = existingSub.stripe_customer_id;
+	} else if (email) {
+		const customers = await stripe.customers.list({
+			email,
+			limit: 1,
+		});
+		if (customers.data.length > 0) {
+			customerId = customers.data[0].id;
+		}
+	}
+
+	if (!customerId && email) {
+		const customer = await stripe.customers.create({
+			email,
+			metadata: { username: auth.username },
+		});
+		customerId = customer.id;
+	}
+
+	if (!customerId && !email) {
+		return c.json(
+			{ error: "Unable to create checkout: no email on account." },
+			400
+		);
+	}
+
+	const tokens = amount;
+	const origin = getOrigin(c.env, c.req.raw);
+	const session = await stripe.checkout.sessions.create({
+		mode: "payment",
+		payment_method_types: ["card"],
+		...(customerId
+			? { customer: customerId }
+			: { customer_email: email ?? undefined }),
+		line_items: [{ price: priceId, quantity: 1 }],
+		success_url: `${origin}/billing?credits=purchased`,
+		cancel_url: `${origin}/billing?tab=credits`,
+		metadata: {
+			username: auth.username,
+			product_type: "indexing_credits",
+			tokens: String(tokens),
+		},
+	});
+
+	return c.json({ url: session.url });
 }
 
 /**
@@ -272,9 +453,10 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 		);
 	}
 
-	const origin = getOrigin(c.env);
+	const origin = getOrigin(c.env, c.req.raw);
 	const session = await stripe.checkout.sessions.create({
 		mode: "subscription",
+		payment_method_types: ["card"],
 		...(customerId
 			? { customer: customerId }
 			: { customer_email: email ?? undefined }),
@@ -357,9 +539,9 @@ export async function handleBillingChangePlan(c: ContextWithAuth) {
 	// Use pending_if_incomplete so the subscription only updates when payment succeeds.
 	// We do NOT update our DB here - we rely on customer.subscription.updated webhook
 	// which fires when the pending update is applied (after successful payment).
+	// Note: metadata is not supported with payment_behavior pending_if_incomplete.
 	await stripe.subscriptions.update(sub.stripe_subscription_id, {
 		items: [{ id: subscriptionItem.id, price: newPriceId }],
-		metadata: { username: auth.username, tier },
 		proration_behavior: "always_invoice",
 		payment_behavior: "pending_if_incomplete",
 	});
@@ -389,7 +571,7 @@ export async function handleBillingPortal(c: ContextWithAuth) {
 	}
 
 	const stripe = await getStripe(c.env);
-	const origin = getOrigin(c.env);
+	const origin = getOrigin(c.env, c.req.raw);
 	const session = await stripe.billingPortal.sessions.create({
 		customer: sub.stripe_customer_id,
 		return_url: `${origin}/billing`,
@@ -414,7 +596,14 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 	let event: Stripe.Event;
 	try {
 		const { default: Stripe } = await import("stripe");
-		event = Stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+		const webCrypto = await getWebCrypto();
+		event = await Stripe.webhooks.constructEventAsync(
+			rawBody,
+			sig,
+			webhookSecret,
+			undefined,
+			webCrypto
+		);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : "Invalid signature";
 		console.warn(
@@ -429,12 +618,39 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 	switch (event.type) {
 		case "checkout.session.completed": {
 			const session = event.data.object as Stripe.Checkout.Session;
-			const subId = session.subscription as string;
 			const metadata = session.metadata ?? {};
 			let username = metadata.username as string | undefined;
+
+			// One-time indexing credits purchase (mode: payment)
+			if (metadata.product_type === "indexing_credits") {
+				if (!username) {
+					const email =
+						(session.customer_details?.email as string) ??
+						(session.customer_email as string);
+					if (email) {
+						const user = await dao.authUserDAO.getUserByEmail(email);
+						if (user) username = user.username;
+					}
+				}
+				if (!username) {
+					console.warn(
+						"[BillingWebhook] indexing_credits checkout missing username. metadata:",
+						JSON.stringify(metadata)
+					);
+					return c.json({ error: "Missing username in session metadata" }, 400);
+				}
+				const tokens = parseInt((metadata.tokens as string) || "5000", 10);
+				await dao.userCreditsDAO.addCredits(username, tokens);
+				console.log(
+					`[BillingWebhook] Added ${tokens} indexing credits for ${username}`
+				);
+				return c.json({ received: true });
+			}
+
+			// Subscription checkout (mode: subscription)
+			const subId = session.subscription as string;
 			const tier = (metadata.tier as "basic" | "pro") || "basic";
 
-			// Fallback: look up user by customer email if metadata.username missing
 			if (!username) {
 				const email =
 					(session.customer_details?.email as string) ??
@@ -470,6 +686,36 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 				status: "active",
 				current_period_end: periodEnd,
 			});
+			break;
+		}
+		case "customer.subscription.pending_update_applied": {
+			const sub = event.data.object as Stripe.Subscription;
+			const subId = sub.id;
+			const status = sub.status as
+				| "active"
+				| "canceled"
+				| "past_due"
+				| "trialing";
+			const periodEnd = sub.current_period_end
+				? new Date(sub.current_period_end * 1000).toISOString()
+				: undefined;
+			if (
+				(status === "active" || status === "trialing") &&
+				sub.items?.data?.[0]
+			) {
+				const priceId =
+					typeof sub.items.data[0].price === "string"
+						? sub.items.data[0].price
+						: sub.items.data[0].price?.id;
+				if (priceId) {
+					const tier = await getTierFromPriceId(c.env, priceId);
+					await dao.subscriptionDAO.upsertByStripeSubscriptionId(subId, {
+						tier,
+						status,
+						current_period_end: periodEnd,
+					});
+				}
+			}
 			break;
 		}
 		case "customer.subscription.updated":

@@ -25,6 +25,7 @@ export const ALLOWED_RETURN_ORIGINS: readonly string[] = [
 	"http://loresmith.ai",
 	"https://www.loresmith.ai",
 	"http://www.loresmith.ai",
+	"https://loresmith-ai-dev.oren-t-fisk.workers.dev",
 ];
 
 /** Google OAuth endpoints */
@@ -313,10 +314,12 @@ export const API_CONFIG = {
 		},
 		BILLING: {
 			CHECKOUT: "/billing/checkout",
+			CHECKOUT_CREDITS: "/billing/checkout-credits",
 			CHANGE_PLAN: "/billing/change-plan",
 			PORTAL: "/billing/portal",
 			WEBHOOK: "/billing/webhook",
 			STATUS: "/billing/status",
+			QUOTA_STATUS: "/billing/quota-status",
 			RETRY_LIMIT_STATUS: "/billing/retry-limit-status",
 		},
 		AUTH: {
