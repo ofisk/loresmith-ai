@@ -1,3 +1,7 @@
+-- D1 bootstrap: base schema (tables, indexes, view)
+-- Run once per new database. Run before wrangler d1 migrations apply.
+-- Triggers are applied separately by d1-bootstrap.sh
+
 -- Create campaigns table
 CREATE TABLE IF NOT EXISTS campaigns (
   id text primary key,
@@ -548,62 +552,3 @@ select
 from file_metadata 
 where analysis_status = 'completed' 
     and content_summary is not null;
-
--- Create all indexes
-create index if not exists idx_campaigns_username on campaigns(username);
-create index if not exists idx_campaigns_rag_base_path on campaigns(campaignRagBasePath);
-create index if not exists idx_campaign_resources_campaign_id on campaign_resources(campaign_id);
-create index if not exists idx_campaign_resources_file_key on campaign_resources(file_key);
-create index if not exists idx_file_chunks_username on file_chunks(username);
-create index if not exists idx_file_chunks_file_key on file_chunks(file_key);
-create index if not exists idx_file_metadata_username on file_metadata(username);
-create index if not exists idx_file_metadata_analysis_status on file_metadata(analysis_status);
-create index if not exists idx_file_metadata_content_type_categories on file_metadata(content_type_categories);
-create index if not exists idx_file_metadata_difficulty_level on file_metadata(difficulty_level);
-create index if not exists idx_file_metadata_campaign_themes on file_metadata(campaign_themes);
-create index if not exists idx_file_metadata_content_quality_score on file_metadata(content_quality_score);
-create index if not exists idx_file_metadata_status_updated_at on file_metadata(status, updated_at);
-create index if not exists idx_sync_queue_username on sync_queue(username);
-create index if not exists idx_sync_queue_status on sync_queue(status);
-create index if not exists idx_sync_queue_file_key on sync_queue(file_key);
-create index if not exists idx_sync_queue_created_at on sync_queue(created_at);
-create index if not exists idx_shard_registry_campaign_id on shard_registry(campaign_id);
-create index if not exists idx_shard_registry_resource_id on shard_registry(resource_id);
-create index if not exists idx_shard_registry_status on shard_registry(status);
-create index if not exists idx_shard_registry_campaign_status on shard_registry(campaign_id, status);
-create index if not exists idx_shard_registry_shard_type on shard_registry(shard_type);
-create index if not exists idx_shard_registry_r2_key on shard_registry(r2_key);
-create index if not exists idx_entities_campaign on entities(campaign_id);
-create index if not exists idx_entities_campaign_type on entities(campaign_id, entity_type);
-create index if not exists idx_entities_embedding on entities(embedding_id);
-create index if not exists idx_entity_relationships_campaign on entity_relationships(campaign_id);
-create index if not exists idx_relationships_from on entity_relationships(from_entity_id);
-create index if not exists idx_relationships_to on entity_relationships(to_entity_id);
-create index if not exists idx_relationships_type on entity_relationships(relationship_type);
-create index if not exists idx_entity_dedup_campaign_status on entity_deduplication_pending(campaign_id, status);
-create index if not exists idx_communities_campaign_level on communities(campaign_id, level);
-create index if not exists idx_communities_parent on communities(parent_community_id);
-create index if not exists idx_communities_campaign on communities(campaign_id);
-create index if not exists idx_campaign_context_campaign_id on campaign_context(campaign_id);
-create index if not exists idx_campaign_characters_campaign_id on campaign_characters(campaign_id);
-create index if not exists idx_campaign_planning_sessions_campaign_id on campaign_planning_sessions(campaign_id);
-create index if not exists idx_campaign_context_chunks_context_id on campaign_context_chunks(context_id);
-create index if not exists idx_character_sheets_campaign_id on character_sheets(campaign_id);
-create index if not exists idx_user_notifications_username on user_notifications(username);
-
--- Create triggers to update updated_at timestamps
-create trigger if not exists update_shard_registry_timestamp 
-    after update on shard_registry
-    for each row
-begin
-    update shard_registry set updated_at = datetime('now') where shard_id = new.shard_id;
-end;
-
-create trigger if not exists trigger_entity_relationships_updated_at
-    after update on entity_relationships
-    for each row
-begin
-    update entity_relationships
-    set updated_at = current_timestamp
-    where id = new.id;
-end;

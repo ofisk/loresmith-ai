@@ -109,17 +109,6 @@ execute_migration() {
     
     echo "🔄 Running migration: $migration_name"
     
-    # Special handling for clean slate migration
-    if [[ "$migration_name" == "0000_clean_slate.sql" ]]; then
-        if db_has_tables "$db_name" "$remote_flag"; then
-            echo "⚠️  Skipping clean slate migration - database already has tables (safe to skip)"
-            echo "✅ Success: $migration_name (skipped - tables already exist)"
-            return 0
-        else
-            echo "ℹ️  Running clean slate migration on fresh database"
-        fi
-    fi
-    
     local output
     output=$(wrangler d1 execute "$db_name" --file="$migration_file" $remote_flag 2>&1)
     local result=$?
