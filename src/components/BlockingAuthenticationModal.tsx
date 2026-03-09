@@ -14,6 +14,10 @@ interface BlockingAuthenticationModalProps {
 	username?: string;
 	/** When set, show "Choose your username" form to complete Google sign-in */
 	googlePendingToken?: string | null;
+	/** Error to show when opening (e.g. from email verification redirect) */
+	initialError?: string | null;
+	/** Success message to show when opening (e.g. after email verification) */
+	initialSuccessMessage?: string | null;
 	onLoginSuccess?: (token: string) => void | Promise<void>;
 	onClose?: () => void;
 }
@@ -21,6 +25,8 @@ interface BlockingAuthenticationModalProps {
 export function BlockingAuthenticationModal({
 	isOpen,
 	googlePendingToken,
+	initialError,
+	initialSuccessMessage,
 	onLoginSuccess,
 }: BlockingAuthenticationModalProps) {
 	const usernameId = useId();
@@ -40,11 +46,15 @@ export function BlockingAuthenticationModal({
 
 	useEffect(() => {
 		if (isOpen) {
-			setError(null);
-			setRegisterSuccess(false);
-			setEmailNotVerified(false);
+			setError(initialError ?? null);
+			if (initialError || initialSuccessMessage) {
+				setView("signin");
+			} else {
+				setRegisterSuccess(false);
+				setEmailNotVerified(false);
+			}
 		}
-	}, [isOpen]);
+	}, [isOpen, initialError, initialSuccessMessage]);
 
 	// When we have a Google pending token, show the choose-username view
 	useEffect(() => {
@@ -445,6 +455,11 @@ export function BlockingAuthenticationModal({
 								onValueChange={(v, _) => setPassword(v)}
 								disabled={false}
 							/>
+							{initialSuccessMessage && (
+								<div className="text-sm text-green-600 dark:text-green-400">
+									{initialSuccessMessage}
+								</div>
+							)}
 							{emailNotVerified && (
 								<div className="text-sm text-amber-600 dark:text-amber-400">
 									Verify your email first.{" "}

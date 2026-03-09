@@ -9,6 +9,8 @@ export function useModalState() {
 	const [googlePendingToken, setGooglePendingToken] = useState<string | null>(
 		null
 	);
+	const [authVerifyError, setAuthVerifyError] = useState<string | null>(null);
+	const [authVerifySuccess, setAuthVerifySuccess] = useState(false);
 
 	// Log auth modal state changes for debugging
 	useEffect(() => {
@@ -171,6 +173,10 @@ export function useModalState() {
 		setShowAuthModal,
 		googlePendingToken,
 		setGooglePendingToken,
+		authVerifyError,
+		setAuthVerifyError,
+		authVerifySuccess,
+		setAuthVerifySuccess,
 		isCreateCampaignModalOpen,
 		setIsCreateCampaignModalOpen,
 		isCampaignDetailsModalOpen,

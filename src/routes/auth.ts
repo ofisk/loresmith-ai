@@ -496,18 +496,18 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
 }
 
 export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
+	// Use request origin so redirect goes back to the app the user came from
+	// (fixes dev: APP_ORIGIN is localhost but deployed dev should redirect to dev Worker)
+	const redirectOrigin = new URL(c.req.url).origin;
 	try {
 		const token = c.req.query("token");
 		if (!token) {
-			return c.redirect(
-				`${(c.env.APP_ORIGIN as string) ?? DEFAULT_APP_ORIGIN}#verify=missing_token`
-			);
+			return c.redirect(`${redirectOrigin}#verify=missing_token`);
 		}
 		const dao = getDAOFactory(c.env);
 		const row = await dao.authUserDAO.getVerificationToken(token);
-		const appOrigin = (c.env.APP_ORIGIN as string) ?? DEFAULT_APP_ORIGIN;
 		if (!row) {
-			return c.redirect(`${appOrigin}#verify=invalid_or_expired`);
+			return c.redirect(`${redirectOrigin}#verify=invalid_or_expired`);
 		}
 		await dao.authUserDAO.setEmailVerified(row.username);
 		await dao.authUserDAO.deleteVerificationToken(token);
@@ -519,14 +519,13 @@ export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
 		});
 		if (result.success && result.token) {
 			return c.redirect(
-				`${appOrigin}#token=${encodeURIComponent(result.token)}`
+				`${redirectOrigin}#token=${encodeURIComponent(result.token)}`
 			);
 		}
-		return c.redirect(`${appOrigin}#verify=success`);
+		return c.redirect(`${redirectOrigin}#verify=success`);
 	} catch (error) {
 		console.error("Verify email error:", error);
-		const appOrigin = (c.env.APP_ORIGIN as string) ?? DEFAULT_APP_ORIGIN;
-		return c.redirect(`${appOrigin}#verify=error`);
+		return c.redirect(`${redirectOrigin}#verify=error`);
 	}
 }
 

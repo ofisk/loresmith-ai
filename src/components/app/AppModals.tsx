@@ -231,6 +231,12 @@ export function AppModals({
 				isOpen={modalState.showAuthModal}
 				username={authState.username}
 				googlePendingToken={modalState.googlePendingToken}
+				initialError={modalState.authVerifyError}
+				initialSuccessMessage={
+					modalState.authVerifySuccess
+						? "Email verified. You can sign in now."
+						: null
+				}
 				onLoginSuccess={async (token) => {
 					await authState.acceptToken(token);
 					modalState.setGooglePendingToken(null);
