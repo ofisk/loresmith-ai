@@ -25,6 +25,7 @@ export const ALLOWED_RETURN_ORIGINS: readonly string[] = [
 	"http://loresmith.ai",
 	"https://www.loresmith.ai",
 	"http://www.loresmith.ai",
+	"https://loresmith-ai-dev.oren-t-fisk.workers.dev",
 ];
 
 /** Google OAuth endpoints */
