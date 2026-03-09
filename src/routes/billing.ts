@@ -688,6 +688,36 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 			});
 			break;
 		}
+		case "customer.subscription.pending_update_applied": {
+			const sub = event.data.object as Stripe.Subscription;
+			const subId = sub.id;
+			const status = sub.status as
+				| "active"
+				| "canceled"
+				| "past_due"
+				| "trialing";
+			const periodEnd = sub.current_period_end
+				? new Date(sub.current_period_end * 1000).toISOString()
+				: undefined;
+			if (
+				(status === "active" || status === "trialing") &&
+				sub.items?.data?.[0]
+			) {
+				const priceId =
+					typeof sub.items.data[0].price === "string"
+						? sub.items.data[0].price
+						: sub.items.data[0].price?.id;
+				if (priceId) {
+					const tier = await getTierFromPriceId(c.env, priceId);
+					await dao.subscriptionDAO.upsertByStripeSubscriptionId(subId, {
+						tier,
+						status,
+						current_period_end: periodEnd,
+					});
+				}
+			}
+			break;
+		}
 		case "customer.subscription.updated":
 		case "customer.subscription.deleted": {
 			const sub = event.data.object as Stripe.Subscription;
