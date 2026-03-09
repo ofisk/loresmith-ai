@@ -31,6 +31,30 @@
 
 Staging uses a dedicated D1 database (`loresmith-db-dev`). R2 and Vectorize are shared with production.
 
+### Stripe (billing)
+
+**Dev uses Stripe test mode; prod uses live mode.** Test mode never charges real money. Use test keys (`sk_test_...`), test price IDs, and a test webhook secret for the dev Worker.
+
+**Obtaining test keys and price IDs:**
+1. In the [Stripe Dashboard](https://dashboard.stripe.com), enable **Test mode** (toggle top-right).
+2. **API keys:** Developers → API keys → copy the Secret key (`sk_test_...`).
+3. **Products and prices:** Create products for Basic (monthly, annual), Pro (monthly, annual), and indexing credit packs (50K, 200K, 500K). Copy each price ID (`price_...`).
+4. **Webhook:** Developers → Webhooks → Add endpoint:
+   - URL: `https://loresmith-ai-dev.<account-subdomain>.workers.dev/api/billing/webhook`
+   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - Copy the Signing secret (`whsec_...`).
+
+**Dev Worker secrets:** Set via Cloudflare Dashboard or `wrangler secret put --config wrangler.dev.jsonc`:
+- `STRIPE_SECRET_KEY` – Test secret key
+- `STRIPE_WEBHOOK_SECRET` – Signing secret from the dev webhook endpoint
+- `STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_BASIC_ANNUAL`
+- `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`
+- `STRIPE_PRICE_INDEXING_CREDITS_50K`, `STRIPE_PRICE_INDEXING_CREDITS_200K`, `STRIPE_PRICE_INDEXING_CREDITS_500K`
+
+**Local development:** Add the same Stripe test values to `.dev.vars` (see `.dev.vars.template`). For local webhook testing, use Stripe CLI: `stripe listen --forward-to localhost:8787/api/billing/webhook` and use the temporary signing secret it prints. For simpler testing, use the deployed dev Worker.
+
+**Test card:** Use `4242 4242 4242 4242`, any future expiry (e.g. `12/34`), any CVC.
+
 ### Database migrations
 
 **New databases:** Run `npm run migrate:bootstrap:dev` (or `migrate:bootstrap:prod`) once to create the base schema. Then run `npm run migrate:dev` or `wrangler d1 migrations apply` to apply incremental migrations. The bootstrap script is separate because the clean-slate schema contains triggers that cause D1's migration runner to fail (semicolon-splitting).

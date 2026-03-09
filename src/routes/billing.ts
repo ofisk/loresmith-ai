@@ -18,7 +18,30 @@ async function getStripe(env: Env): Promise<Stripe> {
 	return new Stripe(key);
 }
 
-function getOrigin(env: Env): string {
+/** WebCrypto provider for async signature verification in edge runtimes (Workers) */
+let _webCrypto: Awaited<ReturnType<typeof getWebCryptoAsync>> | null = null;
+async function getWebCryptoAsync() {
+	const { default: Stripe } = await import("stripe");
+	return Stripe.createSubtleCryptoProvider();
+}
+async function getWebCrypto() {
+	if (!_webCrypto) {
+		_webCrypto = await getWebCryptoAsync();
+	}
+	return _webCrypto;
+}
+
+function getOrigin(env: Env, req?: Request): string {
+	// Prefer request origin so redirects go to the host the user is on
+	// (fixes dev deploy: APP_ORIGIN is localhost, but deployed dev should redirect to dev Worker URL)
+	if (req?.url) {
+		try {
+			const urlOrigin = new URL(req.url).origin;
+			if (urlOrigin && urlOrigin !== "null") return urlOrigin;
+		} catch {
+			// fall through to env
+		}
+	}
 	const origin =
 		(typeof env.APP_ORIGIN === "string" && env.APP_ORIGIN) ||
 		(typeof env.PRODUCTION_URL === "string" && env.PRODUCTION_URL);
@@ -308,9 +331,10 @@ export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
 	}
 
 	const tokens = amount;
-	const origin = getOrigin(c.env);
+	const origin = getOrigin(c.env, c.req.raw);
 	const session = await stripe.checkout.sessions.create({
 		mode: "payment",
+		payment_method_types: ["card"],
 		...(customerId
 			? { customer: customerId }
 			: { customer_email: email ?? undefined }),
@@ -429,9 +453,10 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 		);
 	}
 
-	const origin = getOrigin(c.env);
+	const origin = getOrigin(c.env, c.req.raw);
 	const session = await stripe.checkout.sessions.create({
 		mode: "subscription",
+		payment_method_types: ["card"],
 		...(customerId
 			? { customer: customerId }
 			: { customer_email: email ?? undefined }),
@@ -546,7 +571,7 @@ export async function handleBillingPortal(c: ContextWithAuth) {
 	}
 
 	const stripe = await getStripe(c.env);
-	const origin = getOrigin(c.env);
+	const origin = getOrigin(c.env, c.req.raw);
 	const session = await stripe.billingPortal.sessions.create({
 		customer: sub.stripe_customer_id,
 		return_url: `${origin}/billing`,
@@ -571,7 +596,14 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 	let event: Stripe.Event;
 	try {
 		const { default: Stripe } = await import("stripe");
-		event = Stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+		const webCrypto = await getWebCrypto();
+		event = await Stripe.webhooks.constructEventAsync(
+			rawBody,
+			sig,
+			webhookSecret,
+			undefined,
+			webCrypto
+		);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : "Invalid signature";
 		console.warn(

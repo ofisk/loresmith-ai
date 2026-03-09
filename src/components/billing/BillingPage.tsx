@@ -396,12 +396,10 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					</table>
 				</div>
 
-				{status.tier === "free" && (
-					<CreditPurchaseSection
-						status={status}
-						onPurchaseError={(msg) => setCheckoutMessage(msg)}
-					/>
-				)}
+				<CreditPurchaseSection
+					status={status}
+					onPurchaseError={(msg) => setCheckoutMessage(msg)}
+				/>
 
 				{status.tier === "free" && (
 					<div className="space-y-4">

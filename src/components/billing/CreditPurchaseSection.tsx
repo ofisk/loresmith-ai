@@ -52,8 +52,7 @@ export function CreditPurchaseSection({
 }: CreditPurchaseSectionProps) {
 	const [helpExpanded, setHelpExpanded] = useState(false);
 
-	if (status.tier !== "free") return null;
-	if (status.limits.monthlyTokens === undefined) return null;
+	const hasMonthlyLimit = status.limits.monthlyTokens !== undefined;
 
 	const jwt =
 		typeof window !== "undefined"
@@ -85,7 +84,7 @@ export function CreditPurchaseSection({
 		}
 	}
 
-	const baseLimit = status.limits.monthlyTokens;
+	const baseLimit = status.limits.monthlyTokens ?? 0;
 	const credits = status.creditsRemaining ?? 0;
 	const effectiveLimit = baseLimit + credits;
 	const monthlyUsage = status.monthlyUsage ?? 0;
@@ -127,20 +126,22 @@ export function CreditPurchaseSection({
 				)}
 			</div>
 
-			<div className="mb-4">
-				<p className="text-sm text-neutral-600 dark:text-neutral-400">
-					This month:{" "}
-					<strong className="text-neutral-800 dark:text-neutral-200">
-						{monthlyUsage.toLocaleString()} / {effectiveLimit.toLocaleString()}{" "}
-						tokens
-					</strong>
-				</p>
-				{credits > 0 && (
-					<p className="text-sm text-neutral-500 dark:text-neutral-500 mt-0.5">
-						{credits.toLocaleString()} credits purchased
+			{hasMonthlyLimit && (
+				<div className="mb-4">
+					<p className="text-sm text-neutral-600 dark:text-neutral-400">
+						This month:{" "}
+						<strong className="text-neutral-800 dark:text-neutral-200">
+							{monthlyUsage.toLocaleString()} /{" "}
+							{effectiveLimit.toLocaleString()} tokens
+						</strong>
 					</p>
-				)}
-			</div>
+					{credits > 0 && (
+						<p className="text-sm text-neutral-500 dark:text-neutral-500 mt-0.5">
+							{credits.toLocaleString()} credits purchased
+						</p>
+					)}
+				</div>
+			)}
 			<div className="grid gap-3 sm:grid-cols-3">
 				{BOOST_OPTIONS.map((opt) => (
 					<div
