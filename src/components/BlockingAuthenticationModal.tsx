@@ -41,8 +41,12 @@ export function BlockingAuthenticationModal({
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [registerSuccess, setRegisterSuccess] = useState(false);
+	const [registerSuccessMessage, setRegisterSuccessMessage] = useState<
+		string | null
+	>(null);
 	const [emailNotVerified, setEmailNotVerified] = useState(false);
 	const [resendLoading, setResendLoading] = useState(false);
+	const [resendMessage, setResendMessage] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (isOpen) {
@@ -51,6 +55,8 @@ export function BlockingAuthenticationModal({
 				setView("signin");
 			} else {
 				setRegisterSuccess(false);
+				setRegisterSuccessMessage(null);
+				setResendMessage(null);
 				setEmailNotVerified(false);
 			}
 		}
@@ -153,6 +159,9 @@ export function BlockingAuthenticationModal({
 				return;
 			}
 			setRegisterSuccess(true);
+			setRegisterSuccessMessage(
+				data.message ?? "Check your email to verify your account."
+			);
 			setError(null);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Registration failed.");
@@ -207,6 +216,7 @@ export function BlockingAuthenticationModal({
 		}
 		setResendLoading(true);
 		setError(null);
+		setResendMessage(null);
 		try {
 			const res = await fetch(
 				API_CONFIG.buildAuthUrl(API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION),
@@ -222,8 +232,11 @@ export function BlockingAuthenticationModal({
 			const data = (await res.json()) as { error?: string; message?: string };
 			if (res.ok) {
 				setError(null);
+				setResendMessage(
+					data.message ??
+						"If that account exists, we sent a verification email."
+				);
 				setEmailNotVerified(false);
-				setRegisterSuccess(true);
 			} else {
 				setError(data.error ?? "Could not resend email.");
 			}
@@ -346,7 +359,8 @@ export function BlockingAuthenticationModal({
 						{registerSuccess ? (
 							<div className="space-y-3">
 								<p className="text-sm text-green-600 dark:text-green-400">
-									Check your email to verify your account.
+									{registerSuccessMessage ??
+										"Check your email to verify your account."}
 								</p>
 								<button
 									type="button"
@@ -360,6 +374,7 @@ export function BlockingAuthenticationModal({
 									onClick={() => {
 										setView("choice");
 										setRegisterSuccess(false);
+										setRegisterSuccessMessage(null);
 									}}
 									className="block text-sm text-gray-500 hover:underline"
 								>
@@ -390,6 +405,7 @@ export function BlockingAuthenticationModal({
 									label="Password"
 									placeholder="At least 8 characters"
 									type="password"
+									autoComplete="new-password"
 									value={password}
 									onValueChange={(v, _) => setPassword(v)}
 									disabled={false}
@@ -399,6 +415,7 @@ export function BlockingAuthenticationModal({
 									label="Confirm password"
 									placeholder="Same as above"
 									type="password"
+									autoComplete="new-password"
 									value={confirmPassword}
 									onValueChange={(v, _) => setConfirmPassword(v)}
 									disabled={false}
@@ -451,6 +468,7 @@ export function BlockingAuthenticationModal({
 								label="Password"
 								placeholder="Your password"
 								type="password"
+								autoComplete="current-password"
 								value={password}
 								onValueChange={(v, _) => setPassword(v)}
 								disabled={false}
@@ -458,6 +476,11 @@ export function BlockingAuthenticationModal({
 							{initialSuccessMessage && (
 								<div className="text-sm text-green-600 dark:text-green-400">
 									{initialSuccessMessage}
+								</div>
+							)}
+							{resendMessage && (
+								<div className="text-sm text-green-600 dark:text-green-400">
+									{resendMessage}
 								</div>
 							)}
 							{emailNotVerified && (

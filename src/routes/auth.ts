@@ -425,6 +425,7 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
 		const fromAddress =
 			(await getEnvVar(c.env, "VERIFICATION_EMAIL_FROM", false)) ||
 			"LoreSmith <noreply@loresmith.ai>";
+		let emailSent = false;
 		if (resendKey) {
 			const emailService = new EmailService(resendKey);
 			const sendResult = await emailService.sendVerificationEmail({
@@ -432,13 +433,20 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
 				verificationLink,
 				fromAddress,
 			});
+			emailSent = sendResult.ok;
 			if (!sendResult.ok) {
 				console.error("Failed to send verification email:", sendResult.error);
 			}
+		} else {
+			console.warn(
+				"[auth/register] RESEND_API_KEY not set - verification email not sent"
+			);
 		}
 		return c.json({
 			success: true,
-			message: "Check your email to verify your account.",
+			message: emailSent
+				? "Check your email to verify your account."
+				: "Account created. Verification email could not be sent (email not configured for this environment). Use 'Resend verification email' after signing in, or contact support.",
 		});
 	} catch (error) {
 		console.error("Register error:", error);
@@ -570,17 +578,28 @@ export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
 		const fromAddress =
 			(await getEnvVar(c.env, "VERIFICATION_EMAIL_FROM", false)) ||
 			"LoreSmith <noreply@loresmith.ai>";
+		let emailSent = false;
 		if (resendKey) {
 			const emailService = new EmailService(resendKey);
-			await emailService.sendVerificationEmail({
+			const sendResult = await emailService.sendVerificationEmail({
 				to: user.email,
 				verificationLink,
 				fromAddress,
 			});
+			emailSent = sendResult.ok;
+			if (!sendResult.ok) {
+				console.error("Resend verification failed:", sendResult.error);
+			}
+		} else {
+			console.warn(
+				"[auth/resend-verification] RESEND_API_KEY not set - email not sent"
+			);
 		}
 		return c.json({
 			success: true,
-			message: "If that account exists, we sent a verification email.",
+			message: emailSent
+				? "If that account exists, we sent a verification email."
+				: "Verification email could not be sent (email not configured for this environment). Contact support to verify your account.",
 		});
 	} catch (error) {
 		console.error("Resend verification error:", error);
