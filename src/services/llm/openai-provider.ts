@@ -1,7 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError, generateText, Output } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
-import { OpenAIAPIKeyError } from "@/lib/errors";
+import { LLMProviderAPIKeyError } from "@/lib/errors";
 import type {
 	LLMOptions,
 	LLMProvider,
@@ -43,7 +43,7 @@ export class OpenAIProvider implements LLMProvider {
 		} = {}
 	) {
 		if (!apiKey) {
-			throw new OpenAIAPIKeyError();
+			throw new LLMProviderAPIKeyError();
 		}
 
 		this.apiKey = apiKey;
@@ -96,7 +96,7 @@ export class OpenAIProvider implements LLMProvider {
 			return text;
 		} catch (error) {
 			console.error("[OpenAIProvider] Error generating summary:", error);
-			if (error instanceof OpenAIAPIKeyError) {
+			if (error instanceof LLMProviderAPIKeyError) {
 				throw error;
 			}
 			throw new Error(
@@ -249,7 +249,7 @@ export class OpenAIProvider implements LLMProvider {
 					error
 				);
 			}
-			if (error instanceof OpenAIAPIKeyError) {
+			if (error instanceof LLMProviderAPIKeyError) {
 				throw error;
 			}
 			throw new Error(

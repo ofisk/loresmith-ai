@@ -7,7 +7,10 @@ import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader, sanitizeApiKey } from "@/lib/auth-utils";
 import { getCampaignIdFromConversationId } from "@/lib/conversation-id-utils";
 import { getEnvVar } from "@/lib/env-utils";
-import { AuthenticationRequiredError, OpenAIAPIKeyError } from "@/lib/errors";
+import {
+	AuthenticationRequiredError,
+	LLMProviderAPIKeyError,
+} from "@/lib/errors";
 import { ModelManager } from "@/lib/model-manager";
 import { notifyAuthenticationRequired } from "@/lib/notifications";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
@@ -118,7 +121,7 @@ export class Chat extends SimpleChatAgent<Env> {
 			// Re-throw authentication errors so they can be handled properly
 			if (
 				error instanceof AuthenticationRequiredError ||
-				error instanceof OpenAIAPIKeyError
+				error instanceof LLMProviderAPIKeyError
 			) {
 				throw error;
 			}
@@ -136,7 +139,7 @@ export class Chat extends SimpleChatAgent<Env> {
 					`[Chat] Initialized model with ${MODEL_CONFIG.PROVIDER.DEFAULT} API key`
 				);
 			} else {
-				throw new OpenAIAPIKeyError(
+				throw new LLMProviderAPIKeyError(
 					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 				);
 			}
@@ -378,7 +381,7 @@ export class Chat extends SimpleChatAgent<Env> {
 
 				const serverKey = await this.getServerProviderKey();
 				if (!serverKey) {
-					throw new OpenAIAPIKeyError(
+					throw new LLMProviderAPIKeyError(
 						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 					);
 				}
@@ -445,18 +448,13 @@ export class Chat extends SimpleChatAgent<Env> {
 				abortSignal: _options?.abortSignal,
 			});
 		} catch (error) {
-			// Ensure authentication errors are properly propagated to the client
-			if (
-				error instanceof AuthenticationRequiredError ||
-				error instanceof OpenAIAPIKeyError
-			) {
+			// AuthenticationRequiredError: user must sign in - send notification that triggers auth modal
+			if (error instanceof AuthenticationRequiredError) {
 				console.error("[Chat] Authentication error in onChatMessage:", error);
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
 
-				// Send structured notification via notification stream
 				try {
-					// Try to get JWT token from storage or message data
 					const lastUserMessage = (this.messages as any[])
 						.slice()
 						.reverse()
@@ -477,10 +475,6 @@ export class Chat extends SimpleChatAgent<Env> {
 								username
 							);
 						}
-					} else {
-						console.log(
-							"[Chat] No JWT token available to send authentication notification"
-						);
 					}
 				} catch (notifyError) {
 					console.error(
@@ -488,9 +482,15 @@ export class Chat extends SimpleChatAgent<Env> {
 						notifyError
 					);
 				}
+				throw error;
+			}
 
-				// Re-throw the error so the framework propagates it to the client's onError callback
-				// The notification system will also trigger the auth modal if possible
+			// LLMProviderAPIKeyError: server misconfiguration - do NOT show auth modal (user is already signed in)
+			if (error instanceof LLMProviderAPIKeyError) {
+				console.error(
+					"[Chat] API key not configured - server needs ANTHROPIC_API_KEY or OPENAI_API_KEY:",
+					error
+				);
 				throw error;
 			}
 			// For other errors, log and re-throw
@@ -523,14 +523,16 @@ export class Chat extends SimpleChatAgent<Env> {
 	 * Handle errors and send them to the client
 	 */
 	onError(error: unknown): void {
-		// Check if this is an authentication error
-		if (
-			error instanceof AuthenticationRequiredError ||
-			error instanceof OpenAIAPIKeyError
-		) {
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
-			console.error("[Chat] Authentication error in onError:", errorMessage);
+		if (error instanceof AuthenticationRequiredError) {
+			console.error(
+				"[Chat] Authentication error in onError:",
+				error instanceof Error ? error.message : String(error)
+			);
+		} else if (error instanceof LLMProviderAPIKeyError) {
+			console.error(
+				"[Chat] API key not configured in onError:",
+				error instanceof Error ? error.message : String(error)
+			);
 		} else {
 			console.error("[Chat] Error:", error);
 		}

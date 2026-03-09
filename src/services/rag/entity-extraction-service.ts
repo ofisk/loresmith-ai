@@ -4,7 +4,7 @@ import {
 	STRUCTURED_ENTITY_TYPES,
 	type StructuredEntityType,
 } from "@/lib/entity-types";
-import { EntityExtractionError, OpenAIAPIKeyError } from "@/lib/errors";
+import { EntityExtractionError, LLMProviderAPIKeyError } from "@/lib/errors";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import {
 	normalizeRelationshipStrength,
@@ -115,7 +115,7 @@ export class EntityExtractionService {
 	): Promise<ExtractedEntity[]> {
 		const apiKey = options.llmApiKey || this.llmApiKey;
 		if (!apiKey) {
-			throw new OpenAIAPIKeyError(
+			throw new LLMProviderAPIKeyError(
 				`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required for entity extraction.`
 			);
 		}

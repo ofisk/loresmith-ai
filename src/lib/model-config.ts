@@ -1,7 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "../app-constants";
-import { OpenAIAPIKeyError } from "./errors";
+import { LLMProviderAPIKeyError } from "./errors";
 
 /**
  * Centralized model configuration for Loresmith AI
@@ -16,7 +16,7 @@ import { OpenAIAPIKeyError } from "./errors";
 function validateApiKey(apiKey?: string): string {
 	if (!apiKey) {
 		console.error("LLM API key not provided");
-		throw new OpenAIAPIKeyError(
+		throw new LLMProviderAPIKeyError(
 			`${
 				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"
 			} API key is required. Configure ${

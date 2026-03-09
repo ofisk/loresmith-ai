@@ -6,7 +6,7 @@ import type { ToolResult } from "@/app-constants";
 import {
 	DatabaseConnectionError,
 	EnvironmentVariableError,
-	OpenAIAPIKeyError,
+	LLMProviderAPIKeyError,
 	SecretStoreAccessError,
 	VectorizeIndexRequiredError,
 } from "@/lib/errors";
@@ -129,7 +129,7 @@ export async function getEnvVar(
  * @param env - Environment object with DB, VECTORIZE, and OPENAI_API_KEY bindings
  * @throws DatabaseConnectionError if DB is not configured
  * @throws VectorizeIndexRequiredError if VECTORIZE is not configured
- * @throws OpenAIAPIKeyError if OPENAI_API_KEY is not configured
+ * @throws LLMProviderAPIKeyError if OPENAI_API_KEY is not configured
  */
 export function validatePlanningContextDependencies(
 	env: EnvWithBindings
@@ -148,7 +148,7 @@ export function validatePlanningContextDependencies(
 			"get" in keyBinding &&
 			typeof (keyBinding as { get?: unknown }).get === "function");
 	if (!hasKey) {
-		throw new OpenAIAPIKeyError("OpenAI API key not configured");
+		throw new LLMProviderAPIKeyError("OpenAI API key not configured");
 	}
 }
 

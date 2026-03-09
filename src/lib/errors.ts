@@ -7,13 +7,13 @@
 // Authentication & Authorization Errors
 // ============================================================================
 
-export class OpenAIAPIKeyError extends Error {
+export class LLMProviderAPIKeyError extends Error {
 	constructor(message?: string) {
 		super(
 			message ||
-				"OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
+				"LLM provider API key is required. Please configure OPENAI_API_KEY or ANTHROPIC_API_KEY on the server."
 		);
-		this.name = "OpenAIAPIKeyError";
+		this.name = "LLMProviderAPIKeyError";
 	}
 }
 

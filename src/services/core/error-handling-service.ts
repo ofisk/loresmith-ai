@@ -1,7 +1,7 @@
 import {
 	FileNotFoundError,
+	LLMProviderAPIKeyError,
 	MemoryLimitError,
-	OpenAIAPIKeyError,
 	PDFExtractionError,
 } from "@/lib/errors";
 
@@ -78,7 +78,7 @@ export class ErrorHandlingService {
 			};
 		}
 
-		if (error instanceof OpenAIAPIKeyError) {
+		if (error instanceof LLMProviderAPIKeyError) {
 			return {
 				originalError: error,
 				category: {

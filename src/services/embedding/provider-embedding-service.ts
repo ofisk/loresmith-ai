@@ -1,4 +1,4 @@
-import { EmbeddingGenerationError, OpenAIAPIKeyError } from "@/lib/errors";
+import { EmbeddingGenerationError, LLMProviderAPIKeyError } from "@/lib/errors";
 import { CloudflareEmbeddingService } from "./cloudflare-embedding-service";
 import {
 	type EmbeddingOptions,
@@ -74,7 +74,7 @@ export class ProviderEmbeddingService {
 			}
 		}
 
-		throw new OpenAIAPIKeyError(
+		throw new LLMProviderAPIKeyError(
 			"No embedding provider configured. Set OPENAI_API_KEY or bind Cloudflare AI."
 		);
 	}
