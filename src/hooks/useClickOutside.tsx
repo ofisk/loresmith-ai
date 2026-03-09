@@ -5,7 +5,13 @@ const useClickOutside = (callback: () => void) => {
 
 	useEffect(() => {
 		const handleClick = (event: MouseEvent) => {
-			if (ref.current && !ref.current.contains(event.target as Node)) {
+			// Only trigger when the ref's element is in the document (e.g. modal is open).
+			// Avoids closing on the same click that opened (ref can be stale/detached).
+			if (
+				ref.current &&
+				document.contains(ref.current) &&
+				!ref.current.contains(event.target as Node)
+			) {
 				callback();
 			}
 		};
