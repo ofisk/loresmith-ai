@@ -149,9 +149,23 @@ export function useFileUpload({
 
 					if (!uploadResponse.response.ok) {
 						const errorText = await uploadResponse.response.text();
-						throw new Error(
-							`Upload failed: ${uploadResponse.response.status} ${errorText}`
-						);
+						let body: { code?: string; error?: string } = {};
+						try {
+							body = JSON.parse(errorText) as { code?: string; error?: string };
+						} catch {
+							// ignore parse errors
+						}
+						const err = new Error(
+							body.error ??
+								`Upload failed: ${uploadResponse.response.status} ${errorText}`
+						) as Error & { isUploadLimitExceeded?: boolean };
+						if (
+							uploadResponse.response.status === 403 &&
+							body.code === "UPLOAD_LIMIT_EXCEEDED"
+						) {
+							err.isUploadLimitExceeded = true;
+						}
+						throw err;
 					}
 				}
 

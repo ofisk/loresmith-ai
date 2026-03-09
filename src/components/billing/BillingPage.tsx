@@ -367,6 +367,14 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									{formatBytes(limits.storageBytes)}
 								</td>
 							</tr>
+							{limits.resourcesPerCampaignPerHour !== undefined && (
+								<tr>
+									<td className="py-2">Resources per campaign per hour</td>
+									<td className="py-2 text-right">
+										{limits.resourcesPerCampaignPerHour} adds/hr
+									</td>
+								</tr>
+							)}
 							<tr>
 								<td className="py-2">Tokens per day</td>
 								<td className="py-2 text-right">{formatNumber(limits.tpd)}</td>
@@ -442,7 +450,8 @@ export function BillingPage({ onBack }: BillingPageProps) {
 								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 									Several campaigns with room for sourcebooks, character sheets,
-									and handouts in each. Great for running one or two tables.
+									and handouts in each. 20 resources per campaign per hour.
+									Great for running one or two tables.
 								</p>
 								<PrimaryActionButton
 									onClick={() => handleCheckout("basic")}
@@ -459,8 +468,9 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									Pro — {interval === "monthly" ? "$18/month" : "$184/year"}
 								</h3>
 								<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-									Unlimited campaigns and a large library. Run multiple tables
-									or build a big collection of sourcebooks and adventures.
+									Unlimited campaigns and a large library. 50 resources per
+									campaign per hour. Run multiple tables or build a big
+									collection of sourcebooks and adventures.
 								</p>
 								<PrimaryActionButton
 									onClick={() => handleCheckout("pro")}

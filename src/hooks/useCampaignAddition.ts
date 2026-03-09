@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { QueuedReason } from "@/contexts/ActionQueueContext";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { QuotaExceededError } from "@/lib/errors";
@@ -20,9 +21,17 @@ export type QuotaExceededPayload = {
 	creditsRemaining?: number;
 };
 
+export type AddToQueueFn = (params: {
+	actionType: string;
+	label: string;
+	payload: { file_key: string; file_name: string; campaignIds: string[] };
+	reason: QueuedReason;
+}) => void;
+
 export function useCampaignAddition(
 	getProposalConfirmation?: ProposalConfirmationFn,
-	onQuotaExceeded?: (payload: QuotaExceededPayload) => void
+	onQuotaExceeded?: (payload: QuotaExceededPayload) => void,
+	addToQueue?: AddToQueueFn
 ) {
 	// Campaign addition progress tracking
 	const [campaignAdditionProgress, setCampaignAdditionProgress] = useState<
@@ -124,7 +133,69 @@ export function useCampaignAddition(
 
 					if (!response.ok) {
 						const errorText = await response.text();
-						if (response.status === 402) {
+						const remainingCampaignIds = campaignIds.filter(
+							(id) => !addedCampaignIds.includes(id)
+						);
+						if (response.status === 402 && addToQueue) {
+							try {
+								const errBody = JSON.parse(errorText) as {
+									code?: string;
+									error?: string;
+								};
+								if (errBody.code === "QUOTA_EXCEEDED") {
+									addToQueue({
+										actionType: "add_to_campaign",
+										label: `Add "${fileName}" to ${remainingCampaignIds.length} campaign(s)`,
+										payload: {
+											file_key: fileKey,
+											file_name: fileName,
+											campaignIds: remainingCampaignIds,
+										},
+										reason: "quota",
+									});
+									addLocalNotification(
+										NOTIFICATION_TYPES.SUCCESS,
+										"Queued",
+										remainingCampaignIds.length === campaignIds.length
+											? `"${fileName}" queued – will retry when capacity is available.`
+											: `Partial success. Remaining add(s) for "${fileName}" queued – will retry when capacity is available.`
+									);
+									break;
+								}
+							} catch {
+								// Fall through to generic error handling
+							}
+						}
+						if (response.status === 429 && addToQueue) {
+							try {
+								const errBody = JSON.parse(errorText) as {
+									code?: string;
+								};
+								if (errBody.code === "RESOURCE_ADD_RATE_LIMIT") {
+									addToQueue({
+										actionType: "add_to_campaign",
+										label: `Add "${fileName}" to ${remainingCampaignIds.length} campaign(s)`,
+										payload: {
+											file_key: fileKey,
+											file_name: fileName,
+											campaignIds: remainingCampaignIds,
+										},
+										reason: "rate_limit",
+									});
+									addLocalNotification(
+										NOTIFICATION_TYPES.SUCCESS,
+										"Queued",
+										remainingCampaignIds.length === campaignIds.length
+											? `"${fileName}" queued – will retry when limit resets.`
+											: `Partial success. Remaining add(s) for "${fileName}" queued – will retry when limit resets.`
+									);
+									break;
+								}
+							} catch {
+								// Fall through to generic error handling
+							}
+						}
+						if (response.status === 402 && !addToQueue && quotaHandler) {
 							try {
 								const errBody = JSON.parse(errorText) as {
 									code?: string;
@@ -133,7 +204,7 @@ export function useCampaignAddition(
 									monthlyLimit?: number;
 									creditsRemaining?: number;
 								};
-								if (errBody.code === "QUOTA_EXCEEDED" && quotaHandler) {
+								if (errBody.code === "QUOTA_EXCEEDED") {
 									quotaHandler({
 										reason: errBody.error ?? "Token quota exceeded.",
 										monthlyUsage: errBody.monthlyUsage,
@@ -144,7 +215,6 @@ export function useCampaignAddition(
 								}
 							} catch (e) {
 								if (e instanceof QuotaExceededError) throw e;
-								// Fall through to generic error handling
 							}
 						}
 						if (response.status === 403) {
@@ -286,7 +356,7 @@ export function useCampaignAddition(
 				setIsAddingToCampaigns(false);
 			}
 		},
-		[getProposalConfirmation, onQuotaExceeded]
+		[getProposalConfirmation, onQuotaExceeded, addToQueue]
 	);
 
 	return {

@@ -25,6 +25,12 @@ export interface ResourceUploadOptions {
 	keepModalOpen?: boolean;
 }
 
+/** Called when upload hits a limit (403). Passes files to queue for background retry. */
+export type OnUploadLimitReached = (
+	succeededCount: number,
+	filesToQueue: Array<{ file: File; filename: string }>
+) => void;
+
 interface ResourceUploadProps {
 	onUpload: (
 		file: File,
@@ -46,6 +52,7 @@ interface ResourceUploadProps {
 	onCampaignNameChange?: (name: string) => void;
 	onCreateCampaign?: () => void;
 	showCampaignSelection?: boolean;
+	onUploadLimitReached?: OnUploadLimitReached;
 }
 
 export const ResourceUpload = ({
@@ -62,6 +69,7 @@ export const ResourceUpload = ({
 	onCampaignNameChange: _onCampaignNameChange,
 	onCreateCampaign,
 	showCampaignSelection = false,
+	onUploadLimitReached,
 }: ResourceUploadProps) => {
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 	const [_isValid, setIsValid] = useState(false);
@@ -151,24 +159,53 @@ export const ResourceUpload = ({
 		if (selectedFiles.length === 0) return;
 		if (selectedFiles.length === 1) {
 			const file = selectedFiles[0];
+			const filename = sanitizeFilename(file.name);
 			const keepModalOpen = false;
-			await Promise.resolve(
-				onUpload(file, sanitizeFilename(file.name), "", [], { keepModalOpen })
-			);
-			setUploadSuccess(true);
-			return;
+			try {
+				await Promise.resolve(
+					onUpload(file, filename, "", [], { keepModalOpen })
+				);
+				setUploadSuccess(true);
+				return;
+			} catch (err) {
+				const isLimit = (err as Error & { isUploadLimitExceeded?: boolean })
+					?.isUploadLimitExceeded;
+				if (isLimit && onUploadLimitReached) {
+					onUploadLimitReached(0, [{ file, filename }]);
+					onCancel?.();
+					return;
+				}
+				throw err;
+			}
 		}
 		// Multiple files: upload all in sequence, then close on last
 		setIsUploadingAll(true);
 		try {
+			let succeededCount = 0;
 			for (let i = 0; i < selectedFiles.length; i++) {
 				const file = selectedFiles[i];
+				const filename = sanitizeFilename(file.name);
 				const isLast = i === selectedFiles.length - 1;
-				await Promise.resolve(
-					onUpload(file, sanitizeFilename(file.name), "", [], {
-						keepModalOpen: !isLast,
-					})
-				);
+				try {
+					await Promise.resolve(
+						onUpload(file, filename, "", [], {
+							keepModalOpen: !isLast,
+						})
+					);
+					succeededCount++;
+				} catch (err) {
+					const isLimit = (err as Error & { isUploadLimitExceeded?: boolean })
+						?.isUploadLimitExceeded;
+					if (isLimit && onUploadLimitReached) {
+						const filesToQueue = selectedFiles
+							.slice(i)
+							.map((f) => ({ file: f, filename: sanitizeFilename(f.name) }));
+						onUploadLimitReached(succeededCount, filesToQueue);
+						onCancel?.();
+						return;
+					}
+					throw err;
+				}
 			}
 		} finally {
 			setIsUploadingAll(false);

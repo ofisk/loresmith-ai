@@ -15,6 +15,8 @@ import { ResourceUpload } from "@/components/upload/ResourceUpload";
 import { EDIT_ROLES } from "@/constants/campaign-roles";
 import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { QueuedFile } from "@/contexts/UploadQueueContext";
+import { useUploadQueue } from "@/contexts/UploadQueueContext";
 import type { FileMetadata } from "@/dao";
 import type { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import type { useCampaignAddition } from "@/hooks/useCampaignAddition";
@@ -29,6 +31,14 @@ import { API_CONFIG } from "@/shared-config";
 import type { Campaign } from "@/types/campaign";
 
 interface AppModalsProps {
+	/** Limits from billing API (optional); passed to UsageLimitsModal */
+	billingLimits?: {
+		tph?: number;
+		qpm?: number;
+		tpd?: number;
+		qpd?: number;
+		resourcesPerCampaignPerHour?: number;
+	};
 	modalState: ReturnType<typeof useModalState>;
 	authState: ReturnType<typeof useAppAuthentication>;
 	campaigns: Campaign[];
@@ -55,6 +65,7 @@ interface AppModalsProps {
  * AppModals component - Manages all application modals
  */
 export function AppModals({
+	billingLimits,
 	modalState,
 	authState,
 	campaigns,
@@ -67,6 +78,7 @@ export function AppModals({
 	onProposalConfirm,
 	onProposalCancel,
 }: AppModalsProps) {
+	const uploadQueue = useUploadQueue();
 	// Debug: Log when auth modal state changes
 	useEffect(() => {
 		const log = logger.scope("[AppModals]");
@@ -292,29 +304,7 @@ export function AppModals({
 				onClose={modalState.handleCampaignDetailsClose}
 				onDelete={handleCampaignDelete}
 				onUpdate={handleCampaignUpdate}
-				checkQuotaBeforeAdd={async (fileCount: number) => {
-					const jwt = authState.getStoredJwt();
-					if (!jwt) return { allowed: true };
-					const estimatedTokens = Math.min(100_000, 5_000 * fileCount);
-					const res = await fetch(
-						`${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.BILLING.QUOTA_STATUS)}?estimatedTokens=${estimatedTokens}`,
-						{ headers: { Authorization: `Bearer ${jwt}` } }
-					);
-					if (!res.ok) return { allowed: true };
-					const json = (await res.json()) as {
-						allowed?: boolean;
-						reason?: string;
-						monthlyUsage?: number;
-						monthlyLimit?: number;
-						creditsRemaining?: number;
-					};
-					return {
-						allowed: json.allowed ?? true,
-						reason: json.reason,
-						monthlyUsage: json.monthlyUsage,
-						monthlyLimit: json.monthlyLimit,
-					};
-				}}
+				checkQuotaBeforeAdd={async () => ({ allowed: true })}
 				onShowQuotaWarning={modalState.showQuotaWarningModalFn}
 				onAddFileToCampaign={async (fileKey: string, fileName: string) => {
 					if (modalState.selectedCampaign) {
@@ -350,13 +340,38 @@ export function AppModals({
 						try {
 							await handleUpload(file, filename, description, tags);
 						} catch (error) {
-							console.error("Upload failed:", error);
-							addLocalNotification(
-								NOTIFICATION_TYPES.ERROR,
-								"Upload failed",
-								`Failed to upload "${filename}". Please try again.`
-							);
+							// Limit errors are handled by onUploadLimitReached; don't show generic notification
+							const isLimit = (
+								error as Error & { isUploadLimitExceeded?: boolean }
+							)?.isUploadLimitExceeded;
+							if (!isLimit) {
+								console.error("Upload failed:", error);
+								addLocalNotification(
+									NOTIFICATION_TYPES.ERROR,
+									"Upload failed",
+									`Failed to upload "${filename}". Please try again.`
+								);
+							}
+							throw error;
 						}
+					}}
+					onUploadLimitReached={(succeededCount, filesToQueue) => {
+						if (uploadQueue) {
+							const queued: QueuedFile[] = filesToQueue.map((f) => ({
+								file: f.file,
+								filename: f.filename,
+								id: `${f.filename}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+							}));
+							uploadQueue.addToQueue(queued);
+						}
+						modalState.handleAddResourceClose();
+						addLocalNotification(
+							NOTIFICATION_TYPES.ERROR,
+							"Upload limit reached",
+							succeededCount > 0
+								? `${succeededCount} file(s) uploaded. ${filesToQueue.length} file(s) queued for retry when capacity is available.`
+								: `${filesToQueue.length} file(s) queued for upload. They will retry automatically when capacity is available.`
+						);
 					}}
 					onCancel={modalState.handleAddResourceClose}
 					className="border-0 p-0 shadow-none"
@@ -630,6 +645,7 @@ export function AppModals({
 			<UsageLimitsModal
 				isOpen={modalState.showUsageLimitsModal}
 				onClose={modalState.handleUsageLimitsClose}
+				limits={billingLimits}
 			/>
 		</>
 	);

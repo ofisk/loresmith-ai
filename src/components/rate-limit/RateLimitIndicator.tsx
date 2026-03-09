@@ -8,17 +8,17 @@ import {
 import { API_CONFIG } from "@/shared-config";
 
 interface UsageData {
-	tpm: number;
+	tph: number;
 	qpm: number;
 	tpd: number;
 	qpd: number;
-	tpmLimit: number;
+	tphLimit: number;
 	qpmLimit: number;
 	tpdLimit: number;
 	qpdLimit: number;
 	nextResetAt: string | null;
 	atLimit: boolean;
-	limitType?: "minute" | "daily";
+	limitType?: "hour" | "minute" | "daily";
 	isAdmin: boolean;
 	monthlyUsage?: number;
 	monthlyLimit?: number;
@@ -59,7 +59,7 @@ export function RateLimitIndicator({
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const lastNotifiedMinuteRef = useRef<number>(0);
+	const lastNotifiedShortWindowRef = useRef<number>(0);
 	const lastNotifiedDailyRef = useRef<number>(0);
 
 	const fetchUsage = useCallback(async () => {
@@ -114,30 +114,33 @@ export function RateLimitIndicator({
 			? formatResetTime(usage.nextResetAt)
 			: "soon";
 
-		const minutePct =
-			usage.tpmLimit > 0 && usage.qpmLimit > 0
-				? Math.max(usage.tpm / usage.tpmLimit, usage.qpm / usage.qpmLimit)
+		const shortWindowPct =
+			usage.tphLimit > 0 && usage.qpmLimit > 0
+				? Math.max(usage.tph / usage.tphLimit, usage.qpm / usage.qpmLimit)
 				: 0;
 		const dailyPct =
 			usage.tpdLimit > 0 && usage.qpdLimit > 0
 				? Math.max(usage.tpd / usage.tpdLimit, usage.qpd / usage.qpdLimit)
 				: 0;
 
-		// Check minute dimension
+		// Check short-window dimension (hourly tokens + per-minute queries)
 		for (let i = NOTIFY_THRESHOLDS.length - 1; i >= 0; i--) {
 			const thresh = NOTIFY_THRESHOLDS[i];
-			if (minutePct >= thresh && lastNotifiedMinuteRef.current < thresh * 100) {
-				lastNotifiedMinuteRef.current = thresh * 100;
+			if (
+				shortWindowPct >= thresh &&
+				lastNotifiedShortWindowRef.current < thresh * 100
+			) {
+				lastNotifiedShortWindowRef.current = thresh * 100;
 				const pctLabel = thresh === 1 ? "100%" : `${thresh * 100}%`;
 				addLocalNotification(
 					"error",
 					"Usage limit",
-					`You've used ${pctLabel} of your per-minute rate limit. Next reset: ${nextReset}.`
+					`You've used ${pctLabel} of your rate limit (tokens/hour or queries/min). Next reset: ${nextReset}.`
 				);
 				break;
 			}
 		}
-		if (minutePct < 0.5) lastNotifiedMinuteRef.current = 0;
+		if (shortWindowPct < 0.5) lastNotifiedShortWindowRef.current = 0;
 
 		// Check daily dimension
 		for (let i = NOTIFY_THRESHOLDS.length - 1; i >= 0; i--) {
@@ -169,11 +172,11 @@ export function RateLimitIndicator({
 
 	if (usage.isAdmin) return null;
 
-	const minutePct =
-		usage.tpmLimit > 0
+	const shortWindowPct =
+		usage.tphLimit > 0
 			? Math.min(
 					1,
-					Math.max(usage.tpm / usage.tpmLimit, usage.qpm / usage.qpmLimit)
+					Math.max(usage.tph / usage.tphLimit, usage.qpm / usage.qpmLimit)
 				)
 			: 0;
 	const dailyPct =
@@ -192,7 +195,7 @@ export function RateLimitIndicator({
 	const pct =
 		usage.monthlyLimit !== undefined
 			? monthlyPct
-			: Math.max(minutePct, dailyPct);
+			: Math.max(shortWindowPct, dailyPct);
 	const nearLimit = pct >= NEAR_LIMIT_THRESHOLD;
 	const isMonthly = usage.monthlyLimit !== undefined;
 

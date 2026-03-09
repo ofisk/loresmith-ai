@@ -26,6 +26,7 @@ import { MessageHistoryDAO } from "./message-history-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
 import { PlayerCharacterClaimDAO } from "./player-character-claim-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
+import { ResourceAddLogDAO } from "./resource-add-log-dao";
 import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
 import { SessionPlanReadoutDAO } from "./session-plan-readout-dao";
@@ -66,6 +67,7 @@ export interface DAOFactory {
 	userMonthlyUsageDAO: UserMonthlyUsageDAO;
 	userCreditsDAO: UserCreditsDAO;
 	fileRetryUsageDAO: FileRetryUsageDAO;
+	resourceAddLogDAO: ResourceAddLogDAO;
 	entityGraphService: EntityGraphService;
 	entityImportanceService: EntityImportanceService;
 	rebuildTriggerService: RebuildTriggerService;
@@ -104,6 +106,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly userMonthlyUsageDAO: UserMonthlyUsageDAO;
 	public readonly userCreditsDAO: UserCreditsDAO;
 	public readonly fileRetryUsageDAO: FileRetryUsageDAO;
+	public readonly resourceAddLogDAO: ResourceAddLogDAO;
 	private _entityGraphService: EntityGraphService | null = null;
 	private _entityImportanceService: EntityImportanceService | null = null;
 	private _rebuildTriggerService: RebuildTriggerService | null = null;
@@ -137,6 +140,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.userMonthlyUsageDAO = new UserMonthlyUsageDAO(db);
 		this.userCreditsDAO = new UserCreditsDAO(db);
 		this.fileRetryUsageDAO = new FileRetryUsageDAO(db);
+		this.resourceAddLogDAO = new ResourceAddLogDAO(db);
 	}
 
 	async getStorageUsage(username: string): Promise<UserStorageUsage> {

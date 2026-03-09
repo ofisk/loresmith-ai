@@ -272,11 +272,13 @@ export function getGenerationModelForProvider(
 }
 
 // Rate limits for non-admin users (admin users bypass all limits)
+// Fallback values when tier limits unavailable (e.g. UsageLimitsModal)
 export const RATE_LIMITS = {
-	NON_ADMIN_TPM: 10_000,
+	NON_ADMIN_TPH: 600_000, // 10k/min * 60 = tokens per hour
 	NON_ADMIN_QPM: 10,
 	NON_ADMIN_TPD: 500_000,
 	NON_ADMIN_QPD: 500,
+	RESOURCES_PER_CAMPAIGN_PER_HOUR: 20, // Basic tier fallback
 } as const;
 
 export type SubscriptionTier = "free" | "basic" | "pro";
@@ -285,7 +287,7 @@ export interface TierLimits {
 	maxCampaigns: number;
 	maxFiles: number;
 	storageBytes: number;
-	tpm: number;
+	tph: number; // tokens per hour (was tpm * 60)
 	qpm: number;
 	tpd: number;
 	qpd: number;
@@ -295,6 +297,8 @@ export interface TierLimits {
 	retriesPerFilePerDay: number;
 	/** Per-file retries per month for indexation/entity extraction retry */
 	retriesPerFilePerMonth: number;
+	/** Resources addable per campaign per rolling hour (Basic/Pro differ) */
+	resourcesPerCampaignPerHour: number;
 }
 
 export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
@@ -302,35 +306,38 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxCampaigns: 1,
 		maxFiles: 5,
 		storageBytes: 5 * 1024 * 1024, // 5MB
-		tpm: 2_000,
+		tph: 120_000, // was 2k/min * 60
 		qpm: 5,
 		tpd: 10_000,
 		qpd: 50,
 		monthlyTokens: 10_000,
 		retriesPerFilePerDay: 1,
 		retriesPerFilePerMonth: 3,
+		resourcesPerCampaignPerHour: 5,
 	},
 	basic: {
 		maxCampaigns: 5,
 		maxFiles: 25,
 		storageBytes: 25 * 1024 * 1024, // 25MB
-		tpm: 10_000,
+		tph: 600_000, // was 10k/min * 60
 		qpm: 10,
 		tpd: 500_000,
 		qpd: 500,
 		retriesPerFilePerDay: 3,
 		retriesPerFilePerMonth: 15,
+		resourcesPerCampaignPerHour: 20,
 	},
 	pro: {
 		maxCampaigns: 999_999, // effectively unlimited
 		maxFiles: 100,
 		storageBytes: 100 * 1024 * 1024, // 100MB
-		tpm: 20_000,
+		tph: 1_200_000, // was 20k/min * 60
 		qpm: 20,
 		tpd: 1_000_000,
 		qpd: 1_000,
 		retriesPerFilePerDay: 5,
 		retriesPerFilePerMonth: 50,
+		resourcesPerCampaignPerHour: 50,
 	},
 } as const;
 

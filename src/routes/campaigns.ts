@@ -42,7 +42,7 @@ import { ChecklistStatusService } from "@/services/campaign/checklist-status-ser
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
-import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import { ResourceAddRateLimitService } from "@/services/resource-add-rate-limit-service";
 import { RetryLimitService } from "@/services/retry-limit-service";
 
 // Extend the context to include userAuth
@@ -646,28 +646,26 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			);
 		}
 
-		// 3c) Check indexing quota before adding (entity extraction consumes tokens)
-		const rateLimitService = getLLMRateLimitService(c.env);
-		const quotaResult = await rateLimitService.checkIndexingQuota(
+		// Rate limit: resources per campaign per hour (Basic/Pro differ; admins bypass)
+		const addLimit = await ResourceAddRateLimitService.checkAddLimit(
 			userAuth.username,
+			campaignId,
 			userAuth.isAdmin ?? false,
-			5_000
+			c.env
 		);
-		if (!quotaResult.allowed) {
+		if (!addLimit.allowed) {
 			return c.json(
 				{
-					code: "QUOTA_EXCEEDED",
-					error: quotaResult.reason,
-					monthlyUsage: quotaResult.monthlyUsage,
-					monthlyLimit: quotaResult.monthlyLimit,
-					creditsRemaining: quotaResult.creditsRemaining,
-					purchaseCreditsUrl: "/billing?tab=credits",
+					error: addLimit.reason,
+					code: "RESOURCE_ADD_RATE_LIMIT",
+					limit: addLimit.limit,
+					current: addLimit.current,
 				},
-				402
+				429
 			);
 		}
 
-		// 4) Add resource to campaign
+		// Add resource to campaign (storage limits apply via canUploadFile; token limits excluded for upload/processing)
 		const resourceId = crypto.randomUUID();
 		await addResourceToCampaign({
 			env: c.env,
@@ -677,6 +675,12 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			fileKey: id,
 			fileName: name || id,
 		});
+
+		await ResourceAddRateLimitService.recordAdd(
+			userAuth.username,
+			campaignId,
+			c.env
+		);
 
 		// 5) Queue entity extraction for the newly added resource (asynchronous)
 		try {

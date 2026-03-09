@@ -121,7 +121,10 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 		);
 		if (!uploadCheck.canUpload) {
 			return c.json(
-				{ error: uploadCheck.reason ?? "Upload limit exceeded" },
+				{
+					code: "UPLOAD_LIMIT_EXCEEDED",
+					error: uploadCheck.reason ?? "Upload limit exceeded",
+				},
 				403
 			);
 		}
@@ -502,7 +505,10 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 		);
 		if (!uploadCheck.canUpload) {
 			return c.json(
-				{ error: uploadCheck.reason ?? "Upload limit exceeded" },
+				{
+					code: "UPLOAD_LIMIT_EXCEEDED",
+					error: uploadCheck.reason ?? "Upload limit exceeded",
+				},
 				403
 			);
 		}

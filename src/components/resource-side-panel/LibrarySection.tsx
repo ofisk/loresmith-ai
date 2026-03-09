@@ -2,9 +2,11 @@ import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import libraryIcon from "@/assets/library.png";
 import { Card } from "@/components/card/Card";
+import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
 import { RateLimitIndicator } from "@/components/rate-limit";
 import { StorageTracker } from "@/components/storage-tracker";
 import { ResourceList } from "@/components/upload/ResourceList";
+import { useUploadQueue } from "@/contexts/UploadQueueContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
@@ -38,6 +40,7 @@ export function LibrarySection({
 	onShowUsageLimits,
 }: LibrarySectionProps) {
 	const authReady = useAuthReady();
+	const uploadQueue = useUploadQueue();
 	const {
 		files,
 		loading,
@@ -169,6 +172,14 @@ export function LibrarySection({
 							_isAddingToCampaigns={isAddingToCampaigns}
 						/>
 						<StorageTracker />
+						{uploadQueue && uploadQueue.queuedCount > 0 && (
+							<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
+								{uploadQueue.queuedCount} file
+								{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
+								when capacity is available
+							</div>
+						)}
+						<ActionQueueUI />
 						{addLocalNotification && onShowUsageLimits && (
 							<RateLimitIndicator
 								addLocalNotification={addLocalNotification}

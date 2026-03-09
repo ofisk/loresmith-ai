@@ -6,11 +6,12 @@ export interface BillingLimits {
 	maxCampaigns: number;
 	maxFiles: number;
 	storageBytes: number;
-	tpm: number;
+	tph: number;
 	qpm: number;
 	tpd: number;
 	qpd: number;
 	monthlyTokens?: number;
+	resourcesPerCampaignPerHour?: number;
 }
 
 export interface BillingStatus {

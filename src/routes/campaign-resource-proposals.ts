@@ -25,7 +25,7 @@ import {
 import type { Env } from "@/middleware/auth";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import type { AuthPayload } from "@/services/core/auth-service";
-import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import { ResourceAddRateLimitService } from "@/services/resource-add-rate-limit-service";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
@@ -250,24 +250,21 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			});
 		}
 
-		// Check indexing quota before approving (entity extraction consumes tokens)
-		const rateLimitService = getLLMRateLimitService(c.env);
-		const quotaResult = await rateLimitService.checkIndexingQuota(
+		const addLimit = await ResourceAddRateLimitService.checkAddLimit(
 			userAuth.username,
+			campaignId,
 			userAuth.isAdmin ?? false,
-			5_000
+			c.env
 		);
-		if (!quotaResult.allowed) {
+		if (!addLimit.allowed) {
 			return c.json(
 				{
-					code: "QUOTA_EXCEEDED",
-					error: quotaResult.reason,
-					monthlyUsage: quotaResult.monthlyUsage,
-					monthlyLimit: quotaResult.monthlyLimit,
-					creditsRemaining: quotaResult.creditsRemaining,
-					purchaseCreditsUrl: "/billing?tab=credits",
+					error: addLimit.reason,
+					code: "RESOURCE_ADD_RATE_LIMIT",
+					limit: addLimit.limit,
+					current: addLimit.current,
 				},
-				402
+				429
 			);
 		}
 
@@ -280,6 +277,12 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			fileKey: proposal.file_key,
 			fileName: proposal.file_name,
 		});
+
+		await ResourceAddRateLimitService.recordAdd(
+			userAuth.username,
+			campaignId,
+			c.env
+		);
 
 		await daoFactory.campaignResourceProposalDAO.approveProposal(
 			id,

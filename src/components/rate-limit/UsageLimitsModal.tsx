@@ -6,10 +6,11 @@ interface UsageLimitsModalProps {
 	onClose: () => void;
 	/** Limits from API (optional); falls back to RATE_LIMITS when not provided */
 	limits?: {
-		tpm: number;
-		qpm: number;
-		tpd: number;
-		qpd: number;
+		tph?: number;
+		qpm?: number;
+		tpd?: number;
+		qpd?: number;
+		resourcesPerCampaignPerHour?: number;
 	};
 }
 
@@ -23,10 +24,13 @@ export function UsageLimitsModal({
 	onClose,
 	limits,
 }: UsageLimitsModalProps) {
-	const tpm = limits?.tpm ?? RATE_LIMITS.NON_ADMIN_TPM;
+	const tph = limits?.tph ?? RATE_LIMITS.NON_ADMIN_TPH;
 	const qpm = limits?.qpm ?? RATE_LIMITS.NON_ADMIN_QPM;
 	const tpd = limits?.tpd ?? RATE_LIMITS.NON_ADMIN_TPD;
 	const qpd = limits?.qpd ?? RATE_LIMITS.NON_ADMIN_QPD;
+	const resourcesPerCampaignPerHour =
+		limits?.resourcesPerCampaignPerHour ??
+		RATE_LIMITS.RESOURCES_PER_CAMPAIGN_PER_HOUR;
 
 	return (
 		<Modal
@@ -50,10 +54,8 @@ export function UsageLimitsModal({
 					</thead>
 					<tbody className="text-neutral-600 dark:text-neutral-400">
 						<tr className="border-b border-neutral-100 dark:border-neutral-800">
-							<td className="py-2">Tokens per minute</td>
-							<td className="text-right py-2">
-								{formatNumber(tpm)} tokens/min
-							</td>
+							<td className="py-2">Tokens per hour</td>
+							<td className="text-right py-2">{formatNumber(tph)} tokens/hr</td>
 						</tr>
 						<tr className="border-b border-neutral-100 dark:border-neutral-800">
 							<td className="py-2">Queries per minute</td>
@@ -65,9 +67,15 @@ export function UsageLimitsModal({
 								{formatNumber(tpd)} tokens/day
 							</td>
 						</tr>
-						<tr>
+						<tr className="border-b border-neutral-100 dark:border-neutral-800">
 							<td className="py-2">Queries per day</td>
 							<td className="text-right py-2">{qpd} queries/day</td>
+						</tr>
+						<tr>
+							<td className="py-2">Resources per campaign per hour</td>
+							<td className="text-right py-2">
+								{resourcesPerCampaignPerHour} adds/hr
+							</td>
 						</tr>
 					</tbody>
 				</table>

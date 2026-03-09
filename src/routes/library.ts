@@ -153,7 +153,7 @@ export const handleGetLlmUsage = async (
 		);
 
 		const limits = {
-			tpm: usage.tpmLimit,
+			tph: usage.tphLimit,
 			qpm: usage.qpmLimit,
 			tpd: usage.tpdLimit,
 			qpd: usage.qpdLimit,
@@ -162,11 +162,11 @@ export const handleGetLlmUsage = async (
 		return c.json({
 			success: true,
 			usage: {
-				tpm: usage.tpm,
+				tph: usage.tph,
 				qpm: usage.qpm,
 				tpd: usage.tpd,
 				qpd: usage.qpd,
-				tpmLimit: usage.tpmLimit,
+				tphLimit: usage.tphLimit,
 				qpmLimit: usage.qpmLimit,
 				tpdLimit: usage.tpdLimit,
 				qpdLimit: usage.qpdLimit,
