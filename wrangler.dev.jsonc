@@ -52,9 +52,9 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "loresmith-db",
-			"database_id": "7a5854a8-9b74-401b-83d0-3e69941feb8d",
-			"preview_database_id": "7a5854a8-9b74-401b-83d0-3e69941feb8d",
+			"database_name": "loresmith-db-dev",
+			"database_id": "c86ddb04-d6c2-47f5-a584-1279c0391ae3",
+			"preview_database_id": "c86ddb04-d6c2-47f5-a584-1279c0391ae3",
 			"remote": true
 		}
 	],
@@ -120,6 +120,11 @@
 		{
 			"tag": "v8",
 			"deleted_classes": ["UserFileTracker"]
+		},
+		{
+			"tag": "v9",
+			"new_classes": [],
+			"deleted_classes": []
 		}
 	],
 	"observability": {
