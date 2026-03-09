@@ -4,9 +4,10 @@ const useClickOutside = (callback: () => void) => {
 	const ref = useRef<HTMLElement | null>(null);
 
 	useEffect(() => {
-		const handleClick = (event: MouseEvent) => {
-			// Only trigger when the ref's element is in the document (e.g. modal is open).
-			// Avoids closing on the same click that opened (ref can be stale/detached).
+		const handleMouseDown = (event: MouseEvent) => {
+			// Use mousedown (not click) so we don't close on the same interaction that opened.
+			// Event order: mousedown -> mouseup -> click. Opening happens on button's onClick (click).
+			// By mousedown, the modal isn't open yet; by click, it is and we'd incorrectly close.
 			if (
 				ref.current &&
 				document.contains(ref.current) &&
@@ -16,10 +17,10 @@ const useClickOutside = (callback: () => void) => {
 			}
 		};
 
-		document.addEventListener("click", handleClick);
+		document.addEventListener("mousedown", handleMouseDown);
 
 		return () => {
-			document.removeEventListener("click", handleClick);
+			document.removeEventListener("mousedown", handleMouseDown);
 		};
 	}, [callback]);
 
