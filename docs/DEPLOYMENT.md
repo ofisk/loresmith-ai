@@ -12,7 +12,10 @@
 - **Deploy to staging** – Migrations run against `loresmith-db-dev`, then the dev Worker deploys.
 - **Deploy to production** – Runs only after staging succeeds; migrations run against `loresmith-db`, then the production Worker deploys.
 
-**Prerequisites:** Create `loresmith-db-dev` with `wrangler d1 create loresmith-db-dev` (or use `wrangler d1 list` to get the ID if it already exists), then update `wrangler.dev.jsonc` with the database ID. For a fresh dev database, run `npm run migrate:bootstrap:dev` once, then `npm run migrate:dev` to apply incremental migrations. The deploy workflow runs bootstrap automatically before migrations for dev.
+**Prerequisites:**
+- Create `loresmith-db-dev` with `wrangler d1 create loresmith-db-dev` (or use `wrangler d1 list` to get the ID if it already exists), then update `wrangler.dev.jsonc` with the database ID.
+- Create dev queues (Cloudflare Queues allow only one consumer per queue, so dev needs its own): `wrangler queues create upload-events-dev` and `wrangler queues create file-processing-dlq-dev`.
+- For a fresh dev database, run `npm run migrate:bootstrap:dev` once, then `npm run migrate:dev` to apply incremental migrations. The deploy workflow runs bootstrap automatically before migrations for dev.
 
 **Required GitHub secrets:**
 - `CLOUDFLARE_API_TOKEN` – API token with Workers and D1 deploy permissions
