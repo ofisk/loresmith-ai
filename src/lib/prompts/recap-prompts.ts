@@ -139,6 +139,51 @@ SAVING NEXT STEPS: When you suggest next steps, they must be saved so they appea
 Based on the search results and current campaign state, suggest 2-3 prioritized next steps. Prefer concrete, story-relevant items (e.g. "Key NPC's character and motivations", "Political factions in the main hub") that tie to the recap narrative; use the checklist for ideas but phrase steps so they are specific to this campaign. Focus on what logically follows from where the campaign currently stands. Make sure your recommendations are informed by what actually exists in the campaign data, not assumptions. Then save the suggested next steps using the recordPlanningTasks tool (see SAVING NEXT STEPS above) so they appear in Campaign Details and the user is notified.`;
 }
 
+export interface SessionPlanReadoutStep {
+	task: {
+		id: string;
+		title: string;
+		completionNotes: string | null;
+		createdAt: string;
+	};
+	instruction: string;
+	readoutBlock: string;
+	entityResults: Array<{ entityId: string; title: string; text: string }>;
+}
+
+/**
+ * Build a prompt for the LLM to transform readout blocks into a unified session plan.
+ * Used by getSessionReadoutContext to generate the final session plan server-side.
+ */
+export function formatSessionPlanReadoutPrompt(
+	steps: SessionPlanReadoutStep[],
+	nextSessionNumber: number
+): string {
+	const blocks = steps
+		.map(
+			(s) =>
+				`---\n## ${s.task.title}\n\n${s.instruction}\n\n### readoutBlock\n\n${s.readoutBlock}`
+		)
+		.join("\n\n");
+
+	return `You are helping a game master prepare a session plan for their next D&D (or similar TTRPG) session. Transform the readout blocks below into a single, coherent session plan the DM can run at the table.
+
+Session number: ${nextSessionNumber}
+
+For each block: transform the readoutBlock into part of a session plan with Description, Helpful DM Info, Dialogue, mechanics, and player options. Use the full entity content (backgrounds, character traits, emotional stakes, NPC reactions, etc.) but present it as narrative and usable DM material—never as "EXPLICIT ENTITY RELATIONSHIPS", "MEMBER_OF", or any graph walk.
+
+Combine all blocks into ONE unified session plan. Structure like a session script: numbered scenes or encounters. Output format: markdown. Do not add meta-commentary; output only the session plan.
+
+---
+
+${blocks}
+
+---
+
+Output the complete session plan (markdown, no preamble):`;
+}
+
 export const RECAP_PROMPTS = {
 	formatContextRecapPrompt,
+	formatSessionPlanReadoutPrompt,
 };

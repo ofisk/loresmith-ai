@@ -28,6 +28,7 @@ import { PlayerCharacterClaimDAO } from "./player-character-claim-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
 import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
+import { SessionPlanReadoutDAO } from "./session-plan-readout-dao";
 import { ShardDAO } from "./shard-dao";
 import { SubscriptionDAO } from "./subscription-dao";
 import { UserCreditsDAO } from "./user-credits-dao";
@@ -52,6 +53,7 @@ export interface DAOFactory {
 	entityImportanceDAO: EntityImportanceDAO;
 	sessionDigestDAO: SessionDigestDAO;
 	sessionDigestTemplateDAO: SessionDigestTemplateDAO;
+	sessionPlanReadoutDAO: SessionPlanReadoutDAO;
 	rebuildStatusDAO: RebuildStatusDAO;
 	messageHistoryDAO: MessageHistoryDAO;
 	checklistStatusDAO: ChecklistStatusDAO;
@@ -89,6 +91,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly entityImportanceDAO: EntityImportanceDAO;
 	public readonly sessionDigestDAO: SessionDigestDAO;
 	public readonly sessionDigestTemplateDAO: SessionDigestTemplateDAO;
+	public readonly sessionPlanReadoutDAO: SessionPlanReadoutDAO;
 	public readonly rebuildStatusDAO: RebuildStatusDAO;
 	public readonly messageHistoryDAO: MessageHistoryDAO;
 	public readonly checklistStatusDAO: ChecklistStatusDAO;
@@ -121,6 +124,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.entityImportanceDAO = new EntityImportanceDAO(db);
 		this.sessionDigestDAO = new SessionDigestDAO(db);
 		this.sessionDigestTemplateDAO = new SessionDigestTemplateDAO(db);
+		this.sessionPlanReadoutDAO = new SessionPlanReadoutDAO(db);
 		this.rebuildStatusDAO = new RebuildStatusDAO(db);
 		this.messageHistoryDAO = new MessageHistoryDAO(db);
 		this.checklistStatusDAO = new ChecklistStatusDAO(db);

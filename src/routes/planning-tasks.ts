@@ -172,6 +172,9 @@ export async function handleUpdatePlanningTask(c: ContextWithAuth) {
 			await planningTaskDAO.updateTask(taskId, campaignId, updates);
 		}
 
+		const sessionPlanReadoutDAO = daoFactory.sessionPlanReadoutDAO;
+		await sessionPlanReadoutDAO.invalidateForCampaign(campaignId);
+
 		const updated = await planningTaskDAO.getById(taskId);
 
 		if (updated.campaignId !== campaignId) {
@@ -215,6 +218,9 @@ export async function handleDeletePlanningTask(c: ContextWithAuth) {
 		}
 
 		await planningTaskDAO.deleteTask(taskId);
+
+		const sessionPlanReadoutDAO = daoFactory.sessionPlanReadoutDAO;
+		await sessionPlanReadoutDAO.invalidateForCampaign(campaignId);
 
 		return c.json({ success: true });
 	} catch (error) {
@@ -273,6 +279,9 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
 				);
 			}
 		}
+
+		const sessionPlanReadoutDAO = daoFactory.sessionPlanReadoutDAO;
+		await sessionPlanReadoutDAO.invalidateForCampaign(campaignId);
 
 		return c.json({ success: true });
 	} catch (error) {
