@@ -379,6 +379,7 @@ export function BlockingAuthenticationModal({
 									id={passwordId}
 									label="Password"
 									placeholder="At least 8 characters"
+									type="password"
 									value={password}
 									onValueChange={(v, _) => setPassword(v)}
 									disabled={false}
@@ -387,6 +388,7 @@ export function BlockingAuthenticationModal({
 									id={confirmPasswordId}
 									label="Confirm password"
 									placeholder="Same as above"
+									type="password"
 									value={confirmPassword}
 									onValueChange={(v, _) => setConfirmPassword(v)}
 									disabled={false}
@@ -438,6 +440,7 @@ export function BlockingAuthenticationModal({
 								id={passwordId}
 								label="Password"
 								placeholder="Your password"
+								type="password"
 								value={password}
 								onValueChange={(v, _) => setPassword(v)}
 								disabled={false}
