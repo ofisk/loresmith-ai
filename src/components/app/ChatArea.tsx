@@ -255,7 +255,7 @@ export function ChatArea({
 			{/* Main Content Area - stretches down to input, scrolls when content overflows */}
 			<div
 				id={chatContainerId}
-				className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
+				className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 md:py-6 space-y-6 pb-8 md:pb-12"
 			>
 				{messages.length === 0 && !chatHistoryLoading && (
 					<WelcomeMessage
@@ -295,7 +295,7 @@ export function ChatArea({
 				className="chat-input-area flex-shrink-0 px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-8 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm rounded-br-2xl"
 			>
 				<div className="flex items-center gap-2">
-					<div className="flex-1 relative">
+					<div className="flex-1 min-w-0 relative">
 						<ChatInput
 							disabled={pendingToolCallConfirmation}
 							placeholder={
@@ -303,7 +303,7 @@ export function ChatArea({
 									? "Please respond to the tool confirmation above..."
 									: placeholder
 							}
-							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[25vh] overflow-y-auto resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
+							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[25vh] overflow-y-auto overflow-x-hidden break-words resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
 							value={input}
 							onChange={
 								onInputChange as unknown as React.ChangeEventHandler<HTMLInputElement>

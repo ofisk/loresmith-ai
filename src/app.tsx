@@ -1515,7 +1515,7 @@ export default function Chat() {
 							</>
 						)}
 
-						<div className="flex-1 flex flex-col min-h-0">
+						<div className="flex-1 flex flex-col min-h-0 min-w-0">
 							{/* Chat Area */}
 							<ChatArea
 								chatContainerId={chatContainerId}
@@ -1524,11 +1524,21 @@ export default function Chat() {
 								input={agentInput ?? ""}
 								onInputChange={(e) => {
 									handleAgentInputChange(e);
-									// Auto-resize the textarea
-									e.target.style.height = "auto";
-									const newHeight = Math.max(40, e.target.scrollHeight); // Minimum 40px height
-									e.target.style.height = `${newHeight}px`;
-									setTextareaHeight(`${newHeight}px`);
+									// Defer resize to next frame so browser has finished layout (fixes paste overflow bug)
+									const target = e.target as HTMLTextAreaElement;
+									requestAnimationFrame(() => {
+										target.style.height = "auto";
+										const maxHeightPx = Math.min(
+											window.innerHeight * 0.25,
+											400
+										);
+										const newHeight = Math.min(
+											maxHeightPx,
+											Math.max(40, target.scrollHeight)
+										);
+										target.style.height = `${newHeight}px`;
+										setTextareaHeight(`${newHeight}px`);
+									});
 								}}
 								onFormSubmit={handleFormSubmit}
 								onKeyDown={handleKeyDown}
