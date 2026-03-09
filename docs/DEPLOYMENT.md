@@ -21,7 +21,10 @@
 - `CLOUDFLARE_API_TOKEN` – API token with Workers and D1 deploy permissions
 - `CLOUDFLARE_ACCOUNT_ID` – Cloudflare account ID
 
-**Optional (for username/password auth and email verification):** Set these as **secrets** in the Cloudflare Dashboard (Workers & Pages → loresmith-ai-dev → Settings → Variables and Secrets) or via `wrangler secret put`:
+**Required Worker secrets (dev and prod):** Set these in the Cloudflare Dashboard (Workers & Pages → your-worker → Settings → Variables and Secrets) or via `wrangler secret put`:
+- `JWT_SECRET` – Secret for signing/verifying auth tokens. Without this, login and API auth return 500/401. To set for dev: `wrangler secret put JWT_SECRET --config wrangler.dev.jsonc`
+
+**Optional (for username/password auth and email verification):** Set these as **secrets** the same way:
 - `RESEND_API_KEY` – Resend API key for verification emails. Without this, registration succeeds but no verification email is sent; users see a message directing them to use "Resend verification email" or contact support. To set for dev: `wrangler secret put RESEND_API_KEY --config wrangler.dev.jsonc`
 
 **Dev Worker URL:** `https://loresmith-ai-dev.<account-subdomain>.workers.dev` (e.g. `https://loresmith-ai-dev.oren-t-fisk.workers.dev`). Check the Cloudflare dashboard or deploy logs for your exact URL.
