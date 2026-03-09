@@ -539,9 +539,9 @@ export async function handleBillingChangePlan(c: ContextWithAuth) {
 	// Use pending_if_incomplete so the subscription only updates when payment succeeds.
 	// We do NOT update our DB here - we rely on customer.subscription.updated webhook
 	// which fires when the pending update is applied (after successful payment).
+	// Note: metadata is not supported with payment_behavior pending_if_incomplete.
 	await stripe.subscriptions.update(sub.stripe_subscription_id, {
 		items: [{ id: subscriptionItem.id, price: newPriceId }],
-		metadata: { username: auth.username, tier },
 		proration_behavior: "always_invoice",
 		payment_behavior: "pending_if_incomplete",
 	});
