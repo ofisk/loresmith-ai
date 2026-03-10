@@ -45,6 +45,7 @@ const FILE_MAPPINGS = [
 	{ src: "docs/ARCHITECTURE.md", dest: "Architecture.md", process: true },
 	{ src: "docs/API.md", dest: "API-Reference.md", process: true },
 	{ src: "docs/DEV_SETUP.md", dest: "Developer-Setup.md", process: true },
+	{ src: "docs/LIMITS.md", dest: "Limits.md", process: true },
 	{ src: "docs/TESTING_GUIDE.md", dest: "Testing-Guide.md", process: true },
 	{ src: "docs/CONTRIBUTING.md", dest: "Contributing.md", process: true },
 	// Technical docs
