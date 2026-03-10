@@ -2,11 +2,7 @@ import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import { UploadSessionActions } from "@/lib/durable-object-helpers";
-import {
-	buildLibraryFileKey,
-	getUniqueDisplayName,
-	getUniqueFilename,
-} from "@/lib/file-utils";
+import { buildLibraryFileKey, getUniqueDisplayName } from "@/lib/file-utils";
 import { logger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
 import { notifyFileUploadFailed } from "@/lib/notifications";
@@ -129,16 +125,25 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 			);
 		}
 
-		// Check for filename collisions and get a unique filename
 		const fileDAO = getDAOFactory(c.env).fileDAO;
-		const uniqueFilename = await getUniqueFilename(
-			(username, fileName) => fileDAO.fileExistsForUser(username, fileName),
-			filename || "",
-			tenant || ""
-		);
 
-		// Use the unique filename for the file key
-		const key = await buildLibraryFileKey(tenant || "", uniqueFilename);
+		// Reject duplicate filenames – user must rename
+		const isDuplicate = await fileDAO.fileExistsForUser(
+			userAuth.username,
+			filename || ""
+		);
+		if (isDuplicate) {
+			return c.json(
+				{
+					code: "DUPLICATE_FILENAME",
+					error: `A file named "${filename}" already exists in your library. Please rename the file and try again.`,
+				},
+				409
+			);
+		}
+
+		// Use the original filename (no auto-rename)
+		const key = await buildLibraryFileKey(tenant || "", filename || "");
 
 		// Upload directly to R2
 		await c.env.R2.put(key, fileBuffer, {
@@ -158,11 +163,11 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 			size: fileBuffer.byteLength,
 		});
 
-		// Insert file metadata into database (use unique filename)
+		// Insert file metadata into database
 		try {
 			await fileDAO.insertFileForProcessing(
 				key,
-				uniqueFilename,
+				filename || "",
 				"",
 				"[]",
 				tenant,
@@ -188,7 +193,7 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 			c.env,
 			key,
 			userAuth.username,
-			uniqueFilename,
+			filename || "",
 			"[DirectUpload]",
 			jwt
 		);
@@ -516,15 +521,24 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 		const tenant = userAuth.username;
 		const sessionId = nanoid();
 
-		// Check for filename collisions and get a unique filename
 		const fileDAO = getDAOFactory(c.env).fileDAO;
-		const uniqueFilename = await getUniqueFilename(
-			(username, fileName) => fileDAO.fileExistsForUser(username, fileName),
-			filename,
-			tenant
-		);
 
-		const fileKey = await buildLibraryFileKey(tenant, uniqueFilename);
+		// Reject duplicate filenames – user must rename
+		const isDuplicate = await fileDAO.fileExistsForUser(
+			userAuth.username,
+			filename
+		);
+		if (isDuplicate) {
+			return c.json(
+				{
+					code: "DUPLICATE_FILENAME",
+					error: `A file named "${filename}" already exists in your library. Please rename the file and try again.`,
+				},
+				409
+			);
+		}
+
+		const fileKey = await buildLibraryFileKey(tenant, filename);
 
 		// Create multipart upload in R2
 		const multipartUpload = await c.env.R2.createMultipartUpload(fileKey, {
@@ -535,7 +549,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 			customMetadata: {
 				file_key: fileKey,
 				user: tenant,
-				original_name: uniqueFilename, // Use unique filename
+				original_name: filename,
 			},
 		});
 
@@ -550,7 +564,7 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 			userId: tenant,
 			fileKey: fileKey,
 			uploadId: multipartUpload.uploadId,
-			filename: uniqueFilename, // Use unique filename to avoid collisions
+			filename: filename,
 			fileSize: fileSize,
 			totalParts: totalParts,
 		};

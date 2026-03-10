@@ -340,11 +340,19 @@ export function AppModals({
 						try {
 							await handleUpload(file, filename, description, tags);
 						} catch (error) {
-							// Limit errors are handled by onUploadLimitReached; don't show generic notification
 							const isLimit = (
 								error as Error & { isUploadLimitExceeded?: boolean }
 							)?.isUploadLimitExceeded;
-							if (!isLimit) {
+							const isDuplicate = (
+								error as Error & { isDuplicateFilename?: boolean }
+							)?.isDuplicateFilename;
+							if (isDuplicate) {
+								addLocalNotification(
+									NOTIFICATION_TYPES.ERROR,
+									"Duplicate file",
+									`"${filename}" already exists in your library. Please rename the file and try again.`
+								);
+							} else if (!isLimit) {
 								console.error("Upload failed:", error);
 								addLocalNotification(
 									NOTIFICATION_TYPES.ERROR,
@@ -366,11 +374,11 @@ export function AppModals({
 						}
 						modalState.handleAddResourceClose();
 						addLocalNotification(
-							NOTIFICATION_TYPES.ERROR,
-							"Upload limit reached",
+							NOTIFICATION_TYPES.SUCCESS,
+							"Files queued",
 							succeededCount > 0
-								? `${succeededCount} file(s) uploaded. ${filesToQueue.length} file(s) queued for retry when capacity is available.`
-								: `${filesToQueue.length} file(s) queued for upload. They will retry automatically when capacity is available.`
+								? `${succeededCount} file(s) uploaded. ${filesToQueue.length} file(s) queued – will retry when capacity is available.`
+								: `${filesToQueue.length} file(s) queued – will retry when capacity is available.`
 						);
 					}}
 					onCancel={modalState.handleAddResourceClose}

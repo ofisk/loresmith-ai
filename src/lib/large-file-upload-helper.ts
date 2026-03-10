@@ -59,6 +59,23 @@ export async function uploadLargeFile(
 
 		if (!startResponse.response.ok) {
 			const errorText = await startResponse.response.text();
+			let body: { code?: string; error?: string } = {};
+			try {
+				body = JSON.parse(errorText) as { code?: string; error?: string };
+			} catch {
+				// ignore
+			}
+			if (
+				startResponse.response.status === 409 &&
+				body.code === "DUPLICATE_FILENAME"
+			) {
+				const err = new Error(
+					body.error ??
+						"A file with this name already exists. Please rename the file and try again."
+				) as Error & { isDuplicateFilename?: boolean };
+				err.isDuplicateFilename = true;
+				throw err;
+			}
 			throw new Error(
 				`Failed to start upload: ${startResponse.response.status} ${errorText}`
 			);
@@ -175,6 +192,13 @@ export async function uploadLargeFile(
 			fileKey,
 		};
 	} catch (error) {
+		// Preserve isDuplicateFilename so client can show the right notification
+		if (
+			error instanceof Error &&
+			(error as Error & { isDuplicateFilename?: boolean }).isDuplicateFilename
+		) {
+			throw error;
+		}
 		return {
 			success: false,
 			fileKey,

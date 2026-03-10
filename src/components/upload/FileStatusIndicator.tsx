@@ -1,6 +1,7 @@
 import {
 	ArrowClockwise,
 	CheckCircle,
+	Clock,
 	Spinner,
 	XCircle,
 } from "@phosphor-icons/react";
@@ -121,6 +122,13 @@ export function FileStatusIndicator({
 			color: "text-orange-500",
 			text: "Not ready",
 			title: "Needs processing before shards can be extracted",
+			spinning: false,
+		},
+		queued_for_upload: {
+			icon: Clock,
+			color: "text-amber-600 dark:text-amber-400",
+			text: "Queued for upload",
+			title: "Will retry when capacity is available",
 			spinning: false,
 		},
 	};

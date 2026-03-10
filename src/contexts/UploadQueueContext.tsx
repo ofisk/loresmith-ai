@@ -34,8 +34,13 @@ export function UploadQueueProvider({
 		setQueue([]);
 	}, []);
 
+	// Deduplicate by filename: replace existing entries with same filename instead of adding duplicates
 	const addToQueue = useCallback((files: QueuedFile[]) => {
-		setQueue((prev) => [...prev, ...files]);
+		setQueue((prev) => {
+			const incomingFilenames = new Set(files.map((f) => f.filename));
+			const kept = prev.filter((f) => !incomingFilenames.has(f.filename));
+			return [...kept, ...files];
+		});
 	}, []);
 
 	const value: UploadQueueContextValue = {

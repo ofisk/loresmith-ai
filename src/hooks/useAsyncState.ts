@@ -9,6 +9,7 @@ export const UPLOAD_STATUS = {
 	PROCESSING: "processing",
 	COMPLETED: "completed",
 	FAILED: "failed",
+	QUEUED: "queued",
 } as const;
 
 export type UploadStatus = (typeof UPLOAD_STATUS)[keyof typeof UPLOAD_STATUS];
@@ -185,6 +186,20 @@ export function useFileUploadStatus(fileKey?: string) {
 					progress: 0,
 					message: "Upload failed",
 					error: event.error,
+				});
+			});
+		},
+		[fileKey]
+	);
+
+	useEventBus<FileUploadEvent>(
+		EVENT_TYPES.FILE_UPLOAD.QUEUED,
+		(event) => {
+			handleFileUploadEvent(fileKey, event, () => {
+				setUploadState({
+					status: UPLOAD_STATUS.QUEUED,
+					progress: 0,
+					message: "Queued – will retry when capacity is available",
 				});
 			});
 		},

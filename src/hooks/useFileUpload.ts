@@ -158,12 +158,21 @@ export function useFileUpload({
 						const err = new Error(
 							body.error ??
 								`Upload failed: ${uploadResponse.response.status} ${errorText}`
-						) as Error & { isUploadLimitExceeded?: boolean };
+						) as Error & {
+							isUploadLimitExceeded?: boolean;
+							isDuplicateFilename?: boolean;
+						};
 						if (
 							uploadResponse.response.status === 403 &&
 							body.code === "UPLOAD_LIMIT_EXCEEDED"
 						) {
 							err.isUploadLimitExceeded = true;
+						}
+						if (
+							uploadResponse.response.status === 409 &&
+							body.code === "DUPLICATE_FILENAME"
+						) {
+							err.isDuplicateFilename = true;
 						}
 						throw err;
 					}
@@ -203,18 +212,33 @@ export function useFileUpload({
 					stack: error instanceof Error ? error.stack : undefined,
 				});
 
-				// Emit upload failed event
+				const isLimitExceeded = (
+					error as Error & { isUploadLimitExceeded?: boolean }
+				)?.isUploadLimitExceeded;
+				const isDuplicate = (error as Error & { isDuplicateFilename?: boolean })
+					?.isDuplicateFilename;
+				const fileKeyForEvent = buildStagingFileKey(
+					AuthService.getUsernameFromStoredJwt() || "",
+					filename
+				);
+
+				// Emit QUEUED when limit hit, QUEUED when duplicate (remove placeholder), otherwise FAILED
 				send({
-					type: EVENT_TYPES.FILE_UPLOAD.FAILED,
-					fileKey: buildStagingFileKey(
-						AuthService.getUsernameFromStoredJwt() || "",
-						filename
-					),
+					type:
+						isLimitExceeded || isDuplicate
+							? EVENT_TYPES.FILE_UPLOAD.QUEUED
+							: EVENT_TYPES.FILE_UPLOAD.FAILED,
+					fileKey: fileKeyForEvent,
 					filename,
 					fileSize: file.size,
 					error: error instanceof Error ? error.message : "Unknown error",
 					source: "useFileUpload",
 				} as FileUploadEvent);
+
+				// Rethrow so caller can show notification and handle (queue, skip, etc.)
+				if (isLimitExceeded || isDuplicate) {
+					throw error;
+				}
 			}
 		},
 		[send, onUploadSuccess, onUploadStart]

@@ -74,7 +74,6 @@ export const ResourceUpload = ({
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 	const [_isValid, setIsValid] = useState(false);
 	const [uploadSuccess, setUploadSuccess] = useState(false);
-	const [isUploadingAll, setIsUploadingAll] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const fileInputId = useId();
 
@@ -170,46 +169,51 @@ export const ResourceUpload = ({
 			} catch (err) {
 				const isLimit = (err as Error & { isUploadLimitExceeded?: boolean })
 					?.isUploadLimitExceeded;
+				const isDuplicate = (err as Error & { isDuplicateFilename?: boolean })
+					?.isDuplicateFilename;
 				if (isLimit && onUploadLimitReached) {
 					onUploadLimitReached(0, [{ file, filename }]);
+					onCancel?.();
+					return;
+				}
+				if (isDuplicate) {
+					// Notification shown by AppModals; cancel upload for this file
 					onCancel?.();
 					return;
 				}
 				throw err;
 			}
 		}
-		// Multiple files: upload all in sequence, then close on last
-		setIsUploadingAll(true);
-		try {
+		// Multiple files: close modal immediately and run uploads in background
+		onCancel?.();
+		void (async () => {
 			let succeededCount = 0;
 			for (let i = 0; i < selectedFiles.length; i++) {
 				const file = selectedFiles[i];
 				const filename = sanitizeFilename(file.name);
-				const isLast = i === selectedFiles.length - 1;
 				try {
 					await Promise.resolve(
-						onUpload(file, filename, "", [], {
-							keepModalOpen: !isLast,
-						})
+						onUpload(file, filename, "", [], { keepModalOpen: false })
 					);
 					succeededCount++;
 				} catch (err) {
 					const isLimit = (err as Error & { isUploadLimitExceeded?: boolean })
 						?.isUploadLimitExceeded;
+					const isDuplicate = (err as Error & { isDuplicateFilename?: boolean })
+						?.isDuplicateFilename;
 					if (isLimit && onUploadLimitReached) {
 						const filesToQueue = selectedFiles
 							.slice(i)
 							.map((f) => ({ file: f, filename: sanitizeFilename(f.name) }));
 						onUploadLimitReached(succeededCount, filesToQueue);
-						onCancel?.();
-						return;
 					}
-					throw err;
+					// For duplicate: skip this file, continue with next (notification shown by AppModals)
+					if (!isDuplicate) {
+						break;
+					}
 				}
 			}
-		} finally {
-			setIsUploadingAll(false);
-		}
+		})();
 	};
 
 	const handleDrop = (event: React.DragEvent) => {
@@ -226,7 +230,6 @@ export const ResourceUpload = ({
 	const isUploadDisabled =
 		selectedFiles.length === 0 ||
 		loading ||
-		isUploadingAll ||
 		(selectedFiles.length === 1 && uploadSuccess);
 
 	return (
@@ -463,13 +466,11 @@ export const ResourceUpload = ({
 							) : undefined
 						}
 					>
-						{isUploadingAll
-							? "Uploading…"
-							: selectedFiles.length > 1
-								? "Upload all"
-								: selectedFiles.length === 1 && uploadSuccess
-									? "Complete"
-									: "Upload"}
+						{selectedFiles.length > 1
+							? "Upload all"
+							: selectedFiles.length === 1 && uploadSuccess
+								? "Complete"
+								: "Upload"}
 					</FormButton>
 					<FormButton
 						onClick={() => {
