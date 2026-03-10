@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
-import { getCorsHeaders } from "@/lib/cors";
+import { getCorsHeaders } from "@/lib/api/cors";
 import { createLogger } from "@/lib/logger";
 import {
 	type ProcessingMessage,

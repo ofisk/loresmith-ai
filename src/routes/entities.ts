@@ -3,6 +3,10 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { EntityDAO } from "@/dao/entity-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import {
+	chunkTextByCharacterCount,
+	chunkTextByPages,
+} from "@/lib/file/text-chunking-utils";
+import {
 	type ImportanceLevel,
 	mapOverrideToScore,
 } from "@/lib/importance-config";
@@ -13,10 +17,6 @@ import {
 	getUserAuth,
 	requireParam,
 } from "@/lib/route-utils";
-import {
-	chunkTextByCharacterCount,
-	chunkTextByPages,
-} from "@/lib/text-chunking-utils";
 import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
 import type { AuthPayload } from "@/services/core/auth-service";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";

@@ -3,7 +3,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	getRequiredFieldsForEntityType,
 	isStubContentSufficient,
-} from "@/lib/entity-required-fields";
+} from "@/lib/entity/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import {

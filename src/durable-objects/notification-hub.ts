@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { type CorsEnv, getCorsHeaders } from "@/lib/cors";
+import { type CorsEnv, getCorsHeaders } from "@/lib/api/cors";
 import { createLogger, type RequestLogger } from "@/lib/logger";
 
 const PING_INTERVAL_MS = 30000; // 30 seconds

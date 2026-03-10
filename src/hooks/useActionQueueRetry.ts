@@ -83,5 +83,5 @@ export function useActionQueueRetry(
 			clearTimeout(initialTimeout);
 			clearInterval(intervalRef);
 		};
-	}, [queue?.queuedCount, processNext]);
+	}, [queue?.queuedCount, processNext, queue]);
 }

@@ -8,7 +8,7 @@ import {
 import {
 	getExtension,
 	validateR2ObjectAndGetStream,
-} from "@/lib/file-upload-security";
+} from "@/lib/file/file-upload-security";
 import {
 	notifyProposalApproved,
 	notifyProposalRejected,

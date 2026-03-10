@@ -1,5 +1,5 @@
+import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
 import { getSemanticMetadataPrompt } from "@/lib/prompts/file-indexing-prompts";
-import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import type { Env } from "@/middleware/auth";
 
 const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";

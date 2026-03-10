@@ -12,7 +12,7 @@ import { FileDAO } from "@/dao";
 import {
 	estimateProcessingTime,
 	formatProcessingTime,
-} from "@/lib/processing-time-estimator";
+} from "@/lib/file/processing-time-estimator";
 
 interface FileStatusIndicatorProps {
 	className?: string;

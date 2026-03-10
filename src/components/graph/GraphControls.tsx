@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { Button } from "@/components/button/Button";
 import { MultiSelect } from "@/components/select/MultiSelect";
 import { getDisplayName } from "@/lib/display-name-utils";
-import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
-import { RELATIONSHIP_TYPES } from "@/lib/relationship-types";
+import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity/entity-types";
+import { RELATIONSHIP_TYPES } from "@/lib/entity/relationship-types";
 import { cn } from "@/lib/utils";
 import type { CampaignResource } from "@/types/campaign";
 import type {

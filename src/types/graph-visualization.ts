@@ -1,5 +1,5 @@
-import type { StructuredEntityType } from "@/lib/entity-types";
-import type { RelationshipType } from "@/lib/relationship-types";
+import type { StructuredEntityType } from "@/lib/entity/entity-types";
+import type { RelationshipType } from "@/lib/entity/relationship-types";
 import type { ShardStatus } from "@/types/shard";
 
 /**

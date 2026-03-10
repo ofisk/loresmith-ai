@@ -3,14 +3,14 @@ import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import {
 	STRUCTURED_ENTITY_TYPES,
 	type StructuredEntityType,
-} from "@/lib/entity-types";
-import { EntityExtractionError, LLMProviderAPIKeyError } from "@/lib/errors";
-import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
+} from "@/lib/entity/entity-types";
 import {
 	normalizeRelationshipStrength,
 	normalizeRelationshipType,
 	type RelationshipType,
-} from "@/lib/relationship-types";
+} from "@/lib/entity/relationship-types";
+import { EntityExtractionError, LLMProviderAPIKeyError } from "@/lib/errors";
+import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import type { TelemetryService } from "@/services/telemetry/telemetry-service";

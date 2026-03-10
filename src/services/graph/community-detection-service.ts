@@ -5,7 +5,7 @@ import type {
 } from "@/dao/community-dao";
 import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
 import type { EntityDAO, EntityRelationship } from "@/dao/entity-dao";
-import { isEntityStub } from "@/lib/entity-content-merge";
+import { isEntityStub } from "@/lib/entity/entity-content-merge";
 import {
 	detectCommunities,
 	type GraphEdge,

@@ -3,9 +3,9 @@
  * Uses allowlist-based file validation (see file-upload-security).
  */
 
-import { getAllowedExtensionsDescription } from "./file-upload-security";
+import { getAllowedExtensionsDescription } from "./file/file-upload-security";
 
-export { isFileAllowedForProposal } from "./file-upload-security";
+export { isFileAllowedForProposal } from "./file/file-upload-security";
 
 /** Returns allowed formats for error messages. */
 export function getBlockedExtensionsDescription(): string {

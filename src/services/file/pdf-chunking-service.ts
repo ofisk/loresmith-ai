@@ -1,5 +1,5 @@
 import { PROCESSING_LIMITS } from "@/app-constants";
-import { getPdfPageCount } from "@/lib/pdf-utils";
+import { getPdfPageCount } from "@/lib/file/pdf-utils";
 import type { ChunkDefinition } from "@/types/upload";
 
 /**

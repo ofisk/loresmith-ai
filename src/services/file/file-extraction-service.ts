@@ -2,7 +2,7 @@ import * as mammoth from "mammoth";
 import { getDocument } from "pdfjs-serverless";
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
-import { getPdfPageCount as getPdfPageCountUtil } from "@/lib/pdf-utils";
+import { getPdfPageCount as getPdfPageCountUtil } from "@/lib/file/pdf-utils";
 
 export interface ExtractionResult {
 	text: string;

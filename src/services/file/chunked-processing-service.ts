@@ -1,6 +1,6 @@
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
-import { extractPdfPagesRange } from "@/lib/pdf-utils";
+import { extractPdfPagesRange } from "@/lib/file/pdf-utils";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
 import type { ChunkDefinition } from "@/types/upload";

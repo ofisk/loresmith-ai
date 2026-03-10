@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, Edit2, Sparkles, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { getRequiredFieldsForEntityType } from "@/lib/entity-required-fields";
+import { getRequiredFieldsForEntityType } from "@/lib/entity/entity-required-fields";
 import { ImportanceCalculationError } from "@/lib/errors";
 import {
 	authenticatedFetchWithExpiration,

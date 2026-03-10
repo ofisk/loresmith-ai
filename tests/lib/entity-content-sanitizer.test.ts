@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
+import { sanitizeEntityContentForPlayer } from "@/lib/entity/entity-content-sanitizer";
 
 describe("sanitizeEntityContentForPlayer", () => {
 	it("strips npc secrets", () => {

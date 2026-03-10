@@ -1,7 +1,7 @@
 /**
  * File utility functions for working with file names, extensions, types, and file keys
  */
-import { LIBRARY_CONFIG } from "../app-constants";
+import { LIBRARY_CONFIG } from "@/app-constants";
 
 /**
  * Derives a human-readable file type from a filename based on its extension

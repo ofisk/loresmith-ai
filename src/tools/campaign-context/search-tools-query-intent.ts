@@ -1,4 +1,4 @@
-import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
+import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity/entity-types";
 
 /** Result of parsing a search query for intent (entity type, list-all, planning context, clean query). */
 export interface QueryIntent {

@@ -3,8 +3,8 @@
 
 import { z } from "zod";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
+import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
 import { formatCharacterSheetDetectionPrompt } from "@/lib/prompts/character-sheet-prompts";
-import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 

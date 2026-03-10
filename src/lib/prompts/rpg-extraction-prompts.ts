@@ -9,8 +9,8 @@ import {
 	getEntityTypeDisplayName,
 	STRUCTURED_ENTITY_TYPES,
 	type StructuredEntityType,
-} from "@/lib/entity-types";
-import { RELATIONSHIP_TYPE_CATEGORIES } from "@/lib/relationship-types";
+} from "@/lib/entity/entity-types";
+import { RELATIONSHIP_TYPE_CATEGORIES } from "@/lib/entity/relationship-types";
 
 /**
  * Build the entity type list for the prompt
