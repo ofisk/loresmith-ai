@@ -25,6 +25,12 @@ export interface ResourceUploadOptions {
 	keepModalOpen?: boolean;
 }
 
+/** Called when upload hits a limit (403). Passes files to queue for background retry. */
+export type OnUploadLimitReached = (
+	succeededCount: number,
+	filesToQueue: Array<{ file: File; filename: string }>
+) => void;
+
 interface ResourceUploadProps {
 	onUpload: (
 		file: File,
@@ -46,6 +52,7 @@ interface ResourceUploadProps {
 	onCampaignNameChange?: (name: string) => void;
 	onCreateCampaign?: () => void;
 	showCampaignSelection?: boolean;
+	onUploadLimitReached?: OnUploadLimitReached;
 }
 
 export const ResourceUpload = ({
@@ -62,11 +69,11 @@ export const ResourceUpload = ({
 	onCampaignNameChange: _onCampaignNameChange,
 	onCreateCampaign,
 	showCampaignSelection = false,
+	onUploadLimitReached,
 }: ResourceUploadProps) => {
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 	const [_isValid, setIsValid] = useState(false);
 	const [uploadSuccess, setUploadSuccess] = useState(false);
-	const [isUploadingAll, setIsUploadingAll] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const fileInputId = useId();
 
@@ -151,28 +158,62 @@ export const ResourceUpload = ({
 		if (selectedFiles.length === 0) return;
 		if (selectedFiles.length === 1) {
 			const file = selectedFiles[0];
+			const filename = sanitizeFilename(file.name);
 			const keepModalOpen = false;
-			await Promise.resolve(
-				onUpload(file, sanitizeFilename(file.name), "", [], { keepModalOpen })
-			);
-			setUploadSuccess(true);
-			return;
+			try {
+				await Promise.resolve(
+					onUpload(file, filename, "", [], { keepModalOpen })
+				);
+				setUploadSuccess(true);
+				return;
+			} catch (err) {
+				const isLimit = (err as Error & { isUploadLimitExceeded?: boolean })
+					?.isUploadLimitExceeded;
+				const isDuplicate = (err as Error & { isDuplicateFilename?: boolean })
+					?.isDuplicateFilename;
+				if (isLimit && onUploadLimitReached) {
+					onUploadLimitReached(0, [{ file, filename }]);
+					onCancel?.();
+					return;
+				}
+				if (isDuplicate) {
+					// Notification shown by AppModals; cancel upload for this file
+					onCancel?.();
+					return;
+				}
+				throw err;
+			}
 		}
-		// Multiple files: upload all in sequence, then close on last
-		setIsUploadingAll(true);
-		try {
+		// Multiple files: close modal immediately and run uploads in background
+		onCancel?.();
+		void (async () => {
+			let succeededCount = 0;
 			for (let i = 0; i < selectedFiles.length; i++) {
 				const file = selectedFiles[i];
-				const isLast = i === selectedFiles.length - 1;
-				await Promise.resolve(
-					onUpload(file, sanitizeFilename(file.name), "", [], {
-						keepModalOpen: !isLast,
-					})
-				);
+				const filename = sanitizeFilename(file.name);
+				try {
+					await Promise.resolve(
+						onUpload(file, filename, "", [], { keepModalOpen: false })
+					);
+					succeededCount++;
+				} catch (err) {
+					const isLimit = (err as Error & { isUploadLimitExceeded?: boolean })
+						?.isUploadLimitExceeded;
+					const isDuplicate = (err as Error & { isDuplicateFilename?: boolean })
+						?.isDuplicateFilename;
+					if (isLimit && onUploadLimitReached) {
+						const filesToQueue = selectedFiles
+							.slice(i)
+							.map((f) => ({ file: f, filename: sanitizeFilename(f.name) }));
+						onUploadLimitReached(succeededCount, filesToQueue);
+					}
+					// For duplicate: skip this file, continue with next (notification shown by AppModals)
+					if (!isDuplicate) {
+						break;
+					}
+				}
 			}
-		} finally {
-			setIsUploadingAll(false);
-		}
+		})();
 	};
 
 	const handleDrop = (event: React.DragEvent) => {
@@ -189,7 +230,6 @@ export const ResourceUpload = ({
 	const isUploadDisabled =
 		selectedFiles.length === 0 ||
 		loading ||
-		isUploadingAll ||
 		(selectedFiles.length === 1 && uploadSuccess);
 
 	return (
@@ -426,13 +466,11 @@ export const ResourceUpload = ({
 							) : undefined
 						}
 					>
-						{isUploadingAll
-							? "Uploading…"
-							: selectedFiles.length > 1
-								? "Upload all"
-								: selectedFiles.length === 1 && uploadSuccess
-									? "Complete"
-									: "Upload"}
+						{selectedFiles.length > 1
+							? "Upload all"
+							: selectedFiles.length === 1 && uploadSuccess
+								? "Complete"
+								: "Upload"}
 					</FormButton>
 					<FormButton
 						onClick={() => {

@@ -1,5 +1,6 @@
 // Sync Queue Service for managing file indexing operations
 
+import { MEMORY_LIMIT_COPY, PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { MemoryLimitError } from "@/lib/errors";
 import { getUniqueDisplayName } from "@/lib/file-utils";
@@ -236,7 +237,10 @@ export class SyncQueueService {
 						FileDAO.STATUS.ERROR,
 						{
 							visibility: "both",
-							userMessage: `⚠️ "${fileName}" (${error.fileSizeMB.toFixed(2)}MB) exceeds our ${error.memoryLimitMB}MB limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+							userMessage: MEMORY_LIMIT_COPY.withFileDetails(
+								fileName,
+								error.fileSizeMB
+							),
 							reason: error.errorCode,
 							fileSize: error.fileSizeMB * 1024 * 1024,
 						}
@@ -467,7 +471,7 @@ export class SyncQueueService {
 					const memoryLimitError = MemoryLimitError.fromRuntimeError(
 						error,
 						fileSizeMB,
-						128,
+						PROCESSING_LIMITS.MEMORY_LIMIT_MB,
 						item.file_key,
 						item.file_name
 					);
@@ -497,7 +501,7 @@ export class SyncQueueService {
 						try {
 							const userMessage = isNetworkErrorOnLargeFile
 								? `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) is too large to process. The file caused network connection issues during processing, likely due to memory constraints. Please split the file into smaller parts (under 100MB each).`
-								: `⚠️ "${item.file_name}" (${fileSizeMB.toFixed(2)}MB) exceeds our 128MB limit. Please split the file into smaller parts or use a file under 128MB.`;
+								: MEMORY_LIMIT_COPY.withFileDetails(item.file_name, fileSizeMB);
 
 							await notifyFileIndexingStatus(
 								env,
@@ -603,7 +607,7 @@ export class SyncQueueService {
 		// Determine if we should load the full buffer based on file size
 		// If file is chunked, it's too large to load in memory - skip trying
 		const fileSizeMB = (dbMetadata.file_size || 0) / (1024 * 1024);
-		const MEMORY_LIMIT_MB = 128;
+		const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
 		const SAFE_THRESHOLD_MB = 100; // For PDFs, be conservative
 
 		// Check if file size indicates we should skip loading full buffer

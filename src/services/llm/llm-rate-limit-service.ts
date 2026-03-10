@@ -6,21 +6,21 @@ export interface CheckLimitResult {
 	allowed: boolean;
 	reason?: string;
 	nextResetAt?: string;
-	limitType?: "minute" | "daily";
+	limitType?: "hour" | "daily";
 }
 
 export interface UsageStatus {
-	tpm: number;
-	qpm: number;
+	tph: number;
+	qph: number;
 	tpd: number;
 	qpd: number;
-	tpmLimit: number;
-	qpmLimit: number;
+	tphLimit: number;
+	qphLimit: number;
 	tpdLimit: number;
 	qpdLimit: number;
 	nextResetAt: string | null;
 	atLimit: boolean;
-	limitType?: "minute" | "daily";
+	limitType?: "hour" | "daily";
 	isAdmin: boolean;
 	/** Monthly usage (free tier only) */
 	monthlyUsage?: number;
@@ -38,12 +38,6 @@ export interface CheckIndexingQuotaResult {
 	monthlyLimit?: number;
 	creditsRemaining?: number;
 	nextResetAt?: string;
-}
-
-function addSeconds(isoOrSqlite: string, seconds: number): string {
-	const d = new Date(isoOrSqlite.replace(" ", "T"));
-	d.setSeconds(d.getSeconds() + seconds);
-	return d.toISOString();
 }
 
 function addHours(isoOrSqlite: string, hours: number): string {
@@ -67,14 +61,16 @@ export class LLMRateLimitService {
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
 
-		// Free tier: check monthly token cap (base + credits)
+		const dao = getDAOFactory(this.env);
+		let creditsRemaining = 0;
+
 		if (limits.monthlyTokens !== undefined) {
-			const dao = getDAOFactory(this.env);
-			const [monthlyUsage, creditsRemaining] = await Promise.all([
+			const [monthlyUsage, credits] = await Promise.all([
 				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
 				dao.userCreditsDAO.getCredits(username),
 			]);
-			const effectiveLimit = limits.monthlyTokens + creditsRemaining;
+			creditsRemaining = credits;
+			const effectiveLimit = limits.monthlyTokens + credits;
 			if (monthlyUsage >= effectiveLimit) {
 				return {
 					allowed: false,
@@ -87,47 +83,55 @@ export class LLMRateLimitService {
 					limitType: "daily",
 				};
 			}
+		} else {
+			// Paid tiers: fetch credits so purchased one-offs boost daily/hourly limits
+			creditsRemaining = await dao.userCreditsDAO.getCredits(username);
 		}
 
-		const dao = getDAOFactory(this.env).llmUsageDAO;
-		const [minute, daily] = await Promise.all([
-			dao.getUsageInLastMinute(username),
-			dao.getUsageInLast24Hours(username),
+		const llmDao = dao.llmUsageDAO;
+		const [hour, daily] = await Promise.all([
+			llmDao.getUsageInLastHour(username),
+			llmDao.getUsageInLast24Hours(username),
 		]);
 
-		const tpmLimit = limits.tpm;
-		const qpmLimit = limits.qpm;
-		const tpdLimit = limits.tpd;
+		// Add purchased one-off credits directly to daily/hourly limits
+		const tpdBoost = creditsRemaining;
+		const tphBoost = creditsRemaining;
+		const tphLimit = limits.tph + tphBoost;
+		const qphLimit = limits.qph;
+		const tpdLimit = limits.tpd + tpdBoost;
 		const qpdLimit = limits.qpd;
 
-		const tpm = (minute as { tpm?: number }).tpm ?? 0;
-		const qpm = (minute as { qpm?: number }).qpm ?? 0;
+		const tph = (hour as { tph?: number }).tph ?? 0;
+		const qph = (hour as { qph?: number }).qph ?? 0;
 		const tpd = (daily as { tpd?: number }).tpd ?? 0;
 		const qpd = (daily as { qpd?: number }).qpd ?? 0;
 
-		// Check per-minute limits first
-		if (tpm >= tpmLimit) {
-			const oldestAt = (minute as { oldestAt?: string | null }).oldestAt;
+		// Check per-hour token limit
+		if (tph >= tphLimit) {
+			const oldestAt = (hour as { oldestAt?: string | null }).oldestAt;
 			const nextResetAt = oldestAt
-				? addSeconds(oldestAt, 60)
-				: new Date(Date.now() + 60_000).toISOString();
+				? addHours(oldestAt, 1)
+				: new Date(Date.now() + 60 * 60 * 1000).toISOString();
 			return {
 				allowed: false,
-				reason: `Token limit (${tpmLimit.toLocaleString()} per minute) exceeded. Try again after the window resets.`,
+				reason: `Token limit (${tphLimit.toLocaleString()} per hour) exceeded. Try again after the window resets.`,
 				nextResetAt,
-				limitType: "minute",
+				limitType: "hour",
 			};
 		}
-		if (qpm >= qpmLimit) {
-			const oldestAt = (minute as { oldestAt?: string | null }).oldestAt;
+
+		// Check per-hour query limit
+		if (qph >= qphLimit) {
+			const oldestAt = (hour as { oldestAt?: string | null }).oldestAt;
 			const nextResetAt = oldestAt
-				? addSeconds(oldestAt, 60)
-				: new Date(Date.now() + 60_000).toISOString();
+				? addHours(oldestAt, 1)
+				: new Date(Date.now() + 60 * 60 * 1000).toISOString();
 			return {
 				allowed: false,
-				reason: `Query limit (${qpmLimit} per minute) exceeded. Try again after the window resets.`,
+				reason: `Query limit (${qphLimit} per hour) exceeded. Try again after the window resets.`,
 				nextResetAt,
-				limitType: "minute",
+				limitType: "hour",
 			};
 		}
 
@@ -260,19 +264,19 @@ export class LLMRateLimitService {
 		const subService = getSubscriptionService(this.env);
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
-		const tpmLimit = limits.tpm;
-		const qpmLimit = limits.qpm;
+		const tphLimit = limits.tph;
+		const qphLimit = limits.qph;
 		const tpdLimit = limits.tpd;
 		const qpdLimit = limits.qpd;
 
 		if (isAdmin) {
 			return {
-				tpm: 0,
-				qpm: 0,
+				tph: 0,
+				qph: 0,
 				tpd: 0,
 				qpd: 0,
-				tpmLimit,
-				qpmLimit,
+				tphLimit,
+				qphLimit,
 				tpdLimit,
 				qpdLimit,
 				nextResetAt: null,
@@ -284,6 +288,7 @@ export class LLMRateLimitService {
 		const dao = getDAOFactory(this.env);
 
 		// Free tier: include monthly usage and credits for UI
+		// Paid tiers: fetch credits so effective limits reflect purchased one-offs
 		let monthlyUsage: number | undefined;
 		let monthlyLimit: number | undefined;
 		let creditsRemaining: number | undefined;
@@ -293,50 +298,63 @@ export class LLMRateLimitService {
 				dao.userCreditsDAO.getCredits(username),
 			]);
 			monthlyLimit = limits.monthlyTokens + creditsRemaining;
+		} else {
+			creditsRemaining = await dao.userCreditsDAO.getCredits(username);
 		}
 
-		const [minute, daily] = await Promise.all([
-			dao.llmUsageDAO.getUsageInLastMinute(username),
+		const [hour, daily] = await Promise.all([
+			dao.llmUsageDAO.getUsageInLastHour(username),
 			dao.llmUsageDAO.getUsageInLast24Hours(username),
 		]);
 
-		const tpm = (minute as { tpm?: number }).tpm ?? 0;
-		const qpm = (minute as { qpm?: number }).qpm ?? 0;
+		const tph = (hour as { tph?: number }).tph ?? 0;
+		const qph = (hour as { qph?: number }).qph ?? 0;
 		const tpd = (daily as { tpd?: number }).tpd ?? 0;
 		const qpd = (daily as { qpd?: number }).qpd ?? 0;
 
-		// Compute next reset (sooner of minute or daily)
-		let nextResetAt: string | null = null;
-		let limitType: "minute" | "daily" | undefined;
+		// Add purchased one-off credits directly to daily/hourly limits
+		const cr = creditsRemaining ?? 0;
+		const tpdBoost = cr;
+		const tphBoost = cr;
+		const tphLimitEffective = limits.tph + tphBoost;
+		const tpdLimitEffective = limits.tpd + tpdBoost;
 
-		const minuteOldest = (minute as { oldestAt?: string | null }).oldestAt;
+		// Compute next reset (soonest of hour or daily)
+		let nextResetAt: string | null = null;
+		let limitType: "hour" | "daily" | undefined;
+
+		const hourOldest = (hour as { oldestAt?: string | null }).oldestAt;
 		const dailyOldest = (daily as { oldestAt?: string | null }).oldestAt;
 
-		const minuteReset = minuteOldest ? addSeconds(minuteOldest, 60) : null;
+		const hourReset = hourOldest ? addHours(hourOldest, 1) : null;
 		const dailyReset = dailyOldest ? addHours(dailyOldest, 24) : null;
 
-		const atMinuteLimit = tpm >= tpmLimit || qpm >= qpmLimit;
-		const atDailyLimit = tpd >= tpdLimit || qpd >= qpdLimit;
+		const atHourLimit = tph >= tphLimitEffective || qph >= limits.qph;
+		const atDailyLimit = tpd >= tpdLimitEffective || qpd >= limits.qpd;
 
-		if (atMinuteLimit && atDailyLimit) {
-			const minDate = [minuteReset, dailyReset]
+		const atLimit = atHourLimit || atDailyLimit;
+		if (atHourLimit && atDailyLimit) {
+			const minDate = [hourReset, dailyReset]
 				.filter(Boolean)
 				.map((s) => new Date(s!));
 			nextResetAt =
 				minDate.length > 0
 					? new Date(Math.min(...minDate.map((d) => d.getTime()))).toISOString()
 					: null;
-			limitType = "minute"; // Prefer showing minute reset since it's sooner
-		} else if (atMinuteLimit && minuteReset) {
-			nextResetAt = minuteReset;
-			limitType = "minute";
+			limitType =
+				hourReset && (!dailyReset || new Date(hourReset) < new Date(dailyReset))
+					? "hour"
+					: "daily";
+		} else if (atHourLimit && hourReset) {
+			nextResetAt = hourReset;
+			limitType = "hour";
 		} else if (atDailyLimit && dailyReset) {
 			nextResetAt = dailyReset;
 			limitType = "daily";
-		} else if (minuteOldest || dailyOldest) {
+		} else if (hourOldest || dailyOldest) {
 			// Not at limit but show when next capacity frees (oldest event + window)
 			const resets: string[] = [];
-			if (minuteOldest) resets.push(addSeconds(minuteOldest, 60));
+			if (hourOldest) resets.push(addHours(hourOldest, 1));
 			if (dailyOldest) resets.push(addHours(dailyOldest, 24));
 			nextResetAt =
 				resets.length > 0
@@ -353,14 +371,14 @@ export class LLMRateLimitService {
 			monthlyUsage >= monthlyLimit;
 
 		return {
-			tpm,
-			qpm,
+			tph,
+			qph,
 			tpd,
 			qpd,
-			tpmLimit,
-			qpmLimit,
-			tpdLimit,
-			qpdLimit,
+			tphLimit: tphLimitEffective,
+			qphLimit: limits.qph,
+			tpdLimit: tpdLimitEffective,
+			qpdLimit: limits.qpd,
 			nextResetAt:
 				atMonthlyLimit && limits.monthlyTokens !== undefined
 					? new Date(
@@ -369,7 +387,7 @@ export class LLMRateLimitService {
 							1
 						).toISOString()
 					: nextResetAt,
-			atLimit: atMinuteLimit || atDailyLimit || atMonthlyLimit,
+			atLimit: atLimit || atMonthlyLimit,
 			limitType: atMonthlyLimit ? "daily" : limitType,
 			isAdmin: false,
 			monthlyUsage,

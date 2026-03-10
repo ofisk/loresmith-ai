@@ -3,6 +3,8 @@ import { BaseDAOClass } from "./base-dao";
 export interface UsageInWindow {
 	tpm?: number;
 	qpm?: number;
+	tph?: number;
+	qph?: number;
 	tpd?: number;
 	qpd?: number;
 	oldestAt: string | null;
@@ -43,6 +45,31 @@ export class LLMUsageDAO extends BaseDAOClass {
 		return {
 			tpm: r.tpm ?? 0,
 			qpm: r.qpm ?? 0,
+			oldestAt: r.oldest_at ?? null,
+		};
+	}
+
+	async getUsageInLastHour(username: string): Promise<UsageInWindow> {
+		const rows = await this.queryAll<{
+			tph: number;
+			qph: number;
+			oldest_at: string | null;
+		}>(
+			`SELECT
+        COALESCE(SUM(tokens), 0) as tph,
+        COALESCE(SUM(query_count), 0) as qph,
+        MIN(created_at) as oldest_at
+      FROM llm_usage_log
+      WHERE username = ? AND created_at > datetime('now', '-1 hour')`,
+			[username]
+		);
+		const r = rows[0];
+		if (!r) {
+			return { tph: 0, qph: 0, oldestAt: null };
+		}
+		return {
+			tph: r.tph ?? 0,
+			qph: r.qph ?? 0,
 			oldestAt: r.oldest_at ?? null,
 		};
 	}

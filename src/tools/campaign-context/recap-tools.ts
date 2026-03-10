@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { ToolResult } from "../../app-constants";
+import { MODEL_CONFIG, type ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
 import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
+import { getEnvVar } from "../../lib/env-utils";
 import { RecapService } from "../../services/core/recap-service";
 import {
 	commonSchemas,
@@ -234,6 +235,12 @@ export const generateContextRecapTool = generateGMContextRecapTool;
 const getSessionReadoutContextSchema = z.object({
 	campaignId: commonSchemas.campaignId,
 	jwt: commonSchemas.jwt,
+	forceRegenerate: z
+		.boolean()
+		.optional()
+		.describe(
+			"If true, ignore cached plan and regenerate. Use when the user requests updates to the plan."
+		),
 });
 
 type SearchResultItem = { entityId?: string; text?: string; title?: string };
@@ -271,13 +278,13 @@ function entityContentOnly(rawText: string): string {
  */
 export const getSessionReadoutContext = tool({
 	description:
-		"Get full entity-graph context for each completed next step for building the session plan readout. Call when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns one block per task with task info, readoutBlock (step title + entity content only; graph metadata is stripped), and entityResults. Transform this into a session plan for the DM: scene-based outline with Description, Helpful DM Info, Dialogue, mechanics. Do not expose graph structure; output should read as a usable session plan, not a graph walk.",
+		"Get session plan readout for the upcoming session. Call when the user wants the readout (e.g. 'give me the readout', 'create the plan'). Returns a ready-to-use session plan. If a cached plan exists, returns it and prompts for updates; pass forceRegenerate: true when the user requests changes. The plan is scene-based with Description, Helpful DM Info, Dialogue, mechanics.",
 	inputSchema: getSessionReadoutContextSchema,
 	execute: async (
 		input: z.infer<typeof getSessionReadoutContextSchema>,
 		options: ToolExecuteOptions
 	): Promise<ToolResult> => {
-		const { campaignId, jwt } = input;
+		const { campaignId, jwt, forceRegenerate } = input;
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 
 		try {
@@ -318,9 +325,30 @@ export const getSessionReadoutContext = tool({
 
 			const planningTaskDAO = daoFactory.planningTaskDAO;
 			const sessionDigestDAO = daoFactory.sessionDigestDAO;
+			const sessionPlanReadoutDAO = daoFactory.sessionPlanReadoutDAO;
 			const communityDAO = daoFactory.communityDAO;
 			const nextSessionNumber =
 				await sessionDigestDAO.getNextSessionNumber(campaignId);
+
+			// Check cache first (unless force regenerating)
+			if (!forceRegenerate) {
+				const cached = await sessionPlanReadoutDAO.get(
+					campaignId,
+					nextSessionNumber
+				);
+				if (cached) {
+					return createToolSuccess(
+						`Cached session plan for session ${nextSessionNumber}. Present the plan to the user, then ask if anything needs to be updated.`,
+						{
+							plan: cached.content,
+							nextSessionNumber,
+							cached: true,
+							promptForUpdates: true,
+						},
+						toolCallId
+					);
+				}
+			}
 			const allTasks = await planningTaskDAO.listByCampaign(campaignId, {
 				status: ["completed"] as PlanningTaskStatus[],
 			});
@@ -550,9 +578,68 @@ export const getSessionReadoutContext = tool({
 				});
 			}
 
+			// Generate session plan via LLM and persist
+			const providerEnvVar =
+				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+					? "ANTHROPIC_API_KEY"
+					: "OPENAI_API_KEY";
+			const providerApiKeyRaw = await getEnvVar(
+				env as unknown as Record<string, unknown>,
+				providerEnvVar,
+				false
+			);
+			const providerApiKey = providerApiKeyRaw?.trim() ?? "";
+			if (!providerApiKey) {
+				return createToolError(
+					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
+					"AI is not configured for this environment.",
+					503,
+					toolCallId
+				);
+			}
+
+			const { formatSessionPlanReadoutPrompt } = await import(
+				"../../lib/prompts/recap-prompts"
+			);
+			const { createLLMProvider } = await import(
+				"../../services/llm/llm-provider-factory"
+			);
+			const { getGenerationModelForProvider } = await import(
+				"../../app-constants"
+			);
+
+			const prompt = formatSessionPlanReadoutPrompt(steps, nextSessionNumber);
+			const llmProvider = createLLMProvider({
+				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
+				apiKey: providerApiKey,
+				defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
+				defaultTemperature:
+					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+				defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+			});
+
+			console.log(
+				"[getSessionReadoutContext] Generating session plan with LLM..."
+			);
+			const transformedPlan = await llmProvider.generateSummary(prompt, {
+				model: getGenerationModelForProvider("SESSION_PLANNING"),
+				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+				maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+			});
+
+			await sessionPlanReadoutDAO.save(
+				campaignId,
+				nextSessionNumber,
+				transformedPlan
+			);
+
 			return createToolSuccess(
-				`Readout context for ${steps.length} completed step(s). For each step, transform the readoutBlock into part of a session plan: scene-based outline with Description, Helpful DM Info, Dialogue, mechanics. Use the full entity detail but present it as a usable session plan for the DM—no graph structure or relationship metadata. Structure like a session script (e.g. numbered scenes, read-aloud optional, rollable tables if relevant). Do not omit substantive detail.`,
-				{ steps, nextSessionNumber },
+				`Session plan generated for session ${nextSessionNumber}. Present the plan to the user. It has been saved for future requests.`,
+				{
+					plan: transformedPlan,
+					nextSessionNumber,
+					cached: false,
+				},
 				toolCallId
 			);
 		} catch (error) {

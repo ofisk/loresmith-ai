@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import { FileDAO } from "@/dao";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -148,9 +149,7 @@ export function ResourceList({
 						errorMessage.includes("too large")
 					) {
 						// Show a user-friendly error message for memory limit errors
-						alert(
-							`⚠️ Cannot retry "${fileName}": ${errorMessage}\n\nFiles over 128MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`
-						);
+						alert(MEMORY_LIMIT_COPY.retryAlert(fileName, errorMessage));
 						return; // Don't throw, just return early
 					}
 

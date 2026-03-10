@@ -1,4 +1,5 @@
 import { getDocument } from "pdfjs-serverless";
+import { PROCESSING_LIMITS } from "@/app-constants";
 import type { ExtractionResult } from "@/services/file/file-extraction-service";
 import { MemoryLimitError, PDFExtractionError } from "./errors";
 
@@ -22,7 +23,7 @@ export async function getPdfPageCount(buffer: ArrayBuffer): Promise<number> {
 		const memoryLimitError = MemoryLimitError.fromRuntimeError(
 			error,
 			fileSizeMB,
-			128
+			PROCESSING_LIMITS.MEMORY_LIMIT_MB
 		);
 		if (memoryLimitError) {
 			throw memoryLimitError;
@@ -93,7 +94,7 @@ export async function extractPdfPagesRange(
 		const memoryLimitError = MemoryLimitError.fromRuntimeError(
 			error,
 			fileSizeMB,
-			128
+			PROCESSING_LIMITS.MEMORY_LIMIT_MB
 		);
 		if (memoryLimitError) {
 			throw memoryLimitError;

@@ -2,6 +2,7 @@
 // This service handles text extraction, embedding generation, and semantic vector search
 // Uses Vectorize for embeddings and Cloudflare AI for content generation
 
+import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileNotFoundError, MemoryLimitError } from "@/lib/errors";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
@@ -69,7 +70,7 @@ export class LibraryRAGService extends BaseRAGService {
 			}
 
 			const fileSizeMB = (file.size || 0) / (1024 * 1024);
-			const MEMORY_LIMIT_MB = 128;
+			const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
 
 			// Check if file already has processing chunks (retry scenario)
 			if (

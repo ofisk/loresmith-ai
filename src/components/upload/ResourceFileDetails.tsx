@@ -1,3 +1,4 @@
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FileDAO } from "@/dao";
@@ -185,8 +186,7 @@ export function ResourceFileDetails({
 									<div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
 										<p className="font-medium mb-1">⚠️ File Too Large</p>
 										<p className="text-xs">
-											{errorData.message ||
-												"This file exceeds the 128MB memory limit. Please split the file into smaller parts or use a file under 128MB."}
+											{errorData.message || MEMORY_LIMIT_COPY.fallback}
 										</p>
 									</div>
 								);

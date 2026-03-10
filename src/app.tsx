@@ -14,7 +14,9 @@ import { ShardOverlay } from "@/components/shard/ShardOverlay";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 // Component imports
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { useActionQueue } from "@/contexts/ActionQueueContext";
 import type { FileMetadata } from "@/dao";
+import { useActionQueueRetry } from "@/hooks/useActionQueueRetry";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
@@ -28,6 +30,7 @@ import { useGlobalShardManager } from "@/hooks/useGlobalShardManager";
 import { useLocalNotifications } from "@/hooks/useLocalNotifications";
 import { useModalState } from "@/hooks/useModalState";
 import { useUiHints } from "@/hooks/useUiHints";
+import { useUploadQueueRetry } from "@/hooks/useUploadQueueRetry";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getCachedHelp, setCachedHelp } from "@/lib/help-cache";
 import { getHelpContent } from "@/lib/help-content";
@@ -373,10 +376,13 @@ export default function Chat() {
 		proposalConfirmResolveRef.current = null;
 		modalState.hideProposalConfirmModal();
 	}, [modalState]);
+	const actionQueue = useActionQueue();
+	const addToQueue = actionQueue?.addToQueue;
 	const { campaignAdditionProgress, isAddingToCampaigns, addFileToCampaigns } =
 		useCampaignAddition(
 			getProposalConfirmation,
-			modalState.showQuotaWarningModalFn
+			modalState.showQuotaWarningModalFn,
+			addToQueue
 		);
 
 	// Activity tracking for recap triggers
@@ -402,6 +408,15 @@ export default function Chat() {
 			console.log("Upload started");
 		},
 	});
+
+	// Background retry for uploads queued when limit is hit
+	useUploadQueueRetry(handleUpload);
+	// Background retry for queued actions (add-to-campaign, etc.) when quota/rate limit hit
+	useActionQueueRetry(
+		{ addFileToCampaigns },
+		authState.getStoredJwt,
+		addLocalNotification
+	);
 
 	// Handle file upload trigger callback
 	const handleFileUploadTriggered = useCallback(() => {
@@ -1237,6 +1252,7 @@ export default function Chat() {
 					onJoinSuccess={handleJoinSuccess}
 				/>
 				<AppModals
+					billingLimits={billingStatus?.limits}
 					modalState={modalState}
 					authState={authState}
 					campaigns={campaigns}
@@ -1577,6 +1593,7 @@ export default function Chat() {
 			</div>
 
 			<AppModals
+				billingLimits={billingStatus?.limits}
 				modalState={modalState}
 				authState={authState}
 				campaigns={campaigns}

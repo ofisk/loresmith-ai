@@ -2,7 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "../app-constants";
 import { sanitizeApiKey } from "./auth-utils";
-import { OpenAIAPIKeyError } from "./errors";
+import { LLMProviderAPIKeyError } from "./errors";
 
 export class ModelManager {
 	private static instance: ModelManager;
@@ -23,7 +23,7 @@ export class ModelManager {
 	 */
 	initializeModel(apiKey: string): void {
 		if (!apiKey || typeof apiKey !== "string") {
-			throw new OpenAIAPIKeyError("API key must be a non-empty string.");
+			throw new LLMProviderAPIKeyError("API key must be a non-empty string.");
 		}
 
 		const trimmedKey = sanitizeApiKey(apiKey);
@@ -34,7 +34,7 @@ export class ModelManager {
 			trimmedKey === "your-openai-api-key-here" ||
 			trimmedKey === "your-anthropic-api-key-here"
 		) {
-			throw new OpenAIAPIKeyError(
+			throw new LLMProviderAPIKeyError(
 				"Invalid API key detected (placeholder value). Please provide a valid provider API key through the application authentication."
 			);
 		}

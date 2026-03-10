@@ -1,3 +1,4 @@
+import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { extractPdfPagesRange } from "@/lib/pdf-utils";
 import type { Env } from "@/middleware/auth";
@@ -74,11 +75,11 @@ export class ChunkedProcessingService {
 			}
 		} else {
 			// For non-PDFs, check size
-			const MEMORY_LIMIT_MB = 128;
+			const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
 			if (fileSizeMB > MEMORY_LIMIT_MB) {
 				return {
 					shouldChunk: true,
-					reason: `File (${fileSizeMB.toFixed(2)}MB) exceeds Worker memory limit (128MB)`,
+					reason: `File (${fileSizeMB.toFixed(2)}MB) exceeds Worker memory limit (${MEMORY_LIMIT_MB}MB)`,
 				};
 			}
 		}
@@ -106,7 +107,7 @@ export class ChunkedProcessingService {
 		if (contentType.includes("pdf")) {
 			// For PDFs, always estimate page count from file size
 			// PDF.js requires the full buffer to get page count, which fails for large files
-			// Since we can't load the buffer anyway for files over 128MB, just estimate
+			// Since we can't load the buffer anyway for files over MEMORY_LIMIT_MB, just estimate
 			// Average PDF page is ~100-200KB, use conservative estimate
 			const ESTIMATED_PAGE_SIZE_KB = 150; // Conservative estimate
 			const totalPages = Math.max(

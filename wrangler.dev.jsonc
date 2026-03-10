@@ -80,6 +80,14 @@
 			{
 				"queue": "file-processing-dlq-dev",
 				"binding": "FILE_PROCESSING_DLQ"
+			},
+			{
+				"queue": "graph-rebuild-queue-dev",
+				"binding": "GRAPH_REBUILD_QUEUE"
+			},
+			{
+				"queue": "shard-embedding-queue-dev",
+				"binding": "SHARD_EMBEDDING_QUEUE"
 			}
 		],
 		"consumers": [
@@ -87,6 +95,16 @@
 				"queue": "upload-events-dev",
 				"max_batch_size": 1,
 				"max_retries": 5
+			},
+			{
+				"queue": "graph-rebuild-queue-dev",
+				"max_batch_size": 1,
+				"max_retries": 3
+			},
+			{
+				"queue": "shard-embedding-queue-dev",
+				"max_batch_size": 10,
+				"max_retries": 3
 			}
 		]
 	},

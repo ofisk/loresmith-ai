@@ -6,7 +6,7 @@ import type {
 	CreateCommunitySummaryInput,
 } from "@/dao/community-summary-dao";
 import type { Entity, EntityDAO, EntityRelationship } from "@/dao/entity-dao";
-import { OpenAIAPIKeyError } from "@/lib/errors";
+import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 
 /**
@@ -133,7 +133,7 @@ export class CommunitySummaryService {
 			undefined;
 
 		if (!apiKey) {
-			throw new OpenAIAPIKeyError(SUMMARY_CONFIG.ERRORS.API_KEY_REQUIRED);
+			throw new LLMProviderAPIKeyError(SUMMARY_CONFIG.ERRORS.API_KEY_REQUIRED);
 		}
 
 		// Load entities and relationships for the community

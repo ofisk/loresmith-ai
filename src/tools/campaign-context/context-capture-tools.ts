@@ -254,6 +254,9 @@ export const captureConversationalContext = tool({
 						"completed",
 						noteId
 					);
+					await daoFactory.sessionPlanReadoutDAO.invalidateForCampaign(
+						campaignId
+					);
 					console.log(
 						"[captureConversationalContext] Linked planning task to captured context",
 						{

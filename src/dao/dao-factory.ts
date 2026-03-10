@@ -26,8 +26,10 @@ import { MessageHistoryDAO } from "./message-history-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
 import { PlayerCharacterClaimDAO } from "./player-character-claim-dao";
 import { RebuildStatusDAO } from "./rebuild-status-dao";
+import { ResourceAddLogDAO } from "./resource-add-log-dao";
 import { SessionDigestDAO } from "./session-digest-dao";
 import { SessionDigestTemplateDAO } from "./session-digest-template-dao";
+import { SessionPlanReadoutDAO } from "./session-plan-readout-dao";
 import { ShardDAO } from "./shard-dao";
 import { SubscriptionDAO } from "./subscription-dao";
 import { UserCreditsDAO } from "./user-credits-dao";
@@ -52,6 +54,7 @@ export interface DAOFactory {
 	entityImportanceDAO: EntityImportanceDAO;
 	sessionDigestDAO: SessionDigestDAO;
 	sessionDigestTemplateDAO: SessionDigestTemplateDAO;
+	sessionPlanReadoutDAO: SessionPlanReadoutDAO;
 	rebuildStatusDAO: RebuildStatusDAO;
 	messageHistoryDAO: MessageHistoryDAO;
 	checklistStatusDAO: ChecklistStatusDAO;
@@ -64,6 +67,7 @@ export interface DAOFactory {
 	userMonthlyUsageDAO: UserMonthlyUsageDAO;
 	userCreditsDAO: UserCreditsDAO;
 	fileRetryUsageDAO: FileRetryUsageDAO;
+	resourceAddLogDAO: ResourceAddLogDAO;
 	entityGraphService: EntityGraphService;
 	entityImportanceService: EntityImportanceService;
 	rebuildTriggerService: RebuildTriggerService;
@@ -89,6 +93,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly entityImportanceDAO: EntityImportanceDAO;
 	public readonly sessionDigestDAO: SessionDigestDAO;
 	public readonly sessionDigestTemplateDAO: SessionDigestTemplateDAO;
+	public readonly sessionPlanReadoutDAO: SessionPlanReadoutDAO;
 	public readonly rebuildStatusDAO: RebuildStatusDAO;
 	public readonly messageHistoryDAO: MessageHistoryDAO;
 	public readonly checklistStatusDAO: ChecklistStatusDAO;
@@ -101,6 +106,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly userMonthlyUsageDAO: UserMonthlyUsageDAO;
 	public readonly userCreditsDAO: UserCreditsDAO;
 	public readonly fileRetryUsageDAO: FileRetryUsageDAO;
+	public readonly resourceAddLogDAO: ResourceAddLogDAO;
 	private _entityGraphService: EntityGraphService | null = null;
 	private _entityImportanceService: EntityImportanceService | null = null;
 	private _rebuildTriggerService: RebuildTriggerService | null = null;
@@ -121,6 +127,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.entityImportanceDAO = new EntityImportanceDAO(db);
 		this.sessionDigestDAO = new SessionDigestDAO(db);
 		this.sessionDigestTemplateDAO = new SessionDigestTemplateDAO(db);
+		this.sessionPlanReadoutDAO = new SessionPlanReadoutDAO(db);
 		this.rebuildStatusDAO = new RebuildStatusDAO(db);
 		this.messageHistoryDAO = new MessageHistoryDAO(db);
 		this.checklistStatusDAO = new ChecklistStatusDAO(db);
@@ -133,6 +140,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.userMonthlyUsageDAO = new UserMonthlyUsageDAO(db);
 		this.userCreditsDAO = new UserCreditsDAO(db);
 		this.fileRetryUsageDAO = new FileRetryUsageDAO(db);
+		this.resourceAddLogDAO = new ResourceAddLogDAO(db);
 	}
 
 	async getStorageUsage(username: string): Promise<UserStorageUsage> {

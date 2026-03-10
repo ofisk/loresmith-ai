@@ -8,17 +8,17 @@ import {
 import { API_CONFIG } from "@/shared-config";
 
 interface UsageData {
-	tpm: number;
-	qpm: number;
+	tph: number;
+	qph: number;
 	tpd: number;
 	qpd: number;
-	tpmLimit: number;
-	qpmLimit: number;
+	tphLimit: number;
+	qphLimit: number;
 	tpdLimit: number;
 	qpdLimit: number;
 	nextResetAt: string | null;
 	atLimit: boolean;
-	limitType?: "minute" | "daily";
+	limitType?: "hour" | "daily";
 	isAdmin: boolean;
 	monthlyUsage?: number;
 	monthlyLimit?: number;
@@ -59,7 +59,7 @@ export function RateLimitIndicator({
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const lastNotifiedMinuteRef = useRef<number>(0);
+	const lastNotifiedShortWindowRef = useRef<number>(0);
 	const lastNotifiedDailyRef = useRef<number>(0);
 
 	const fetchUsage = useCallback(async () => {
@@ -114,30 +114,33 @@ export function RateLimitIndicator({
 			? formatResetTime(usage.nextResetAt)
 			: "soon";
 
-		const minutePct =
-			usage.tpmLimit > 0 && usage.qpmLimit > 0
-				? Math.max(usage.tpm / usage.tpmLimit, usage.qpm / usage.qpmLimit)
+		const shortWindowPct =
+			usage.tphLimit > 0 && usage.qphLimit > 0
+				? Math.max(usage.tph / usage.tphLimit, usage.qph / usage.qphLimit)
 				: 0;
 		const dailyPct =
 			usage.tpdLimit > 0 && usage.qpdLimit > 0
 				? Math.max(usage.tpd / usage.tpdLimit, usage.qpd / usage.qpdLimit)
 				: 0;
 
-		// Check minute dimension
+		// Check short-window dimension (hourly tokens + per-minute queries)
 		for (let i = NOTIFY_THRESHOLDS.length - 1; i >= 0; i--) {
 			const thresh = NOTIFY_THRESHOLDS[i];
-			if (minutePct >= thresh && lastNotifiedMinuteRef.current < thresh * 100) {
-				lastNotifiedMinuteRef.current = thresh * 100;
+			if (
+				shortWindowPct >= thresh &&
+				lastNotifiedShortWindowRef.current < thresh * 100
+			) {
+				lastNotifiedShortWindowRef.current = thresh * 100;
 				const pctLabel = thresh === 1 ? "100%" : `${thresh * 100}%`;
 				addLocalNotification(
 					"error",
 					"Usage limit",
-					`You've used ${pctLabel} of your per-minute rate limit. Next reset: ${nextReset}.`
+					`You've used ${pctLabel} of your rate limit (tokens/hour or queries/hour). Next reset: ${nextReset}.`
 				);
 				break;
 			}
 		}
-		if (minutePct < 0.5) lastNotifiedMinuteRef.current = 0;
+		if (shortWindowPct < 0.5) lastNotifiedShortWindowRef.current = 0;
 
 		// Check daily dimension
 		for (let i = NOTIFY_THRESHOLDS.length - 1; i >= 0; i--) {
@@ -159,8 +162,8 @@ export function RateLimitIndicator({
 	if (loading || error || !usage) {
 		if (loading) {
 			return (
-				<div className="flex items-center justify-center p-4">
-					<Loader size={16} />
+				<div className="flex items-center justify-center py-1.5 px-2">
+					<Loader size={12} />
 				</div>
 			);
 		}
@@ -169,11 +172,11 @@ export function RateLimitIndicator({
 
 	if (usage.isAdmin) return null;
 
-	const minutePct =
-		usage.tpmLimit > 0
+	const shortWindowPct =
+		usage.tphLimit > 0
 			? Math.min(
 					1,
-					Math.max(usage.tpm / usage.tpmLimit, usage.qpm / usage.qpmLimit)
+					Math.max(usage.tph / usage.tphLimit, usage.qph / usage.qphLimit)
 				)
 			: 0;
 	const dailyPct =
@@ -192,47 +195,39 @@ export function RateLimitIndicator({
 	const pct =
 		usage.monthlyLimit !== undefined
 			? monthlyPct
-			: Math.max(minutePct, dailyPct);
+			: Math.max(shortWindowPct, dailyPct);
 	const nearLimit = pct >= NEAR_LIMIT_THRESHOLD;
-	const isMonthly = usage.monthlyLimit !== undefined;
 
 	return (
-		<div className="p-4 border-t border-gray-200 dark:border-gray-700">
-			<div className="flex items-center justify-between text-sm mb-2">
-				<span className="text-gray-600 dark:text-gray-400">AI usage</span>
+		<div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-700">
+			<div className="flex items-center gap-2">
+				<span className="text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+					AI
+				</span>
+				<div className="flex-1 min-w-0">
+					<div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
+						<div
+							className={`h-1.5 rounded-full transition-all duration-300 ${
+								usage.atLimit
+									? "bg-red-500"
+									: nearLimit
+										? "bg-amber-500"
+										: "bg-blue-600"
+							}`}
+							style={{ width: `${Math.min(pct * 100, 100)}%` }}
+						/>
+					</div>
+				</div>
+				<span className="text-xs text-neutral-500 shrink-0">
+					{(pct * 100).toFixed(0)}%
+				</span>
 				<button
 					type="button"
 					onClick={onShowUsageLimits}
-					className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+					className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
 				>
-					View limits
+					Limits
 				</button>
-			</div>
-			<div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-				<span>
-					{isMonthly &&
-					usage.monthlyUsage !== undefined &&
-					usage.monthlyLimit !== undefined
-						? `${usage.monthlyUsage.toLocaleString()} / ${usage.monthlyLimit.toLocaleString()} tokens this month`
-						: `${usage.tpd.toLocaleString()} / ${usage.tpdLimit.toLocaleString()} tokens today`}
-				</span>
-				{nearLimit && usage.nextResetAt && (
-					<span className="text-amber-600 dark:text-amber-400">
-						Resets {formatResetTime(usage.nextResetAt)}
-					</span>
-				)}
-			</div>
-			<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-				<div
-					className={`h-2 rounded-full transition-all duration-300 ${
-						usage.atLimit
-							? "bg-red-500"
-							: nearLimit
-								? "bg-amber-500"
-								: "bg-blue-600"
-					}`}
-					style={{ width: `${Math.min(pct * 100, 100)}%` }}
-				/>
 			</div>
 		</div>
 	);

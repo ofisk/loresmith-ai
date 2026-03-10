@@ -10,7 +10,8 @@ Welcome to LoreSmith AI! This guide will help you get started with campaign plan
 4. [Building Your Resource Library](#building-your-resource-library)
 5. [Using the AI Assistant](#using-the-ai-assistant)
 6. [Session Planning](#session-planning)
-7. [Tips and Best Practices](#tips-and-best-practices)
+7. [Limits and quotas](#limits-and-quotas)
+8. [Tips and Best Practices](#tips-and-best-practices)
 
 ## Getting Started
 
@@ -526,6 +527,35 @@ Example prompts:
 - "Does our house rule on healing override the default rule here?"
 
 For best results, make sure your rulebooks or SRD files are uploaded and linked to the campaign.
+
+## Limits and quotas
+
+Your plan (free, basic, or pro) sets limits on campaigns, files, storage, and AI usage.
+
+### Where to see your limits
+
+- **Billing page** – View your tier, storage used, and token quotas
+- **Usage indicator** – Shows token usage vs. limits during chat
+- **Sidebar** – Links to billing and usage when limits apply
+
+### File limits
+
+- **Max file size**: 100 MB per file (due to Cloudflare Worker memory limits)
+- **Supported types**: PDF, text, markdown, DOCX, JSON, images (PNG, JPG, WebP)
+
+Files over the memory limit cannot be loaded in one pass. Large files are processed in chunks, which may take longer.
+
+### Plan limits (per tier)
+
+| | Free | Basic | Pro |
+|---|---|---|---|
+| Campaigns | 1 | 5 | Effectively unlimited |
+| Files | 5 | 25 | 100 |
+| Storage | 5 MB | 1 GB | 5 GB |
+| Resources per campaign per hour | 5 | 20 | 50 |
+| Retries per file (indexing/entity extraction) | 1/day, 3/month | 3/day, 15/month | 5/day, 50/month |
+
+Token and rate limits (tokens per hour/day, requests per minute/day) also vary by tier. See the Billing page for your current limits.
 
 ## Tips and Best Practices
 

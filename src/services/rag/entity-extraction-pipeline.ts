@@ -3,7 +3,7 @@ import type { Entity, EntityDAO, EntityRelationship } from "@/dao/entity-dao";
 import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
 import { normalizeEntityType } from "@/lib/entity-types";
 import { getEnvVar } from "@/lib/env-utils";
-import { EmbeddingGenerationError, OpenAIAPIKeyError } from "@/lib/errors";
+import { EmbeddingGenerationError, LLMProviderAPIKeyError } from "@/lib/errors";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
@@ -312,7 +312,7 @@ export class EntityExtractionPipeline {
 
 	private async generateEmbedding(text: string): Promise<number[]> {
 		if (!this.openaiEmbeddingService) {
-			throw new OpenAIAPIKeyError("OpenAI API key not configured");
+			throw new LLMProviderAPIKeyError("OpenAI API key not configured");
 		}
 		try {
 			return await this.openaiEmbeddingService.generateEmbedding(text);
@@ -323,7 +323,7 @@ export class EntityExtractionPipeline {
 			);
 			if (
 				error instanceof EmbeddingGenerationError ||
-				error instanceof OpenAIAPIKeyError
+				error instanceof LLMProviderAPIKeyError
 			) {
 				throw error;
 			}

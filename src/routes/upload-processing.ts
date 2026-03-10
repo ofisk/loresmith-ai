@@ -3,6 +3,7 @@
  * Extracted from upload.ts to reduce complexity and improve maintainability
  */
 
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { logger, type ScopedLogger } from "@/lib/logger";
@@ -224,7 +225,10 @@ async function handleProcessingError(
 			FileDAO.STATUS.ERROR,
 			{
 				visibility: "both",
-				userMessage: `⚠️ "${filename}" (${error.fileSizeMB.toFixed(2)}MB) exceeds our ${error.memoryLimitMB}MB limit. Please split the file into smaller parts or use a file under ${error.memoryLimitMB}MB.`,
+				userMessage: MEMORY_LIMIT_COPY.withFileDetails(
+					filename,
+					error.fileSizeMB
+				),
 				reason: error.errorCode,
 			}
 		).catch((notifyError) => {

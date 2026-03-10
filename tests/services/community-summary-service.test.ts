@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Community } from "@/dao/community-dao";
 import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
 import type { Entity, EntityDAO } from "@/dao/entity-dao";
-import { OpenAIAPIKeyError } from "@/lib/errors";
+import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { CommunitySummaryService } from "@/services/graph/community-summary-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 
@@ -102,7 +102,7 @@ describe("CommunitySummaryService", () => {
 				serviceWithoutKey.generateOrGetSummary(community, {
 					forceRegenerate: true,
 				})
-			).rejects.toThrow(OpenAIAPIKeyError);
+			).rejects.toThrow(LLMProviderAPIKeyError);
 		});
 	});
 

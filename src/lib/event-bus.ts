@@ -7,6 +7,7 @@ export const EVENT_TYPES = {
 		PROGRESS: "file.upload.progress",
 		COMPLETED: "file.upload.completed",
 		FAILED: "file.upload.failed",
+		QUEUED: "file.upload.queued",
 	},
 	CAMPAIGN: {
 		CREATED: "campaign.created",
@@ -26,6 +27,7 @@ export type AsyncEventType =
 	| "file.upload.progress"
 	| "file.upload.completed"
 	| "file.upload.failed"
+	| "file.upload.queued"
 	| "campaign.created"
 	| "campaign.updated"
 	| "campaign.deleted"
@@ -46,7 +48,8 @@ export interface FileUploadEvent extends BaseEvent {
 		| "file.upload.started"
 		| "file.upload.progress"
 		| "file.upload.completed"
-		| "file.upload.failed";
+		| "file.upload.failed"
+		| "file.upload.queued";
 	fileKey: string;
 	filename: string;
 	fileSize?: number;

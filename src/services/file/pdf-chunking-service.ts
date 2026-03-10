@@ -1,3 +1,4 @@
+import { PROCESSING_LIMITS } from "@/app-constants";
 import { getPdfPageCount } from "@/lib/pdf-utils";
 import type { ChunkDefinition } from "@/types/upload";
 
@@ -47,14 +48,14 @@ export class PDFChunkingService {
 		fileSizeMB: number,
 		totalPages?: number
 	): { shouldChunk: boolean; reason?: string } {
-		// Files over 128MB definitely need chunking
-		const MEMORY_LIMIT_MB = 128;
+		// Files over MEMORY_LIMIT_MB definitely need chunking
+		const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
 		const SAFE_THRESHOLD_MB = 100;
 
 		if (fileSizeMB > MEMORY_LIMIT_MB) {
 			return {
 				shouldChunk: true,
-				reason: `File (${fileSizeMB.toFixed(2)}MB) exceeds Worker memory limit (128MB).`,
+				reason: `File (${fileSizeMB.toFixed(2)}MB) exceeds Worker memory limit (${MEMORY_LIMIT_MB}MB).`,
 			};
 		}
 

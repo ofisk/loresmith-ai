@@ -1,7 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { APICallError, generateText } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
-import { OpenAIAPIKeyError } from "@/lib/errors";
+import { LLMProviderAPIKeyError } from "@/lib/errors";
 import type {
 	LLMOptions,
 	LLMProvider,
@@ -79,7 +79,7 @@ export class AnthropicProvider implements LLMProvider {
 		} = {}
 	) {
 		if (!apiKey) {
-			throw new OpenAIAPIKeyError(
+			throw new LLMProviderAPIKeyError(
 				"Anthropic API key is required. Configure ANTHROPIC_API_KEY on the server."
 			);
 		}

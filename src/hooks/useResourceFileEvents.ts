@@ -382,6 +382,32 @@ export function useResourceFileEvents(
 		[setFiles, updateProgress, clearProgress]
 	);
 
+	// Upload queued listener (limit hit – file will retry when capacity opens; keep in list with distinct status)
+	useEventBus<FileUploadEvent>(
+		EVENT_TYPES.FILE_UPLOAD.QUEUED,
+		(event) => {
+			const key = event.fileKey;
+			if (!key) return;
+
+			console.log("[ResourceList] Received FILE_UPLOAD.QUEUED event:", event);
+
+			// Update status to "queued_for_upload" so file stays visible with distinct label
+			setFiles((prevFiles) =>
+				prevFiles.map((file) =>
+					file.file_key === key
+						? {
+								...file,
+								status: "queued_for_upload" as const,
+								updated_at: new Date().toISOString(),
+							}
+						: file
+				)
+			);
+			clearProgress(key);
+		},
+		[setFiles, clearProgress]
+	);
+
 	// Handle file status update events from SSE notifications
 	useEffect(() => {
 		window.addEventListener(

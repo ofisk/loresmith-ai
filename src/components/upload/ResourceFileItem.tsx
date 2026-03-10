@@ -3,6 +3,7 @@ import { FileStatusIndicator } from "@/components/upload/FileStatusIndicator";
 import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { cn } from "@/lib/utils";
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 import { ResourceFileDetails } from "./ResourceFileDetails";
@@ -83,10 +84,17 @@ export function ResourceFileItem({
 			: "rgba(147,197,253,0.12)";
 	})();
 
+	const isQueuedForUpload = file.status === "queued_for_upload";
+
 	return (
 		<button
 			type="button"
-			className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
+			className={cn(
+				"relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left",
+				isQueuedForUpload
+					? "border-l-4 border-l-amber-500 border-neutral-200 dark:border-neutral-800"
+					: "border border-neutral-200 dark:border-neutral-800"
+			)}
 			onClick={onToggleExpand}
 		>
 			{/* Progress fill (transparent overlay) */}

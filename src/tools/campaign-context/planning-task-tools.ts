@@ -334,6 +334,8 @@ export const completePlanningTask = tool({
 				completionNotes ?? null
 			);
 
+			await daoFactory.sessionPlanReadoutDAO.invalidateForCampaign(campaignId);
+
 			return createToolSuccess(
 				"Planning step marked as complete. The user can review in Campaign details > Next steps.",
 				{

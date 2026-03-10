@@ -4,7 +4,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import {
 	DatabaseConnectionError,
 	EmbeddingGenerationError,
-	OpenAIAPIKeyError,
+	LLMProviderAPIKeyError,
 	VectorizeIndexRequiredError,
 } from "@/lib/errors";
 import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
@@ -53,7 +53,7 @@ export abstract class BaseRAGService {
 			console.error("Error generating embeddings:", error);
 			if (
 				error instanceof EmbeddingGenerationError ||
-				error instanceof OpenAIAPIKeyError
+				error instanceof LLMProviderAPIKeyError
 			) {
 				throw error;
 			}
@@ -174,7 +174,7 @@ export abstract class BaseRAGService {
 		) {
 			return;
 		}
-		throw new OpenAIAPIKeyError("OpenAI API key not configured");
+		throw new LLMProviderAPIKeyError("OpenAI API key not configured");
 	}
 
 	private async resolveOpenAIKeyOptional(): Promise<string | undefined> {

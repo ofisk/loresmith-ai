@@ -2,18 +2,19 @@
  * Custom error classes for consistent error handling across the application.
  * Each error class has a standard message that is automatically set.
  */
+import { PROCESSING_LIMITS } from "@/app-constants";
 
 // ============================================================================
 // Authentication & Authorization Errors
 // ============================================================================
 
-export class OpenAIAPIKeyError extends Error {
+export class LLMProviderAPIKeyError extends Error {
 	constructor(message?: string) {
 		super(
 			message ||
-				"OpenAI API key is required. Please configure OPENAI_API_KEY on the server."
+				"LLM provider API key is required. Please configure OPENAI_API_KEY or ANTHROPIC_API_KEY on the server."
 		);
-		this.name = "OpenAIAPIKeyError";
+		this.name = "LLMProviderAPIKeyError";
 	}
 }
 
@@ -301,7 +302,7 @@ export class MemoryLimitError extends Error {
 
 	constructor(
 		fileSizeMB: number,
-		memoryLimitMB: number = 128,
+		memoryLimitMB: number = PROCESSING_LIMITS.MEMORY_LIMIT_MB,
 		fileKey?: string,
 		fileName?: string,
 		message?: string
@@ -333,7 +334,7 @@ export class MemoryLimitError extends Error {
 	static fromRuntimeError(
 		error: unknown,
 		fileSizeMB: number,
-		memoryLimitMB: number = 128,
+		memoryLimitMB: number = PROCESSING_LIMITS.MEMORY_LIMIT_MB,
 		fileKey?: string,
 		fileName?: string
 	): MemoryLimitError | null {

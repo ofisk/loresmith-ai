@@ -1,5 +1,7 @@
 import "./styles.css";
 import { createRoot } from "react-dom/client";
+import { ActionQueueProvider } from "@/contexts/ActionQueueContext";
+import { UploadQueueProvider } from "@/contexts/UploadQueueContext";
 import { Providers } from "@/providers";
 import App from "./app";
 import { NotificationProvider } from "./components/notifications/NotificationProvider";
@@ -20,7 +22,11 @@ root.render(
 					letterSpacing: "-0.011em",
 				}}
 			>
-				<App />
+				<UploadQueueProvider>
+					<ActionQueueProvider>
+						<App />
+					</ActionQueueProvider>
+				</UploadQueueProvider>
 			</div>
 		</NotificationProvider>
 	</Providers>

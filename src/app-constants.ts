@@ -19,9 +19,44 @@ export const APP_CONFIG = {
 	DESCRIPTION: "AI-powered campaign management and planning tool",
 } as const;
 
+// Processing limits - single source of truth for memory/file constraints
+export const PROCESSING_LIMITS = {
+	/** Cloudflare Workers memory limit (MB). Used for file size checks and error messages. */
+	MEMORY_LIMIT_MB: 128,
+} as const;
+
+const _cannotProcessText = `Files over ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`;
+
+/** User-facing copy for memory limit errors. Centralized for reuse and consistency. */
+export const MEMORY_LIMIT_COPY = {
+	/** Generic: "This file exceeds our 128MB limit..." */
+	generic: `This file exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+	/** Short fallback for status/indicators */
+	short: `File is too large to process. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	/** Fallback when error has no message */
+	fallback: `This file exceeds the ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB memory limit. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	/** "Files over XMB cannot be processed..." (used in RAG, retry alerts) */
+	cannotProcess: _cannotProcessText,
+	/** Error-parsing suggestion (includes chunking note) */
+	suggestion: `This file exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later. Large files are processed in chunks, which may take longer.`,
+	/** With specific filename */
+	withFilename: (fileName: string) =>
+		`The file "${fileName}" exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+	/** With filename and size (sync/upload notifications) */
+	withFileDetails: (fileName: string, sizeMB: number) =>
+		`⚠️ "${fileName}" (${sizeMB.toFixed(2)}MB) exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	/** File too large for processing (RAG endpoint) */
+	fileTooLarge: (fileName: string) =>
+		`"${fileName}" is too large to process. ${_cannotProcessText}`,
+	/** Retry alert (ResourceList) */
+	retryAlert: (fileName: string, errorMessage: string) =>
+		`⚠️ Cannot retry "${fileName}": ${errorMessage}\n\n${_cannotProcessText}`,
+} as const;
+
 // File upload constants
 export const UPLOAD_CONFIG = {
-	MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max (Cloudflare Workers have 128MB memory limit, leaving buffer for overhead)
+	/** 100MB max - buffer under PROCESSING_LIMITS.MEMORY_LIMIT_MB */
+	MAX_FILE_SIZE: 100 * 1024 * 1024,
 	// MIME types supported by RAG (FileExtractionService). Keep in sync with ResourceUpload and file-upload-security ALLOWED_EXTENSIONS.
 	ALLOWED_FILE_TYPES: [
 		"application/pdf",
@@ -272,11 +307,13 @@ export function getGenerationModelForProvider(
 }
 
 // Rate limits for non-admin users (admin users bypass all limits)
+// Fallback values when tier limits unavailable (e.g. UsageLimitsModal)
 export const RATE_LIMITS = {
-	NON_ADMIN_TPM: 10_000,
-	NON_ADMIN_QPM: 10,
+	NON_ADMIN_TPH: 600_000, // 10k/min * 60 = tokens per hour
+	NON_ADMIN_QPH: 600, // 10/min * 60 = queries per hour (Basic tier fallback)
 	NON_ADMIN_TPD: 500_000,
 	NON_ADMIN_QPD: 500,
+	RESOURCES_PER_CAMPAIGN_PER_HOUR: 20, // Basic tier fallback
 } as const;
 
 export type SubscriptionTier = "free" | "basic" | "pro";
@@ -285,8 +322,8 @@ export interface TierLimits {
 	maxCampaigns: number;
 	maxFiles: number;
 	storageBytes: number;
-	tpm: number;
-	qpm: number;
+	tph: number; // tokens per hour (was tpm * 60)
+	qph: number; // queries per hour (was qpm * 60)
 	tpd: number;
 	qpd: number;
 	/** Monthly token cap for free tier only; undefined for paid tiers */
@@ -295,6 +332,8 @@ export interface TierLimits {
 	retriesPerFilePerDay: number;
 	/** Per-file retries per month for indexation/entity extraction retry */
 	retriesPerFilePerMonth: number;
+	/** Resources addable per campaign per rolling hour (Basic/Pro differ) */
+	resourcesPerCampaignPerHour: number;
 }
 
 export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
@@ -302,35 +341,38 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxCampaigns: 1,
 		maxFiles: 5,
 		storageBytes: 5 * 1024 * 1024, // 5MB
-		tpm: 2_000,
-		qpm: 5,
+		tph: 120_000, // was 2k/min * 60
+		qph: 300, // 5/min * 60 = queries per hour
 		tpd: 10_000,
 		qpd: 50,
 		monthlyTokens: 10_000,
 		retriesPerFilePerDay: 1,
 		retriesPerFilePerMonth: 3,
+		resourcesPerCampaignPerHour: 5,
 	},
 	basic: {
 		maxCampaigns: 5,
 		maxFiles: 25,
-		storageBytes: 25 * 1024 * 1024, // 25MB
-		tpm: 10_000,
-		qpm: 10,
+		storageBytes: 1 * 1024 * 1024 * 1024, // 1GB
+		tph: 600_000, // was 10k/min * 60
+		qph: 600, // 10/min * 60 = queries per hour
 		tpd: 500_000,
 		qpd: 500,
 		retriesPerFilePerDay: 3,
 		retriesPerFilePerMonth: 15,
+		resourcesPerCampaignPerHour: 20,
 	},
 	pro: {
 		maxCampaigns: 999_999, // effectively unlimited
 		maxFiles: 100,
-		storageBytes: 100 * 1024 * 1024, // 100MB
-		tpm: 20_000,
-		qpm: 20,
+		storageBytes: 5 * 1024 * 1024 * 1024, // 5GB
+		tph: 1_200_000, // was 20k/min * 60
+		qph: 1_200, // 20/min * 60 = queries per hour
 		tpd: 1_000_000,
 		qpd: 1_000,
 		retriesPerFilePerDay: 5,
 		retriesPerFilePerMonth: 50,
+		resourcesPerCampaignPerHour: 50,
 	},
 } as const;
 

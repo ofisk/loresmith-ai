@@ -1,8 +1,8 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	FileNotFoundError,
+	LLMProviderAPIKeyError,
 	MemoryLimitError,
-	OpenAIAPIKeyError,
 	PDFExtractionError,
 	StorageUsageError,
 } from "@/lib/errors";
@@ -382,7 +382,7 @@ export class LibraryService {
 			};
 		}
 
-		if (error instanceof OpenAIAPIKeyError) {
+		if (error instanceof LLMProviderAPIKeyError) {
 			return {
 				message: "OpenAI API key required",
 				details:

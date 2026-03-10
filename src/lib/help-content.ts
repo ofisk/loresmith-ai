@@ -63,12 +63,10 @@ export function getHelpContent(action: string): string {
 			return (
 				"## Usage limits\n\n" +
 				"These limits apply to non-admin users. Limits reset on a sliding window.\n\n" +
-				"| Limit | Amount |\n|-------|--------|\n" +
-				"| Tokens per minute | 10,000 |\n" +
-				"| Queries per minute | 10 |\n" +
-				"| Tokens per day | 500,000 |\n" +
-				"| Queries per day | 500 |\n\n" +
-				"Use the **View limits** link in the sidebar (under your library) to see your current usage and limits."
+				"Token and query limits vary by tier (Basic vs Pro). Resources per campaign per hour also varies:\n\n" +
+				"| Limit | Basic | Pro |\n|-------|-------|-----|\n" +
+				"| Resources per campaign per hour | 20 | 50 |\n\n" +
+				"Other limits (tokens per hour/day, queries per hour/day) are higher for Pro. Use the **View limits** link in the sidebar (under your library) to see your current usage and limits."
 			);
 		case "start_chat":
 			return (

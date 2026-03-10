@@ -1,4 +1,4 @@
-import { EmbeddingGenerationError, OpenAIAPIKeyError } from "@/lib/errors";
+import { EmbeddingGenerationError, LLMProviderAPIKeyError } from "@/lib/errors";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_TEXT_LIMIT = 8191; // Max input tokens for text-embedding-3-small
@@ -28,7 +28,7 @@ export class OpenAIEmbeddingService {
 		options?: EmbeddingOptions
 	): Promise<number[]> {
 		if (!this.openaiApiKey) {
-			throw new OpenAIAPIKeyError();
+			throw new LLMProviderAPIKeyError();
 		}
 
 		try {
@@ -78,7 +78,7 @@ export class OpenAIEmbeddingService {
 			console.error("Error generating embeddings with OpenAI:", error);
 			if (
 				error instanceof EmbeddingGenerationError ||
-				error instanceof OpenAIAPIKeyError
+				error instanceof LLMProviderAPIKeyError
 			) {
 				throw error;
 			}
@@ -94,7 +94,7 @@ export class OpenAIEmbeddingService {
 		options?: EmbeddingOptions
 	): Promise<number[][]> {
 		if (!this.openaiApiKey) {
-			throw new OpenAIAPIKeyError();
+			throw new LLMProviderAPIKeyError();
 		}
 
 		try {
@@ -135,7 +135,7 @@ export class OpenAIEmbeddingService {
 			console.error("Error generating embeddings with OpenAI:", error);
 			if (
 				error instanceof EmbeddingGenerationError ||
-				error instanceof OpenAIAPIKeyError
+				error instanceof LLMProviderAPIKeyError
 			) {
 				throw error;
 			}

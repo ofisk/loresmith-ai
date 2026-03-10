@@ -34,11 +34,13 @@ vi.mock("@/services/graph/changelog-archive-service", () => ({
 	},
 }));
 
+import type { ToolResult } from "@/app-constants";
 import {
 	addTimelineEventTool,
 	buildTimelineTool,
 	queryTimelineRangeTool,
 } from "@/tools/campaign-context/timeline-tools";
+import type { ToolExecuteOptions } from "@/tools/utils";
 
 describe("campaign timeline tools", () => {
 	beforeEach(() => {
@@ -112,17 +114,25 @@ describe("campaign timeline tools", () => {
 			},
 		]);
 
-		const result = await buildTimelineTool.execute(
+		const result = (await buildTimelineTool.execute!(
 			{
 				campaignId: "campaign-1",
 				jwt: "x.eyJ1c2VybmFtZSI6Im9maXNrIn0=.y",
+				includeArchived: true,
 			},
-			{ toolCallId: "timeline-build-1", messages: [], env: { DB: {}, R2: {} } }
-		);
+			{
+				toolCallId: "timeline-build-1",
+				messages: [],
+				env: { DB: {}, R2: {} },
+			} as ToolExecuteOptions
+		)) as ToolResult;
 
 		expect(result.result.success).toBe(true);
-		expect(result.result.data.timeline.totalEvents).toBe(3);
-		expect(result.result.data.timeline.groups.length).toBeGreaterThan(0);
+		const buildData = result.result.data as {
+			timeline: { totalEvents: number; groups: unknown[] };
+		};
+		expect(buildData.timeline.totalEvents).toBe(3);
+		expect(buildData.timeline.groups.length).toBeGreaterThan(0);
 	});
 
 	it("queries timeline with pagination", async () => {
@@ -172,23 +182,32 @@ describe("campaign timeline tools", () => {
 			},
 		]);
 
-		const result = await queryTimelineRangeTool.execute(
+		const result = (await queryTimelineRangeTool.execute!(
 			{
 				campaignId: "campaign-1",
 				jwt: "x.eyJ1c2VybmFtZSI6Im9maXNrIn0=.y",
 				limit: 1,
 				offset: 1,
+				includeArchived: true,
 			},
-			{ toolCallId: "timeline-query-1", messages: [], env: { DB: {}, R2: {} } }
-		);
+			{
+				toolCallId: "timeline-query-1",
+				messages: [],
+				env: { DB: {}, R2: {} },
+			} as ToolExecuteOptions
+		)) as ToolResult;
 
 		expect(result.result.success).toBe(true);
-		expect(result.result.data.pagination.total).toBe(3);
-		expect(result.result.data.events).toHaveLength(1);
+		const queryData = result.result.data as {
+			pagination: { total: number };
+			events: unknown[];
+		};
+		expect(queryData.pagination.total).toBe(3);
+		expect(queryData.events).toHaveLength(1);
 	});
 
 	it("stores manual timeline events using changelog metadata markers", async () => {
-		const result = await addTimelineEventTool.execute(
+		const result = (await addTimelineEventTool.execute!(
 			{
 				campaignId: "campaign-1",
 				title: "Iron throne coup",
@@ -198,8 +217,12 @@ describe("campaign timeline tools", () => {
 				tags: ["politics", "coup"],
 				jwt: "x.eyJ1c2VybmFtZSI6Im9maXNrIn0=.y",
 			},
-			{ toolCallId: "timeline-add-1", messages: [], env: { DB: {} } }
-		);
+			{
+				toolCallId: "timeline-add-1",
+				messages: [],
+				env: { DB: {} },
+			} as ToolExecuteOptions
+		)) as ToolResult;
 
 		expect(recordChangelogMock).toHaveBeenCalledWith(
 			"campaign-1",

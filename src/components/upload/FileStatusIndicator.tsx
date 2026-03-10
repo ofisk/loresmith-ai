@@ -1,10 +1,12 @@
 import {
 	ArrowClockwise,
 	CheckCircle,
+	Clock,
 	Spinner,
 	XCircle,
 } from "@phosphor-icons/react";
 import { useCallback } from "react";
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FileDAO } from "@/dao";
 import {
@@ -123,6 +125,13 @@ export function FileStatusIndicator({
 			title: "Needs processing before shards can be extracted",
 			spinning: false,
 		},
+		queued_for_upload: {
+			icon: Clock,
+			color: "text-amber-600 dark:text-amber-400",
+			text: "Queued for upload",
+			title: "Will retry when capacity is available",
+			spinning: false,
+		},
 	};
 
 	// Parse processing error if present
@@ -159,8 +168,7 @@ export function FileStatusIndicator({
 
 	// Override title for memory limit errors
 	const statusTitle = isMemoryLimitError
-		? errorMessage ||
-			"File is too large to process. Please split the file into smaller parts or use a file under 128MB."
+		? errorMessage || MEMORY_LIMIT_COPY.short
 		: config.title;
 
 	const handleRetry = useCallback(() => {

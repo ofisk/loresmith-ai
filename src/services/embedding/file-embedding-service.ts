@@ -2,7 +2,7 @@ import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { getEnvVar } from "@/lib/env-utils";
 import {
 	EmbeddingGenerationError,
-	OpenAIAPIKeyError,
+	LLMProviderAPIKeyError,
 	VectorizeIndexRequiredError,
 } from "@/lib/errors";
 import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
@@ -364,7 +364,7 @@ export class FileEmbeddingService {
 			);
 			if (
 				error instanceof EmbeddingGenerationError ||
-				error instanceof OpenAIAPIKeyError
+				error instanceof LLMProviderAPIKeyError
 			) {
 				throw error;
 			}
@@ -384,7 +384,7 @@ export class FileEmbeddingService {
 			if (trimmed) return trimmed;
 		}
 
-		throw new OpenAIAPIKeyError();
+		throw new LLMProviderAPIKeyError();
 	}
 
 	/**
