@@ -62,9 +62,10 @@ export class LLMRateLimitService {
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
 
+		const dao = getDAOFactory(this.env);
 		let creditsRemaining = 0;
+
 		if (limits.monthlyTokens !== undefined) {
-			const dao = getDAOFactory(this.env);
 			const [monthlyUsage, credits] = await Promise.all([
 				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
 				dao.userCreditsDAO.getCredits(username),
@@ -83,12 +84,15 @@ export class LLMRateLimitService {
 					limitType: "daily",
 				};
 			}
+		} else {
+			// Paid tiers: fetch credits so purchased one-offs boost daily/hourly limits
+			creditsRemaining = await dao.userCreditsDAO.getCredits(username);
 		}
 
-		const dao = getDAOFactory(this.env).llmUsageDAO;
+		const llmDao = dao.llmUsageDAO;
 		const [hour, daily] = await Promise.all([
-			dao.getUsageInLastHour(username),
-			dao.getUsageInLast24Hours(username),
+			llmDao.getUsageInLastHour(username),
+			llmDao.getUsageInLast24Hours(username),
 		]);
 
 		// Relax daily/hourly rate when user has credits (let them consume one-offs)
@@ -292,6 +296,7 @@ export class LLMRateLimitService {
 		const dao = getDAOFactory(this.env);
 
 		// Free tier: include monthly usage and credits for UI
+		// Paid tiers: fetch credits so effective limits reflect purchased one-offs
 		let monthlyUsage: number | undefined;
 		let monthlyLimit: number | undefined;
 		let creditsRemaining: number | undefined;
@@ -301,6 +306,8 @@ export class LLMRateLimitService {
 				dao.userCreditsDAO.getCredits(username),
 			]);
 			monthlyLimit = limits.monthlyTokens + creditsRemaining;
+		} else {
+			creditsRemaining = await dao.userCreditsDAO.getCredits(username);
 		}
 
 		const [hour, daily] = await Promise.all([
