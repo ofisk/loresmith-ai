@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Community } from "@/dao/community-dao";
 import type { CommunitySummaryDAO } from "@/dao/community-summary-dao";
-import type { Entity, EntityDAO } from "@/dao/entity-dao";
+import type { EntityDAO } from "@/dao/entity-dao";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { CommunitySummaryService } from "@/services/graph/community-summary-service";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { makeCommunity, makeEntity } from "../factories";
 
 vi.mock("@/services/llm/llm-provider-factory", () => ({
 	createLLMProvider: vi.fn(),
@@ -46,14 +46,13 @@ describe("CommunitySummaryService", () => {
 
 	describe("generateOrGetSummary", () => {
 		it("should return existing summary if found and forceRegenerate is false", async () => {
-			const community: Community = {
+			const community = makeCommunity({
 				id: "community-1",
 				campaignId: "campaign-1",
 				level: 0,
 				parentCommunityId: null,
 				entityIds: ["entity-1", "entity-2"],
-				createdAt: new Date().toISOString(),
-			};
+			});
 
 			const existingSummary = {
 				id: "summary-1",
@@ -87,14 +86,13 @@ describe("CommunitySummaryService", () => {
 				mockSummaryDAO as CommunitySummaryDAO
 			);
 
-			const community: Community = {
+			const community = makeCommunity({
 				id: "community-1",
 				campaignId: "campaign-1",
 				level: 0,
 				parentCommunityId: null,
 				entityIds: ["entity-1", "entity-2"],
-				createdAt: new Date().toISOString(),
-			};
+			});
 
 			(mockSummaryDAO.getSummaryByCommunityId as any).mockResolvedValue(null);
 
@@ -108,34 +106,29 @@ describe("CommunitySummaryService", () => {
 
 	describe("generateSummary", () => {
 		it("should generate summary for a community with entities and relationships", async () => {
-			const community: Community = {
+			const community = makeCommunity({
 				id: "community-1",
 				campaignId: "campaign-1",
 				level: 0,
 				parentCommunityId: null,
 				entityIds: ["entity-1", "entity-2"],
-				createdAt: new Date().toISOString(),
-			};
+			});
 
-			const mockEntity1: Entity = {
+			const mockEntity1 = makeEntity({
 				id: "entity-1",
 				campaignId: "campaign-1",
 				entityType: "location",
 				name: "Test Location",
 				content: { description: "A test location" },
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			};
+			});
 
-			const mockEntity2: Entity = {
+			const mockEntity2 = makeEntity({
 				id: "entity-2",
 				campaignId: "campaign-1",
 				entityType: "character",
 				name: "Test Character",
 				content: { description: "A test character" },
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			};
+			});
 
 			(mockEntityDAO.getEntityById as any)
 				.mockResolvedValueOnce(mockEntity1)
@@ -187,26 +180,25 @@ describe("CommunitySummaryService", () => {
 
 	describe("updateSummaryForCommunity", () => {
 		it("should delete existing summary and generate new one", async () => {
-			const community: Community = {
+			const community = makeCommunity({
 				id: "community-1",
 				campaignId: "campaign-1",
 				level: 0,
 				parentCommunityId: null,
 				entityIds: ["entity-1"],
-				createdAt: new Date().toISOString(),
-			};
+			});
 
 			(mockSummaryDAO.deleteSummariesByCommunity as any).mockResolvedValue(
 				undefined
 			);
-			(mockEntityDAO.getEntityById as any).mockResolvedValue({
-				id: "entity-1",
-				campaignId: "campaign-1",
-				entityType: "location",
-				name: "Test Location",
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			});
+			(mockEntityDAO.getEntityById as any).mockResolvedValue(
+				makeEntity({
+					id: "entity-1",
+					campaignId: "campaign-1",
+					entityType: "location",
+					name: "Test Location",
+				})
+			);
 			(mockEntityDAO.getRelationshipsForEntity as any).mockResolvedValue([]);
 			(mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
 			const updatedName = "Updated Community";
@@ -243,34 +235,32 @@ describe("CommunitySummaryService", () => {
 
 	describe("generateSummariesForCommunities", () => {
 		it("should generate summaries for multiple communities", async () => {
-			const communities: Community[] = [
-				{
+			const communities = [
+				makeCommunity({
 					id: "community-1",
 					campaignId: "campaign-1",
 					level: 0,
 					parentCommunityId: null,
 					entityIds: ["entity-1"],
-					createdAt: new Date().toISOString(),
-				},
-				{
+				}),
+				makeCommunity({
 					id: "community-2",
 					campaignId: "campaign-1",
 					level: 0,
 					parentCommunityId: null,
 					entityIds: ["entity-2"],
-					createdAt: new Date().toISOString(),
-				},
+				}),
 			];
 
 			(mockSummaryDAO.getSummaryByCommunityId as any).mockResolvedValue(null);
-			(mockEntityDAO.getEntityById as any).mockResolvedValue({
-				id: "entity-1",
-				campaignId: "campaign-1",
-				entityType: "location",
-				name: "Test Location",
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			});
+			(mockEntityDAO.getEntityById as any).mockResolvedValue(
+				makeEntity({
+					id: "entity-1",
+					campaignId: "campaign-1",
+					entityType: "location",
+					name: "Test Location",
+				})
+			);
 			(mockEntityDAO.getRelationshipsForEntity as any).mockResolvedValue([]);
 			(mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);
 			let callCount = 0;
@@ -308,23 +298,21 @@ describe("CommunitySummaryService", () => {
 		});
 
 		it("should continue with other communities if one fails", async () => {
-			const communities: Community[] = [
-				{
+			const communities = [
+				makeCommunity({
 					id: "community-1",
 					campaignId: "campaign-1",
 					level: 0,
 					parentCommunityId: null,
 					entityIds: ["entity-1"],
-					createdAt: new Date().toISOString(),
-				},
-				{
+				}),
+				makeCommunity({
 					id: "community-2",
 					campaignId: "campaign-1",
 					level: 0,
 					parentCommunityId: null,
 					entityIds: ["entity-2"],
-					createdAt: new Date().toISOString(),
-				},
+				}),
 			];
 
 			(mockSummaryDAO.getSummaryByCommunityId as any)
@@ -335,14 +323,14 @@ describe("CommunitySummaryService", () => {
 				if (id === "entity-1") {
 					throw new Error("Entity not found");
 				}
-				return Promise.resolve({
-					id: "entity-2",
-					campaignId: "campaign-1",
-					entityType: "location",
-					name: "Test Location",
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-				});
+				return Promise.resolve(
+					makeEntity({
+						id: "entity-2",
+						campaignId: "campaign-1",
+						entityType: "location",
+						name: "Test Location",
+					})
+				);
 			});
 			(mockEntityDAO.getRelationshipsForEntity as any).mockResolvedValue([]);
 			(mockSummaryDAO.createSummary as any).mockResolvedValue(undefined);

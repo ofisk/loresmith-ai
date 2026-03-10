@@ -1,5 +1,6 @@
 import { vi } from "vitest";
-import type { CampaignData, CampaignResource } from "../../src/types/campaign";
+import type { CampaignData } from "../../src/types/campaign";
+import { makeCampaign, makeCampaignResource } from "../factories";
 
 // Define proper types for the environment and stubs
 type CampaignManagerStub = {
@@ -60,13 +61,7 @@ export function createCampaignManagerStub(
 					status: 200,
 					json: async () => ({
 						success: true,
-						campaign: campaign || {
-							campaignId: "test-campaign-id",
-							name: "Test Campaign",
-							createdAt: new Date().toISOString(),
-							updatedAt: new Date().toISOString(),
-							resources: [],
-						},
+						campaign: campaign ?? makeCampaign(),
 					}),
 				};
 			}
@@ -155,35 +150,11 @@ export function createCampaignManagerStub(
 	};
 }
 
-/**
- * Create a mock campaign for testing
- */
-export function createMockCampaign(
-	overrides: Partial<CampaignData> = {}
-): CampaignData {
-	return {
-		campaignId: "test-campaign-id",
-		name: "Test Campaign",
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString(),
-		resources: [],
-		...overrides,
-	};
-}
+/** @deprecated Use makeCampaign from tests/factories instead */
+export const createMockCampaign = makeCampaign;
 
-/**
- * Create a mock campaign resource for testing
- */
-export function createMockResource(
-	overrides: Partial<CampaignResource> = {}
-): CampaignResource {
-	return {
-		type: "pdf",
-		id: "test-resource-id",
-		name: "Test Resource",
-		...overrides,
-	};
-}
+/** @deprecated Use makeCampaignResource from tests/factories instead */
+export const createMockResource = makeCampaignResource;
 
 /**
  * Create a mock KV namespace stub for campaigns

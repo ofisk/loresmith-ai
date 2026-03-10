@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockCampaign, createMockResource } from "./testUtils";
+import { makeCampaign, makeCampaignResource } from "../factories";
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -12,8 +12,8 @@ describe("Campaign Hooks", () => {
 	describe("useCampaigns", () => {
 		it("should fetch campaigns successfully", async () => {
 			const mockCampaigns = [
-				createMockCampaign({ campaignId: "1", name: "Campaign 1" }),
-				createMockCampaign({ campaignId: "2", name: "Campaign 2" }),
+				makeCampaign({ campaignId: "1", name: "Campaign 1" }),
+				makeCampaign({ campaignId: "2", name: "Campaign 2" }),
 			];
 
 			(global.fetch as any).mockResolvedValueOnce({
@@ -58,10 +58,12 @@ describe("Campaign Hooks", () => {
 
 	describe("useCampaignDetail", () => {
 		it("should fetch campaign details successfully", async () => {
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "1",
 				name: "Test Campaign",
-				resources: [createMockResource({ id: "pdf-1", name: "Document.pdf" })],
+				resources: [
+					makeCampaignResource({ id: "pdf-1", name: "Document.pdf" }),
+				],
 			});
 
 			(global.fetch as any).mockResolvedValueOnce({
@@ -94,7 +96,7 @@ describe("Campaign Hooks", () => {
 
 	describe("useCampaignActions", () => {
 		it("should create campaign successfully", async () => {
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "new-campaign",
 				name: "New Campaign",
 			});
@@ -117,7 +119,7 @@ describe("Campaign Hooks", () => {
 
 		it("should add resource to campaign successfully", async () => {
 			const mockResources = [
-				createMockResource({ id: "new-resource", name: "New Resource" }),
+				makeCampaignResource({ id: "new-resource", name: "New Resource" }),
 			];
 
 			(global.fetch as any).mockResolvedValueOnce({

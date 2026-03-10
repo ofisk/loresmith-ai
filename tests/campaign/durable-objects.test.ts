@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CampaignData } from "../../src/types/campaign";
-import { createMockCampaign, createMockResource } from "./testUtils";
+import { makeCampaign, makeCampaignResource } from "../factories";
 
 // Mock the CampaignManager Durable Object
 vi.mock("../../src/durable-objects/CampaignManager", () => ({
@@ -22,7 +22,7 @@ describe("Campaign Durable Objects", () => {
 				list: vi.fn(),
 			};
 
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
 			});
@@ -50,7 +50,7 @@ describe("Campaign Durable Objects", () => {
 				list: vi.fn(),
 			};
 
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
 			});
@@ -100,8 +100,8 @@ describe("Campaign Durable Objects", () => {
 			};
 
 			const mockCampaigns = [
-				createMockCampaign({ campaignId: "campaign-1", name: "Campaign 1" }),
-				createMockCampaign({ campaignId: "campaign-2", name: "Campaign 2" }),
+				makeCampaign({ campaignId: "campaign-1", name: "Campaign 1" }),
+				makeCampaign({ campaignId: "campaign-2", name: "Campaign 2" }),
 			];
 
 			// Mock KV list operation
@@ -158,13 +158,13 @@ describe("Campaign Durable Objects", () => {
 				list: vi.fn(),
 			};
 
-			const existingCampaign = createMockCampaign({
+			const existingCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
 				resources: [],
 			});
 
-			const newResource = createMockResource({
+			const newResource = makeCampaignResource({
 				id: "new-resource",
 				name: "New Resource",
 				type: "pdf",
@@ -204,12 +204,12 @@ describe("Campaign Durable Objects", () => {
 				list: vi.fn(),
 			};
 
-			const existingCampaign = createMockCampaign({
+			const existingCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
 				resources: [
-					createMockResource({ id: "resource-1", name: "Resource 1" }),
-					createMockResource({ id: "resource-2", name: "Resource 2" }),
+					makeCampaignResource({ id: "resource-1", name: "Resource 1" }),
+					makeCampaignResource({ id: "resource-2", name: "Resource 2" }),
 				],
 			});
 
@@ -250,11 +250,11 @@ describe("Campaign Durable Objects", () => {
 				list: vi.fn(),
 			};
 
-			const existingCampaign = createMockCampaign({
+			const existingCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
 				resources: [
-					createMockResource({ id: "resource-1", name: "Resource 1" }),
+					makeCampaignResource({ id: "resource-1", name: "Resource 1" }),
 				],
 			});
 
@@ -279,16 +279,16 @@ describe("Campaign Durable Objects", () => {
 
 	describe("Campaign Indexing", () => {
 		it("should trigger indexing for campaign with resources", async () => {
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
 				resources: [
-					createMockResource({
+					makeCampaignResource({
 						id: "pdf-1",
 						name: "Document.pdf",
 						type: "pdf",
 					}),
-					createMockResource({
+					makeCampaignResource({
 						id: "pdf-2",
 						name: "Adventure.pdf",
 						type: "pdf",
@@ -312,7 +312,7 @@ describe("Campaign Durable Objects", () => {
 		});
 
 		it("should handle indexing for campaign without resources", async () => {
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "empty-campaign",
 				name: "Empty Campaign",
 				resources: [],
@@ -346,7 +346,7 @@ describe("Campaign Durable Objects", () => {
 
 	describe("Data Validation", () => {
 		it("should validate campaign data structure", () => {
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "test-id",
 				name: "Test Campaign",
 				resources: [],
@@ -366,7 +366,7 @@ describe("Campaign Durable Objects", () => {
 		});
 
 		it("should validate resource data structure", () => {
-			const mockResource = createMockResource({
+			const mockResource = makeCampaignResource({
 				id: "test-resource",
 				name: "Test Resource",
 				type: "pdf",

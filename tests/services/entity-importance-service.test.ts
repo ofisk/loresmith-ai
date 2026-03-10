@@ -3,6 +3,7 @@ import type { CommunityDAO } from "@/dao/community-dao";
 import type { EntityDAO } from "@/dao/entity-dao";
 import type { EntityImportanceDAO } from "@/dao/entity-importance-dao";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
+import { makeEntity } from "../factories";
 
 describe("EntityImportanceService", () => {
 	let mockEntityDAO: Partial<EntityDAO>;
@@ -37,15 +38,13 @@ describe("EntityImportanceService", () => {
 
 	describe("getEntityImportance", () => {
 		it("reads from table when available", async () => {
-			const entity = {
+			const entity = makeEntity({
 				id: "entity-1",
 				campaignId: "campaign-123",
 				entityType: "npc",
 				name: "Test Entity",
-				createdAt: "2025-01-01T00:00:00Z",
-				updatedAt: "2025-01-01T00:00:00Z",
 				metadata: {},
-			};
+			});
 
 			const importance = {
 				entityId: "entity-1",
@@ -71,17 +70,13 @@ describe("EntityImportanceService", () => {
 		});
 
 		it("falls back to metadata when table entry not found", async () => {
-			const entity = {
+			const entity = makeEntity({
 				id: "entity-1",
 				campaignId: "campaign-123",
 				entityType: "npc",
 				name: "Test Entity",
-				createdAt: "2025-01-01T00:00:00Z",
-				updatedAt: "2025-01-01T00:00:00Z",
-				metadata: {
-					importanceScore: 70.0,
-				},
-			};
+				metadata: { importanceScore: 70.0 },
+			});
 
 			(mockEntityDAO.getEntityById as any).mockResolvedValue(entity);
 			(mockImportanceDAO.getImportance as any).mockResolvedValue(null);
@@ -96,15 +91,13 @@ describe("EntityImportanceService", () => {
 		});
 
 		it("calculates and stores in table when neither table nor metadata available", async () => {
-			const entity = {
+			const entity = makeEntity({
 				id: "entity-1",
 				campaignId: "campaign-123",
 				entityType: "npc",
 				name: "Test Entity",
-				createdAt: "2025-01-01T00:00:00Z",
-				updatedAt: "2025-01-01T00:00:00Z",
 				metadata: {},
-			};
+			});
 
 			(mockEntityDAO.getEntityById as any).mockResolvedValue(entity);
 			(mockImportanceDAO.getImportance as any).mockResolvedValue(null);
@@ -124,24 +117,20 @@ describe("EntityImportanceService", () => {
 	describe("recalculateImportanceForCampaign", () => {
 		it("writes to table when importanceDAO is available", async () => {
 			const entities = [
-				{
+				makeEntity({
 					id: "entity-1",
 					campaignId: "campaign-123",
 					entityType: "npc",
 					name: "Entity 1",
-					createdAt: "2025-01-01T00:00:00Z",
-					updatedAt: "2025-01-01T00:00:00Z",
 					metadata: {},
-				},
-				{
+				}),
+				makeEntity({
 					id: "entity-2",
 					campaignId: "campaign-123",
 					entityType: "npc",
 					name: "Entity 2",
-					createdAt: "2025-01-01T00:00:00Z",
-					updatedAt: "2025-01-01T00:00:00Z",
 					metadata: {},
-				},
+				}),
 			];
 
 			(mockEntityDAO.listEntitiesByCampaign as any).mockResolvedValue(entities);
@@ -169,17 +158,13 @@ describe("EntityImportanceService", () => {
 				mockCommunityDAO as CommunityDAO
 			);
 
-			const entity = {
+			const entity = makeEntity({
 				id: "entity-1",
 				campaignId: "campaign-123",
 				entityType: "npc",
 				name: "Test Entity",
-				createdAt: "2025-01-01T00:00:00Z",
-				updatedAt: "2025-01-01T00:00:00Z",
-				metadata: {
-					importanceScore: 70.0,
-				},
-			};
+				metadata: { importanceScore: 70.0 },
+			});
 
 			(mockEntityDAO.getEntityById as any).mockResolvedValue(entity);
 
@@ -199,15 +184,13 @@ describe("EntityImportanceService", () => {
 			);
 
 			const entities = [
-				{
+				makeEntity({
 					id: "entity-1",
 					campaignId: "campaign-123",
 					entityType: "npc",
 					name: "Entity 1",
-					createdAt: "2025-01-01T00:00:00Z",
-					updatedAt: "2025-01-01T00:00:00Z",
 					metadata: {},
-				},
+				}),
 			];
 
 			(mockEntityDAO.listEntitiesByCampaign as any).mockResolvedValue(entities);

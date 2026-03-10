@@ -16,6 +16,27 @@ npm test tests/lib/leiden-algorithm.test.ts
 npm test -- --coverage
 ```
 
+## Test data factories
+
+The `tests/factories/` directory provides type-checked factory functions for creating test data with sensible defaults. Use these instead of inline mock objects to reduce boilerplate and keep tests consistent when types evolve.
+
+```ts
+import { makeCampaign, makeEntity, makeAuthPayload } from "./factories";
+
+const campaign = makeCampaign({ name: "Custom Name" });
+const entity = makeEntity({ entityType: "npc", name: "Test NPC" });
+```
+
+### Available factories
+
+- **makeCampaign**, **makeCampaignResource** – Campaign and resource data
+- **makeEntity** – Entity (campaign context entities)
+- **makeAuthPayload** – User auth payload for route tests
+- **makeSessionDigest**, **makeSessionDigestData** – Session digest records
+- **makeCommunity** – Community (graph communities)
+
+Campaign tests also support legacy aliases: `createMockCampaign` and `createMockResource` from `tests/campaign/testUtils.ts` (re-exports from factories).
+
 ## Priority areas for coverage
 
 When adding or extending tests, these areas are high priority:
@@ -35,10 +56,10 @@ The following describes campaign-specific tests. The tests cover campaign manage
 
 ### `testUtils.ts`
 
-Contains shared test utilities and mock functions:
+Contains campaign-specific utilities (Durable Object stubs, env helpers). For mock data, prefer `tests/factories/`:
 
-- `createMockCampaign()` - Creates mock campaign data for testing
-- `createMockResource()` - Creates mock resource data for testing
+- `makeCampaign()`, `makeCampaignResource()` - Use from `../factories` (or deprecated aliases below)
+- `createMockCampaign()`, `createMockResource()` - Deprecated aliases for factories
 - `createCampaignManagerStub()` - Creates mock Durable Object stubs
 - `createCampaignsKVStub()` - Creates mock KV storage stubs
 - `createTestEnv()` - Creates test environment with mocked dependencies

@@ -30,6 +30,7 @@ import {
 	exportHandoutTool,
 	generateHandoutTool,
 } from "@/tools/campaign-context/player-handout-tools";
+import { makeEntity } from "../factories";
 
 function createJwt(username: string): string {
 	const payload = Buffer.from(JSON.stringify({ username }), "utf8")
@@ -74,19 +75,19 @@ describe("player handout tools", () => {
 
 	it("generates handout prompt without GM-only fields", async () => {
 		mockCampaignDAO.getCampaignRole.mockResolvedValue("editor_gm");
-		mockEntityDAO.getEntityById.mockResolvedValue({
-			id: "entity-1",
-			campaignId: "campaign-1",
-			entityType: "npc",
-			name: "Thornwall steward",
-			content: {
-				summary: "A weary steward managing the keep.",
-				secrets: "Serves the hidden villain in the crypt below.",
-			},
-			metadata: {},
-			createdAt: "2026-01-01T00:00:00.000Z",
-			updatedAt: "2026-01-01T00:00:00.000Z",
-		});
+		mockEntityDAO.getEntityById.mockResolvedValue(
+			makeEntity({
+				id: "entity-1",
+				campaignId: "campaign-1",
+				entityType: "npc",
+				name: "Thornwall steward",
+				content: {
+					summary: "A weary steward managing the keep.",
+					secrets: "Serves the hidden villain in the crypt below.",
+				},
+				metadata: {},
+			})
+		);
 		mockGenerateStructuredOutput.mockResolvedValue({
 			title: "Whispers from Thornwall Keep",
 			content: "The steward keeps watch as storms gather over old stones.",
