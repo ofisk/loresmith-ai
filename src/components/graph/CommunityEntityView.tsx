@@ -22,7 +22,7 @@ interface CommunityEntityViewProps {
 
 export function CommunityEntityView({
 	campaignId,
-	communityId,
+	communityId: _communityId,
 	entityGraphData,
 	loading,
 	error,

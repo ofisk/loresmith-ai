@@ -22,6 +22,21 @@ export type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
 };
 
+type ParamContext = {
+	req: { param: (key: string) => string | undefined };
+	json: (body: unknown, status?: number) => Response;
+};
+
+/**
+ * Require a route param; returns 400 JSON response if missing.
+ * Usage: const campaignId = requireParam(c, "campaignId"); if (campaignId instanceof Response) return campaignId;
+ */
+export function requireParam(c: ParamContext, name: string): string | Response {
+	const val = c.req.param(name);
+	if (!val) return c.json({ error: `${name} is required` }, 400);
+	return val;
+}
+
 /**
  * Extract user authentication from context
  * Throws UserAuthenticationMissingError if not present

@@ -44,25 +44,21 @@ export class ModelManager {
 			return;
 		}
 
-		try {
-			// Create provider-aware model instance without mutating process environment.
-			if (provider === "anthropic") {
-				const anthropic = createAnthropic({ apiKey: trimmedKey });
-				this.model = anthropic(
-					getGenerationModelForProvider("INTERACTIVE", provider) as any
-				);
-			} else {
-				const openAI = createOpenAI({ apiKey: trimmedKey });
-				this.model = openAI(
-					getGenerationModelForProvider("INTERACTIVE", provider) as any
-				);
-			}
-			this.apiKey = trimmedKey;
-
-			console.log(`[ModelManager] Model initialized with ${provider} API key`);
-		} catch (error) {
-			throw error;
+		// Create provider-aware model instance without mutating process environment.
+		if (provider === "anthropic") {
+			const anthropic = createAnthropic({ apiKey: trimmedKey });
+			this.model = anthropic(
+				getGenerationModelForProvider("INTERACTIVE", provider) as any
+			);
+		} else {
+			const openAI = createOpenAI({ apiKey: trimmedKey });
+			this.model = openAI(
+				getGenerationModelForProvider("INTERACTIVE", provider) as any
+			);
 		}
+		this.apiKey = trimmedKey;
+
+		console.log(`[ModelManager] Model initialized with ${provider} API key`);
 	}
 
 	/**

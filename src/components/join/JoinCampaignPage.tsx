@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import loresmith from "@/assets/loresmith.png";
 import { PrimaryActionButton } from "@/components/button";
 import {
@@ -37,38 +37,38 @@ export function JoinCampaignPage({
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
 	const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
-	const loadClaimOptions = async (
-		resolvedCampaignId: string,
-		authJwt: string
-	) => {
-		const optionsRes = await fetch(
-			API_CONFIG.buildUrl(
-				API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_OPTIONS(
-					resolvedCampaignId
-				)
-			),
-			{
-				headers: { Authorization: `Bearer ${authJwt}` },
-			}
-		);
-		const optionsData = (await optionsRes.json()) as {
-			options?: PlayerCharacterOption[];
-			requiresCharacterSelection?: boolean;
-			error?: string;
-		};
-		if (!optionsRes.ok) {
-			throw new Error(
-				optionsData.error ?? "Failed to load available player characters"
+	const loadClaimOptions = useCallback(
+		async (resolvedCampaignId: string, authJwt: string) => {
+			const optionsRes = await fetch(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_OPTIONS(
+						resolvedCampaignId
+					)
+				),
+				{
+					headers: { Authorization: `Bearer ${authJwt}` },
+				}
 			);
-		}
-		if (!optionsData.requiresCharacterSelection) {
-			setStatus("success");
-			onJoinSuccess(resolvedCampaignId);
-			return;
-		}
-		setClaimOptions(optionsData.options ?? []);
-		setStatus("needsCharacterSelection");
-	};
+			const optionsData = (await optionsRes.json()) as {
+				options?: PlayerCharacterOption[];
+				requiresCharacterSelection?: boolean;
+				error?: string;
+			};
+			if (!optionsRes.ok) {
+				throw new Error(
+					optionsData.error ?? "Failed to load available player characters"
+				);
+			}
+			if (!optionsData.requiresCharacterSelection) {
+				setStatus("success");
+				onJoinSuccess(resolvedCampaignId);
+				return;
+			}
+			setClaimOptions(optionsData.options ?? []);
+			setStatus("needsCharacterSelection");
+		},
+		[onJoinSuccess]
+	);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -146,7 +146,7 @@ export function JoinCampaignPage({
 		return () => {
 			cancelled = true;
 		};
-	}, [token, jwt, onJoinSuccess, onOpenAuthModal]);
+	}, [token, jwt, onJoinSuccess, onOpenAuthModal, loadClaimOptions]);
 
 	const handleJoin = async () => {
 		if (!jwt) {

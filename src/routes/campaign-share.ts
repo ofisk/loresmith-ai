@@ -10,6 +10,7 @@ import {
 	getCampaignRole,
 	getUserAuth,
 	requireCanEdit,
+	requireParam,
 } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
@@ -69,7 +70,8 @@ async function getCampaignManagerUsernames(
 export async function handleCreateShareLink(c: ContextWithAuth) {
 	try {
 		const userAuth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const body = (await c.req.json()) as {
 			role: CampaignMemberRole;
 			expiresAt?: string | null;
@@ -137,7 +139,8 @@ export async function handleCreateShareLink(c: ContextWithAuth) {
 /** GET /campaigns/:campaignId/share-links - list active links (owner, editor_gm) */
 export async function handleListShareLinks(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		await requireCanEdit(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
@@ -178,8 +181,10 @@ export async function handleListShareLinks(c: ContextWithAuth) {
 /** DELETE /campaigns/:campaignId/share-links/:token - revoke link */
 export async function handleRevokeShareLink(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
-		const token = c.req.param("token");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const token = requireParam(c, "token");
+		if (token instanceof Response) return token;
 		await requireCanEdit(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
@@ -341,7 +346,8 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -396,7 +402,8 @@ export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
 export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -449,7 +456,8 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 export async function handleListPlayerCharacterClaims(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		await requireCanEdit(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
@@ -485,8 +493,10 @@ export async function handleListPlayerCharacterClaims(c: ContextWithAuth) {
 export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const targetUsername = c.req.param("username");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const targetUsername = requireParam(c, "username");
+		if (targetUsername instanceof Response) return targetUsername;
 		await requireCanEdit(c, campaignId);
 
 		const body = (await c.req.json()) as { entityId?: string };
@@ -537,8 +547,10 @@ export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
 /** DELETE /campaigns/:campaignId/player-character-claims/:username - clear a player's claimed PC (owner/editor_gm) */
 export async function handleClearPlayerCharacterClaim(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
-		const targetUsername = c.req.param("username");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const targetUsername = requireParam(c, "username");
+		if (targetUsername instanceof Response) return targetUsername;
 		await requireCanEdit(c, campaignId);
 
 		const targetRole = await getCampaignRole(c, campaignId, targetUsername);

@@ -6,7 +6,11 @@ import {
 } from "@/lib/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
-import { type ContextWithAuth, verifyCampaignAccess } from "@/lib/route-utils";
+import {
+	type ContextWithAuth,
+	requireParam,
+	verifyCampaignAccess,
+} from "@/lib/route-utils";
 import { getGraphServices } from "@/services/graph/graph-service-factory";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -82,7 +86,8 @@ async function checkAndRunCommunityDetection(
 // Get staged entities for a campaign (UI refers to them as "shards")
 export async function handleGetStagedShards(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const userAuth = (c as any).userAuth;
 		const resourceId = c.req.query("resourceId");
 
@@ -206,7 +211,8 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 // Approve entities for a campaign (UI refers to them as "shards")
 export async function handleApproveShards(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const userAuth = (c as any).userAuth;
 		const { shardIds } = await c.req.json(); // UI uses "shardIds" terminology
 
@@ -428,7 +434,8 @@ export async function handleApproveShards(c: ContextWithAuth) {
 // Reject entities for a campaign (UI refers to them as "shards")
 export async function handleRejectShards(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const userAuth = (c as any).userAuth;
 		const { shardIds, reason } = await c.req.json(); // UI uses "shardIds" terminology
 
@@ -598,8 +605,10 @@ export async function handleRejectShards(c: ContextWithAuth) {
 // Update a single entity (UI refers to it as "shard")
 export async function handleUpdateShard(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
-		const shardId = c.req.param("shardId"); // UI uses "shardId" but it's an entity ID
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const shardId = requireParam(c, "shardId");
+		if (shardId instanceof Response) return shardId;
 		const userAuth = (c as any).userAuth;
 		const { text, metadata } = await c.req.json();
 
@@ -695,8 +704,10 @@ const GENERATABLE_FIELD_KEYS = new Set([
 // Generate a single field value for a stub shard via LLM
 export async function handleGenerateShardField(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
-		const shardId = c.req.param("shardId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const shardId = requireParam(c, "shardId");
+		if (shardId instanceof Response) return shardId;
 		const userAuth = (c as any).userAuth;
 		const body = await c.req.json().catch(() => ({}));
 		const field = typeof body?.field === "string" ? body.field.trim() : "";

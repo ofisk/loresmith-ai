@@ -5,6 +5,7 @@ import {
 	ensureCampaignAccess,
 	getCampaignRole,
 	getUserAuth,
+	requireParam,
 } from "@/lib/route-utils";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 import { HistoricalContextService } from "@/services/rag/historical-context-service";
@@ -76,7 +77,8 @@ function normalizePayload(
 export async function handleCreateWorldStateChangelog(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -103,7 +105,8 @@ export async function handleCreateWorldStateChangelog(c: ContextWithAuth) {
 export async function handleListWorldStateChangelog(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -135,7 +138,8 @@ export async function handleListWorldStateChangelog(c: ContextWithAuth) {
 export async function handleGetWorldStateOverlay(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -160,7 +164,8 @@ export async function handleGetWorldStateOverlay(c: ContextWithAuth) {
 export async function handleQueryHistoricalState(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -203,7 +208,8 @@ export async function handleQueryHistoricalState(c: ContextWithAuth) {
 export async function handleGetHistoricalOverlay(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);

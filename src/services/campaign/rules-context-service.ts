@@ -161,7 +161,7 @@ function normalizeRule(entity: Entity): CampaignRule | null {
 	const category = inferCategory(entity, metadata);
 	const name =
 		asText(entity.name) || asText(metadata.displayName) || `Rule ${entity.id}`;
-	const active = metadata.active === false ? false : true;
+	const active = metadata.active !== false;
 
 	return {
 		id: entity.id,

@@ -6,6 +6,7 @@ import {
 	ensureCampaignAccess,
 	getUserAuth,
 	requireCanSeeSpoilers,
+	requireParam,
 } from "@/lib/route-utils";
 
 type UpdatePlanningTaskBody = {
@@ -19,7 +20,8 @@ type UpdatePlanningTaskBody = {
 export async function handleGetPlanningTasks(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -57,7 +59,8 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
 export async function handleCreatePlanningTask(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -107,8 +110,10 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
 export async function handleUpdatePlanningTask(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const taskId = c.req.param("taskId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const taskId = requireParam(c, "taskId");
+		if (taskId instanceof Response) return taskId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -198,8 +203,10 @@ export async function handleUpdatePlanningTask(c: ContextWithAuth) {
 export async function handleDeletePlanningTask(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const taskId = c.req.param("taskId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const taskId = requireParam(c, "taskId");
+		if (taskId instanceof Response) return taskId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -236,7 +243,8 @@ export async function handleDeletePlanningTask(c: ContextWithAuth) {
 export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {

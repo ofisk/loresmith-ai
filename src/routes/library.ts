@@ -3,6 +3,7 @@
 
 import { type Context, Hono } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { requireParam } from "@/lib/route-utils";
 import { getLibraryService, LibraryRAGService } from "@/lib/service-factory";
 import { requireUserJwt } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
@@ -189,7 +190,8 @@ export const handleGetFileDetails = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
 	try {
-		const fileId = c.req.param("fileId");
+		const fileId = requireParam(c, "fileId");
+		if (fileId instanceof Response) return fileId;
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
 
@@ -214,7 +216,8 @@ export const handleUpdateFile = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
 	try {
-		const fileId = c.req.param("fileId");
+		const fileId = requireParam(c, "fileId");
+		if (fileId instanceof Response) return fileId;
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
 		const updates = await c.req.json();
@@ -244,7 +247,8 @@ export const handleDeleteFile = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
 	try {
-		const fileId = c.req.param("fileId");
+		const fileId = requireParam(c, "fileId");
+		if (fileId instanceof Response) return fileId;
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
 
@@ -286,7 +290,8 @@ export const handleGetFileDownload = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
 	try {
-		const fileId = c.req.param("fileId");
+		const fileId = requireParam(c, "fileId");
+		if (fileId instanceof Response) return fileId;
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
 
@@ -313,7 +318,8 @@ export const handleRegenerateFileMetadata = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
 	try {
-		const fileId = c.req.param("fileId");
+		const fileId = requireParam(c, "fileId");
+		if (fileId instanceof Response) return fileId;
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
 
