@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ResourceSidePanel } from "@/components/resource-side-panel/ResourceSidePanel";
-import type { Campaign } from "@/types/campaign";
+import { makeCampaign } from "../factories";
 
 // Mock the hooks and services
 vi.mock("@/hooks/useCampaignManagement", () => ({
@@ -35,15 +35,12 @@ describe("ResourceSidePanel", () => {
 	const mockOnAddResource = vi.fn();
 	const mockSetShowUserMenu = vi.fn();
 
-	const mockCampaigns: Campaign[] = [
-		{
+	const mockCampaigns = [
+		makeCampaign({
 			campaignId: "camp-1",
 			name: "Test Campaign",
 			description: "A test campaign",
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-			resources: [],
-		},
+		}),
 	];
 
 	beforeEach(() => {

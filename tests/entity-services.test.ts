@@ -4,6 +4,7 @@ import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import type { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
+import { makeEntity } from "./factories";
 
 // Mock LLM provider factory
 vi.mock("@/services/llm/llm-provider-factory", () => ({
@@ -116,16 +117,15 @@ describe("EntityExtractionService", () => {
 
 describe("EntityDeduplicationService", () => {
 	it("identifies high-confidence duplicates and queues medium-confidence entries", async () => {
-		const mockEntity = (id: string): Entity => ({
-			id,
-			campaignId: "campaign-123",
-			entityType: "npcs",
-			name: `Entity ${id}`,
-			content: { id },
-			metadata: {},
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		});
+		const mockEntity = (id: string): Entity =>
+			makeEntity({
+				id,
+				campaignId: "campaign-123",
+				entityType: "npcs",
+				name: `Entity ${id}`,
+				content: { id },
+				metadata: {},
+			});
 
 		const entityDAO = {
 			getEntityById: vi

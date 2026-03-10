@@ -3,7 +3,8 @@ import { AssessmentDAO } from "../../src/dao/assessment-dao";
 import type { Env } from "../../src/middleware/auth";
 import { AssessmentService } from "../../src/services/core/assessment-service";
 import type { ActivityType } from "../../src/types/assessment";
-import type { Campaign, CampaignResource } from "../../src/types/campaign";
+import type { CampaignResource } from "../../src/types/campaign";
+import { makeCampaign, makeCampaignResource } from "../factories";
 
 // Mock the AssessmentDAO
 vi.mock("../../src/dao/assessment-dao");
@@ -126,14 +127,11 @@ describe("AssessmentService", () => {
 	});
 
 	describe("getCampaignReadiness", () => {
-		const mockCampaign: Campaign = {
+		const mockCampaign = makeCampaign({
 			campaignId: "test-campaign",
 			name: "Test Campaign",
 			description: "A test campaign",
-			resources: [],
-			createdAt: "2024-01-01T00:00:00Z",
-			updatedAt: "2024-01-01T00:00:00Z",
-		};
+		});
 
 		it("should return Taking Root state for new campaign", async () => {
 			const campaignId = "test-campaign";
@@ -169,19 +167,14 @@ describe("AssessmentService", () => {
 		it("should return Legendary state for developing campaign", async () => {
 			const campaignId = "test-campaign";
 			const mockResources: CampaignResource[] = [
-				{
-					type: "file",
+				makeCampaignResource({
 					id: "1",
 					name: "Resource 1",
 					campaign_id: campaignId,
 					file_key: "key1",
 					file_name: "file1.pdf",
 					description: "Test",
-					tags: "",
-					status: "active",
-					created_at: "2024-01-01T00:00:00Z",
-					updated_at: "2024-01-01T00:00:00Z",
-				},
+				}),
 			];
 
 			mockDAO.getCampaignContext.mockResolvedValue([
@@ -208,21 +201,18 @@ describe("AssessmentService", () => {
 
 		it("should return Legendary state for well-developed campaign", async () => {
 			const campaignId = "test-campaign";
-			const mockResources: CampaignResource[] = Array(10)
-				.fill(null)
-				.map((_, i) => ({
-					type: "file" as const,
-					id: `${i}`,
-					name: `Resource ${i}`,
-					campaign_id: campaignId,
-					file_key: `key${i}`,
-					file_name: `file${i}.pdf`,
-					description: "Test",
-					tags: "",
-					status: "active" as const,
-					created_at: "2024-01-01T00:00:00Z",
-					updated_at: "2024-01-01T00:00:00Z",
-				}));
+			const mockResources: CampaignResource[] = Array.from(
+				{ length: 10 },
+				(_, i) =>
+					makeCampaignResource({
+						id: `${i}`,
+						name: `Resource ${i}`,
+						campaign_id: campaignId,
+						file_key: `key${i}`,
+						file_name: `file${i}.pdf`,
+						description: "Test",
+					})
+			);
 
 			mockDAO.getCampaignContext.mockResolvedValue(
 				Array(5)
@@ -368,14 +358,11 @@ describe("AssessmentService", () => {
 	describe("campaign state boundaries", () => {
 		it("should correctly map all campaign state boundaries", async () => {
 			const campaignId = "test-campaign";
-			const mockCampaign: Campaign = {
+			const mockCampaign = makeCampaign({
 				campaignId,
 				name: "Test Campaign",
 				description: "A test campaign",
-				resources: [],
-				createdAt: "2024-01-01T00:00:00Z",
-				updatedAt: "2024-01-01T00:00:00Z",
-			};
+			});
 
 			// Test Taking Root (30) - empty campaign gets 10+10+10=30
 			mockDAO.getCampaignContext.mockResolvedValue([]);
@@ -388,21 +375,18 @@ describe("AssessmentService", () => {
 			expect(result.campaignState).toBe("Taking Root"); // Score 30 = Taking Root
 
 			// Test Legendary (90) - 1-2 items in each category gives 30+30+30=90
-			const someResources: CampaignResource[] = Array(2)
-				.fill(null)
-				.map((_, i) => ({
-					type: "file" as const,
-					id: `${i}`,
-					name: `Resource ${i}`,
-					campaign_id: campaignId,
-					file_key: `key${i}`,
-					file_name: `file${i}.pdf`,
-					description: "Test",
-					tags: "",
-					status: "active" as const,
-					created_at: "2024-01-01T00:00:00Z",
-					updated_at: "2024-01-01T00:00:00Z",
-				}));
+			const someResources: CampaignResource[] = Array.from(
+				{ length: 2 },
+				(_, i) =>
+					makeCampaignResource({
+						id: `${i}`,
+						name: `Resource ${i}`,
+						campaign_id: campaignId,
+						file_key: `key${i}`,
+						file_name: `file${i}.pdf`,
+						description: "Test",
+					})
+			);
 
 			mockDAO.getCampaignContext.mockResolvedValue([
 				{ id: "1", title: "Context 1", content: "Test" },

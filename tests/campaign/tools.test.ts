@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMockCampaign, createMockResource } from "./testUtils";
+import { makeCampaign, makeCampaignResource } from "../factories";
 
 // Mock the tools module
 vi.mock("../../src/tools", () => ({
@@ -168,7 +168,7 @@ describe("Campaign Tools", () => {
 					success: true,
 					message: "Successfully created campaign",
 					data: {
-						campaign: createMockCampaign({ name: "Test Campaign" }),
+						campaign: makeCampaign({ name: "Test Campaign" }),
 					},
 				},
 			});
@@ -187,8 +187,8 @@ describe("Campaign Tools", () => {
 			const mockListResources = (executions as any).listCampaignResources;
 
 			const mockResources = [
-				createMockResource({ id: "pdf-1", name: "Document.pdf" }),
-				createMockResource({
+				makeCampaignResource({ id: "pdf-1", name: "Document.pdf" }),
+				makeCampaignResource({
 					id: "char-1",
 					name: "Character Sheet",
 					type: "character",
@@ -220,7 +220,7 @@ describe("Campaign Tools", () => {
 			const { executions } = await import("../../src/tools");
 			const mockAddResource = (executions as any).addResourceToCampaign;
 
-			const newResource = createMockResource({
+			const newResource = makeCampaignResource({
 				id: "new-resource",
 				name: "New Resource",
 				type: "pdf",
@@ -257,10 +257,12 @@ describe("Campaign Tools", () => {
 			const { executions } = await import("../../src/tools");
 			const mockShowDetails = (executions as any).showCampaignDetails;
 
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "test-campaign",
 				name: "Test Campaign",
-				resources: [createMockResource({ id: "pdf-1", name: "Document.pdf" })],
+				resources: [
+					makeCampaignResource({ id: "pdf-1", name: "Document.pdf" }),
+				],
 			});
 
 			mockShowDetails.mockResolvedValueOnce({
@@ -306,7 +308,7 @@ describe("Campaign Tools", () => {
 		});
 
 		it("should validate campaign data structure", () => {
-			const mockCampaign = createMockCampaign({
+			const mockCampaign = makeCampaign({
 				campaignId: "test-id",
 				name: "Test Campaign",
 				resources: [],
@@ -321,7 +323,7 @@ describe("Campaign Tools", () => {
 		});
 
 		it("should validate resource data structure", () => {
-			const mockResource = createMockResource({
+			const mockResource = makeCampaignResource({
 				id: "test-resource",
 				name: "Test Resource",
 				type: "pdf",
