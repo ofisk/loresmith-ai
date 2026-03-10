@@ -262,15 +262,6 @@ npm run start          # Terminal 2
 - **Workers section**: https://dash.cloudflare.com → Workers & Pages
 - **Local development**: http://localhost:5173 (frontend), http://localhost:8787 (backend)
 
-## Dependency notes
-
-The following packages were removed as unused (March 2025, [issue #497](https://github.com/ofisk/loresmith-ai/issues/497)):
-
-- **express**, **multer**, **@types/express**, **@types/multer**: Node.js server frameworks incompatible with Cloudflare Workers. This project uses **Hono** for routing and handles multipart uploads directly via R2 bindings.
-- **@aws-sdk/client-s3**, **aws4fetch**: S3 SDK and AWS request signing. This project uses Cloudflare **R2 bindings** (`c.env.R2`) directly; scripts use the Cloudflare REST API or AWS CLI, not npm SDKs.
-
-Do not re-add these packages; they are not compatible with or needed for the Workers runtime.
-
 ## Support
 
 If you encounter issues:
