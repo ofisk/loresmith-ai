@@ -6,6 +6,7 @@ import {
 	ensureCampaignAccess,
 	getUserAuth,
 	requireCanSeeSpoilers,
+	requireParam,
 } from "@/lib/route-utils";
 import type {
 	CreateSessionDigestTemplateInput,
@@ -18,7 +19,8 @@ import { validateSessionDigestData } from "@/types/session-digest";
 export async function handleCreateSessionDigestTemplate(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -73,8 +75,10 @@ export async function handleCreateSessionDigestTemplate(c: ContextWithAuth) {
 export async function handleGetSessionDigestTemplate(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const templateId = c.req.param("templateId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const templateId = requireParam(c, "templateId");
+		if (templateId instanceof Response) return templateId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -111,7 +115,8 @@ export async function handleGetSessionDigestTemplate(c: ContextWithAuth) {
 export async function handleGetSessionDigestTemplates(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -139,8 +144,10 @@ export async function handleGetSessionDigestTemplates(c: ContextWithAuth) {
 export async function handleUpdateSessionDigestTemplate(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const templateId = c.req.param("templateId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const templateId = requireParam(c, "templateId");
+		if (templateId instanceof Response) return templateId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -214,8 +221,10 @@ export async function handleUpdateSessionDigestTemplate(c: ContextWithAuth) {
 export async function handleDeleteSessionDigestTemplate(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const templateId = c.req.param("templateId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const templateId = requireParam(c, "templateId");
+		if (templateId instanceof Response) return templateId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {

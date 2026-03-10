@@ -62,7 +62,7 @@ export function useRetryLimitStatus(fileKeys: string[] | null): {
 		return () => {
 			cancelled = true;
 		};
-	}, [fileKeys?.join(",") ?? ""]);
+	}, [fileKeys]);
 
 	return { status, loading };
 }

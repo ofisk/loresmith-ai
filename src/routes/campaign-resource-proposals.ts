@@ -21,6 +21,7 @@ import {
 	getUserAuth,
 	requireCampaignRole,
 	requireCanApproveShards,
+	requireParam,
 } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
@@ -35,7 +36,8 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 export async function handleCreateResourceProposal(c: ContextWithAuth) {
 	try {
 		const userAuth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const body = (await c.req.json()) as {
 			fileKey: string;
 			fileName: string;
@@ -163,7 +165,8 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 /** GET /campaigns/:campaignId/resource-proposals - list pending proposals (editor_gm, owner) */
 export async function handleListResourceProposals(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		await requireCanApproveShards(c, campaignId);
 
 		const daoFactory = getDAOFactory(c.env);
@@ -204,8 +207,10 @@ export async function handleListResourceProposals(c: ContextWithAuth) {
 export async function handleApproveResourceProposal(c: ContextWithAuth) {
 	try {
 		const userAuth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const id = c.req.param("id");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const id = requireParam(c, "id");
+		if (id instanceof Response) return id;
 
 		await requireCanApproveShards(c, campaignId);
 
@@ -343,8 +348,10 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 /** GET /campaigns/:campaignId/resource-proposals/:id/download - download the file for GM review (editor_gm, owner) */
 export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 	try {
-		const campaignId = c.req.param("campaignId");
-		const id = c.req.param("id");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const id = requireParam(c, "id");
+		if (id instanceof Response) return id;
 
 		await requireCanApproveShards(c, campaignId);
 
@@ -430,8 +437,10 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 export async function handleRejectResourceProposal(c: ContextWithAuth) {
 	try {
 		const userAuth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const id = c.req.param("id");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const id = requireParam(c, "id");
+		if (id instanceof Response) return id;
 
 		await requireCanApproveShards(c, campaignId);
 

@@ -6,6 +6,7 @@ import { buildLibraryFileKey, getUniqueDisplayName } from "@/lib/file-utils";
 import { logger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
 import { notifyFileUploadFailed } from "@/lib/notifications";
+import { requireParam } from "@/lib/route-utils";
 import { getLibraryService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 import { cleanupStuckProcessingFiles } from "@/queue-consumer";
@@ -41,14 +42,12 @@ interface UploadSessionData {
  */
 export async function handleUploadStatus(c: ContextWithAuth) {
 	try {
-		const tenant = c.req.param("tenant");
-		const filename = c.req.param("filename");
+		const tenant = requireParam(c, "tenant");
+		if (tenant instanceof Response) return tenant;
+		const filename = requireParam(c, "filename");
+		if (filename instanceof Response) return filename;
 		const userAuth = (c as any).userAuth as AuthPayload;
 		log.debug("Checking upload status", { userAuth: userAuth?.username });
-
-		if (!tenant || !filename) {
-			return c.json({ error: "tenant and filename are required" }, 400);
-		}
 
 		// Check if R2 is available by trying to list objects
 		try {
@@ -58,7 +57,7 @@ export async function handleUploadStatus(c: ContextWithAuth) {
 			return c.json({ error: "Storage not available" }, 503);
 		}
 
-		const key = await buildLibraryFileKey(tenant || "", filename || "");
+		const key = await buildLibraryFileKey(tenant, filename);
 		const object = await c.env.R2.head(key);
 		const exists = object
 			? {
@@ -92,13 +91,11 @@ export async function handleUploadStatus(c: ContextWithAuth) {
  */
 export async function handleDirectUpload(c: ContextWithAuth) {
 	try {
-		const tenant = c.req.param("tenant");
-		const filename = c.req.param("filename");
+		const tenant = requireParam(c, "tenant");
+		if (tenant instanceof Response) return tenant;
+		const filename = requireParam(c, "filename");
+		if (filename instanceof Response) return filename;
 		const userAuth = (c as any).userAuth as AuthPayload;
-
-		if (!tenant || !filename) {
-			return c.json({ error: "tenant and filename are required" }, 400);
-		}
 
 		// Validate tenant matches authenticated user
 		if (tenant !== userAuth?.username) {
@@ -254,22 +251,21 @@ export async function handleGetFiles(c: ContextWithAuth) {
 export async function handleUpdateFileMetadata(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth as AuthPayload;
-		// Use wildcard param to get file key with slashes
-		let fileKey = c.req.param("fileKey") || "";
+		let fileKey = requireParam(c, "fileKey");
+		if (fileKey instanceof Response) return fileKey;
 
+		const rawFileKey = fileKey;
 		// Decode the file key if it was URL-encoded
-		if (fileKey) {
-			try {
-				fileKey = decodeURIComponent(fileKey);
-			} catch {
-				// If decoding fails, use as-is
-			}
+		try {
+			fileKey = decodeURIComponent(fileKey);
+		} catch {
+			// If decoding fails, use as-is
 		}
 
 		log.info("[handleUpdateFileMetadata] Request received", {
 			fileKey,
 			username: userAuth?.username,
-			rawFileKey: c.req.param("fileKey"),
+			rawFileKey,
 			path: c.req.path,
 		});
 
@@ -297,11 +293,6 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
 			tagsType: typeof tags,
 			tagsIsArray: Array.isArray(tags),
 		});
-
-		if (!fileKey) {
-			log.error("[handleUpdateFileMetadata] File key is missing");
-			return c.json({ error: "File key is required" }, 400);
-		}
 
 		if (!userAuth || !userAuth.username) {
 			log.error("[handleUpdateFileMetadata] User authentication missing");
@@ -429,11 +420,8 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
 export async function handleGetFileStatus(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth as AuthPayload;
-		const fileKey = c.req.param("fileKey");
-
-		if (!fileKey) {
-			return c.json({ error: "File key is required" }, 400);
-		}
+		const fileKey = requireParam(c, "fileKey");
+		if (fileKey instanceof Response) return fileKey;
 
 		if (!userAuth || !userAuth.username) {
 			return c.json({ error: "User authentication required" }, 401);
@@ -610,11 +598,14 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
  */
 export async function handleUploadPart(c: ContextWithAuth) {
 	try {
-		const sessionId = c.req.param("sessionId");
-		const partNumber = parseInt(c.req.param("partNumber"), 10);
+		const sessionId = requireParam(c, "sessionId");
+		if (sessionId instanceof Response) return sessionId;
+		const partNumberStr = requireParam(c, "partNumber");
+		if (partNumberStr instanceof Response) return partNumberStr;
+		const partNumber = parseInt(partNumberStr, 10);
 		const userAuth = (c as any).userAuth as AuthPayload;
 
-		if (!sessionId || !partNumber || partNumber < 1) {
+		if (!partNumber || partNumber < 1) {
 			return c.json(
 				{ error: "Valid sessionId and partNumber are required" },
 				400
@@ -691,12 +682,9 @@ export async function handleUploadPart(c: ContextWithAuth) {
  */
 export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 	try {
-		const sessionId = c.req.param("sessionId");
+		const sessionId = requireParam(c, "sessionId");
+		if (sessionId instanceof Response) return sessionId;
 		const userAuth = (c as any).userAuth as AuthPayload;
-
-		if (!sessionId) {
-			return c.json({ error: "sessionId is required" }, 400);
-		}
 
 		if (!userAuth?.username) {
 			return c.json({ error: "User authentication required" }, 401);
@@ -826,12 +814,9 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
  */
 export async function handleGetUploadProgress(c: ContextWithAuth) {
 	try {
-		const sessionId = c.req.param("sessionId");
+		const sessionId = requireParam(c, "sessionId");
+		if (sessionId instanceof Response) return sessionId;
 		const userAuth = (c as any).userAuth as AuthPayload;
-
-		if (!sessionId) {
-			return c.json({ error: "sessionId is required" }, 400);
-		}
 
 		if (!userAuth?.username) {
 			return c.json({ error: "User authentication required" }, 401);
@@ -888,12 +873,9 @@ export async function handleGetUploadProgress(c: ContextWithAuth) {
  */
 export async function handleAbortLargeUpload(c: ContextWithAuth) {
 	try {
-		const sessionId = c.req.param("sessionId");
+		const sessionId = requireParam(c, "sessionId");
+		if (sessionId instanceof Response) return sessionId;
 		const userAuth = (c as any).userAuth as AuthPayload;
-
-		if (!sessionId) {
-			return c.json({ error: "sessionId is required" }, 400);
-		}
 
 		if (!userAuth?.username) {
 			return c.json({ error: "User authentication required" }, 401);

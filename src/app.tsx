@@ -792,6 +792,7 @@ export default function Chat() {
 		fetchChatHistoryPage,
 	]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset scroll flag when switching conversations
 	useEffect(() => {
 		hasAutoScrolledInitialHistoryRef.current = false;
 	}, [conversationId]);
@@ -816,7 +817,7 @@ export default function Chat() {
 			clearTimeout(t1);
 			clearTimeout(t2);
 		};
-	}, [chatHistoryLoaded, agentMessages.length, chatContainerId]);
+	}, [chatHistoryLoaded, chatContainerId]);
 
 	useEffect(() => {
 		if (!chatHistoryLoaded || !hasMoreHistory) return;

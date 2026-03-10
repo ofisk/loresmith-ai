@@ -9,7 +9,7 @@ import {
 	type ToolExecuteOptions,
 } from "../utils";
 
-export async function withRulesContext<T>(
+export async function withRulesContext<_T>(
 	options: ToolExecuteOptions | undefined,
 	campaignId: string,
 	toolCallId: string,

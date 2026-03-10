@@ -12,6 +12,7 @@ import {
 	notifyIndexingFailed,
 	notifyIndexingStarted,
 } from "@/lib/notifications";
+import { requireParam } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { completeProgress } from "@/services/core/progress-service";
@@ -457,7 +458,8 @@ export async function handleGetFilesForRag(c: ContextWithAuth) {
 export async function handleGetFileChunksForRag(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const fileKey = c.req.param("fileKey");
+		const fileKey = requireParam(c, "fileKey");
+		if (fileKey instanceof Response) return fileKey;
 
 		const fileDAO = getDAOFactory(c.env).fileDAO;
 		const chunks = await fileDAO.getFileChunksForRag(
@@ -579,17 +581,13 @@ export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
 export const handleDeleteFileForRag = async (c: any) => {
 	try {
 		const userAuth = (c as any).userAuth;
-		const fileKey = c.req.param("fileKey");
+		const fileKey = requireParam(c, "fileKey");
+		if (fileKey instanceof Response) return fileKey;
 		console.log("[handleDeleteFileForRag] Starting deletion process");
 		console.log("[handleDeleteFileForRag] Received fileKey:", fileKey);
 		console.log("[handleDeleteFileForRag] User:", userAuth.username);
 		console.log("[handleDeleteFileForRag] Request URL:", c.req.url);
 		console.log("[handleDeleteFileForRag] Request path:", c.req.path);
-
-		if (!fileKey) {
-			console.error("[handleDeleteFileForRag] No fileKey provided");
-			return c.json({ error: "No file key provided" }, 400);
-		}
 
 		// Initialize DAO
 		const fileDAO = new FileDAO(c.env.DB);

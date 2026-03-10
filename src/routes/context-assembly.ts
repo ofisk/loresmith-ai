@@ -5,6 +5,7 @@ import {
 	getContextAssemblyService,
 	getUserAuth,
 	requireCanSeeSpoilers,
+	requireParam,
 } from "@/lib/route-utils";
 import type { ContextAssemblyOptions } from "@/types/context-assembly";
 
@@ -12,7 +13,8 @@ export async function handleAssembleContext(c: ContextWithAuth) {
 	try {
 		console.log("[ContextAssembly] Assemble context endpoint called");
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		console.log(
 			`[ContextAssembly] Assembling context for campaign: ${campaignId}`
 		);

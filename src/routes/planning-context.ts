@@ -6,6 +6,7 @@ import {
 	getPlanningContextService,
 	getUserAuth,
 	requireCanSeeSpoilers,
+	requireParam,
 } from "@/lib/route-utils";
 import type { PlanningContextSearchOptions } from "@/services/rag/planning-context-service";
 
@@ -13,7 +14,8 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
 	try {
 		console.log("[PlanningContext] Search endpoint called");
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		console.log(`[PlanningContext] Searching campaign: ${campaignId}`);
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
@@ -79,7 +81,8 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
 export async function handleGetRecentPlanningContext(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);

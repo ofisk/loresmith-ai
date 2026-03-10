@@ -35,6 +35,7 @@ import {
 	requireCampaignOwner,
 	requireCanEdit,
 	requireCanSeeSpoilers,
+	requireParam,
 } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
@@ -161,7 +162,8 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 export async function handleGetCampaign(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const campaignDAO = getDAOFactory(c.env).campaignDAO;
 		const campaign = await campaignDAO.getCampaignByIdWithMapping(
@@ -184,7 +186,8 @@ export async function handleGetCampaign(c: ContextWithAuth) {
 export async function handleGetChecklistStatus(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const daoFactory = getDAOFactory(c.env);
 		const campaign = await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -221,7 +224,8 @@ export async function handleGetChecklistStatus(c: ContextWithAuth) {
 export async function handleGetCampaignResources(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		if (!userAuth?.username) {
 			return c.json({ error: "Authentication required" }, 401);
@@ -249,7 +253,8 @@ export async function handleGetCampaignResources(c: ContextWithAuth) {
 export async function handleUpdateCampaign(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const body = (await c.req.json()) as {
 			name?: string;
 			description?: string;
@@ -405,7 +410,8 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 export async function handleDeleteCampaign(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
 		console.log("[Server] User auth from middleware:", userAuth);
@@ -481,7 +487,8 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
 export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const { type, id, name } = await c.req.json();
 
 		console.log(
@@ -767,8 +774,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
-		const resourceId = c.req.param("resourceId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const resourceId = requireParam(c, "resourceId");
+		if (resourceId instanceof Response) return resourceId;
 
 		console.log(
 			`[Server] POST /campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction - starting request`
@@ -956,8 +965,10 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
-		const resourceId = c.req.param("resourceId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const resourceId = requireParam(c, "resourceId");
+		if (resourceId instanceof Response) return resourceId;
 
 		console.log(
 			`[Server] DELETE /campaigns/${campaignId}/resource/${resourceId} - starting request`
@@ -1014,8 +1025,10 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth;
-		const campaignId = c.req.param("campaignId");
-		const resourceId = c.req.param("resourceId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const resourceId = requireParam(c, "resourceId");
+		if (resourceId instanceof Response) return resourceId;
 
 		if (!userAuth) {
 			return c.json({ error: "Authentication required" }, 401);

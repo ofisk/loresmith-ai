@@ -8,6 +8,7 @@ import {
 	getPlanningContextService,
 	getUserAuth,
 	requireCanEdit,
+	requireParam,
 } from "@/lib/route-utils";
 import { DigestReviewService } from "@/services/session-digest/digest-review-service";
 import type {
@@ -42,7 +43,8 @@ function sanitizeDigestForPlayer(
 export async function handleCreateSessionDigest(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
 			return c.json({ error: "Campaign not found" }, 404);
@@ -117,8 +119,10 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
 export async function handleGetSessionDigest(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const digestId = c.req.param("digestId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const digestId = requireParam(c, "digestId");
+		if (digestId instanceof Response) return digestId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -165,7 +169,8 @@ export async function handleGetSessionDigest(c: ContextWithAuth) {
 export async function handleGetSessionDigests(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -206,8 +211,10 @@ export async function handleGetSessionDigests(c: ContextWithAuth) {
 export async function handleUpdateSessionDigest(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const digestId = c.req.param("digestId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const digestId = requireParam(c, "digestId");
+		if (digestId instanceof Response) return digestId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -280,8 +287,10 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
 export async function handleDeleteSessionDigest(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const digestId = c.req.param("digestId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const digestId = requireParam(c, "digestId");
+		if (digestId instanceof Response) return digestId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -326,8 +335,10 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
 export async function handleSubmitDigestForReview(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const digestId = c.req.param("digestId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const digestId = requireParam(c, "digestId");
+		if (digestId instanceof Response) return digestId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -373,8 +384,10 @@ export async function handleSubmitDigestForReview(c: ContextWithAuth) {
 export async function handleApproveDigest(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const digestId = c.req.param("digestId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const digestId = requireParam(c, "digestId");
+		if (digestId instanceof Response) return digestId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
@@ -424,8 +437,10 @@ export async function handleApproveDigest(c: ContextWithAuth) {
 export async function handleRejectDigest(c: ContextWithAuth) {
 	try {
 		const auth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
-		const digestId = c.req.param("digestId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const digestId = requireParam(c, "digestId");
+		if (digestId instanceof Response) return digestId;
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {

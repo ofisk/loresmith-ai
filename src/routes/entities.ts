@@ -11,6 +11,7 @@ import {
 	type ContextWithAuth,
 	ensureCampaignAccess,
 	getUserAuth,
+	requireParam,
 } from "@/lib/route-utils";
 import {
 	chunkTextByCharacterCount,
@@ -94,7 +95,8 @@ async function withCampaignContext(
 ): Promise<Response> {
 	try {
 		const userAuth = getUserAuth(c);
-		const campaignId = c.req.param("campaignId");
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
 
 		const hasAccess = await ensureCampaignAccess(
 			c,
@@ -157,7 +159,8 @@ export async function handleGetEntity(c: ContextWithAuth) {
 		c,
 		"Failed to get entity",
 		async ({ c: ctx, campaignId, entityDAO }) => {
-			const entityId = ctx.req.param("entityId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
 				return ctx.json({ error: "Entity not found" }, 404);
@@ -178,7 +181,8 @@ export async function handleUpdateEntityImportance(c: ContextWithAuth) {
 		c,
 		"Failed to update entity importance",
 		async ({ c: ctx, campaignId, entityDAO }) => {
-			const entityId = ctx.req.param("entityId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
 				return ctx.json({ error: "Entity not found" }, 404);
@@ -233,7 +237,8 @@ export async function handleGetEntityImportance(c: ContextWithAuth) {
 		c,
 		"Failed to get entity importance",
 		async ({ c: ctx, campaignId, entityDAO }) => {
-			const entityId = ctx.req.param("entityId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
 				return ctx.json({ error: "Entity not found" }, 404);
@@ -283,7 +288,8 @@ export async function handleGetEntityRelationships(c: ContextWithAuth) {
 		c,
 		"Failed to get relationships",
 		async ({ c: ctx, campaignId, entityDAO, getServices }) => {
-			const entityId = ctx.req.param("entityId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
 				return ctx.json({ error: "Entity not found" }, 404);
@@ -320,7 +326,8 @@ export async function handleGetEntityNeighbors(c: ContextWithAuth) {
 		c,
 		"Failed to get neighbors",
 		async ({ c: ctx, campaignId, entityDAO, getServices }) => {
-			const entityId = ctx.req.param("entityId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
 				return ctx.json({ error: "Entity not found" }, 404);
@@ -381,7 +388,8 @@ export async function handleCreateEntityRelationship(c: ContextWithAuth) {
 		c,
 		"Failed to create relationship",
 		async ({ c: ctx, campaignId, entityDAO, getServices }) => {
-			const entityId = ctx.req.param("entityId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
 				return ctx.json({ error: "Entity not found" }, 404);
@@ -431,8 +439,10 @@ export async function handleDeleteEntityRelationship(c: ContextWithAuth) {
 		c,
 		"Failed to delete relationship",
 		async ({ c: ctx, campaignId, entityDAO, getServices }) => {
-			const entityId = ctx.req.param("entityId");
-			const relationshipId = ctx.req.param("relationshipId");
+			const entityId = requireParam(ctx, "entityId");
+			if (entityId instanceof Response) return entityId;
+			const relationshipId = requireParam(ctx, "relationshipId");
+			if (relationshipId instanceof Response) return relationshipId;
 
 			const entity = await entityDAO.getEntityById(entityId);
 			if (!entity || entity.campaignId !== campaignId) {
@@ -570,7 +580,8 @@ export async function handleResolveDeduplicationEntry(c: ContextWithAuth) {
 		c,
 		"Failed to resolve deduplication entry",
 		async ({ c: ctx, campaignId, entityDAO, getServices }) => {
-			const entryId = ctx.req.param("entryId");
+			const entryId = requireParam(ctx, "entryId");
+			if (entryId instanceof Response) return entryId;
 			const body = (await ctx.req.json()) as {
 				status: "merged" | "rejected" | "confirmed_unique";
 				userDecision?: string;
