@@ -1,5 +1,5 @@
 import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import libraryIcon from "@/assets/library.png";
 import { Card } from "@/components/card/Card";
 import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
@@ -11,6 +11,7 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
+import { buildStagingFileKey } from "@/lib/file-utils";
 import { AuthService, getStoredJwt } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 
@@ -122,6 +123,33 @@ export function LibrarySection({
 		};
 	}, [fetchResources]);
 
+	// Merge queued files from UploadQueueContext so all queued uploads appear in the list
+	const displayFiles = useMemo(() => {
+		const tenant = AuthService.getUsernameFromStoredJwt();
+		if (!tenant || !uploadQueue?.queue.length) return files;
+
+		const existingKeys = new Set(files.map((f) => f.file_key));
+		const queuedEntries: ResourceFileWithCampaigns[] = [];
+
+		for (const q of uploadQueue.queue) {
+			const fileKey = buildStagingFileKey(tenant, q.filename);
+			if (existingKeys.has(fileKey)) continue;
+			existingKeys.add(fileKey);
+			queuedEntries.push({
+				id: q.id,
+				file_key: fileKey,
+				file_name: q.filename,
+				file_size: q.file.size,
+				status: "queued_for_upload",
+				created_at: new Date().toISOString(),
+				updated_at: new Date().toISOString(),
+				campaigns: [],
+			});
+		}
+
+		return [...queuedEntries, ...files];
+	}, [files, uploadQueue?.queue]);
+
 	return (
 		<Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 overflow-hidden flex-1">
 			<button
@@ -159,7 +187,7 @@ export function LibrarySection({
 					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 flex-1 overflow-hidden">
 						<div className="min-h-0 flex-1 overflow-y-auto">
 							<ResourceList
-								files={files}
+								files={displayFiles}
 								setFiles={setFiles}
 								loading={loading}
 								error={error}

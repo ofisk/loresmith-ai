@@ -91,14 +91,14 @@ export function StorageTracker() {
 
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center p-4">
-				<Loader size={16} />
+			<div className="flex items-center justify-center py-1.5 px-2">
+				<Loader size={12} />
 			</div>
 		);
 	}
 
 	if (error) {
-		return <div className="text-red-500 text-sm p-2">Error: {error}</div>;
+		return <div className="text-red-500 text-xs px-2 py-1">Error: {error}</div>;
 	}
 
 	if (!storageUsage) {
@@ -106,23 +106,25 @@ export function StorageTracker() {
 	}
 
 	return (
-		<div className="p-4 border-t border-gray-200 dark:border-gray-700">
-			<div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-				Storage Usage
-			</div>
-			<div className="flex items-center justify-between text-sm">
-				<span>Used: {formatBytes(storageUsage.totalBytes || 0)}</span>
-				<span className="text-gray-500">
-					{(storageUsage.usagePercentage || 0).toFixed(1)}%
+		<div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-700">
+			<div className="flex items-center gap-2">
+				<span className="text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+					Storage
 				</span>
-			</div>
-			<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-				<div
-					className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-					style={{
-						width: `${Math.min(storageUsage.usagePercentage || 0, 100)}%`,
-					}}
-				/>
+				<div className="flex-1 min-w-0">
+					<div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
+						<div
+							className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+							style={{
+								width: `${Math.min(storageUsage.usagePercentage || 0, 100)}%`,
+							}}
+						/>
+					</div>
+				</div>
+				<span className="text-xs text-neutral-500 shrink-0">
+					{formatBytes(storageUsage.totalBytes || 0)} (
+					{(storageUsage.usagePercentage || 0).toFixed(0)}%)
+				</span>
 			</div>
 		</div>
 	);

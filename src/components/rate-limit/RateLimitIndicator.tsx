@@ -162,8 +162,8 @@ export function RateLimitIndicator({
 	if (loading || error || !usage) {
 		if (loading) {
 			return (
-				<div className="flex items-center justify-center p-4">
-					<Loader size={16} />
+				<div className="flex items-center justify-center py-1.5 px-2">
+					<Loader size={12} />
 				</div>
 			);
 		}
@@ -197,45 +197,37 @@ export function RateLimitIndicator({
 			? monthlyPct
 			: Math.max(shortWindowPct, dailyPct);
 	const nearLimit = pct >= NEAR_LIMIT_THRESHOLD;
-	const isMonthly = usage.monthlyLimit !== undefined;
 
 	return (
-		<div className="p-4 border-t border-gray-200 dark:border-gray-700">
-			<div className="flex items-center justify-between text-sm mb-2">
-				<span className="text-gray-600 dark:text-gray-400">AI usage</span>
+		<div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-700">
+			<div className="flex items-center gap-2">
+				<span className="text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+					AI
+				</span>
+				<div className="flex-1 min-w-0">
+					<div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
+						<div
+							className={`h-1.5 rounded-full transition-all duration-300 ${
+								usage.atLimit
+									? "bg-red-500"
+									: nearLimit
+										? "bg-amber-500"
+										: "bg-blue-600"
+							}`}
+							style={{ width: `${Math.min(pct * 100, 100)}%` }}
+						/>
+					</div>
+				</div>
+				<span className="text-xs text-neutral-500 shrink-0">
+					{(pct * 100).toFixed(0)}%
+				</span>
 				<button
 					type="button"
 					onClick={onShowUsageLimits}
-					className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+					className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
 				>
-					View limits
+					Limits
 				</button>
-			</div>
-			<div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-				<span>
-					{isMonthly &&
-					usage.monthlyUsage !== undefined &&
-					usage.monthlyLimit !== undefined
-						? `${usage.monthlyUsage.toLocaleString()} / ${usage.monthlyLimit.toLocaleString()} tokens this month`
-						: `${usage.tpd.toLocaleString()} / ${usage.tpdLimit.toLocaleString()} tokens today`}
-				</span>
-				{nearLimit && usage.nextResetAt && (
-					<span className="text-amber-600 dark:text-amber-400">
-						Resets {formatResetTime(usage.nextResetAt)}
-					</span>
-				)}
-			</div>
-			<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-				<div
-					className={`h-2 rounded-full transition-all duration-300 ${
-						usage.atLimit
-							? "bg-red-500"
-							: nearLimit
-								? "bg-amber-500"
-								: "bg-blue-600"
-					}`}
-					style={{ width: `${Math.min(pct * 100, 100)}%` }}
-				/>
 			</div>
 		</div>
 	);
