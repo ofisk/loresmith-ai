@@ -13,7 +13,7 @@ npm test tests/dao/
 npm test tests/lib/leiden-algorithm.test.ts
 
 # Run with coverage
-npm test -- --coverage
+npm run test:coverage
 ```
 
 ## Test data factories
@@ -143,7 +143,7 @@ npm test tests/campaign/
 npm test tests/campaign/api.test.ts
 
 # Run tests with coverage
-npm test tests/campaign/ --coverage
+npm run test:coverage -- tests/campaign/
 ```
 
 ## Test-Driven Development Approach
