@@ -53,14 +53,6 @@ export const MEMORY_LIMIT_COPY = {
 		`⚠️ Cannot retry "${fileName}": ${errorMessage}\n\n${_cannotProcessText}`,
 } as const;
 
-// Rate limit credit boost (free tier with one-off credits) - tenant fairness caps
-export const RATE_LIMIT_CREDIT_BOOST = {
-	/** Max extra tokens/day from credits - prevents one user blocking the queue */
-	DAILY_CAP: 100_000,
-	/** Max extra tokens/hour from credits */
-	HOURLY_CAP: 60_000,
-} as const;
-
 // File upload constants
 export const UPLOAD_CONFIG = {
 	/** 100MB max - buffer under PROCESSING_LIMITS.MEMORY_LIMIT_MB */

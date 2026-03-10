@@ -10,14 +10,9 @@ This document lists all limits, quotas, and constraints in LoreSmith AI. All val
 
 Files larger than this cannot be loaded in a single Worker invocation. Large files are processed in chunks.
 
-## Rate limit credit boost
+## One-off credits
 
-For free-tier users with one-off credits:
-
-| Limit | Value | Location | Description |
-|-------|-------|----------|-------------|
-| `DAILY_CAP` | 100,000 tokens | `RATE_LIMIT_CREDIT_BOOST` | Max extra tokens/day from credits (tenant fairness). |
-| `HOURLY_CAP` | 60,000 tokens | `RATE_LIMIT_CREDIT_BOOST` | Max extra tokens/hour from credits. |
+Purchased one-off credits add directly to your daily and hourly token limits. If you have 500k credits, your effective limits are base limits + 500k (until credits are depleted).
 
 ## Upload and file limits
 

@@ -1,4 +1,3 @@
-import { RATE_LIMIT_CREDIT_BOOST } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
@@ -95,16 +94,9 @@ export class LLMRateLimitService {
 			llmDao.getUsageInLast24Hours(username),
 		]);
 
-		// Relax daily/hourly rate when user has credits (let them consume one-offs)
-		// Cap boost for tenant fairness – prevents one user from blocking the queue
-		const tpdBoost =
-			creditsRemaining > 0
-				? Math.min(creditsRemaining, RATE_LIMIT_CREDIT_BOOST.DAILY_CAP)
-				: 0;
-		const tphBoost =
-			creditsRemaining > 0
-				? Math.min(creditsRemaining, RATE_LIMIT_CREDIT_BOOST.HOURLY_CAP)
-				: 0;
+		// Add purchased one-off credits directly to daily/hourly limits
+		const tpdBoost = creditsRemaining;
+		const tphBoost = creditsRemaining;
 		const tphLimit = limits.tph + tphBoost;
 		const qphLimit = limits.qph;
 		const tpdLimit = limits.tpd + tpdBoost;
@@ -320,12 +312,10 @@ export class LLMRateLimitService {
 		const tpd = (daily as { tpd?: number }).tpd ?? 0;
 		const qpd = (daily as { qpd?: number }).qpd ?? 0;
 
-		// Relax daily/hourly rate when user has credits (same as checkLimit)
+		// Add purchased one-off credits directly to daily/hourly limits
 		const cr = creditsRemaining ?? 0;
-		const tpdBoost =
-			cr > 0 ? Math.min(cr, RATE_LIMIT_CREDIT_BOOST.DAILY_CAP) : 0;
-		const tphBoost =
-			cr > 0 ? Math.min(cr, RATE_LIMIT_CREDIT_BOOST.HOURLY_CAP) : 0;
+		const tpdBoost = cr;
+		const tphBoost = cr;
 		const tphLimitEffective = limits.tph + tphBoost;
 		const tpdLimitEffective = limits.tpd + tpdBoost;
 
