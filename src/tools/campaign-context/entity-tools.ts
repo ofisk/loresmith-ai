@@ -2,8 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity-types";
-import { RELATIONSHIP_TYPES } from "@/lib/relationship-types";
+import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity/entity-types";
+import { RELATIONSHIP_TYPES } from "@/lib/entity/relationship-types";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import {
 	type CampaignRule,

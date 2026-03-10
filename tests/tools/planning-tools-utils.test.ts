@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENTITY_TYPE_PCS } from "@/lib/entity-type-constants";
+import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
 import {
 	analyzeGaps,
 	generateHooks,

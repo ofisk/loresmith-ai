@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import type { FileUploadEvent } from "@/lib/event-bus";
 import { EVENT_TYPES, useEvent } from "@/lib/event-bus";
-import { buildStagingFileKey } from "@/lib/file-utils";
+import { buildStagingFileKey } from "@/lib/file/file-utils";
 import {
 	shouldUseLargeFileUpload,
 	uploadLargeFile,
-} from "@/lib/large-file-upload-helper";
+} from "@/lib/file/large-file-upload-helper";
 import {
 	AuthService,
 	authenticatedFetchWithExpiration,

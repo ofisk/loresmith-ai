@@ -115,7 +115,7 @@ Main container component with:
 
 ### Structured Types (with dynamic UI)
 
-All types from `src/lib/entity-types.ts` are supported:
+All types from `src/lib/entity/entity-types.ts` are supported:
 
 - **monsters**: Creatures with CR, AC, HP, abilities, etc.
 - **npcs**: Non-statblock characters with roles, goals, relationships
@@ -143,7 +143,7 @@ The UI automatically adapts to whatever properties each shard has - no hardcodin
 1. **Update entity types**:
 
 ```typescript
-// In src/lib/entity-types.ts
+// In src/lib/entity/entity-types.ts
 export const STRUCTURED_ENTITY_TYPES = [
   // ... existing types
   "custom_type",
@@ -153,7 +153,7 @@ export const STRUCTURED_ENTITY_TYPES = [
 2. **Add display name**:
 
 ```typescript
-// In src/lib/entity-types.ts
+// In src/lib/entity/entity-types.ts
 export function getEntityTypeDisplayName(type: StructuredEntityType): string {
   const displayNames: Record<StructuredEntityType, string> = {
     // ... existing types
@@ -225,7 +225,7 @@ The system uses Tailwind CSS classes and follows a consistent design pattern:
 1. **LLM-Driven Display**: Display logic is determined by the LLM during extraction via `display_metadata`, not hardcoded
 2. **No Hardcoded Properties**: Components discover and adapt to whatever properties are present
 3. **No Required Fields**: Users can edit anything, system doesn't enforce structure
-4. **Single Source of Truth**: Uses existing STRUCTURED_ENTITY_TYPES from `src/lib/entity-types.ts`
+4. **Single Source of Truth**: Uses existing STRUCTURED_ENTITY_TYPES from `src/lib/entity/entity-types.ts`
 5. **Dynamic Rendering**: All cards use the same dynamic rendering logic
 6. **Graceful Degradation**: Unknown types get flexible display automatically
 
@@ -254,4 +254,4 @@ interface DisplayMetadata {
 ## Related Documentation
 
 - [Campaign Shard Flow](./CAMPAIGN_SHARD_FLOW.md) - Overview of the shard curation system
-- [Entity Types](../src/lib/entity-types.ts) - Defined structured entity types
+- [Entity Types](../src/lib/entity/entity-types.ts) - Defined structured entity types

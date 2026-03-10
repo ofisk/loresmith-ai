@@ -1,5 +1,5 @@
 import { getDAOFactory } from "@/dao/dao-factory";
-import { ENTITY_TYPE_PCS } from "@/lib/entity-type-constants";
+import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
 import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/middleware/auth";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";

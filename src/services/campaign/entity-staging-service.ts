@@ -4,18 +4,21 @@
 import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
-import { normalizeEntityType } from "@/lib/entity-types";
+import {
+	isStubContent,
+	mergeEntityContent,
+} from "@/lib/entity/entity-content-merge";
+import { normalizeEntityType } from "@/lib/entity/entity-types";
+import {
+	chunkTextByCharacterCount,
+	chunkTextByPages,
+} from "@/lib/file/text-chunking-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
 import {
 	normalizeResourceForShardGeneration,
 	validateShardGenerationOptions,
 } from "@/lib/shard-generation-utils";
-import {
-	chunkTextByCharacterCount,
-	chunkTextByPages,
-} from "@/lib/text-chunking-utils";
 import type { Env } from "@/middleware/auth";
 import { CharacterSheetDetectionService } from "@/services/character-sheet/character-sheet-detection-service";
 import { CharacterSheetParserService } from "@/services/character-sheet/character-sheet-parser-service";

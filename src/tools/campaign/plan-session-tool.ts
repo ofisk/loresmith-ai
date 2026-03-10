@@ -8,7 +8,7 @@ import {
 } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
-import { getFileTypeFromName } from "@/lib/file-utils";
+import { getFileTypeFromName } from "@/lib/file/file-utils";
 import { getEntitiesWithRelationships } from "@/lib/graph/entity-utils";
 import type { SessionScriptContext } from "@/lib/prompts/session-script-prompts";
 import { SESSION_SCRIPT_PROMPTS } from "@/lib/prompts/session-script-prompts";

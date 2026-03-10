@@ -3,7 +3,7 @@ import type { Community } from "@/dao/community-dao";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
-import { isEntityStub } from "@/lib/entity-content-merge";
+import { isEntityStub } from "@/lib/entity/entity-content-merge";
 import { getEnvVar } from "@/lib/env-utils";
 import {
 	getCommunityName,

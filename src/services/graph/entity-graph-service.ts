@@ -4,18 +4,18 @@ import type {
 	EntityNeighbor,
 	EntityRelationship,
 } from "@/dao/entity-dao";
-import {
-	EntityNotFoundError,
-	SelfReferentialRelationshipError,
-} from "@/lib/errors";
-import type { RelationshipType } from "@/lib/relationship-types";
+import type { RelationshipType } from "@/lib/entity/relationship-types";
 import {
 	getReciprocalRelationshipType,
 	isBidirectionalRelationship,
 	normalizeRelationshipStrength,
 	normalizeRelationshipType,
 	RELATIONSHIP_TYPES,
-} from "@/lib/relationship-types";
+} from "@/lib/entity/relationship-types";
+import {
+	EntityNotFoundError,
+	SelfReferentialRelationshipError,
+} from "@/lib/errors";
 import { ContextAssemblyService } from "@/services/context/context-assembly-service";
 
 interface UpsertGraphEdgeInput {

@@ -1,6 +1,6 @@
 import type { Entity, EntityDAO } from "@/dao/entity-dao";
-import { ENTITY_TYPE_PCS } from "@/lib/entity-type-constants";
-import type { StructuredEntityType } from "@/lib/entity-types";
+import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
+import type { StructuredEntityType } from "@/lib/entity/entity-types";
 import { HIGH_RANGE, MEDIUM_RANGE } from "@/lib/importance-config";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityImportanceService } from "@/services/graph/entity-importance-service";

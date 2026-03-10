@@ -6,7 +6,7 @@ import type {
 	ShardMetadata,
 	ShardSourceRef,
 } from "../types/shard";
-import { STRUCTURED_ENTITY_TYPES } from "./entity-types";
+import { STRUCTURED_ENTITY_TYPES } from "./entity/entity-types";
 
 /**
  * Unified Shard Factory

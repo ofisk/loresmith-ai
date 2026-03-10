@@ -2,7 +2,10 @@ import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import { UploadSessionActions } from "@/lib/durable-object-helpers";
-import { buildLibraryFileKey, getUniqueDisplayName } from "@/lib/file-utils";
+import {
+	buildLibraryFileKey,
+	getUniqueDisplayName,
+} from "@/lib/file/file-utils";
 import { logger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
 import { notifyFileUploadFailed } from "@/lib/notifications";

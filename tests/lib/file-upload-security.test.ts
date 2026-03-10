@@ -4,7 +4,7 @@ import {
 	getExtension,
 	isFileAllowedForProposal,
 	validateFileContent,
-} from "@/lib/file-upload-security";
+} from "@/lib/file/file-upload-security";
 
 describe("file-upload-security", () => {
 	describe("getExtension", () => {

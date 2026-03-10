@@ -1,7 +1,7 @@
 import { getDocument } from "pdfjs-serverless";
 import { PROCESSING_LIMITS } from "@/app-constants";
+import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
 import type { ExtractionResult } from "@/services/file/file-extraction-service";
-import { MemoryLimitError, PDFExtractionError } from "./errors";
 
 /**
  * PDF utility functions for chunking and page-level operations

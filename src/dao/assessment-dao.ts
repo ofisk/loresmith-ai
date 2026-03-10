@@ -6,7 +6,7 @@ import {
 	ENTITY_TYPE_LOCATIONS,
 	ENTITY_TYPE_NPCS,
 	ENTITY_TYPE_PLOT_LINES,
-} from "../lib/entity-type-constants";
+} from "@/lib/entity/entity-type-constants";
 
 export interface ActivityType {
 	type:

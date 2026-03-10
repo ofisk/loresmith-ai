@@ -4,6 +4,14 @@ import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
+import {
+	buildBulkDeletionResponse,
+	buildCampaignCreationResponse,
+	buildCampaignDeletionResponse,
+	buildCampaignUpdateResponse,
+	buildResourceAdditionResponse,
+	buildResourceRemovalResponse,
+} from "@/lib/api/response-builders";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import {
 	addResourceToCampaign,
@@ -16,19 +24,11 @@ import { CampaignAccessDeniedError } from "@/lib/errors";
 import {
 	getExtension,
 	validateR2ObjectAndGetStream,
-} from "@/lib/file-upload-security";
+} from "@/lib/file/file-upload-security";
 import {
 	getBlockedExtensionsDescription,
 	isFileAllowedForProposal,
 } from "@/lib/proposal-security";
-import {
-	buildBulkDeletionResponse,
-	buildCampaignCreationResponse,
-	buildCampaignDeletionResponse,
-	buildCampaignUpdateResponse,
-	buildResourceAdditionResponse,
-	buildResourceRemovalResponse,
-} from "@/lib/response-builders";
 import {
 	ensureCampaignAccess,
 	getCampaignRole,

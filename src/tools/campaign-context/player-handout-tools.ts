@@ -6,7 +6,7 @@ import {
 	type ToolResult,
 } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
+import { sanitizeEntityContentForPlayer } from "@/lib/entity/entity-content-sanitizer";
 import {
 	buildGenerateHandoutPrompt,
 	HANDOUT_FORMATS,

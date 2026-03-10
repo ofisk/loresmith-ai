@@ -1,4 +1,4 @@
-import type { StructuredEntityType } from "@/lib/entity-types";
+import type { StructuredEntityType } from "@/lib/entity/entity-types";
 
 /**
  * Unified shard types for the entire system

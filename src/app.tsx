@@ -215,6 +215,7 @@ export default function Chat() {
 		modalState.setGooglePendingToken,
 		modalState.setShowAuthModal,
 		modalState.setAuthVerifyError,
+		modalState.setAuthVerifySuccess,
 	]);
 
 	// Clear verify state when auth modal closes

@@ -1,7 +1,10 @@
 import { MODEL_CONFIG } from "@/app-constants";
 import type { Entity, EntityDAO, EntityRelationship } from "@/dao/entity-dao";
-import { isStubContent, mergeEntityContent } from "@/lib/entity-content-merge";
-import { normalizeEntityType } from "@/lib/entity-types";
+import {
+	isStubContent,
+	mergeEntityContent,
+} from "@/lib/entity/entity-content-merge";
+import { normalizeEntityType } from "@/lib/entity/entity-types";
 import { getEnvVar } from "@/lib/env-utils";
 import { EmbeddingGenerationError, LLMProviderAPIKeyError } from "@/lib/errors";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";

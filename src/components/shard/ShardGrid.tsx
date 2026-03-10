@@ -9,7 +9,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { isStubContentSufficient } from "@/lib/entity-required-fields";
+import { isStubContentSufficient } from "@/lib/entity/entity-required-fields";
 import { FlexibleShardCard } from "./FlexibleShardCard";
 import { StructuredShardCard } from "./StructuredShardCard";
 import type { Shard } from "./shard-type-detector";

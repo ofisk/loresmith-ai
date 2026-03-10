@@ -9,7 +9,7 @@ import {
 	ENTITY_TYPE_FACTIONS,
 	ENTITY_TYPE_LOCATIONS,
 	ENTITY_TYPE_NPCS,
-} from "@/lib/entity-type-constants";
+} from "@/lib/entity/entity-type-constants";
 import type { Env } from "@/middleware/auth";
 
 /**

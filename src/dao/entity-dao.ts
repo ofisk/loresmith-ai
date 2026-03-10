@@ -1,8 +1,8 @@
-import { RelationshipUpsertError } from "@/lib/errors";
 import {
 	normalizeRelationshipType,
 	type RelationshipType,
-} from "@/lib/relationship-types";
+} from "@/lib/entity/relationship-types";
+import { RelationshipUpsertError } from "@/lib/errors";
 import { BaseDAOClass } from "./base-dao";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */

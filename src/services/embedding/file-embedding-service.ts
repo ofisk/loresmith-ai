@@ -5,7 +5,7 @@ import {
 	LLMProviderAPIKeyError,
 	VectorizeIndexRequiredError,
 } from "@/lib/errors";
-import { chunkTextByCharacterCount } from "@/lib/text-chunking-utils";
+import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
 import { OpenAIEmbeddingService } from "./openai-embedding-service";
 
 const EMBEDDING_CHUNK_SIZE = 3500; // Stay safely under 4000 char limit

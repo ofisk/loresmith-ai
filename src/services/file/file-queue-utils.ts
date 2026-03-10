@@ -1,4 +1,4 @@
-import { estimateProcessingTime } from "@/lib/processing-time-estimator";
+import { estimateProcessingTime } from "@/lib/file/processing-time-estimator";
 import { FileExtractionService } from "./file-extraction-service";
 
 const LARGE_FILE_THRESHOLD_MB = 100;

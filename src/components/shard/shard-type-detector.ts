@@ -8,7 +8,7 @@ import {
 	normalizeEntityType,
 	STRUCTURED_ENTITY_TYPES,
 	type StructuredEntityType,
-} from "../../lib/entity-types";
+} from "@/lib/entity/entity-types";
 
 export interface ShardMetadata {
 	id: string;

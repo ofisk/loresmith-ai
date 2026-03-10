@@ -1,11 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
-import { isEntityStub } from "@/lib/entity-content-merge";
-import { sanitizeEntityContentForPlayer } from "@/lib/entity-content-sanitizer";
+import { isEntityStub } from "@/lib/entity/entity-content-merge";
+import { sanitizeEntityContentForPlayer } from "@/lib/entity/entity-content-sanitizer";
+import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity/entity-types";
 import type { ToolResult } from "../../app-constants";
 import { getDAOFactory } from "../../dao/dao-factory";
-import { STRUCTURED_ENTITY_TYPES } from "../../lib/entity-types";
 import {
 	commonSchemas,
 	createToolError,

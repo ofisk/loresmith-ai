@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { SignJWT } from "jose";
-import { getCorsHeaders } from "@/lib/cors";
+import { getCorsHeaders } from "@/lib/api/cors";
 import type { Env } from "@/middleware/auth";
 import { AuthService } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";

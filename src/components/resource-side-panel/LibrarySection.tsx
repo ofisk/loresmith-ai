@@ -11,7 +11,7 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
-import { buildStagingFileKey } from "@/lib/file-utils";
+import { buildStagingFileKey } from "@/lib/file/file-utils";
 import { AuthService, getStoredJwt } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 
