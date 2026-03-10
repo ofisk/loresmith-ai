@@ -36,8 +36,8 @@ Defined in `SUBSCRIPTION_TIERS` in `src/app-constants.ts`:
 | Tier | Max campaigns | Max files | Storage | TPH | QPH | TPD | QPD | Monthly tokens | Resources/campaign/hour | Retries/file/day | Retries/file/month |
 |------|---------------|-----------|---------|-----|-----|-----|-----|----------------|-------------------------|------------------|--------------------|
 | Free | 1 | 5 | 5 MB | 120k | 300 | 10k | 50 | 10k | 5 | 1 | 3 |
-| Basic | 5 | 25 | 25 MB | 600k | 600 | 500k | 500 | — | 20 | 3 | 15 |
-| Pro | 999,999 | 100 | 100 MB | 1.2M | 1,200 | 1M | 1,000 | — | 50 | 5 | 50 |
+| Basic | 5 | 25 | 1 GB | 600k | 600 | 500k | 500 | — | 20 | 3 | 15 |
+| Pro | 999,999 | 100 | 5 GB | 1.2M | 1,200 | 1M | 1,000 | — | 50 | 5 | 50 |
 
 - **TPH** = tokens per hour  
 - **QPH** = queries per hour  

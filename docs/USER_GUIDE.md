@@ -551,7 +551,7 @@ Files over the memory limit cannot be loaded in one pass. Large files are proces
 |---|---|---|---|
 | Campaigns | 1 | 5 | Effectively unlimited |
 | Files | 5 | 25 | 100 |
-| Storage | 5 MB | 25 MB | 100 MB |
+| Storage | 5 MB | 1 GB | 5 GB |
 | Resources per campaign per hour | 5 | 20 | 50 |
 | Retries per file (indexing/entity extraction) | 1/day, 3/month | 3/day, 15/month | 5/day, 50/month |
 

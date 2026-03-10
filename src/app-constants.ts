@@ -353,7 +353,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 	basic: {
 		maxCampaigns: 5,
 		maxFiles: 25,
-		storageBytes: 25 * 1024 * 1024, // 25MB
+		storageBytes: 1 * 1024 * 1024 * 1024, // 1GB
 		tph: 600_000, // was 10k/min * 60
 		qph: 600, // 10/min * 60 = queries per hour
 		tpd: 500_000,
@@ -365,7 +365,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 	pro: {
 		maxCampaigns: 999_999, // effectively unlimited
 		maxFiles: 100,
-		storageBytes: 100 * 1024 * 1024, // 100MB
+		storageBytes: 5 * 1024 * 1024 * 1024, // 5GB
 		tph: 1_200_000, // was 20k/min * 60
 		qph: 1_200, // 20/min * 60 = queries per hour
 		tpd: 1_000_000,
