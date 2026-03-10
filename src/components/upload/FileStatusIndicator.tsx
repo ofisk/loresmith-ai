@@ -6,6 +6,7 @@ import {
 	XCircle,
 } from "@phosphor-icons/react";
 import { useCallback } from "react";
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FileDAO } from "@/dao";
 import {
@@ -167,8 +168,7 @@ export function FileStatusIndicator({
 
 	// Override title for memory limit errors
 	const statusTitle = isMemoryLimitError
-		? errorMessage ||
-			"File is too large to process. Please split the file into smaller parts or use a file under 128MB."
+		? errorMessage || MEMORY_LIMIT_COPY.short
 		: config.title;
 
 	const handleRetry = useCallback(() => {

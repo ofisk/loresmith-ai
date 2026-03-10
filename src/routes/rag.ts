@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { extractJwtFromContext } from "@/lib/auth-utils";
@@ -229,7 +230,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 				{
 					success: false,
 					error: "MEMORY_LIMIT_EXCEEDED",
-					message: `"${file.file_name}" is too large to process. Files over 128MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`,
+					message: MEMORY_LIMIT_COPY.fileTooLarge(file.file_name),
 					retryable: false,
 				},
 				400

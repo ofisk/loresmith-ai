@@ -1,4 +1,4 @@
--- LLM usage log for per-user rate limiting (TPM, QPM, TPD, QPD)
+-- LLM usage log for per-user rate limiting (TPH, QPH, TPD, QPD)
 -- Pruned by scheduled worker every 30 min (rows older than 25 hours)
 CREATE TABLE IF NOT EXISTS llm_usage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

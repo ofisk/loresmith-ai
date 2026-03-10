@@ -34,7 +34,7 @@ interface AppModalsProps {
 	/** Limits from billing API (optional); passed to UsageLimitsModal */
 	billingLimits?: {
 		tph?: number;
-		qpm?: number;
+		qph?: number;
 		tpd?: number;
 		qpd?: number;
 		resourcesPerCampaignPerHour?: number;

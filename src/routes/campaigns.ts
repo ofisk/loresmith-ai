@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -741,8 +742,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			return c.json(
 				{
 					error: "File too large",
-					message:
-						"This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+					message: MEMORY_LIMIT_COPY.generic,
 				},
 				413
 			);
@@ -885,7 +885,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 				return c.json(
 					{
 						success: false,
-						message: `The file "${resource.file_name}" exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+						message: MEMORY_LIMIT_COPY.withFilename(resource.file_name),
 						error: "MEMORY_LIMIT_EXCEEDED",
 					},
 					413
@@ -931,8 +931,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 			return c.json(
 				{
 					error: "File too large",
-					message:
-						"This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later.",
+					message: MEMORY_LIMIT_COPY.generic,
 				},
 				413
 			);

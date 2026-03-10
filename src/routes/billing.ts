@@ -205,7 +205,7 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 			maxFiles: limits.maxFiles,
 			storageBytes: limits.storageBytes,
 			tph: limits.tph,
-			qpm: limits.qpm,
+			qph: limits.qph,
 			tpd: limits.tpd,
 			qpd: limits.qpd,
 			monthlyTokens: limits.monthlyTokens,

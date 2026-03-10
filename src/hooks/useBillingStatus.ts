@@ -7,7 +7,7 @@ export interface BillingLimits {
 	maxFiles: number;
 	storageBytes: number;
 	tph: number;
-	qpm: number;
+	qph: number;
 	tpd: number;
 	qpd: number;
 	monthlyTokens?: number;

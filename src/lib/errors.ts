@@ -2,6 +2,7 @@
  * Custom error classes for consistent error handling across the application.
  * Each error class has a standard message that is automatically set.
  */
+import { PROCESSING_LIMITS } from "@/app-constants";
 
 // ============================================================================
 // Authentication & Authorization Errors
@@ -301,7 +302,7 @@ export class MemoryLimitError extends Error {
 
 	constructor(
 		fileSizeMB: number,
-		memoryLimitMB: number = 128,
+		memoryLimitMB: number = PROCESSING_LIMITS.MEMORY_LIMIT_MB,
 		fileKey?: string,
 		fileName?: string,
 		message?: string
@@ -333,7 +334,7 @@ export class MemoryLimitError extends Error {
 	static fromRuntimeError(
 		error: unknown,
 		fileSizeMB: number,
-		memoryLimitMB: number = 128,
+		memoryLimitMB: number = PROCESSING_LIMITS.MEMORY_LIMIT_MB,
 		fileKey?: string,
 		fileName?: string
 	): MemoryLimitError | null {

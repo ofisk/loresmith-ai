@@ -2,6 +2,7 @@
  * Utility functions for parsing and formatting error responses
  * Handles HTML error pages (e.g., Cloudflare Worker errors) and extracts meaningful messages
  */
+import { MEMORY_LIMIT_COPY } from "@/app-constants";
 
 export interface ParsedError {
 	message: string;
@@ -65,8 +66,7 @@ function parseHtmlError(html: string, statusCode?: number): ParsedError {
 		return {
 			message: "The file is too large to process",
 			isActionable: true,
-			suggestion:
-				"This file exceeds our 128MB limit. Please split the file into smaller parts (under 100MB each) or try again later. Large files are processed in chunks, which may take longer.",
+			suggestion: MEMORY_LIMIT_COPY.suggestion,
 		};
 	}
 

@@ -1,3 +1,4 @@
+import { RATE_LIMIT_CREDIT_BOOST } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
@@ -11,11 +12,11 @@ export interface CheckLimitResult {
 
 export interface UsageStatus {
 	tph: number;
-	qpm: number;
+	qph: number;
 	tpd: number;
 	qpd: number;
 	tphLimit: number;
-	qpmLimit: number;
+	qphLimit: number;
 	tpdLimit: number;
 	qpdLimit: number;
 	nextResetAt: string | null;
@@ -45,11 +46,6 @@ function addHours(isoOrSqlite: string, hours: number): string {
 	d.setHours(d.getHours() + hours);
 	return d.toISOString();
 }
-
-/** Max extra tokens/day from credits (tenant fairness – prevents one user blocking queue) */
-const DAILY_CREDIT_BOOST_CAP = 100_000;
-/** Max extra tokens/hour from credits (tenant fairness) */
-const HOURLY_CREDIT_BOOST_CAP = 60_000;
 
 export class LLMRateLimitService {
 	constructor(private env: Env) {}
@@ -99,17 +95,19 @@ export class LLMRateLimitService {
 		// Cap boost for tenant fairness – prevents one user from blocking the queue
 		const tpdBoost =
 			creditsRemaining > 0
-				? Math.min(creditsRemaining, DAILY_CREDIT_BOOST_CAP)
+				? Math.min(creditsRemaining, RATE_LIMIT_CREDIT_BOOST.DAILY_CAP)
 				: 0;
 		const tphBoost =
 			creditsRemaining > 0
-				? Math.min(creditsRemaining, HOURLY_CREDIT_BOOST_CAP)
+				? Math.min(creditsRemaining, RATE_LIMIT_CREDIT_BOOST.HOURLY_CAP)
 				: 0;
 		const tphLimit = limits.tph + tphBoost;
+		const qphLimit = limits.qph;
 		const tpdLimit = limits.tpd + tpdBoost;
 		const qpdLimit = limits.qpd;
 
 		const tph = (hour as { tph?: number }).tph ?? 0;
+		const qph = (hour as { qph?: number }).qph ?? 0;
 		const tpd = (daily as { tpd?: number }).tpd ?? 0;
 		const qpd = (daily as { qpd?: number }).qpd ?? 0;
 
@@ -122,6 +120,20 @@ export class LLMRateLimitService {
 			return {
 				allowed: false,
 				reason: `Token limit (${tphLimit.toLocaleString()} per hour) exceeded. Try again after the window resets.`,
+				nextResetAt,
+				limitType: "hour",
+			};
+		}
+
+		// Check per-hour query limit
+		if (qph >= qphLimit) {
+			const oldestAt = (hour as { oldestAt?: string | null }).oldestAt;
+			const nextResetAt = oldestAt
+				? addHours(oldestAt, 1)
+				: new Date(Date.now() + 60 * 60 * 1000).toISOString();
+			return {
+				allowed: false,
+				reason: `Query limit (${qphLimit} per hour) exceeded. Try again after the window resets.`,
 				nextResetAt,
 				limitType: "hour",
 			};
@@ -257,18 +269,18 @@ export class LLMRateLimitService {
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
 		const tphLimit = limits.tph;
-		const qpmLimit = limits.qpm;
+		const qphLimit = limits.qph;
 		const tpdLimit = limits.tpd;
 		const qpdLimit = limits.qpd;
 
 		if (isAdmin) {
 			return {
 				tph: 0,
-				qpm: 0,
+				qph: 0,
 				tpd: 0,
 				qpd: 0,
 				tphLimit,
-				qpmLimit,
+				qphLimit,
 				tpdLimit,
 				qpdLimit,
 				nextResetAt: null,
@@ -297,13 +309,16 @@ export class LLMRateLimitService {
 		]);
 
 		const tph = (hour as { tph?: number }).tph ?? 0;
+		const qph = (hour as { qph?: number }).qph ?? 0;
 		const tpd = (daily as { tpd?: number }).tpd ?? 0;
 		const qpd = (daily as { qpd?: number }).qpd ?? 0;
 
 		// Relax daily/hourly rate when user has credits (same as checkLimit)
 		const cr = creditsRemaining ?? 0;
-		const tpdBoost = cr > 0 ? Math.min(cr, DAILY_CREDIT_BOOST_CAP) : 0;
-		const tphBoost = cr > 0 ? Math.min(cr, HOURLY_CREDIT_BOOST_CAP) : 0;
+		const tpdBoost =
+			cr > 0 ? Math.min(cr, RATE_LIMIT_CREDIT_BOOST.DAILY_CAP) : 0;
+		const tphBoost =
+			cr > 0 ? Math.min(cr, RATE_LIMIT_CREDIT_BOOST.HOURLY_CAP) : 0;
 		const tphLimitEffective = limits.tph + tphBoost;
 		const tpdLimitEffective = limits.tpd + tpdBoost;
 
@@ -317,7 +332,7 @@ export class LLMRateLimitService {
 		const hourReset = hourOldest ? addHours(hourOldest, 1) : null;
 		const dailyReset = dailyOldest ? addHours(dailyOldest, 24) : null;
 
-		const atHourLimit = tph >= tphLimitEffective;
+		const atHourLimit = tph >= tphLimitEffective || qph >= limits.qph;
 		const atDailyLimit = tpd >= tpdLimitEffective || qpd >= limits.qpd;
 
 		const atLimit = atHourLimit || atDailyLimit;
@@ -360,11 +375,11 @@ export class LLMRateLimitService {
 
 		return {
 			tph,
-			qpm: 0, // no longer tracked (minute limit removed)
+			qph,
 			tpd,
 			qpd,
 			tphLimit: tphLimitEffective,
-			qpmLimit: limits.qpm,
+			qphLimit: limits.qph,
 			tpdLimit: tpdLimitEffective,
 			qpdLimit: limits.qpd,
 			nextResetAt:

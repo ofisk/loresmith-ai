@@ -7,7 +7,7 @@ interface UsageLimitsModalProps {
 	/** Limits from API (optional); falls back to RATE_LIMITS when not provided */
 	limits?: {
 		tph?: number;
-		qpm?: number;
+		qph?: number;
 		tpd?: number;
 		qpd?: number;
 		resourcesPerCampaignPerHour?: number;
@@ -25,7 +25,7 @@ export function UsageLimitsModal({
 	limits,
 }: UsageLimitsModalProps) {
 	const tph = limits?.tph ?? RATE_LIMITS.NON_ADMIN_TPH;
-	const qpm = limits?.qpm ?? RATE_LIMITS.NON_ADMIN_QPM;
+	const qph = limits?.qph ?? RATE_LIMITS.NON_ADMIN_QPH;
 	const tpd = limits?.tpd ?? RATE_LIMITS.NON_ADMIN_TPD;
 	const qpd = limits?.qpd ?? RATE_LIMITS.NON_ADMIN_QPD;
 	const resourcesPerCampaignPerHour =
@@ -58,8 +58,10 @@ export function UsageLimitsModal({
 							<td className="text-right py-2">{formatNumber(tph)} tokens/hr</td>
 						</tr>
 						<tr className="border-b border-neutral-100 dark:border-neutral-800">
-							<td className="py-2">Queries per minute</td>
-							<td className="text-right py-2">{qpm} queries/min</td>
+							<td className="py-2">Queries per hour</td>
+							<td className="text-right py-2">
+								{formatNumber(qph)} queries/hr
+							</td>
 						</tr>
 						<tr className="border-b border-neutral-100 dark:border-neutral-800">
 							<td className="py-2">Tokens per day</td>

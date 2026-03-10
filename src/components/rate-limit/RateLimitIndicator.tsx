@@ -9,16 +9,16 @@ import { API_CONFIG } from "@/shared-config";
 
 interface UsageData {
 	tph: number;
-	qpm: number;
+	qph: number;
 	tpd: number;
 	qpd: number;
 	tphLimit: number;
-	qpmLimit: number;
+	qphLimit: number;
 	tpdLimit: number;
 	qpdLimit: number;
 	nextResetAt: string | null;
 	atLimit: boolean;
-	limitType?: "hour" | "minute" | "daily";
+	limitType?: "hour" | "daily";
 	isAdmin: boolean;
 	monthlyUsage?: number;
 	monthlyLimit?: number;
@@ -115,8 +115,8 @@ export function RateLimitIndicator({
 			: "soon";
 
 		const shortWindowPct =
-			usage.tphLimit > 0 && usage.qpmLimit > 0
-				? Math.max(usage.tph / usage.tphLimit, usage.qpm / usage.qpmLimit)
+			usage.tphLimit > 0 && usage.qphLimit > 0
+				? Math.max(usage.tph / usage.tphLimit, usage.qph / usage.qphLimit)
 				: 0;
 		const dailyPct =
 			usage.tpdLimit > 0 && usage.qpdLimit > 0
@@ -135,7 +135,7 @@ export function RateLimitIndicator({
 				addLocalNotification(
 					"error",
 					"Usage limit",
-					`You've used ${pctLabel} of your rate limit (tokens/hour or queries/min). Next reset: ${nextReset}.`
+					`You've used ${pctLabel} of your rate limit (tokens/hour or queries/hour). Next reset: ${nextReset}.`
 				);
 				break;
 			}
@@ -176,7 +176,7 @@ export function RateLimitIndicator({
 		usage.tphLimit > 0
 			? Math.min(
 					1,
-					Math.max(usage.tph / usage.tphLimit, usage.qpm / usage.qpmLimit)
+					Math.max(usage.tph / usage.tphLimit, usage.qph / usage.qphLimit)
 				)
 			: 0;
 	const dailyPct =

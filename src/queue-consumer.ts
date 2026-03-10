@@ -1,4 +1,4 @@
-import { MODEL_CONFIG } from "@/app-constants";
+import { MODEL_CONFIG, PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
@@ -754,7 +754,7 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 				// Determine if we should load the full buffer based on file size
 				// If file is chunked, it's too large to load in memory - skip trying
 				const fileSizeMB = (dbMetadata.file_size || 0) / (1024 * 1024);
-				const MEMORY_LIMIT_MB = 128;
+				const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
 				const SAFE_THRESHOLD_MB = 100; // For PDFs, be conservative
 
 				// Check if file size indicates we should skip loading full buffer

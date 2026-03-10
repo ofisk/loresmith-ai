@@ -19,9 +19,52 @@ export const APP_CONFIG = {
 	DESCRIPTION: "AI-powered campaign management and planning tool",
 } as const;
 
+// Processing limits - single source of truth for memory/file constraints
+export const PROCESSING_LIMITS = {
+	/** Cloudflare Workers memory limit (MB). Used for file size checks and error messages. */
+	MEMORY_LIMIT_MB: 128,
+} as const;
+
+const _cannotProcessText = `Files over ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`;
+
+/** User-facing copy for memory limit errors. Centralized for reuse and consistency. */
+export const MEMORY_LIMIT_COPY = {
+	/** Generic: "This file exceeds our 128MB limit..." */
+	generic: `This file exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+	/** Short fallback for status/indicators */
+	short: `File is too large to process. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	/** Fallback when error has no message */
+	fallback: `This file exceeds the ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB memory limit. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	/** "Files over XMB cannot be processed..." (used in RAG, retry alerts) */
+	cannotProcess: _cannotProcessText,
+	/** Error-parsing suggestion (includes chunking note) */
+	suggestion: `This file exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later. Large files are processed in chunks, which may take longer.`,
+	/** With specific filename */
+	withFilename: (fileName: string) =>
+		`The file "${fileName}" exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+	/** With filename and size (sync/upload notifications) */
+	withFileDetails: (fileName: string, sizeMB: number) =>
+		`⚠️ "${fileName}" (${sizeMB.toFixed(2)}MB) exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	/** File too large for processing (RAG endpoint) */
+	fileTooLarge: (fileName: string) =>
+		`"${fileName}" is too large to process. ${_cannotProcessText}`,
+	/** Retry alert (ResourceList) */
+	retryAlert: (fileName: string, errorMessage: string) =>
+		`⚠️ Cannot retry "${fileName}": ${errorMessage}\n\n${_cannotProcessText}`,
+} as const;
+
+// Rate limit credit boost (free tier with one-off credits) - tenant fairness caps
+export const RATE_LIMIT_CREDIT_BOOST = {
+	/** Max extra tokens/day from credits - prevents one user blocking the queue */
+	DAILY_CAP: 100_000,
+	/** Max extra tokens/hour from credits */
+	HOURLY_CAP: 60_000,
+} as const;
+
 // File upload constants
 export const UPLOAD_CONFIG = {
-	MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max (Cloudflare Workers have 128MB memory limit, leaving buffer for overhead)
+	/** 100MB max - buffer under PROCESSING_LIMITS.MEMORY_LIMIT_MB */
+	MAX_FILE_SIZE: 100 * 1024 * 1024,
 	// MIME types supported by RAG (FileExtractionService). Keep in sync with ResourceUpload and file-upload-security ALLOWED_EXTENSIONS.
 	ALLOWED_FILE_TYPES: [
 		"application/pdf",
@@ -275,7 +318,7 @@ export function getGenerationModelForProvider(
 // Fallback values when tier limits unavailable (e.g. UsageLimitsModal)
 export const RATE_LIMITS = {
 	NON_ADMIN_TPH: 600_000, // 10k/min * 60 = tokens per hour
-	NON_ADMIN_QPM: 10,
+	NON_ADMIN_QPH: 600, // 10/min * 60 = queries per hour (Basic tier fallback)
 	NON_ADMIN_TPD: 500_000,
 	NON_ADMIN_QPD: 500,
 	RESOURCES_PER_CAMPAIGN_PER_HOUR: 20, // Basic tier fallback
@@ -288,7 +331,7 @@ export interface TierLimits {
 	maxFiles: number;
 	storageBytes: number;
 	tph: number; // tokens per hour (was tpm * 60)
-	qpm: number;
+	qph: number; // queries per hour (was qpm * 60)
 	tpd: number;
 	qpd: number;
 	/** Monthly token cap for free tier only; undefined for paid tiers */
@@ -307,7 +350,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxFiles: 5,
 		storageBytes: 5 * 1024 * 1024, // 5MB
 		tph: 120_000, // was 2k/min * 60
-		qpm: 5,
+		qph: 300, // 5/min * 60 = queries per hour
 		tpd: 10_000,
 		qpd: 50,
 		monthlyTokens: 10_000,
@@ -320,7 +363,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxFiles: 25,
 		storageBytes: 25 * 1024 * 1024, // 25MB
 		tph: 600_000, // was 10k/min * 60
-		qpm: 10,
+		qph: 600, // 10/min * 60 = queries per hour
 		tpd: 500_000,
 		qpd: 500,
 		retriesPerFilePerDay: 3,
@@ -332,7 +375,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxFiles: 100,
 		storageBytes: 100 * 1024 * 1024, // 100MB
 		tph: 1_200_000, // was 20k/min * 60
-		qpm: 20,
+		qph: 1_200, // 20/min * 60 = queries per hour
 		tpd: 1_000_000,
 		qpd: 1_000,
 		retriesPerFilePerDay: 5,
