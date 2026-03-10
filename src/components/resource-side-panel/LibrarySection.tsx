@@ -151,7 +151,7 @@ export function LibrarySection({
 	}, [files, uploadQueue?.queue]);
 
 	return (
-		<Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 overflow-hidden flex-1">
+		<Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
 			<button
 				type="button"
 				onClick={onToggle}
@@ -173,7 +173,7 @@ export function LibrarySection({
 			</button>
 
 			{isOpen && (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 flex-1 overflow-hidden">
+				<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
 					<div className="flex-shrink-0 p-2">
 						<button
 							type="button"
@@ -184,8 +184,8 @@ export function LibrarySection({
 							Add to library
 						</button>
 					</div>
-					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 flex-1 overflow-hidden">
-						<div className="min-h-0 flex-1 overflow-y-auto">
+					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
+						<div className="max-h-64 overflow-y-auto">
 							<ResourceList
 								files={displayFiles}
 								setFiles={setFiles}

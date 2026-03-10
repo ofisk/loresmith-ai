@@ -87,35 +87,37 @@ export function ResourceSidePanel({
 		<div
 			className={`tour-sidebar w-full md:w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
 		>
-			{/* Content - flex column so library can have internal scroll */}
-			<div className="flex-1 flex flex-col gap-3 p-4 min-h-0 overflow-hidden">
-				{/* Campaigns Section */}
-				<div className="flex-shrink-0">
-					<CampaignsSection
-						campaigns={managedCampaigns}
-						campaignsLoading={campaignsLoading}
-						campaignsError={campaignsError}
-						onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
-						isOpen={isCampaignsOpen}
-						onCreateCampaign={onCreateCampaign || (() => {})}
-						onCampaignClick={onCampaignClick || (() => {})}
-					/>
-				</div>
+			{/* Content - scrollable pane so both sections are reachable */}
+			<div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+				<div className="flex flex-col gap-3 p-4">
+					{/* Campaigns Section */}
+					<div className="flex-shrink-0">
+						<CampaignsSection
+							campaigns={managedCampaigns}
+							campaignsLoading={campaignsLoading}
+							campaignsError={campaignsError}
+							onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
+							isOpen={isCampaignsOpen}
+							onCreateCampaign={onCreateCampaign || (() => {})}
+							onCampaignClick={onCampaignClick || (() => {})}
+						/>
+					</div>
 
-				{/* Library Section - flex-1 to take remaining space, min-h-0 for flex shrink */}
-				<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-					<LibrarySection
-						isOpen={isLibraryOpen}
-						onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
-						onAddToLibrary={onAddResource || (() => {})}
-						onAddToCampaign={onAddToCampaign || (() => {})}
-						onEditFile={onEditFile || (() => {})}
-						campaigns={campaigns}
-						campaignAdditionProgress={campaignAdditionProgress}
-						isAddingToCampaigns={isAddingToCampaigns}
-						addLocalNotification={addLocalNotification}
-						onShowUsageLimits={onShowUsageLimits}
-					/>
+					{/* Library Section */}
+					<div className="flex-shrink-0">
+						<LibrarySection
+							isOpen={isLibraryOpen}
+							onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
+							onAddToLibrary={onAddResource || (() => {})}
+							onAddToCampaign={onAddToCampaign || (() => {})}
+							onEditFile={onEditFile || (() => {})}
+							campaigns={campaigns}
+							campaignAdditionProgress={campaignAdditionProgress}
+							isAddingToCampaigns={isAddingToCampaigns}
+							addLocalNotification={addLocalNotification}
+							onShowUsageLimits={onShowUsageLimits}
+						/>
+					</div>
 				</div>
 			</div>
 
