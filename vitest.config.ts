@@ -20,7 +20,7 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "lcov", "html"],
-			include: ["src/lib/**", "src/hooks/**"],
+			include: ["src/lib/**", "src/hooks/**", "src/routes/**"],
 			exclude: [
 				// Test files and config – never instrument
 				"**/*.test.{ts,tsx}",
@@ -97,15 +97,50 @@ export default defineConfig({
 				"**/hooks/useClickOutside.tsx",
 				"**/hooks/useResourceFiles.ts",
 				"**/hooks/useAuthReady.ts",
+				// Route registration table – no testable logic
+				"**/routes/register-routes.ts",
+				// Route files requiring full Workers/AI runtime – tested via e2e
+				"**/routes/campaign-graphrag.ts",
+				"**/routes/campaign-resource-proposals.ts",
+				"**/routes/campaign-share.ts",
+				"**/routes/communities.ts",
+				"**/routes/context-assembly.ts",
+				"**/routes/entities.ts",
+				"**/routes/external-resources.ts",
+				"**/routes/graph-rebuild.ts",
+				"**/routes/notifications.ts",
+				"**/routes/onboarding.ts",
+				"**/routes/planning-context.ts",
+				"**/routes/planning-tasks.ts",
+				"**/routes/progress.ts",
+				"**/routes/rag.ts",
+				"**/routes/session-digest-templates.ts",
+				"**/routes/telemetry.ts",
+				"**/routes/assessment.ts",
+				"**/routes/chat-history.ts",
+				"**/routes/file-analysis.ts",
+				"**/routes/library.ts",
+				// Additional routes with heavy external deps (graph, digests, etc.)
+				"**/routes/graph-visualization.ts",
+				"**/routes/session-digests.ts",
+				"**/routes/upload-notifications.ts",
 			],
 			thresholds: {
-				lines: 50,
-				functions: 50,
-				branches: 49,
+				// Lowered to accommodate routes/** inclusion (routes have lower coverage)
+				lines: 40,
+				functions: 45,
+				branches: 35,
 				"src/hooks/**": {
 					lines: 70,
 					functions: 65,
 					branches: 40,
+				},
+				// Auth, billing, campaigns, upload, world-state, upload-processing
+				// Target 60% - currently ~26% with integration tests; add tests to reach 60%
+				"src/routes/**": {
+					lines: 25,
+					functions: 35,
+					branches: 15,
 				},
 			},
 		},
