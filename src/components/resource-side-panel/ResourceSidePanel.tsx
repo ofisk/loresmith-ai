@@ -87,32 +87,36 @@ export function ResourceSidePanel({
 		<div
 			className={`tour-sidebar w-full md:w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
 		>
-			{/* Content */}
-			<div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+			{/* Content - flex column so library can have internal scroll */}
+			<div className="flex-1 flex flex-col gap-3 p-4 min-h-0 overflow-hidden">
 				{/* Campaigns Section */}
-				<CampaignsSection
-					campaigns={managedCampaigns}
-					campaignsLoading={campaignsLoading}
-					campaignsError={campaignsError}
-					onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
-					isOpen={isCampaignsOpen}
-					onCreateCampaign={onCreateCampaign || (() => {})}
-					onCampaignClick={onCampaignClick || (() => {})}
-				/>
+				<div className="flex-shrink-0">
+					<CampaignsSection
+						campaigns={managedCampaigns}
+						campaignsLoading={campaignsLoading}
+						campaignsError={campaignsError}
+						onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
+						isOpen={isCampaignsOpen}
+						onCreateCampaign={onCreateCampaign || (() => {})}
+						onCampaignClick={onCampaignClick || (() => {})}
+					/>
+				</div>
 
-				{/* Library Section */}
-				<LibrarySection
-					isOpen={isLibraryOpen}
-					onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
-					onAddToLibrary={onAddResource || (() => {})}
-					onAddToCampaign={onAddToCampaign || (() => {})}
-					onEditFile={onEditFile || (() => {})}
-					campaigns={campaigns}
-					campaignAdditionProgress={campaignAdditionProgress}
-					isAddingToCampaigns={isAddingToCampaigns}
-					addLocalNotification={addLocalNotification}
-					onShowUsageLimits={onShowUsageLimits}
-				/>
+				{/* Library Section - flex-1 to take remaining space, min-h-0 for flex shrink */}
+				<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+					<LibrarySection
+						isOpen={isLibraryOpen}
+						onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
+						onAddToLibrary={onAddResource || (() => {})}
+						onAddToCampaign={onAddToCampaign || (() => {})}
+						onEditFile={onEditFile || (() => {})}
+						campaigns={campaigns}
+						campaignAdditionProgress={campaignAdditionProgress}
+						isAddingToCampaigns={isAddingToCampaigns}
+						addLocalNotification={addLocalNotification}
+						onShowUsageLimits={onShowUsageLimits}
+					/>
+				</div>
 			</div>
 
 			{/* Username Display and Menu - At the very bottom */}

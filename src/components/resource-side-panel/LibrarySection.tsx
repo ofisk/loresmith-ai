@@ -123,7 +123,7 @@ export function LibrarySection({
 	}, [fetchResources]);
 
 	return (
-		<Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700">
+		<Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 overflow-hidden flex-1">
 			<button
 				type="button"
 				onClick={onToggle}
@@ -145,8 +145,8 @@ export function LibrarySection({
 			</button>
 
 			{isOpen && (
-				<div className="border-t border-neutral-200 dark:border-neutral-700">
-					<div className="p-2">
+				<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 flex-1 overflow-hidden">
+					<div className="flex-shrink-0 p-2">
 						<button
 							type="button"
 							onClick={onAddToLibrary}
@@ -156,36 +156,40 @@ export function LibrarySection({
 							Add to library
 						</button>
 					</div>
-					<div className="border-t border-neutral-200 dark:border-neutral-700">
-						<ResourceList
-							files={files}
-							setFiles={setFiles}
-							loading={loading}
-							error={error}
-							setError={setError}
-							setLoading={setLoading}
-							fetchResources={fetchResources}
-							onAddToCampaign={onAddToCampaign}
-							onEditFile={onEditFile}
-							campaigns={campaigns}
-							campaignAdditionProgress={campaignAdditionProgress}
-							_isAddingToCampaigns={isAddingToCampaigns}
-						/>
-						<StorageTracker />
-						{uploadQueue && uploadQueue.queuedCount > 0 && (
-							<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
-								{uploadQueue.queuedCount} file
-								{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
-								when capacity is available
-							</div>
-						)}
-						<ActionQueueUI />
-						{addLocalNotification && onShowUsageLimits && (
-							<RateLimitIndicator
-								addLocalNotification={addLocalNotification}
-								onShowUsageLimits={onShowUsageLimits}
+					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col min-h-0 flex-1 overflow-hidden">
+						<div className="min-h-0 flex-1 overflow-y-auto">
+							<ResourceList
+								files={files}
+								setFiles={setFiles}
+								loading={loading}
+								error={error}
+								setError={setError}
+								setLoading={setLoading}
+								fetchResources={fetchResources}
+								onAddToCampaign={onAddToCampaign}
+								onEditFile={onEditFile}
+								campaigns={campaigns}
+								campaignAdditionProgress={campaignAdditionProgress}
+								_isAddingToCampaigns={isAddingToCampaigns}
 							/>
-						)}
+						</div>
+						<div className="flex-shrink-0">
+							<StorageTracker />
+							{uploadQueue && uploadQueue.queuedCount > 0 && (
+								<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
+									{uploadQueue.queuedCount} file
+									{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
+									when capacity is available
+								</div>
+							)}
+							<ActionQueueUI />
+							{addLocalNotification && onShowUsageLimits && (
+								<RateLimitIndicator
+									addLocalNotification={addLocalNotification}
+									onShowUsageLimits={onShowUsageLimits}
+								/>
+							)}
+						</div>
 					</div>
 				</div>
 			)}
