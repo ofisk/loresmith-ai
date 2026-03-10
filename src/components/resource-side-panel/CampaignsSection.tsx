@@ -66,7 +66,7 @@ export function CampaignsSection({
 							</p>
 						</div>
 					) : (
-						<div className="border-t border-neutral-200 dark:border-neutral-700">
+						<div className="border-t border-neutral-200 dark:border-neutral-700 max-h-48 overflow-y-auto">
 							{campaigns.map((campaign) => (
 								<CampaignItem
 									key={campaign.campaignId}
