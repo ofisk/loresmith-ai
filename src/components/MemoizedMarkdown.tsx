@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 
 export const MemoizedMarkdown = memo(
 	({ content }: { content: string }) => (
-		<div className="markdown-body">
+		<div className="markdown-body min-w-0 overflow-hidden">
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
 				components={{
@@ -13,7 +13,7 @@ export const MemoizedMarkdown = memo(
 						const match = /language-(\w+)/.exec(className || "");
 						const isInline = !match;
 						return !isInline ? (
-							<pre className="bg-neutral-100 dark:bg-neutral-800 rounded-md p-4 overflow-x-auto">
+							<pre className="bg-neutral-100 dark:bg-neutral-800 rounded-md p-4 overflow-x-auto max-w-full">
 								<code className={className} {...props}>
 									{children}
 								</code>

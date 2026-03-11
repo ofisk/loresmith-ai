@@ -132,6 +132,11 @@ html {
 	font-weight: 400;
 	letter-spacing: -0.011em;
 	font-size: 0.95rem;
+	/* Prevent text overflow: wrap long words/URLs and constrain width */
+	min-width: 0;
+	max-width: 100%;
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 
 /* Headings */
@@ -221,6 +226,7 @@ html {
 	overflow-x: auto;
 	margin-bottom: 1.25em;
 	border: 1px solid var(--color-neutral-200);
+	max-width: 100%;
 }
 
 .markdown-body pre code {
