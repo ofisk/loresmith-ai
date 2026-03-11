@@ -25,7 +25,7 @@ test.describe("file upload", () => {
 			page.waitForResponse(
 				(resp) =>
 					(resp.url().includes("/api/library/files") ||
-						resp.url().includes("/upload/")) &&
+						resp.url().includes("/api/upload/")) &&
 					resp.status() >= 200 &&
 					resp.status() < 400
 			),

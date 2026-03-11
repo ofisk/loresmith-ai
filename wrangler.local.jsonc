@@ -31,7 +31,8 @@
 	"durable_objects": {
 		"bindings": [
 			{ "name": "Chat", "class_name": "Chat" },
-			{ "name": "UploadSession", "class_name": "UploadSessionDO" }
+			{ "name": "UploadSession", "class_name": "UploadSessionDO" },
+			{ "name": "NOTIFICATIONS", "class_name": "NotificationHub" }
 		]
 	},
 	"r2_buckets": [

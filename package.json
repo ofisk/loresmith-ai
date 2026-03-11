@@ -38,7 +38,7 @@
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
 		"test:e2e:headed": "playwright test --headed",
-		"e2e:server": "npm run build && E2E_SEED_USER=1 ./scripts/e2e-db-setup.sh && wrangler dev --config wrangler.local.jsonc --port 8787 --local",
+		"e2e:server": "VITE_API_URL=http://localhost:8787 npm run build && E2E_SEED_USER=1 ./scripts/e2e-db-setup.sh && wrangler dev --config wrangler.local.jsonc --port 8787 --local",
 		"types": "wrangler types",
 		"format": "biome check --write .",
 		"check": "biome check . && node scripts/check-import-paths.mjs && tsc",

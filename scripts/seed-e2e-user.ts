@@ -32,7 +32,7 @@ VALUES (
   '${escapedHash}',
   datetime('now'),
   'password',
-  0,
+  1,
   datetime('now'),
   datetime('now')
 );

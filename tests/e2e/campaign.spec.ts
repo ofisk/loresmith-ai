@@ -30,7 +30,9 @@ test.describe("campaign management", () => {
 		]);
 
 		await expect(
-			page.getByText("E2E Test Campaign", { exact: true })
+			page.locator(".tour-campaigns-section").getByText("E2E Test Campaign", {
+				exact: true,
+			})
 		).toBeVisible({ timeout: 10_000 });
 	});
 

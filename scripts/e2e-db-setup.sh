@@ -23,6 +23,10 @@ done
 if [ "$E2E_SEED_USER" = "1" ]; then
   echo "[e2e-db] Seeding E2E user..."
   E2E_SEED_USER=1 npx tsx scripts/seed-e2e-user.ts
+
+  echo "[e2e-db] Cleaning E2E user data for fresh test state..."
+  wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
+    --file="$SCRIPT_DIR/e2e-cleanup.sql"
 fi
 
 echo "[e2e-db] Done."
