@@ -56,12 +56,12 @@ export function ChatMessageList({
 					return (
 						<div key={m.id}>
 							<div
-								className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+								className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}
 							>
 								<div
-									className={`${isUser ? "flex flex-row-reverse gap-2 max-w-[85%]" : "w-full"}`}
+									className={`min-w-0 ${isUser ? "flex flex-row-reverse gap-2 max-w-[85%]" : "w-full"}`}
 								>
-									<div className={isUser ? "flex-1" : "w-full"}>
+									<div className={`min-w-0 ${isUser ? "flex-1" : "w-full"}`}>
 										<div>
 											{(() => {
 												// Find the index of the last text part in the original parts array
@@ -87,9 +87,12 @@ export function ChatMessageList({
 														const isLastTextPart = i === lastTextPartIndex;
 
 														return (
-															<div key={`${m.id}-text-${i}`}>
+															<div
+																key={`${m.id}-text-${i}`}
+																className="min-w-0"
+															>
 																<Card
-																	className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm ${
+																	className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm min-w-0 ${
 																		isUser
 																			? "rounded-br-none"
 																			: "rounded-bl-none border-assistant-border"
