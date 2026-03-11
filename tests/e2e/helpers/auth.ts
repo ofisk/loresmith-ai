@@ -25,6 +25,8 @@ export async function loginAsE2EUser(
 	await page.goto(baseURL);
 	await page.evaluate((t) => {
 		localStorage.setItem("loresmith-jwt", t);
+		// Skip the onboarding tour so it doesn't block interactions (e.g. Upload button)
+		localStorage.setItem("loresmith-tour-completed", "true");
 	}, token);
 	await page.reload();
 }

@@ -19,7 +19,7 @@ test.describe("campaign management", () => {
 			.click();
 
 		await page.getByLabel("Campaign name").fill("E2E Test Campaign");
-		await page.getByRole("button", { name: "Create" }).click();
+		await page.getByTestId("create-campaign-submit").click();
 
 		await expect(
 			page.getByText("E2E Test Campaign", { exact: true })
@@ -38,7 +38,7 @@ test.describe("campaign management", () => {
 			.first()
 			.click();
 		await page.getByLabel("Campaign name").fill("Original Name");
-		await page.getByRole("button", { name: "Create" }).click();
+		await page.getByTestId("create-campaign-submit").click();
 
 		await expect(page.getByText("Original Name")).toBeVisible({
 			timeout: 10_000,
@@ -67,7 +67,7 @@ test.describe("campaign management", () => {
 			.first()
 			.click();
 		await page.getByLabel("Campaign name").fill("To Delete");
-		await page.getByRole("button", { name: "Create" }).click();
+		await page.getByTestId("create-campaign-submit").click();
 
 		await expect(page.getByText("To Delete")).toBeVisible({
 			timeout: 10_000,

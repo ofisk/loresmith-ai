@@ -11,7 +11,14 @@ export function registerAppRoutes(
 ) {
 	const serveIndexHtml = async (c: Context<{ Bindings: Env }>) => {
 		try {
-			const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+			// Fetch / to get index.html (assets don't have /billing path; SPA routes need fallback)
+			const url = new URL(c.req.url);
+			const indexUrl = new URL("/", url.origin);
+			const indexReq = new Request(indexUrl.toString(), {
+				method: c.req.method,
+				headers: c.req.raw.headers,
+			});
+			const assetResponse = await c.env.ASSETS.fetch(indexReq);
 			if (assetResponse.status === 200) {
 				return assetResponse;
 			}
