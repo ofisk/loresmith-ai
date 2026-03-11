@@ -1,8 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { requireUserJwt } from "@/routes/auth";
+import { toApiRoutePath } from "@/routes/env";
 import { CampaignIdParamSchema, ErrorSchema } from "@/routes/schemas/common";
 import { API_CONFIG } from "@/shared-config";
-import { toApiRoutePath } from "../env";
 
 const E401 = {
 	401: {

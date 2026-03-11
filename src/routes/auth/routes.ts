@@ -1,4 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
+import { toApiRoutePath } from "@/routes/env";
 import {
 	ErrorResponseContent,
 	GoogleCompleteSignupBodySchema,
@@ -9,7 +10,6 @@ import {
 	TokenResponseSchema,
 } from "@/routes/schemas/auth";
 import { API_CONFIG } from "@/shared-config";
-import { toApiRoutePath } from "../env";
 
 const Error400 = {
 	400: { content: ErrorResponseContent, description: "Bad request" },

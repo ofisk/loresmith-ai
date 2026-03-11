@@ -1,11 +1,11 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { requireUserJwt } from "@/routes/auth";
+import { toApiRoutePath } from "@/routes/env";
 import {
 	ErrorResponseContent,
 	FileIdParamSchema,
 } from "@/routes/schemas/library";
 import { API_CONFIG } from "@/shared-config";
-import { toApiRoutePath } from "../env";
 
 const E401 = {
 	401: { content: ErrorResponseContent, description: "Unauthorized" },
