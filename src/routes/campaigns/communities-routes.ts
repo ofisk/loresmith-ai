@@ -1,6 +1,20 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeDetectCommunities,
+	routeGenerateCommunitySummary,
+	routeGetChildCommunities,
+	routeGetCommunitiesByLevel,
+	routeGetCommunity,
+	routeGetCommunityEntityGraph,
+	routeGetCommunityHierarchy,
+	routeGetCommunitySummary,
+	routeGetGraphVisualization,
+	routeListCommunities,
+	routeListCommunitySummaries,
+	routeSearchEntityInGraph,
+} from "@/routes/campaigns/communities-routes-openapi";
 import {
 	handleDetectCommunities,
 	handleGenerateCommunitySummary,
@@ -13,119 +27,58 @@ import {
 	handleListCommunitySummaries,
 } from "@/routes/communities";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleGetCommunityEntityGraph,
 	handleGetGraphVisualization,
 	handleSearchEntityInGraph,
 } from "@/routes/graph-visualization";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignCommunitiesRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETECT(":campaignId")
-		),
-		requireUserJwt,
-		handleDetectCommunities
+	app.openapi(
+		routeDetectCommunities,
+		handleDetectCommunities as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.LIST(":campaignId")
-		),
-		requireUserJwt,
-		handleListCommunities
+	app.openapi(
+		routeListCommunities,
+		handleListCommunities as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.DETAILS(
-				":campaignId",
-				":communityId"
-			)
-		),
-		requireUserJwt,
-		handleGetCommunity
+	app.openapi(routeGetCommunity, handleGetCommunity as unknown as Handler);
+	app.openapi(
+		routeGetCommunitiesByLevel,
+		handleGetCommunitiesByLevel as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.BY_LEVEL(
-				":campaignId",
-				":level"
-			)
-		),
-		requireUserJwt,
-		handleGetCommunitiesByLevel
+	app.openapi(
+		routeGetChildCommunities,
+		handleGetChildCommunities as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.CHILDREN(
-				":campaignId",
-				":communityId"
-			)
-		),
-		requireUserJwt,
-		handleGetChildCommunities
+	app.openapi(
+		routeGetCommunityHierarchy,
+		handleGetCommunityHierarchy as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.HIERARCHY(":campaignId")
-		),
-		requireUserJwt,
-		handleGetCommunityHierarchy
+	app.openapi(
+		routeGetGraphVisualization,
+		handleGetGraphVisualization as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.BASE(":campaignId")
-		),
-		requireUserJwt,
-		handleGetGraphVisualization
+	app.openapi(
+		routeGetCommunityEntityGraph,
+		handleGetCommunityEntityGraph as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.COMMUNITY(
-				":campaignId",
-				":communityId"
-			)
-		),
-		requireUserJwt,
-		handleGetCommunityEntityGraph
+	app.openapi(
+		routeSearchEntityInGraph,
+		handleSearchEntityInGraph as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_VISUALIZATION.SEARCH_ENTITY(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleSearchEntityInGraph
+	app.openapi(
+		routeGetCommunitySummary,
+		handleGetCommunitySummary as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARY(
-				":campaignId",
-				":communityId"
-			)
-		),
-		requireUserJwt,
-		handleGetCommunitySummary
+	app.openapi(
+		routeListCommunitySummaries,
+		handleListCommunitySummaries as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.SUMMARIES(":campaignId")
-		),
-		requireUserJwt,
-		handleListCommunitySummaries
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.COMMUNITIES.GENERATE_SUMMARY(
-				":campaignId",
-				":communityId"
-			)
-		),
-		requireUserJwt,
-		handleGenerateCommunitySummary
+	app.openapi(
+		routeGenerateCommunitySummary,
+		handleGenerateCommunitySummary as unknown as Handler
 	);
 }

@@ -1,8 +1,14 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeCancelRebuild,
+	routeGetActiveRebuilds,
+	routeGetRebuildHistory,
+	routeGetRebuildStatus,
+	routeTriggerRebuild,
+} from "@/routes/campaigns/graph-rebuild-routes-openapi";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleCancelRebuild,
 	handleGetActiveRebuilds,
@@ -10,50 +16,22 @@ import {
 	handleGetRebuildStatus,
 	handleTriggerRebuild,
 } from "@/routes/graph-rebuild";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignGraphRebuildRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.TRIGGER(":campaignId")
-		),
-		requireUserJwt,
-		handleTriggerRebuild
+	app.openapi(routeTriggerRebuild, handleTriggerRebuild as unknown as Handler);
+	app.openapi(
+		routeGetRebuildStatus,
+		handleGetRebuildStatus as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.STATUS(
-				":campaignId",
-				":rebuildId"
-			)
-		),
-		requireUserJwt,
-		handleGetRebuildStatus
+	app.openapi(
+		routeGetRebuildHistory,
+		handleGetRebuildHistory as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.HISTORY(":campaignId")
-		),
-		requireUserJwt,
-		handleGetRebuildHistory
+	app.openapi(
+		routeGetActiveRebuilds,
+		handleGetActiveRebuilds as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.ACTIVE(":campaignId")
-		),
-		requireUserJwt,
-		handleGetActiveRebuilds
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.GRAPH_REBUILD.CANCEL(
-				":campaignId",
-				":rebuildId"
-			)
-		),
-		requireUserJwt,
-		handleCancelRebuild
-	);
+	app.openapi(routeCancelRebuild, handleCancelRebuild as unknown as Handler);
 }

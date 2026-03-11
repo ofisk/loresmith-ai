@@ -1,6 +1,23 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeCreateEntityRelationship,
+	routeDeleteEntityRelationship,
+	routeGetEntity,
+	routeGetEntityImportance,
+	routeGetEntityNeighbors,
+	routeGetEntityRelationships,
+	routeListEntities,
+	routeListPendingDeduplication,
+	routeListRelationshipTypes,
+	routeListTopEntitiesByImportance,
+	routeResolveDeduplicationEntry,
+	routeTestEntityExtractionFromR2,
+	routeTriggerEntityDeduplication,
+	routeTriggerEntityExtraction,
+	routeUpdateEntityImportance,
+} from "@/routes/campaigns/entities-routes-openapi";
 import {
 	handleCreateEntityRelationship,
 	handleDeleteEntityRelationship,
@@ -19,138 +36,62 @@ import {
 	handleUpdateEntityImportance,
 } from "@/routes/entities";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignEntitiesRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.LIST(":campaignId")),
-		requireUserJwt,
-		handleListEntities
+	app.openapi(routeListEntities, handleListEntities as unknown as Handler);
+	app.openapi(routeGetEntity, handleGetEntity as unknown as Handler);
+	app.openapi(
+		routeGetEntityRelationships,
+		handleGetEntityRelationships as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DETAILS(
-				":campaignId",
-				":entityId"
-			)
-		),
-		requireUserJwt,
-		handleGetEntity
+	app.openapi(
+		routeGetEntityNeighbors,
+		handleGetEntityNeighbors as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
-				":campaignId",
-				":entityId"
-			)
-		),
-		requireUserJwt,
-		handleGetEntityRelationships
+	app.openapi(
+		routeListRelationshipTypes,
+		handleListRelationshipTypes as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.GRAPH_NEIGHBORS(
-				":campaignId",
-				":entityId"
-			)
-		),
-		requireUserJwt,
-		handleGetEntityNeighbors
+	app.openapi(
+		routeUpdateEntityImportance,
+		handleUpdateEntityImportance as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_TYPES(":campaignId")
-		),
-		requireUserJwt,
-		handleListRelationshipTypes
+	app.openapi(
+		routeGetEntityImportance,
+		handleGetEntityImportance as unknown as Handler
 	);
-	app.patch(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
-				":campaignId",
-				":entityId"
-			)
-		),
-		requireUserJwt,
-		handleUpdateEntityImportance
+	app.openapi(
+		routeListTopEntitiesByImportance,
+		handleListTopEntitiesByImportance as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
-				":campaignId",
-				":entityId"
-			)
-		),
-		requireUserJwt,
-		handleGetEntityImportance
+	app.openapi(
+		routeCreateEntityRelationship,
+		handleCreateEntityRelationship as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE_TOP(":campaignId")
-		),
-		requireUserJwt,
-		handleListTopEntitiesByImportance
+	app.openapi(
+		routeDeleteEntityRelationship,
+		handleDeleteEntityRelationship as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIPS(
-				":campaignId",
-				":entityId"
-			)
-		),
-		requireUserJwt,
-		handleCreateEntityRelationship
+	app.openapi(
+		routeTriggerEntityExtraction,
+		handleTriggerEntityExtraction as unknown as Handler
 	);
-	app.delete(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.RELATIONSHIP_DETAIL(
-				":campaignId",
-				":entityId",
-				":relationshipId"
-			)
-		),
-		requireUserJwt,
-		handleDeleteEntityRelationship
+	app.openapi(
+		routeTriggerEntityDeduplication,
+		handleTriggerEntityDeduplication as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.EXTRACT(":campaignId")
-		),
-		requireUserJwt,
-		handleTriggerEntityExtraction
+	app.openapi(
+		routeListPendingDeduplication,
+		handleListPendingDeduplication as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUPLICATE(":campaignId")
-		),
-		requireUserJwt,
-		handleTriggerEntityDeduplication
+	app.openapi(
+		routeResolveDeduplicationEntry,
+		handleResolveDeduplicationEntry as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_PENDING(":campaignId")
-		),
-		requireUserJwt,
-		handleListPendingDeduplication
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.DEDUP_RESOLVE(
-				":campaignId",
-				":entryId"
-			)
-		),
-		requireUserJwt,
-		handleResolveDeduplicationEntry
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.TEST_EXTRACT_FROM_R2
-		),
-		requireUserJwt,
-		handleTestEntityExtractionFromR2
+	app.openapi(
+		routeTestEntityExtractionFromR2,
+		handleTestEntityExtractionFromR2 as unknown as Handler
 	);
 }

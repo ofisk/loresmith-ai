@@ -1,9 +1,18 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeAssembleContext,
+	routeBulkCompletePlanningTasks,
+	routeCreatePlanningTask,
+	routeDeletePlanningTask,
+	routeGetPlanningTasks,
+	routeGetRecentPlanningContext,
+	routeSearchPlanningContext,
+	routeUpdatePlanningTask,
+} from "@/routes/campaigns/planning-routes-openapi";
 import { handleAssembleContext } from "@/routes/context-assembly";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleGetRecentPlanningContext,
 	handleSearchPlanningContext,
@@ -15,71 +24,40 @@ import {
 	handleGetPlanningTasks,
 	handleUpdatePlanningTask,
 } from "@/routes/planning-tasks";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignPlanningRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId")
-		),
-		requireUserJwt,
-		handleGetPlanningTasks
+	app.openapi(
+		routeGetPlanningTasks,
+		handleGetPlanningTasks as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(":campaignId")
-		),
-		requireUserJwt,
-		handleCreatePlanningTask
+	app.openapi(
+		routeCreatePlanningTask,
+		handleCreatePlanningTask as unknown as Handler
 	);
-	app.patch(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
-				":campaignId",
-				":taskId"
-			)
-		),
-		requireUserJwt,
-		handleUpdatePlanningTask
+	app.openapi(
+		routeUpdatePlanningTask,
+		handleUpdatePlanningTask as unknown as Handler
 	);
-	app.delete(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.DETAILS(
-				":campaignId",
-				":taskId"
-			)
-		),
-		requireUserJwt,
-		handleDeletePlanningTask
+	app.openapi(
+		routeDeletePlanningTask,
+		handleDeletePlanningTask as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.COMPLETE_BULK(":campaignId")
-		),
-		requireUserJwt,
-		handleBulkCompletePlanningTasks
+	app.openapi(
+		routeBulkCompletePlanningTasks,
+		handleBulkCompletePlanningTasks as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.SEARCH(":campaignId")
-		),
-		requireUserJwt,
-		handleSearchPlanningContext
+	app.openapi(
+		routeSearchPlanningContext,
+		handleSearchPlanningContext as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_CONTEXT.RECENT(":campaignId")
-		),
-		requireUserJwt,
-		handleGetRecentPlanningContext
+	app.openapi(
+		routeGetRecentPlanningContext,
+		handleGetRecentPlanningContext as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CONTEXT_ASSEMBLY(":campaignId")
-		),
-		requireUserJwt,
-		handleAssembleContext
+	app.openapi(
+		routeAssembleContext,
+		handleAssembleContext as unknown as Handler
 	);
 }

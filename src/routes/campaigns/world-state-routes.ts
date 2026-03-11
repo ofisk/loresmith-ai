@@ -1,8 +1,14 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeCreateWorldStateChangelog,
+	routeGetHistoricalOverlay,
+	routeGetWorldStateOverlay,
+	routeListWorldStateChangelog,
+	routeQueryHistoricalState,
+} from "@/routes/campaigns/world-state-routes-openapi";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleCreateWorldStateChangelog,
 	handleGetHistoricalOverlay,
@@ -10,46 +16,28 @@ import {
 	handleListWorldStateChangelog,
 	handleQueryHistoricalState,
 } from "@/routes/world-state";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignWorldStateRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId")
-		),
-		requireUserJwt,
-		handleCreateWorldStateChangelog
+	app.openapi(
+		routeCreateWorldStateChangelog,
+		handleCreateWorldStateChangelog as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.CHANGELOG(":campaignId")
-		),
-		requireUserJwt,
-		handleListWorldStateChangelog
+	app.openapi(
+		routeListWorldStateChangelog,
+		handleListWorldStateChangelog as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.OVERLAY(":campaignId")
-		),
-		requireUserJwt,
-		handleGetWorldStateOverlay
+	app.openapi(
+		routeGetWorldStateOverlay,
+		handleGetWorldStateOverlay as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_QUERY(":campaignId")
-		),
-		requireUserJwt,
-		handleQueryHistoricalState
+	app.openapi(
+		routeQueryHistoricalState,
+		handleQueryHistoricalState as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.WORLD_STATE.HISTORICAL_OVERLAY(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleGetHistoricalOverlay
+	app.openapi(
+		routeGetHistoricalOverlay,
+		handleGetHistoricalOverlay as unknown as Handler
 	);
 }

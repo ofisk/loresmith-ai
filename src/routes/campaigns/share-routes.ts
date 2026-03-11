@@ -1,6 +1,6 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import {
 	handleApproveResourceProposal,
 	handleCreateResourceProposal,
@@ -18,113 +18,73 @@ import {
 	handleListShareLinks,
 	handleRevokeShareLink,
 } from "@/routes/campaign-share";
+import {
+	routeApproveResourceProposal,
+	routeAssignPlayerCharacterClaim,
+	routeClearPlayerCharacterClaim,
+	routeCreatePlayerCharacterClaim,
+	routeCreateResourceProposal,
+	routeCreateShareLink,
+	routeDownloadFileFromProposal,
+	routeGetPlayerCharacterClaimOptions,
+	routeListPlayerCharacterClaims,
+	routeListResourceProposals,
+	routeListShareLinks,
+	routeRejectResourceProposal,
+	routeRevokeShareLink,
+} from "@/routes/campaigns/share-routes-openapi";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignShareRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId")),
-		requireUserJwt,
-		handleCreateShareLink
+	app.openapi(
+		routeCreateShareLink,
+		handleCreateShareLink as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS(":campaignId")),
-		requireUserJwt,
-		handleListShareLinks
+	app.openapi(routeListShareLinks, handleListShareLinks as unknown as Handler);
+	app.openapi(
+		routeRevokeShareLink,
+		handleRevokeShareLink as unknown as Handler
 	);
-	app.delete(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.CAMPAIGNS.SHARE_LINKS_REVOKE_PATTERN),
-		requireUserJwt,
-		handleRevokeShareLink
+	app.openapi(
+		routeGetPlayerCharacterClaimOptions,
+		handleGetPlayerCharacterClaimOptions as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_OPTIONS(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleGetPlayerCharacterClaimOptions
+	app.openapi(
+		routeCreatePlayerCharacterClaim,
+		handleCreatePlayerCharacterClaim as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM(":campaignId")
-		),
-		requireUserJwt,
-		handleCreatePlayerCharacterClaim
+	app.openapi(
+		routeListPlayerCharacterClaims,
+		handleListPlayerCharacterClaims as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIMS(":campaignId")
-		),
-		requireUserJwt,
-		handleListPlayerCharacterClaims
+	app.openapi(
+		routeAssignPlayerCharacterClaim,
+		handleAssignPlayerCharacterClaim as unknown as Handler
 	);
-	app.put(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_ASSIGN(
-				":campaignId",
-				":username"
-			)
-		),
-		requireUserJwt,
-		handleAssignPlayerCharacterClaim
+	app.openapi(
+		routeClearPlayerCharacterClaim,
+		handleClearPlayerCharacterClaim as unknown as Handler
 	);
-	app.delete(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_ASSIGN(
-				":campaignId",
-				":username"
-			)
-		),
-		requireUserJwt,
-		handleClearPlayerCharacterClaim
+	app.openapi(
+		routeCreateResourceProposal,
+		handleCreateResourceProposal as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId")
-		),
-		requireUserJwt,
-		handleCreateResourceProposal
+	app.openapi(
+		routeListResourceProposals,
+		handleListResourceProposals as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSALS(":campaignId")
-		),
-		requireUserJwt,
-		handleListResourceProposals
+	app.openapi(
+		routeApproveResourceProposal,
+		handleApproveResourceProposal as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_APPROVE(
-				":campaignId",
-				":id"
-			)
-		),
-		requireUserJwt,
-		handleApproveResourceProposal
+	app.openapi(
+		routeRejectResourceProposal,
+		handleRejectResourceProposal as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_REJECT(
-				":campaignId",
-				":id"
-			)
-		),
-		requireUserJwt,
-		handleRejectResourceProposal
-	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE_PROPOSAL_DOWNLOAD(
-				":campaignId",
-				":id"
-			)
-		),
-		requireUserJwt,
-		handleDownloadFileFromProposal
+	app.openapi(
+		routeDownloadFileFromProposal,
+		handleDownloadFileFromProposal as unknown as Handler
 	);
 }

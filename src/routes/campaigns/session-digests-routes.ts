@@ -1,8 +1,22 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeApproveDigest,
+	routeCreateSessionDigest,
+	routeCreateSessionDigestTemplate,
+	routeDeleteSessionDigest,
+	routeDeleteSessionDigestTemplate,
+	routeGetSessionDigest,
+	routeGetSessionDigests,
+	routeGetSessionDigestTemplate,
+	routeGetSessionDigestTemplates,
+	routeRejectDigest,
+	routeSubmitDigestForReview,
+	routeUpdateSessionDigest,
+	routeUpdateSessionDigestTemplate,
+} from "@/routes/campaigns/session-digests-routes-openapi";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleCreateSessionDigestTemplate,
 	handleDeleteSessionDigestTemplate,
@@ -20,131 +34,54 @@ import {
 	handleSubmitDigestForReview,
 	handleUpdateSessionDigest,
 } from "@/routes/session-digests";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignSessionDigestsRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId")
-		),
-		requireUserJwt,
-		handleCreateSessionDigest
+	app.openapi(
+		routeCreateSessionDigest,
+		handleCreateSessionDigest as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.BASE(":campaignId")
-		),
-		requireUserJwt,
-		handleGetSessionDigests
+	app.openapi(
+		routeGetSessionDigests,
+		handleGetSessionDigests as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-				":campaignId",
-				":digestId"
-			)
-		),
-		requireUserJwt,
-		handleGetSessionDigest
+	app.openapi(
+		routeGetSessionDigest,
+		handleGetSessionDigest as unknown as Handler
 	);
-	app.put(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-				":campaignId",
-				":digestId"
-			)
-		),
-		requireUserJwt,
-		handleUpdateSessionDigest
+	app.openapi(
+		routeUpdateSessionDigest,
+		handleUpdateSessionDigest as unknown as Handler
 	);
-	app.delete(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.DETAILS(
-				":campaignId",
-				":digestId"
-			)
-		),
-		requireUserJwt,
-		handleDeleteSessionDigest
+	app.openapi(
+		routeDeleteSessionDigest,
+		handleDeleteSessionDigest as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.SUBMIT(
-				":campaignId",
-				":digestId"
-			)
-		),
-		requireUserJwt,
-		handleSubmitDigestForReview
+	app.openapi(
+		routeSubmitDigestForReview,
+		handleSubmitDigestForReview as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.APPROVE(
-				":campaignId",
-				":digestId"
-			)
-		),
-		requireUserJwt,
-		handleApproveDigest
+	app.openapi(routeApproveDigest, handleApproveDigest as unknown as Handler);
+	app.openapi(routeRejectDigest, handleRejectDigest as unknown as Handler);
+	app.openapi(
+		routeCreateSessionDigestTemplate,
+		handleCreateSessionDigestTemplate as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGESTS.REJECT(
-				":campaignId",
-				":digestId"
-			)
-		),
-		requireUserJwt,
-		handleRejectDigest
+	app.openapi(
+		routeGetSessionDigestTemplates,
+		handleGetSessionDigestTemplates as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleCreateSessionDigestTemplate
+	app.openapi(
+		routeGetSessionDigestTemplate,
+		handleGetSessionDigestTemplate as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.BASE(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleGetSessionDigestTemplates
+	app.openapi(
+		routeUpdateSessionDigestTemplate,
+		handleUpdateSessionDigestTemplate as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
-				":campaignId",
-				":templateId"
-			)
-		),
-		requireUserJwt,
-		handleGetSessionDigestTemplate
-	);
-	app.put(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
-				":campaignId",
-				":templateId"
-			)
-		),
-		requireUserJwt,
-		handleUpdateSessionDigestTemplate
-	);
-	app.delete(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.SESSION_DIGEST_TEMPLATES.DETAILS(
-				":campaignId",
-				":templateId"
-			)
-		),
-		requireUserJwt,
-		handleDeleteSessionDigestTemplate
+	app.openapi(
+		routeDeleteSessionDigestTemplate,
+		handleDeleteSessionDigestTemplate as unknown as Handler
 	);
 }

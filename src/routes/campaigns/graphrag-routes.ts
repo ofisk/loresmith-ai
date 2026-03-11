@@ -1,6 +1,6 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import {
 	handleApproveShards,
 	handleGenerateShardField,
@@ -8,72 +8,34 @@ import {
 	handleRejectShards,
 	handleUpdateShard,
 } from "@/routes/campaign-graphrag";
+import {
+	routeApproveShards,
+	routeApproveShardsBulk,
+	routeGenerateShardField,
+	routeGetStagedShards,
+	routeRejectShards,
+	routeRejectShardsBulk,
+	routeUpdateShard,
+} from "@/routes/campaigns/graphrag-routes-openapi";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerCampaignGraphragRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE(":campaignId")
-		),
-		requireUserJwt,
-		handleApproveShards
+	app.openapi(routeApproveShards, handleApproveShards as unknown as Handler);
+	app.openapi(routeRejectShards, handleRejectShards as unknown as Handler);
+	app.openapi(
+		routeGetStagedShards,
+		handleGetStagedShards as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT(":campaignId")
-		),
-		requireUserJwt,
-		handleRejectShards
+	app.openapi(
+		routeApproveShardsBulk,
+		handleApproveShards as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.STAGED_SHARDS(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleGetStagedShards
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE_SHARDS(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleApproveShards
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.REJECT_SHARDS(
-				":campaignId"
-			)
-		),
-		requireUserJwt,
-		handleRejectShards
-	);
-	app.put(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.UPDATE_SHARD(
-				":campaignId",
-				":shardId"
-			)
-		),
-		requireUserJwt,
-		handleUpdateShard
-	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.GENERATE_FIELD(
-				":campaignId",
-				":shardId"
-			)
-		),
-		requireUserJwt,
-		handleGenerateShardField
+	app.openapi(routeRejectShardsBulk, handleRejectShards as unknown as Handler);
+	app.openapi(routeUpdateShard, handleUpdateShard as unknown as Handler);
+	app.openapi(
+		routeGenerateShardField,
+		handleGenerateShardField as unknown as Handler
 	);
 }
