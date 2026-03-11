@@ -21,11 +21,12 @@ test.describe("file upload", () => {
 		const fileInput = page.getByLabel("Choose files to upload");
 		await fileInput.setInputFiles(samplePath);
 
+		// Wait specifically for the upload PUT to succeed (not an earlier GET /api/library/files)
 		await Promise.all([
 			page.waitForResponse(
 				(resp) =>
-					(resp.url().includes("/api/library/files") ||
-						resp.url().includes("/api/upload/")) &&
+					resp.url().includes("/api/upload/direct/") &&
+					resp.request().method() === "PUT" &&
 					resp.status() >= 200 &&
 					resp.status() < 400
 			),
@@ -36,6 +37,7 @@ test.describe("file upload", () => {
 		// Expand the library section so the file list is visible.
 		await page.getByRole("button", { name: /your resource library/i }).click();
 
+		// Wait for FILE_UPLOAD.COMPLETED to trigger fetchResources and for the file to render
 		await expect(page.getByText("sample.txt")).toBeVisible({
 			timeout: 20_000,
 		});
