@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { API_CONFIG, type ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { API_CONFIG, type ToolResult } from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import {
 	commonSchemas,
 	createToolError,
@@ -11,7 +11,7 @@ import {
 	getEnvFromContext,
 	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const uploadCharacterSheetSchema = z.object({
 	campaignId: commonSchemas.campaignId,

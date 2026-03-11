@@ -1,9 +1,9 @@
 // Import all general tools
 
-import { getMessageHistory } from "../message-history-tools";
+import { getMessageHistory } from "@/tools/message-history-tools";
 import { fileRecommendationTools } from "./file-recommendation-tools";
 
-export { getMessageHistory } from "../message-history-tools";
+export { getMessageHistory } from "@/tools/message-history-tools";
 // Export all general tools
 export { fileRecommendationTools } from "./file-recommendation-tools";
 

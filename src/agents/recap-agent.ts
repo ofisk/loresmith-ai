@@ -1,10 +1,10 @@
 import { isGMRole } from "@/constants/campaign-roles";
-import type { CampaignRole } from "@/types/campaign";
 import {
 	gmRecapToolsBundle,
 	playerRecapToolsBundle,
 	recapAgentToolsBundle,
-} from "../tools/campaign-context/recap-agent-tools-bundle";
+} from "@/tools/campaign-context/recap-agent-tools-bundle";
+import type { CampaignRole } from "@/types/campaign";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,

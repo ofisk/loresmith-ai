@@ -1,6 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { getGenerationModelForProvider, MODEL_CONFIG } from "../app-constants";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { sanitizeApiKey } from "./auth-utils";
 import { LLMProviderAPIKeyError } from "./errors";
 

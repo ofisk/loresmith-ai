@@ -4,16 +4,13 @@ import { ArrayInput } from "@/components/input/ArrayInput";
 import { FormField } from "@/components/input/FormField";
 import { usePlanningTasks } from "@/hooks/usePlanningTasks";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
+import type { PlanningTask, PlanningTaskStatus } from "@/types/planning-task";
 import type {
 	SessionDigestData,
 	SessionDigestStateChanges,
 	SessionDigestWithData,
 } from "@/types/session-digest";
 import { validateSessionDigestData } from "@/types/session-digest";
-import type {
-	PlanningTask,
-	PlanningTaskStatus,
-} from "../../types/planning-task";
 
 interface SessionDigestFormProps {
 	campaignId: string;

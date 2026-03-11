@@ -54,6 +54,16 @@
 	},
 	"overrides": [
 		{
+			"includes": ["scripts/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": [
 				"tests/**",
 				"**/*.test.ts",

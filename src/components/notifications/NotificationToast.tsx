@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { NotificationPayload } from "../../durable-objects/notification-hub";
+import type { NotificationPayload } from "@/durable-objects/notification-hub";
 
 interface NotificationBellProps {
 	notifications: NotificationPayload[];

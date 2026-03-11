@@ -1,10 +1,7 @@
 import { Check, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { usePlanningTasks } from "@/hooks/usePlanningTasks";
-import type {
-	PlanningTask,
-	PlanningTaskStatus,
-} from "../../types/planning-task";
+import type { PlanningTask, PlanningTaskStatus } from "@/types/planning-task";
 
 interface PlanningTasksPanelProps {
 	campaignId: string | null;

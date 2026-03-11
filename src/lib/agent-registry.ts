@@ -21,8 +21,8 @@ import type { AgentType } from "./agent-router";
  * 2. Add it to the registry here:
  *    ```typescript
  *    // In this file, add:
- *    import { MyNewAgent } from "../agents/my-new-agent";
- *    import { myNewTools } from "../tools/my-new-tools";
+ *    import { MyNewAgent } from "@/agents/my-new-agent";
+ *    import { myNewTools } from "@/tools/my-new-tools";
  *
  *    // In the initialize() method, add:
  *    AgentRouter.registerAgent(

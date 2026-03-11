@@ -7,7 +7,7 @@ import {
 	createToolError,
 	getEnvFromContext,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 export async function withRulesContext<_T>(
 	options: ToolExecuteOptions | undefined,

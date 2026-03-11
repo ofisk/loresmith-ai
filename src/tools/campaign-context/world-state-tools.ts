@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { API_CONFIG } from "@/shared-config";
-import type { WorldStateChangelogPayload } from "@/types/world-state";
 import {
 	commonSchemas,
 	createToolError,
@@ -13,7 +12,8 @@ import {
 	requireCampaignAccessByUserIdForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
+import type { WorldStateChangelogPayload } from "@/types/world-state";
 
 const entityUpdateSchema = z.object({
 	entityId: z.string().describe("ID of the entity that changed."),

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import type { FileUploadEvent } from "../lib/event-bus";
-import { EVENT_TYPES, useEvent, useEventBus } from "../lib/event-bus";
+import type { FileUploadEvent } from "@/lib/event-bus";
+import { EVENT_TYPES, useEvent, useEventBus } from "@/lib/event-bus";
 
 // Status constants
 export const UPLOAD_STATUS = {

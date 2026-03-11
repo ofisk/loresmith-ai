@@ -1,11 +1,11 @@
-import type { CampaignResource } from "../types/campaign";
+import type { CampaignResource } from "@/types/campaign";
 import type {
 	AISearchResponse,
 	CreateShardData,
 	ShardCandidate,
 	ShardMetadata,
 	ShardSourceRef,
-} from "../types/shard";
+} from "@/types/shard";
 import { STRUCTURED_ENTITY_TYPES } from "./entity/entity-types";
 
 /**

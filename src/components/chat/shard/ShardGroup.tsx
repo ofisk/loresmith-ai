@@ -1,6 +1,6 @@
 import type React from "react";
-import type { StagedShardGroup } from "../../../types/shard";
-import { Card } from "../../card/Card";
+import { Card } from "@/components/card/Card";
+import type { StagedShardGroup } from "@/types/shard";
 import { ShardItem } from "./ShardItem";
 
 interface ShardGroupProps {

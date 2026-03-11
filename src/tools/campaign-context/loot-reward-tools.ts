@@ -20,7 +20,7 @@ import {
 	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const lootItemSchema = z.object({
 	name: z.string(),

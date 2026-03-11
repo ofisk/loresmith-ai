@@ -1,6 +1,9 @@
 // Campaign analysis tools bundle
 
-import { showCampaignDetails, updateCampaign } from "../campaign/core-tools";
+import {
+	showCampaignDetails,
+	updateCampaign,
+} from "@/tools/campaign/core-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {
 	getPlanningTaskProgress,

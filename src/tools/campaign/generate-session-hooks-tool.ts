@@ -12,7 +12,7 @@ import {
 	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import { generateHooks } from "./planning-tools-utils";
 
 const generateSessionHooksSchema = z.object({

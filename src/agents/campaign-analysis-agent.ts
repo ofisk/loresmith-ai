@@ -1,7 +1,7 @@
 import { isGMRole } from "@/constants/campaign-roles";
+import { CAMPAIGN_PLANNING_CHECKLIST } from "@/lib/campaign-planning-checklist";
+import { campaignAnalysisTools } from "@/tools/campaign-context/analysis-tools";
 import type { CampaignRole } from "@/types/campaign";
-import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
-import { campaignAnalysisTools } from "../tools/campaign-context/analysis-tools";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,

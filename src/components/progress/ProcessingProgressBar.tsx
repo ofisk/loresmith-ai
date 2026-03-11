@@ -1,4 +1,4 @@
-import type { ProcessingProgress, ProcessingStep } from "../../types/progress";
+import type { ProcessingProgress, ProcessingStep } from "@/types/progress";
 
 interface ProcessingProgressBarProps {
 	progress: ProcessingProgress;

@@ -1,6 +1,6 @@
 import { type ToolExecutionOptions, tool } from "ai";
 import { z } from "zod";
-import { createToolSuccess } from "../utils";
+import { createToolSuccess } from "@/tools/utils";
 
 const noOpToolSchema = z.object({
 	reason: z

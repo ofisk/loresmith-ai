@@ -1,10 +1,10 @@
 import type React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { JWT_STORAGE_KEY } from "@/app-constants";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { NotificationPayload } from "@/durable-objects/notification-hub";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
-import { NOTIFICATION_TYPES } from "../../constants/notification-types";
-import type { NotificationPayload } from "../../durable-objects/notification-hub";
-import { useNotificationStream } from "../../hooks/useNotificationStream";
 
 interface NotificationContextType {
 	notifications: NotificationPayload[];

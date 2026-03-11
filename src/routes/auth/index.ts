@@ -1,8 +1,5 @@
 import type { Hono } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 import {
 	handleGoogleAuth,
 	handleGoogleCallback,
@@ -12,7 +9,10 @@ import {
 	handleRegister,
 	handleResendVerification,
 	handleVerifyEmail,
-} from "../auth";
+} from "@/routes/auth";
+import type { Env } from "@/routes/env";
+import { toApiRoutePath } from "@/routes/env";
+import { API_CONFIG } from "@/shared-config";
 
 export function registerAuthRoutes(
 	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { NOTIFICATION_TYPES } from "../../constants/notification-types";
-import type { NotificationPayload } from "../../durable-objects/notification-hub";
-import { Button } from "../button/Button";
+import { Button } from "@/components/button/Button";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import type { NotificationPayload } from "@/durable-objects/notification-hub";
 
 interface NotificationBellProps {
 	notifications: NotificationPayload[];

@@ -1,5 +1,5 @@
 import { Question } from "@phosphor-icons/react";
-import { Button } from "../button/Button";
+import { Button } from "@/components/button/Button";
 
 interface HelpButtonProps {
 	onActionClick: (action: string) => void;

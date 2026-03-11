@@ -9,7 +9,7 @@ import type {
 	ContentExtractionOptions,
 	ContentExtractionProvider,
 	ContentExtractionResult,
-} from "../content-extraction-provider";
+} from "@/services/campaign/content-extraction-provider";
 
 /**
  * Direct file content extraction provider

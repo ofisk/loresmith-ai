@@ -2,7 +2,7 @@ import { type ToolExecutionOptions, tool } from "ai";
 import { z } from "zod";
 import { getEnvVar } from "@/lib/env-utils";
 import { EmailService } from "@/services/core/email-service";
-import { extractUsernameFromJwt } from "../utils";
+import { extractUsernameFromJwt } from "@/tools/utils";
 
 const submitSupportRequestSchema = z.object({
 	subject: z

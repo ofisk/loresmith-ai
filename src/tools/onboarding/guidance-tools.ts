@@ -1,14 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { ToolResult } from "../../app-constants";
-import { getAssessmentService } from "../../lib/service-factory";
-import type { Env } from "../../middleware/auth";
+import type { ToolResult } from "@/app-constants";
+import { getAssessmentService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
 import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import type { ActionSuggestion } from "./state-analysis-tools";
 
 /**

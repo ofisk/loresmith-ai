@@ -3,7 +3,7 @@
 import {
 	captureConversationalContext,
 	saveContextExplicitly,
-} from "../campaign-context/context-capture-tools";
+} from "@/tools/campaign-context/context-capture-tools";
 import {
 	checkHouseRuleConflictTool,
 	defineHouseRuleTool,
@@ -13,23 +13,23 @@ import {
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
 	updateHouseRuleTool,
-} from "../campaign-context/entity-tools";
+} from "@/tools/campaign-context/entity-tools";
 import {
 	getPlanningTaskProgress,
 	recordPlanningTasks,
-} from "../campaign-context/planning-task-tools";
+} from "@/tools/campaign-context/planning-task-tools";
 import {
 	listAllEntities,
 	searchCampaignContext,
-} from "../campaign-context/search-tools";
+} from "@/tools/campaign-context/search-tools";
 import {
 	recordWorldEventTool,
 	updateEntityWorldStateTool,
 	updateRelationshipWorldStateTool,
-} from "../campaign-context/world-state-tools";
-import { noOpTool } from "../common/no-op-tool";
+} from "@/tools/campaign-context/world-state-tools";
+import { noOpTool } from "@/tools/common/no-op-tool";
 // Import file management tools for campaign operations
-import { getFileStats, listFiles } from "../file/index";
+import { getFileStats, listFiles } from "@/tools/file/index";
 import {
 	createCampaign,
 	deleteCampaign,

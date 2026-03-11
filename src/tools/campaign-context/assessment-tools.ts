@@ -1,17 +1,17 @@
 import {
+	generateReadinessSummary,
+	getCampaignState,
+} from "@/lib/campaign-state-utils";
+import {
 	CampaignDimensionAnalysisError,
 	CampaignReadinessAnalysisError,
 	ModuleExtractionError,
 	RecommendationGenerationError,
 } from "@/lib/errors";
-import {
-	generateReadinessSummary,
-	getCampaignState,
-} from "../../lib/campaign-state-utils";
-import { getAssessmentService } from "../../lib/service-factory";
-import type { Env } from "../../middleware/auth";
-import type { Recommendation } from "../../types/assessment";
-import type { Campaign, CampaignResource } from "../../types/campaign";
+import { getAssessmentService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
+import type { Recommendation } from "@/types/assessment";
+import type { Campaign, CampaignResource } from "@/types/campaign";
 import {
 	analyzeCampaignReadiness,
 	type CampaignAssessment,

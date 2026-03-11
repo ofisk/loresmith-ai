@@ -1,5 +1,5 @@
 // Tools for the Recap Agent (recap, next steps, and search to enrich session plan readout)
-import { showCampaignDetails } from "../campaign/core-tools";
+import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import {
 	getPlanningTaskProgress,

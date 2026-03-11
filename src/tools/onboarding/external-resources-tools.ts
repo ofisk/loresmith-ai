@@ -5,7 +5,7 @@ import {
 	createToolError,
 	createToolSuccess,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import type { ToolRecommendation } from "./state-analysis-tools";
 
 const recommendExternalToolsSchema = z.object({
