@@ -30,9 +30,7 @@ test.describe("campaign management", () => {
 		]);
 
 		await expect(
-			page.locator(".tour-campaigns-section").getByText("E2E Test Campaign", {
-				exact: true,
-			})
+			page.getByRole("button", { name: /E2E Test Campaign/ }).first()
 		).toBeVisible({ timeout: 10_000 });
 	});
 
@@ -58,19 +56,21 @@ test.describe("campaign management", () => {
 			page.getByTestId("create-campaign-submit").click(),
 		]);
 
-		await expect(page.getByText("Original Name")).toBeVisible({
-			timeout: 10_000,
-		});
+		await expect(
+			page.getByRole("button", { name: /Original Name/ }).first()
+		).toBeVisible({ timeout: 10_000 });
 		await page
-			.locator(".tour-campaigns-section")
-			.getByText("Original Name")
+			.getByRole("button", { name: /Original Name/ })
+			.first()
 			.click();
 
 		await page.getByRole("button", { name: "Edit" }).click();
 		await page.getByLabel("Campaign name").fill("Edited Name");
 		await page.getByRole("button", { name: "Save" }).click();
 
-		await expect(page.getByText("Edited Name")).toBeVisible({ timeout: 5000 });
+		await expect(
+			page.getByRole("button", { name: /Edited Name/ }).first()
+		).toBeVisible({ timeout: 5000 });
 	});
 
 	test("delete campaign", async ({ page }) => {
@@ -95,19 +95,19 @@ test.describe("campaign management", () => {
 			page.getByTestId("create-campaign-submit").click(),
 		]);
 
-		await expect(page.getByText("To Delete")).toBeVisible({
-			timeout: 10_000,
-		});
+		await expect(
+			page.getByRole("button", { name: /To Delete/ }).first()
+		).toBeVisible({ timeout: 10_000 });
 		await page
-			.locator(".tour-campaigns-section")
-			.getByText("To Delete")
+			.getByRole("button", { name: /To Delete/ })
+			.first()
 			.click();
 
 		await page.getByRole("button", { name: "Delete campaign" }).click();
 		await page.getByRole("button", { name: "Confirm delete" }).click();
 
-		await expect(page.getByText("To Delete")).not.toBeVisible({
-			timeout: 5000,
-		});
+		await expect(
+			page.getByRole("button", { name: /To Delete/ })
+		).not.toBeVisible({ timeout: 5000 });
 	});
 });
