@@ -1,33 +1,28 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleGetNextActions,
 	handleGetStateAnalysis,
 	handleGetWelcomeGuidance,
 } from "@/routes/onboarding";
-import { API_CONFIG } from "@/shared-config";
+import {
+	routeGetNextActions,
+	routeGetStateAnalysis,
+	routeGetWelcomeGuidance,
+} from "@/routes/onboarding/routes";
 
 export function registerOnboardingRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ONBOARDING.WELCOME_GUIDANCE),
-		requireUserJwt,
-		handleGetWelcomeGuidance
+	app.openapi(
+		routeGetWelcomeGuidance,
+		handleGetWelcomeGuidance as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ONBOARDING.NEXT_ACTIONS),
-		requireUserJwt,
-		handleGetNextActions
-	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.ONBOARDING.CAMPAIGN_GUIDANCE(":campaignId")
-		),
-		requireUserJwt,
-		handleGetStateAnalysis
+	app.openapi(routeGetNextActions, handleGetNextActions as unknown as Handler);
+	app.openapi(
+		routeGetStateAnalysis,
+		handleGetStateAnalysis as unknown as Handler
 	);
 }

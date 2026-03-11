@@ -1,4 +1,5 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
 import {
 	handleGetAssessmentRecommendations,
@@ -6,34 +7,28 @@ import {
 	handleGetUserState,
 	handleModuleIntegration,
 } from "@/routes/assessment";
-import { requireUserJwt } from "@/routes/auth";
+import {
+	routeGetAssessmentRecommendations,
+	routeGetUserActivity,
+	routeGetUserState,
+	routeModuleIntegration,
+} from "@/routes/assessment/routes";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerAssessmentRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ASSESSMENT.USER_STATE),
-		requireUserJwt,
-		handleGetUserState
+	app.openapi(routeGetUserState, handleGetUserState as unknown as Handler);
+	app.openapi(
+		routeGetAssessmentRecommendations,
+		handleGetAssessmentRecommendations as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.ASSESSMENT.CAMPAIGN_READINESS(":campaignId")
-		),
-		requireUserJwt,
-		handleGetAssessmentRecommendations
+	app.openapi(
+		routeGetUserActivity,
+		handleGetUserActivity as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ASSESSMENT.USER_ACTIVITY),
-		requireUserJwt,
-		handleGetUserActivity
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ASSESSMENT.MODULE_INTEGRATION),
-		requireUserJwt,
-		handleModuleIntegration
+	app.openapi(
+		routeModuleIntegration,
+		handleModuleIntegration as unknown as Handler
 	);
 }
