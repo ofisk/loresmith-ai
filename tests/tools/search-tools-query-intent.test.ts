@@ -76,4 +76,43 @@ describe("parseQueryIntent", () => {
 		expect(offset).toBe(50);
 		expect(totalPages).toBe(3);
 	});
+
+	it("detects factions entity type", () => {
+		const result = parseQueryIntent("factions");
+		expect(result.entityType).toBe("factions");
+		expect(result.isListAll).toBe(true);
+	});
+
+	it("detects items entity type", () => {
+		const result = parseQueryIntent("items");
+		expect(result.entityType).toBe("items");
+		expect(result.isListAll).toBe(true);
+	});
+
+	it("detects pcs entity type", () => {
+		const result = parseQueryIntent("pcs");
+		expect(result.entityType).toBe("pcs");
+		expect(result.isListAll).toBe(true);
+	});
+
+	it("returns null entityType for beasts (not in STRUCTURED_ENTITY_TYPES)", () => {
+		const result = parseQueryIntent("beasts");
+		expect(result.entityType).toBeNull();
+		expect(result.searchQuery).toBe("beasts");
+		expect(result.isListAll).toBe(false);
+	});
+
+	it("context: with empty query sets searchPlanningContext and empty searchQuery", () => {
+		const result = parseQueryIntent("context: ");
+		expect(result.searchPlanningContext).toBe(true);
+		expect(result.searchQuery).toBe("");
+		expect(result.entityType).toBeNull();
+	});
+
+	it("list all fire monsters is semantic search not list-all", () => {
+		const result = parseQueryIntent("list all fire monsters");
+		expect(result.entityType).toBe("monsters");
+		expect(result.isListAll).toBe(false);
+		expect(result.searchQuery).toBe("list all fire");
+	});
 });

@@ -222,4 +222,52 @@ describe("encounter builder tools", () => {
 		expect(result.result.data.results[0].matches.length).toBeGreaterThan(0);
 		expect(lookupStatBlockExecuteMock).toHaveBeenCalledTimes(2);
 	});
+
+	it("scaleEncounterTool easy to deadly increases composition counts", async () => {
+		const result: any = await (scaleEncounterTool as any).execute(
+			{
+				campaignId: "campaign-1",
+				targetDifficulty: "deadly",
+				partyLevel: 5,
+				partySize: 4,
+				encounterSpec: {
+					encounterSummary: "Easy encounter",
+					composition: [
+						{
+							name: "Bog lurker",
+							count: 2,
+							threatEstimate: "low",
+						},
+					],
+				},
+				jwt: "x.eyJ1c2VybmFtZSI6Im9maXNrIn0=.y",
+			},
+			{ toolCallId: "enc-scale-2", messages: [], env: { DB: {} } } as any
+		);
+
+		expect(result.result.success).toBe(true);
+		expect(result.result.data.targetDifficulty).toBe("deadly");
+		expect(
+			result.result.data.scaledEncounterSpec.composition[0].count
+		).toBeGreaterThan(2);
+	});
+
+	it("returns 404 when campaign not found", async () => {
+		mockDaoFactory.campaignDAO.getCampaignByIdWithMapping.mockResolvedValue(
+			null
+		);
+
+		const result: any = await (generateEncounterTool as any).execute(
+			{
+				campaignId: "campaign-nonexistent",
+				partyLevel: 5,
+				partySize: 4,
+				jwt: "x.eyJ1c2VybmFtZSI6Im9maXNrIn0=.y",
+			},
+			{ toolCallId: "enc-gen-err", messages: [], env: { DB: {} } } as any
+		);
+
+		expect(result.result.success).toBe(false);
+		expect((result.result.data as { errorCode?: number }).errorCode).toBe(404);
+	});
 });

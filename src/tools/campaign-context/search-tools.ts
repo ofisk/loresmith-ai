@@ -29,7 +29,10 @@ const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
  * Returns a score between 0.0 and 1.0, where 1.0 is an exact match.
  * Used to detect when users are asking about a specific named entity.
  */
-function calculateNameSimilarity(query: string, entityName: string): number {
+export function calculateNameSimilarity(
+	query: string,
+	entityName: string
+): number {
 	// Normalize both strings: lowercase, trim, remove articles
 	const normalize = (str: string): string => {
 		return str
