@@ -1,27 +1,31 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleMintStreamToken,
 	handleNotificationPublish,
 	handleNotificationStream,
 } from "@/routes/notifications";
-import { API_CONFIG } from "@/shared-config";
+import {
+	routeMintStreamToken,
+	routeNotificationPublish,
+	routeNotificationStream,
+} from "@/routes/notifications/routes";
 
 export function registerNotificationsRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MINT_STREAM),
-		handleMintStreamToken
+	app.openapi(
+		routeMintStreamToken,
+		handleMintStreamToken as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.STREAM),
-		handleNotificationStream
+	app.openapi(
+		routeNotificationStream,
+		handleNotificationStream as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.NOTIFICATIONS.PUBLISH),
-		handleNotificationPublish
+	app.openapi(
+		routeNotificationPublish,
+		handleNotificationPublish as unknown as Handler
 	);
 }

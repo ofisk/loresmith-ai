@@ -7,9 +7,8 @@ import { registerBillingRoutes } from "@/routes/billing/index";
 import { registerCampaignRoutes } from "@/routes/campaigns/index";
 import { registerChatRoutes } from "@/routes/chat/index";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import { registerExternalResourcesRoutes } from "@/routes/external-resources/index";
-import fileAnalysisRoutes from "@/routes/file-analysis";
+import { registerFileAnalysisRoutes } from "@/routes/file-analysis/index";
 import { registerLibraryRoutes } from "@/routes/library/index";
 import { registerNotificationsRoutes } from "@/routes/notifications/index";
 import { registerOnboardingRoutes } from "@/routes/onboarding/index";
@@ -18,7 +17,6 @@ import { registerProgressRoutes } from "@/routes/progress/index";
 import { registerRagRoutes } from "@/routes/rag/index";
 import { registerTelemetryRoutes } from "@/routes/telemetry/index";
 import { registerUploadRoutes } from "@/routes/upload/index";
-import { API_CONFIG } from "@/shared-config";
 
 export type { Env } from "./env";
 
@@ -29,10 +27,7 @@ export function registerRoutes(
 	registerAuthRoutes(app);
 	registerBillingRoutes(app);
 	registerRagRoutes(app);
-	app.route(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.FILE_ANALYSIS.BASE),
-		fileAnalysisRoutes
-	);
+	registerFileAnalysisRoutes(app);
 	registerCampaignRoutes(app);
 	registerProgressRoutes(app);
 	registerAssessmentRoutes(app);

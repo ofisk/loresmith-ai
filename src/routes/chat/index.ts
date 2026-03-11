@@ -1,17 +1,12 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
+import { routeGetChatHistory } from "@/routes/chat/routes";
 import { handleGetChatHistory } from "@/routes/chat-history";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerChatRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.CHAT.HISTORY(":sessionId")),
-		requireUserJwt,
-		handleGetChatHistory
-	);
+	app.openapi(routeGetChatHistory, handleGetChatHistory as unknown as Handler);
 }
