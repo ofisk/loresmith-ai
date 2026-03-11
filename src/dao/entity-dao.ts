@@ -3,6 +3,7 @@ import {
 	type RelationshipType,
 } from "@/lib/entity/relationship-types";
 import { RelationshipUpsertError } from "@/lib/errors";
+import { incrementCampaignCacheVersion } from "@/services/search/entity-search-cache-service";
 import { BaseDAOClass } from "./base-dao";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
@@ -215,6 +216,7 @@ export class EntityDAO extends BaseDAOClass {
 			shardStatus ?? null,
 			entity.embeddingId ?? null,
 		]);
+		await incrementCampaignCacheVersion(this.db, entity.campaignId);
 	}
 
 	async updateEntity(
@@ -291,6 +293,13 @@ export class EntityDAO extends BaseDAOClass {
 
 		values.push(entityId);
 		await this.execute(sql, values);
+		const row = await this.queryFirst<{ campaign_id: string }>(
+			"SELECT campaign_id FROM entities WHERE id = ?",
+			[entityId]
+		);
+		if (row) {
+			await incrementCampaignCacheVersion(this.db, row.campaign_id);
+		}
 	}
 
 	/**
@@ -315,6 +324,17 @@ export class EntityDAO extends BaseDAOClass {
 			stmt.bind(JSON.stringify(u.metadata), u.shardStatus, u.entityId)
 		);
 		await this.db.batch(batch);
+
+		// Invalidate entity search cache for affected campaigns
+		const entityIds = updates.map((u) => u.entityId);
+		const placeholders = entityIds.map(() => "?").join(", ");
+		const rows = await this.queryAll<{ campaign_id: string }>(
+			`SELECT DISTINCT campaign_id FROM entities WHERE id IN (${placeholders})`,
+			entityIds
+		);
+		for (const row of rows) {
+			await incrementCampaignCacheVersion(this.db, row.campaign_id);
+		}
 	}
 
 	async getEntityById(entityId: string): Promise<Entity | null> {
@@ -692,11 +712,18 @@ export class EntityDAO extends BaseDAOClass {
 	}
 
 	async deleteEntity(entityId: string): Promise<void> {
+		const row = await this.queryFirst<{ campaign_id: string }>(
+			"SELECT campaign_id FROM entities WHERE id = ?",
+			[entityId]
+		);
 		await this.execute(
 			"DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",
 			[entityId, entityId]
 		);
 		await this.execute("DELETE FROM entities WHERE id = ?", [entityId]);
+		if (row) {
+			await incrementCampaignCacheVersion(this.db, row.campaign_id);
+		}
 	}
 
 	async upsertRelationship(

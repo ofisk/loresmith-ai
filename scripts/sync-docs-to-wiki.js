@@ -79,6 +79,11 @@ const FILE_MAPPINGS = [
 		dest: "Technical/Checklist-Status-System.md",
 		process: true,
 	},
+	{
+		src: "docs/ENTITY_SEARCH_CACHING.md",
+		dest: "Technical/Entity-Search-Caching.md",
+		process: true,
+	},
 ];
 
 function exec(cmd, options = {}) {

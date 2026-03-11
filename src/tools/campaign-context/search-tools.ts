@@ -1,4 +1,4 @@
-import type { VectorizeIndex } from "@cloudflare/workers-types";
+import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
 import { AUTH_CODES, type ToolResult } from "@/app-constants";
@@ -10,6 +10,12 @@ import { STRUCTURED_ENTITY_TYPES } from "@/lib/entity/entity-types";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
 import type { PlanningContextService } from "@/services/rag/planning-context-service";
 import { getPlanningServices } from "@/services/rag/rag-service-factory";
+import {
+	buildCacheKey,
+	getCachedSearchResult,
+	getCampaignCacheVersion,
+	setCachedSearchResult,
+} from "@/services/search/entity-search-cache-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import {
 	commonSchemas,
@@ -427,46 +433,40 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 							hasSearchQuery && planningService !== null && env.VECTORIZE;
 
 						if (shouldUseSemanticSearch && planningService) {
-							// Use semantic search as the primary method for all queries
-							try {
-								const queryEmbeddings =
-									await planningService.generateEmbeddings([
-										queryIntent.searchQuery,
-									]);
-								const queryEmbedding = queryEmbeddings[0];
+							// For list-all queries, use a higher topK; for focused searches, use a more targeted topK
+							const searchTopK = queryIntent.isListAll
+								? Math.min(effectiveLimit * 2, 500)
+								: targetEntityType
+									? 20
+									: 10;
+							const normalizedQuery =
+								queryIntent.searchQuery?.toLowerCase().trim() ?? "";
 
-								if (queryEmbedding) {
-									const entityEmbeddingService = new EntityEmbeddingService(
-										env.VECTORIZE as VectorizeIndex | undefined
+							// Try cache first (avoids embedding + Vectorize call)
+							let cacheHit = false;
+							if (env.DB) {
+								try {
+									const cacheVersion = await getCampaignCacheVersion(
+										env.DB as D1Database,
+										campaignId
 									);
-
-									// For list-all queries, use a higher topK to get more results
-									// For focused searches, use a more targeted topK
-									const searchTopK = queryIntent.isListAll
-										? Math.min(effectiveLimit * 2, 500) // Get more results for list-all
-										: targetEntityType
-											? 20
-											: 10; // Focused search
-
-									const similarEntities =
-										await entityEmbeddingService.findSimilarByEmbedding(
-											queryEmbedding,
-											{
-												campaignId,
-												entityType: targetEntityType || undefined,
-												topK: searchTopK,
-											}
-										);
-
-									// Store similarity scores for later use in sorting
-									for (const similar of similarEntities) {
-										entitySimilarityScores.set(similar.entityId, similar.score);
-									}
-
-									// Get full entity details for semantic matches
-									const entityIds = similarEntities.map((e) => e.entityId);
-									if (entityIds.length > 0) {
-										// For list-all, we might need to fetch more entities to fill the limit
+									const cacheKey = buildCacheKey(
+										campaignId,
+										cacheVersion,
+										normalizedQuery,
+										targetEntityType ?? undefined,
+										searchTopK
+									);
+									const cached = await getCachedSearchResult(cacheKey);
+									if (cached && cached.entityIds.length > 0) {
+										cacheHit = true;
+										for (let i = 0; i < cached.entityIds.length; i++) {
+											entitySimilarityScores.set(
+												cached.entityIds[i],
+												cached.scores[i] ?? 0
+											);
+										}
+										const entityIds = cached.entityIds;
 										const fetchLimit = queryIntent.isListAll
 											? effectiveLimit + 1
 											: 100;
@@ -479,8 +479,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 													entityIds,
 												}
 											);
-
-										// For list-all queries, get total count for accurate reporting
 										if (queryIntent.isListAll && totalCount === undefined) {
 											totalCount =
 												await daoFactory.entityDAO.getEntityCountByCampaign(
@@ -490,25 +488,122 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 														: {}
 												);
 										}
-
 										console.log(
-											`[Tool] searchCampaignContext - Semantic search found ${entities.length} entities via embeddings${queryIntent.isListAll ? " (list-all mode)" : ""}`
+											`[Tool] searchCampaignContext - Semantic search cache hit: ${entities.length} entities`
 										);
-									} else {
-										throw new Error("No semantic matches found");
 									}
-								} else {
-									throw new Error("Failed to generate embedding");
+								} catch (cacheErr) {
+									console.warn(
+										"[Tool] searchCampaignContext - Cache lookup failed, falling through to semantic search:",
+										cacheErr
+									);
 								}
-							} catch (searchError) {
-								console.log(
-									`[Tool] searchCampaignContext - Semantic search failed, falling back to database query:`,
-									searchError instanceof Error
-										? searchError.message
-										: String(searchError)
-								);
-								// Fall through to database query below
-								entities = [];
+							}
+
+							if (!cacheHit) {
+								// Use semantic search (embedding + Vectorize)
+								try {
+									const semanticStart = Date.now();
+									const queryEmbeddings =
+										await planningService.generateEmbeddings([
+											queryIntent.searchQuery,
+										]);
+									const queryEmbedding = queryEmbeddings[0];
+
+									if (queryEmbedding) {
+										const entityEmbeddingService = new EntityEmbeddingService(
+											env.VECTORIZE as VectorizeIndex | undefined
+										);
+
+										const similarEntities =
+											await entityEmbeddingService.findSimilarByEmbedding(
+												queryEmbedding,
+												{
+													campaignId,
+													entityType: targetEntityType || undefined,
+													topK: searchTopK,
+												}
+											);
+
+										// Store similarity scores for later use in sorting
+										for (const similar of similarEntities) {
+											entitySimilarityScores.set(
+												similar.entityId,
+												similar.score
+											);
+										}
+
+										// Cache result for next time
+										if (env.DB && similarEntities.length > 0) {
+											try {
+												const cacheVersion = await getCampaignCacheVersion(
+													env.DB as D1Database,
+													campaignId
+												);
+												const cacheKey = buildCacheKey(
+													campaignId,
+													cacheVersion,
+													normalizedQuery,
+													targetEntityType ?? undefined,
+													searchTopK
+												);
+												await setCachedSearchResult(cacheKey, {
+													entityIds: similarEntities.map((e) => e.entityId),
+													scores: similarEntities.map((e) => e.score),
+												});
+											} catch {
+												// ignore cache write failures
+											}
+										}
+
+										// Get full entity details for semantic matches
+										const entityIds = similarEntities.map((e) => e.entityId);
+										if (entityIds.length > 0) {
+											// For list-all, we might need to fetch more entities to fill the limit
+											const fetchLimit = queryIntent.isListAll
+												? effectiveLimit + 1
+												: 100;
+											entities =
+												await daoFactory.entityDAO.listEntitiesByCampaign(
+													campaignId,
+													{
+														limit: fetchLimit,
+														entityType: targetEntityType || undefined,
+														entityIds,
+													}
+												);
+
+											// For list-all queries, get total count for accurate reporting
+											if (queryIntent.isListAll && totalCount === undefined) {
+												totalCount =
+													await daoFactory.entityDAO.getEntityCountByCampaign(
+														campaignId,
+														targetEntityType
+															? { entityType: targetEntityType }
+															: {}
+													);
+											}
+
+											const semanticMs = Date.now() - semanticStart;
+											console.log(
+												`[Tool] searchCampaignContext - Semantic search found ${entities.length} entities via embeddings in ${semanticMs}ms${queryIntent.isListAll ? " (list-all mode)" : ""}`
+											);
+										} else {
+											throw new Error("No semantic matches found");
+										}
+									} else {
+										throw new Error("Failed to generate embedding");
+									}
+								} catch (searchError) {
+									console.log(
+										`[Tool] searchCampaignContext - Semantic search failed, falling back to database query:`,
+										searchError instanceof Error
+											? searchError.message
+											: String(searchError)
+									);
+									// Fall through to database query below
+									entities = [];
+								}
 							}
 						}
 

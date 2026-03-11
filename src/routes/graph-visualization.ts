@@ -1,3 +1,4 @@
+import type { D1Database } from "@cloudflare/workers-types";
 import type { Context } from "hono";
 import type { Community } from "@/dao/community-dao";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
@@ -22,6 +23,12 @@ import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import {
+	buildCacheKey,
+	getCachedSearchResult,
+	getCampaignCacheVersion,
+	setCachedSearchResult,
+} from "@/services/search/entity-search-cache-service";
 import { EntitySemanticSearchService } from "@/services/vectorize/entity-semantic-search-service";
 import type {
 	CommunityGraphData,
@@ -479,14 +486,71 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 					c.env.VECTORIZE,
 					getQueryEmbedding
 				);
-				const matches = await semanticSearch.searchEntities(
-					campaignId,
-					entityName,
-					{
-						topK: SEMANTIC_TOP_K,
-						minScore: SEMANTIC_SIMILARITY_THRESHOLD,
+				let matches: { entityId: string; score: number }[] = [];
+
+				// Try cache first (avoids embedding + Vectorize call)
+				if (c.env.DB) {
+					try {
+						const cacheVersion = await getCampaignCacheVersion(
+							c.env.DB as D1Database,
+							campaignId
+						);
+						const normalizedQuery = entityName.toLowerCase().trim();
+						const cacheKey = buildCacheKey(
+							campaignId,
+							cacheVersion,
+							normalizedQuery,
+							undefined,
+							SEMANTIC_TOP_K
+						);
+						const cached = await getCachedSearchResult(cacheKey);
+						if (cached && cached.entityIds.length > 0) {
+							matches = cached.entityIds
+								.map((id, i) => ({
+									entityId: id,
+									score: cached.scores[i] ?? 0,
+								}))
+								.filter((m) => m.score >= SEMANTIC_SIMILARITY_THRESHOLD);
+						}
+					} catch {
+						// Fall through to semantic search on cache miss/failure
 					}
-				);
+				}
+
+				if (matches.length === 0) {
+					matches = await semanticSearch.searchEntities(
+						campaignId,
+						entityName,
+						{
+							topK: SEMANTIC_TOP_K,
+							minScore: SEMANTIC_SIMILARITY_THRESHOLD,
+						}
+					);
+					// Cache result for next time
+					if (c.env.DB && matches.length > 0) {
+						try {
+							const cacheVersion = await getCampaignCacheVersion(
+								c.env.DB as D1Database,
+								campaignId
+							);
+							const normalizedQuery = entityName.toLowerCase().trim();
+							const cacheKey = buildCacheKey(
+								campaignId,
+								cacheVersion,
+								normalizedQuery,
+								undefined,
+								SEMANTIC_TOP_K
+							);
+							await setCachedSearchResult(cacheKey, {
+								entityIds: matches.map((m) => m.entityId),
+								scores: matches.map((m) => m.score),
+							});
+						} catch {
+							// Ignore cache write failures
+						}
+					}
+				}
+
 				for (const m of matches) {
 					const entity = await daoFactory.entityDAO.getEntityById(m.entityId);
 					if (
