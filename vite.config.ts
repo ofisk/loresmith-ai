@@ -117,6 +117,10 @@ export default defineConfig({
 		"import.meta.env.VITE_API_URL": JSON.stringify(
 			process.env.VITE_API_URL || "https://loresmith.ai"
 		),
+		// Feature flags from GitHub Actions variables (FEATURES JSON), baked at build time
+		"import.meta.env.VITE_FEATURES": JSON.stringify(
+			process.env.VITE_FEATURES || "{}"
+		),
 	},
 	envPrefix: ["VITE_"],
 });

@@ -21,7 +21,10 @@ jobs:
           cache: "npm"
 
       - run: npm ci
-      - run: VITE_API_URL=https://loresmith-ai-dev.oren-t-fisk.workers.dev npm run build
+      - run: |
+          VITE_API_URL=https://loresmith-ai-dev.oren-t-fisk.workers.dev \
+          VITE_FEATURES='${{ vars.FEATURES || '{}' }}' \
+          npm run build
 
       - name: Run D1 bootstrap (dev)
         run: ./scripts/d1-bootstrap.sh dev
@@ -45,7 +48,9 @@ jobs:
           cache: "npm"
 
       - run: npm ci
-      - run: npm run build
+      - run: |
+          VITE_FEATURES='${{ vars.FEATURES || '{}' }}' \
+          npm run build
 
       - name: Run D1 migrations (prod)
         run: npx wrangler d1 migrations apply loresmith-db --config wrangler.jsonc --remote
