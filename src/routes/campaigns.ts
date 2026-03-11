@@ -53,6 +53,12 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
 };
 
+function getBody<T>(c: ContextWithAuth): Promise<T> {
+	const req = c.req as { valid?: (k: string) => unknown };
+	const v = req.valid?.("json");
+	return v ? Promise.resolve(v as T) : c.req.json();
+}
+
 // Get all campaigns for user
 export async function handleGetCampaigns(c: ContextWithAuth) {
 	const log = getRequestLogger(c);
@@ -88,7 +94,10 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
-		const { name, description } = await c.req.json();
+		const { name, description } = await getBody<{
+			name?: string;
+			description?: string;
+		}>(c);
 
 		if (!name) {
 			return c.json({ error: "Campaign name is required" }, 400);
@@ -258,11 +267,11 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
-		const body = (await c.req.json()) as {
+		const body = await getBody<{
 			name?: string;
 			description?: string;
 			metadata?: Record<string, unknown>;
-		};
+		}>(c);
 
 		log.debug(`[Server] PUT /campaigns/${campaignId} - starting request`);
 		log.debug("[Server] User auth from middleware:", userAuth);
@@ -490,7 +499,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
-		const { type, id, name } = await c.req.json();
+		const { type, id, name } = await getBody<{
+			type?: string;
+			id?: string;
+			name?: string;
+		}>(c);
 
 		log.debug(
 			`[Server] POST /campaigns/${campaignId}/resource - starting request`

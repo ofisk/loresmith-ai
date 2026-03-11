@@ -1,6 +1,6 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import {
 	handleBillingChangePlan,
 	handleBillingCheckout,
@@ -11,51 +11,30 @@ import {
 	handleBillingWebhook,
 	handleRetryLimitStatus,
 } from "@/routes/billing";
+import {
+	routeBillingChangePlan,
+	routeBillingCheckout,
+	routeBillingCheckoutCredits,
+	routeBillingPortal,
+	routeBillingQuotaStatus,
+	routeBillingRetryLimitStatus,
+	routeBillingStatus,
+	routeBillingWebhook,
+} from "@/routes/billing/routes";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerBillingRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	// Webhook has no auth - verified via Stripe signature
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.WEBHOOK),
-		handleBillingWebhook
+	app.openapi(routeBillingWebhook, handleBillingWebhook as Handler);
+	app.openapi(routeBillingStatus, handleBillingStatus as Handler);
+	app.openapi(routeBillingQuotaStatus, handleBillingQuotaStatus as Handler);
+	app.openapi(
+		routeBillingCheckoutCredits,
+		handleBillingCheckoutCredits as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.STATUS),
-		requireUserJwt,
-		handleBillingStatus
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.QUOTA_STATUS),
-		requireUserJwt,
-		handleBillingQuotaStatus
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHECKOUT_CREDITS),
-		requireUserJwt,
-		handleBillingCheckoutCredits
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.RETRY_LIMIT_STATUS),
-		requireUserJwt,
-		handleRetryLimitStatus
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHECKOUT),
-		requireUserJwt,
-		handleBillingCheckout
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.CHANGE_PLAN),
-		requireUserJwt,
-		handleBillingChangePlan
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.BILLING.PORTAL),
-		requireUserJwt,
-		handleBillingPortal
-	);
+	app.openapi(routeBillingRetryLimitStatus, handleRetryLimitStatus as Handler);
+	app.openapi(routeBillingCheckout, handleBillingCheckout as Handler);
+	app.openapi(routeBillingChangePlan, handleBillingChangePlan as Handler);
+	app.openapi(routeBillingPortal, handleBillingPortal as Handler);
 }

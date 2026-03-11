@@ -51,6 +51,17 @@ function getOrigin(env: Env, req?: Request): string {
 
 type ContextWithAuth = Context<{ Bindings: Env }>;
 
+function getBody<T>(c: ContextWithAuth): Promise<T> {
+	const req = c.req as { valid?: (k: string) => unknown };
+	const v = req.valid?.("json");
+	return v ? Promise.resolve(v as T) : c.req.json();
+}
+
+function getQuery<T>(c: ContextWithAuth): T {
+	const req = c.req as { valid?: (k: string) => unknown };
+	return (req.valid?.("query") ?? {}) as T;
+}
+
 function getUserAuth(
 	c: ContextWithAuth
 ): { username: string; isAdmin?: boolean } | null {
@@ -228,13 +239,10 @@ export async function handleBillingQuotaStatus(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const url = new URL(c.req.url);
+	const query = getQuery<{ estimatedTokens?: number }>(c);
 	const estimatedTokens = Math.min(
 		100_000,
-		Math.max(
-			0,
-			parseInt(url.searchParams.get("estimatedTokens") ?? "5000", 10) || 5000
-		)
+		Math.max(0, query.estimatedTokens ?? 5000)
 	);
 
 	const rateLimitService = getLLMRateLimitService(c.env);
@@ -270,8 +278,8 @@ export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const body = await c.req.json().catch(() => ({}));
-	const amount = body?.amount as number | undefined;
+	const body = await getBody<{ amount?: number }>(c);
+	const amount = body?.amount;
 	if (
 		typeof amount !== "number" ||
 		!VALID_CREDIT_AMOUNTS.includes(
@@ -364,8 +372,8 @@ export async function handleRetryLimitStatus(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const url = new URL(c.req.url);
-	const fileKeysParam = url.searchParams.get("fileKeys");
+	const query = getQuery<{ fileKeys?: string }>(c);
+	const fileKeysParam = query.fileKeys;
 	const fileKeys = fileKeysParam
 		? fileKeysParam
 				.split(",")
@@ -403,9 +411,12 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const body = await c.req.json().catch(() => ({}));
-	const tier = (body?.tier as string) || "basic";
-	const interval = (body?.interval as string) || "monthly";
+	const body = await getBody<{
+		tier?: string;
+		interval?: string;
+	}>(c);
+	const tier = body?.tier ?? "basic";
+	const interval = body?.interval ?? "monthly";
 	if (tier !== "basic" && tier !== "pro") {
 		return c.json({ error: "Invalid tier. Use basic or pro." }, 400);
 	}
@@ -480,8 +491,8 @@ export async function handleBillingChangePlan(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const body = await c.req.json().catch(() => ({}));
-	const tier = body?.tier as string;
+	const body = await getBody<{ tier?: string }>(c);
+	const tier = body?.tier;
 	if (tier !== "basic" && tier !== "pro") {
 		return c.json({ error: "Invalid tier. Use basic or pro." }, 400);
 	}

@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
 import { registerCampaignCommunitiesRoutes } from "./communities-routes";
@@ -12,7 +12,7 @@ import { registerCampaignShareRoutes } from "./share-routes";
 import { registerCampaignWorldStateRoutes } from "./world-state-routes";
 
 export function registerCampaignRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
 	registerCampaignCoreRoutes(app);
 	registerCampaignPlanningRoutes(app);
