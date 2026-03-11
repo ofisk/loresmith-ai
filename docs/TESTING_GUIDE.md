@@ -16,6 +16,21 @@ npm test tests/lib/leiden-algorithm.test.ts
 npm run test:coverage
 ```
 
+### E2E tests (Playwright)
+
+End-to-end tests cover auth, campaign management, file upload, AI chat, and billing flows.
+
+```bash
+# First time: install browsers
+npx playwright install chromium
+
+# Run E2E tests (builds app, seeds DB, starts wrangler, runs Playwright)
+npm run test:e2e
+
+# UI mode for debugging
+npm run test:e2e:ui
+```
+
 ## Test data factories
 
 The `tests/factories/` directory provides type-checked factory functions for creating test data with sensible defaults. Use these instead of inline mock objects to reduce boilerplate and keep tests consistent when types evolve.
@@ -182,12 +197,18 @@ These tests are designed to drive the implementation of campaign features:
 - State management is validated through return values
 - Error handling is tested through mock failures
 
+## E2E test details
+
+- **Auth**: Sign in with seeded user `e2e-test-user` (password: `e2e-test-password`)
+- **Chat**: Mocks `/api/agents/*` to avoid AI API costs
+- **CI**: Runs in GitHub Actions; Playwright report and test results uploaded on failure
+
 ## Future Enhancements
 
 ### Integration Tests
 
-- End-to-end testing with real Durable Objects
-- Full API integration testing
+- Additional end-to-end flows (e.g. full onboarding with email verification)
+- Full API integration testing with real Durable Objects
 - Database integration testing
 
 ### Performance Tests

@@ -1,0 +1,45 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { expect, test } from "@playwright/test";
+import { loginAsE2EUser } from "./helpers/auth";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const samplePath = path.join(__dirname, "fixtures", "sample.txt");
+
+test.describe("file upload", () => {
+	test.beforeEach(async ({ page }) => {
+		await loginAsE2EUser(page);
+	});
+
+	test("upload small file and see it in library", async ({ page }) => {
+		await expect(
+			page.locator(".tour-campaign-selector, .tour-campaigns-section").first()
+		).toBeVisible({ timeout: 10_000 });
+
+		await page.getByRole("button", { name: /build your library/i }).click();
+
+		const fileInput = page.getByLabel("Choose files to upload");
+		await fileInput.setInputFiles(samplePath);
+
+		// Wait specifically for the upload PUT to succeed (not an earlier GET /api/library/files)
+		await Promise.all([
+			page.waitForResponse(
+				(resp) =>
+					resp.url().includes("/api/upload/direct/") &&
+					resp.request().method() === "PUT" &&
+					resp.status() >= 200 &&
+					resp.status() < 400
+			),
+			page.getByRole("button", { name: /^Upload$/ }).click(),
+		]);
+
+		// Modal closes on success; file appears in sidebar library (collapsed by default).
+		// Expand the library section so the file list is visible.
+		await page.getByRole("button", { name: /your resource library/i }).click();
+
+		// Wait for FILE_UPLOAD.COMPLETED to trigger fetchResources and for the file to render
+		await expect(page.getByText("sample.txt")).toBeVisible({
+			timeout: 20_000,
+		});
+	});
+});

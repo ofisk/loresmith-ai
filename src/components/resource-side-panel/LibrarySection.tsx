@@ -91,6 +91,13 @@ export function LibrarySection({
 		};
 	}, [fetchResources, setLoading, setError]);
 
+	// Refetch when library section is expanded (user may have uploaded while collapsed)
+	useEffect(() => {
+		if (isOpen && authReady) {
+			fetchResources();
+		}
+	}, [isOpen, authReady, fetchResources]);
+
 	useEffect(() => {
 		const handleCampaignChange = () => {
 			fetchResources();

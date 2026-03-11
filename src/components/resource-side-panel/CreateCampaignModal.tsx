@@ -133,6 +133,7 @@ export function CreateCampaignModal({
 						onClick={handleCreate}
 						disabled={!name.trim() || isSubmitting}
 						loading={isSubmitting}
+						data-testid="create-campaign-submit"
 					>
 						{isSubmitting ? "Creating…" : "Create"}
 					</FormButton>
