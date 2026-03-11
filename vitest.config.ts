@@ -98,7 +98,7 @@ export default defineConfig({
 				"**/hooks/useResourceFiles.ts",
 				"**/hooks/useAuthReady.ts",
 				// Route registration table – no testable logic
-				"**/routes/register-routes.ts",
+				"**/routes/index.ts",
 				// Route files requiring full Workers/AI runtime – tested via e2e
 				"**/routes/campaign-graphrag.ts",
 				"**/routes/campaign-resource-proposals.ts",

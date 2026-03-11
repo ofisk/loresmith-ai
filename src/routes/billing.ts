@@ -4,7 +4,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { getRequestLogger } from "@/lib/logger";
-import type { Env } from "@/routes/register-routes";
+import type { Env } from "@/routes/env";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { RetryLimitService } from "@/services/retry-limit-service";
