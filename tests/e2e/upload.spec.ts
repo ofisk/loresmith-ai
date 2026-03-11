@@ -32,6 +32,10 @@ test.describe("file upload", () => {
 			page.getByRole("button", { name: /^Upload$/ }).click(),
 		]);
 
+		// Modal closes on success; file appears in sidebar library (collapsed by default).
+		// Expand the library section so the file list is visible.
+		await page.getByRole("button", { name: /your resource library/i }).click();
+
 		await expect(page.getByText("sample.txt")).toBeVisible({
 			timeout: 20_000,
 		});
