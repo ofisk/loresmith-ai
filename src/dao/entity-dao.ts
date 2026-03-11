@@ -324,6 +324,17 @@ export class EntityDAO extends BaseDAOClass {
 			stmt.bind(JSON.stringify(u.metadata), u.shardStatus, u.entityId)
 		);
 		await this.db.batch(batch);
+
+		// Invalidate entity search cache for affected campaigns
+		const entityIds = updates.map((u) => u.entityId);
+		const placeholders = entityIds.map(() => "?").join(", ");
+		const rows = await this.queryAll<{ campaign_id: string }>(
+			`SELECT DISTINCT campaign_id FROM entities WHERE id IN (${placeholders})`,
+			entityIds
+		);
+		for (const row of rows) {
+			await incrementCampaignCacheVersion(this.db, row.campaign_id);
+		}
 	}
 
 	async getEntityById(entityId: string): Promise<Entity | null> {
