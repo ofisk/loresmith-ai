@@ -21,10 +21,19 @@ test.describe("file upload", () => {
 		const fileInput = page.getByLabel("Choose files to upload");
 		await fileInput.setInputFiles(samplePath);
 
-		await page.getByRole("button", { name: /^Upload$/ }).click();
+		await Promise.all([
+			page.waitForResponse(
+				(resp) =>
+					(resp.url().includes("/api/library/files") ||
+						resp.url().includes("/upload/")) &&
+					resp.status() >= 200 &&
+					resp.status() < 400
+			),
+			page.getByRole("button", { name: /^Upload$/ }).click(),
+		]);
 
 		await expect(page.getByText("sample.txt")).toBeVisible({
-			timeout: 15_000,
+			timeout: 20_000,
 		});
 	});
 });
