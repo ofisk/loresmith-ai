@@ -1,15 +1,15 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import { handleProgressWebSocket } from "@/routes/progress";
-import { API_CONFIG } from "@/shared-config";
+import { routeProgressWebSocket } from "@/routes/progress/routes";
 
 export function registerProgressRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.PROGRESS.WEBSOCKET),
-		handleProgressWebSocket
+	app.openapi(
+		routeProgressWebSocket,
+		handleProgressWebSocket as unknown as Handler
 	);
 }

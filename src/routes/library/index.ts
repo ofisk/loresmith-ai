@@ -1,8 +1,7 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleDeleteFile,
 	handleGetFileDetails,
@@ -13,60 +12,40 @@ import {
 	handleSearchFiles,
 	handleUpdateFile,
 } from "@/routes/library";
+import {
+	routeDeleteFile,
+	routeGetFileDetails,
+	routeGetFileDownload,
+	routeGetFileStatus,
+	routeGetFiles,
+	routeGetLlmUsage,
+	routeGetStorageUsage,
+	routeRegenerateFileMetadata,
+	routeSearchFiles,
+	routeUpdateFile,
+} from "@/routes/library/routes";
 import { handleGetFileStatus, handleGetFiles } from "@/routes/upload";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerLibraryRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
-		requireUserJwt,
-		handleGetFiles
+	app.openapi(routeGetFiles, handleGetFiles as unknown as Handler);
+	app.openapi(routeSearchFiles, handleSearchFiles as unknown as Handler);
+	app.openapi(
+		routeGetStorageUsage,
+		handleGetStorageUsage as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.SEARCH),
-		requireUserJwt,
-		handleSearchFiles
+	app.openapi(routeGetLlmUsage, handleGetLlmUsage as unknown as Handler);
+	app.openapi(routeGetFileDetails, handleGetFileDetails as unknown as Handler);
+	app.openapi(routeUpdateFile, handleUpdateFile as unknown as Handler);
+	app.openapi(routeDeleteFile, handleDeleteFile as unknown as Handler);
+	app.openapi(
+		routeGetFileDownload,
+		handleGetFileDownload as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.STORAGE_USAGE),
-		requireUserJwt,
-		handleGetStorageUsage
+	app.openapi(
+		routeRegenerateFileMetadata,
+		handleRegenerateFileMetadata as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.LLM_USAGE),
-		requireUserJwt,
-		handleGetLlmUsage
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DETAILS(":fileId")),
-		requireUserJwt,
-		handleGetFileDetails
-	);
-	app.put(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_UPDATE(":fileId")),
-		requireUserJwt,
-		handleUpdateFile
-	);
-	app.delete(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DELETE(":fileId")),
-		requireUserJwt,
-		handleDeleteFile
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_DOWNLOAD(":fileId")),
-		requireUserJwt,
-		handleGetFileDownload
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.FILE_REGENERATE(":fileId")),
-		requireUserJwt,
-		handleRegenerateFileMetadata
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.STATUS),
-		requireUserJwt,
-		handleGetFileStatus
-	);
+	app.openapi(routeGetFileStatus, handleGetFileStatus as unknown as Handler);
 }

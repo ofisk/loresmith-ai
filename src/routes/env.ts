@@ -1,6 +1,5 @@
 import type { EnvWithSecrets } from "@/lib/env-utils";
 import type { AuthEnv } from "@/services/core/auth-service";
-import { API_CONFIG } from "@/shared-config";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
 	JWT_SECRET?: string;
@@ -19,4 +18,6 @@ export interface Env extends AuthEnv, EnvWithSecrets {
 	SHARD_EMBEDDING_QUEUE?: Queue;
 }
 
-export const toApiRoutePath = (path: string) => API_CONFIG.apiRoute(path);
+/** Prefix path with /api for server route registration */
+export const toApiRoutePath = (path: string) =>
+	`/api${path.startsWith("/") ? path : `/${path}`}`;

@@ -1,4 +1,5 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
 import {
 	handleGoogleAuth,
@@ -10,26 +11,27 @@ import {
 	handleResendVerification,
 	handleVerifyEmail,
 } from "@/routes/auth";
+import {
+	routeGoogleAuth,
+	routeGoogleCallback,
+	routeGoogleCompleteSignup,
+	routeLogin,
+	routeLogout,
+	routeRegister,
+	routeResendVerification,
+	routeVerifyEmail,
+} from "@/routes/auth/routes";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
-import { API_CONFIG } from "@/shared-config";
 
 export function registerAuthRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.post(toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.LOGOUT), handleLogout);
-	// Auth OAuth routes at root (not under /api)
-	app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE, handleGoogleAuth);
-	app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_CALLBACK, handleGoogleCallback);
-	app.post(
-		API_CONFIG.ENDPOINTS.AUTH.GOOGLE_COMPLETE_SIGNUP,
-		handleGoogleCompleteSignup
-	);
-	app.post(API_CONFIG.ENDPOINTS.AUTH.REGISTER, handleRegister);
-	app.post(API_CONFIG.ENDPOINTS.AUTH.LOGIN, handleLogin);
-	app.get(API_CONFIG.ENDPOINTS.AUTH.VERIFY_EMAIL, handleVerifyEmail);
-	app.post(
-		API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION,
-		handleResendVerification
-	);
+	app.openapi(routeLogout, handleLogout as Handler);
+	app.openapi(routeGoogleAuth, handleGoogleAuth as Handler);
+	app.openapi(routeGoogleCallback, handleGoogleCallback as Handler);
+	app.openapi(routeGoogleCompleteSignup, handleGoogleCompleteSignup as Handler);
+	app.openapi(routeRegister, handleRegister as Handler);
+	app.openapi(routeLogin, handleLogin as Handler);
+	app.openapi(routeVerifyEmail, handleVerifyEmail as Handler);
+	app.openapi(routeResendVerification, handleResendVerification as Handler);
 }

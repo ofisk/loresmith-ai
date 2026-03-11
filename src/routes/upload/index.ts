@@ -1,8 +1,7 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleAbortLargeUpload,
 	handleCleanupStuckFiles,
@@ -13,51 +12,41 @@ import {
 	handleUploadPart,
 	handleUploadStatus,
 } from "@/routes/upload";
-import { API_CONFIG } from "@/shared-config";
+import {
+	routeAbortLargeUpload,
+	routeCleanupStuckFiles,
+	routeCompleteLargeUpload,
+	routeDirectUpload,
+	routeGetUploadProgress,
+	routeStartLargeUpload,
+	routeUploadPart,
+	routeUploadStatus,
+} from "@/routes/upload/routes";
 
 export function registerUploadRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	app.put(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(":tenant", ":filename")),
-		requireUserJwt,
-		handleDirectUpload
+	app.openapi(routeDirectUpload, handleDirectUpload as unknown as Handler);
+	app.openapi(routeUploadStatus, handleUploadStatus as unknown as Handler);
+	app.openapi(
+		routeStartLargeUpload,
+		handleStartLargeUpload as unknown as Handler
 	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.STATUS(":tenant", ":filename")),
-		requireUserJwt,
-		handleUploadStatus
+	app.openapi(routeUploadPart, handleUploadPart as unknown as Handler);
+	app.openapi(
+		routeCompleteLargeUpload,
+		handleCompleteLargeUpload as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.START_LARGE),
-		requireUserJwt,
-		handleStartLargeUpload
+	app.openapi(
+		routeGetUploadProgress,
+		handleGetUploadProgress as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(
-			API_CONFIG.ENDPOINTS.UPLOAD.UPLOAD_PART(":sessionId", ":partNumber")
-		),
-		requireUserJwt,
-		handleUploadPart
+	app.openapi(
+		routeAbortLargeUpload,
+		handleAbortLargeUpload as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.COMPLETE_LARGE(":sessionId")),
-		requireUserJwt,
-		handleCompleteLargeUpload
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.PROGRESS(":sessionId")),
-		requireUserJwt,
-		handleGetUploadProgress
-	);
-	app.delete(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.ABORT_LARGE(":sessionId")),
-		requireUserJwt,
-		handleAbortLargeUpload
-	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.UPLOAD.CLEANUP_STUCK),
-		requireUserJwt,
-		handleCleanupStuckFiles
+	app.openapi(
+		routeCleanupStuckFiles,
+		handleCleanupStuckFiles as unknown as Handler
 	);
 }

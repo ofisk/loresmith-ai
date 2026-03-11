@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
 import { getCorsHeaders } from "@/lib/api/cors";
 import {
@@ -23,7 +23,7 @@ export { UploadSessionDO };
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
  */
-const app = new Hono<{
+const app = new OpenAPIHono<{
 	Bindings: Env;
 	Variables: { logger: RequestLogger };
 }>();

@@ -4,10 +4,11 @@ import { getDAOFactory } from "@/dao";
 import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader } from "@/lib/auth-utils";
 import { getEnvVar } from "@/lib/env-utils";
+import type { RequestLogger } from "@/lib/logger";
 import { createLogger, getRequestLogger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { getAuthService, LibraryRAGService } from "@/lib/service-factory";
-import type { Env } from "@/middleware/auth";
+import type { Env } from "@/routes/env";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
 import { EmailService } from "@/services/core/email-service";
@@ -17,6 +18,22 @@ import {
 	DEFAULT_APP_ORIGIN,
 	GOOGLE_OAUTH_URLS,
 } from "@/shared-config";
+
+type AuthContext = Context<{
+	Bindings: Env;
+	Variables: { logger: RequestLogger };
+}>;
+
+function getBody<T>(c: AuthContext): Promise<T> {
+	const req = c.req as { valid?: (k: string) => unknown };
+	const v = req.valid?.("json");
+	return v ? Promise.resolve(v as T) : c.req.json();
+}
+
+function getQuery(c: AuthContext): { token?: string } {
+	const req = c.req as { valid?: (k: string) => unknown };
+	return (req.valid?.("query") ?? {}) as { token?: string };
+}
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -140,7 +157,7 @@ function isAllowedReturnUrl(returnUrl: string, appOrigin?: string): boolean {
 	}
 }
 
-export async function handleGoogleAuth(c: Context<{ Bindings: Env }>) {
+export async function handleGoogleAuth(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
 		const returnUrl =
@@ -172,7 +189,7 @@ export async function handleGoogleAuth(c: Context<{ Bindings: Env }>) {
 	}
 }
 
-export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
+export async function handleGoogleCallback(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
 		const code = c.req.query("code");
@@ -281,25 +298,19 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
 // --- Username/password: register, login, verify, resend ---
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_-]{2,64}$/;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 /** Reserved prefix for OAuth-derived usernames; password users cannot register usernames starting with this */
 const OAUTH_USERNAME_PREFIX = "google_";
 
-export async function handleGoogleCompleteSignup(
-	c: Context<{ Bindings: Env }>
-) {
+export async function handleGoogleCompleteSignup(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = (await c.req.json()) as {
-			pendingToken?: string;
-			username?: string;
-		};
+		const body = await getBody<{
+			pendingToken: string;
+			username: string;
+		}>(c);
 		const { pendingToken, username } = body;
-		const trimmedUsername = username?.trim() ?? "";
-		if (!pendingToken || !trimmedUsername) {
-			return c.json({ error: "Pending token and username are required." }, 400);
-		}
+		const trimmedUsername = username.trim();
 		const payload = await AuthService.verifyGooglePendingToken(
 			c.env,
 			pendingToken
@@ -363,31 +374,16 @@ export async function handleGoogleCompleteSignup(
 	}
 }
 
-export async function handleRegister(c: Context<{ Bindings: Env }>) {
+export async function handleRegister(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = (await c.req.json()) as {
-			username?: string;
-			password?: string;
-			email?: string;
-		};
+		const body = await getBody<{
+			username: string;
+			password: string;
+			email: string;
+		}>(c);
 		const { username, password, email } = body;
-		const trimmedUsername = username?.trim() ?? "";
-		if (
-			!username ||
-			!password ||
-			!email ||
-			!USERNAME_REGEX.test(trimmedUsername) ||
-			!EMAIL_REGEX.test(email.trim())
-		) {
-			return c.json(
-				{
-					error:
-						"Username (2–64 chars, letters/numbers/_-), email, and password are required.",
-				},
-				400
-			);
-		}
+		const trimmedUsername = username.trim();
 		if (trimmedUsername.toLowerCase().startsWith(OAUTH_USERNAME_PREFIX)) {
 			return c.json(
 				{ error: "Username cannot start with the reserved prefix." },
@@ -464,17 +460,11 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
 	}
 }
 
-export async function handleLogin(c: Context<{ Bindings: Env }>) {
+export async function handleLogin(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = (await c.req.json()) as {
-			username?: string;
-			password?: string;
-		};
+		const body = await getBody<{ username: string; password: string }>(c);
 		const { username, password } = body;
-		if (!username || !password) {
-			return c.json({ error: "Username and password are required." }, 400);
-		}
 		const dao = getDAOFactory(c.env);
 		const user = await dao.authUserDAO.getUserByUsername(username.trim());
 		if (!user) {
@@ -514,11 +504,12 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
 	}
 }
 
-export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
+export async function handleVerifyEmail(c: AuthContext) {
 	const log = getRequestLogger(c);
 	const redirectOrigin = new URL(c.req.url).origin;
 	try {
-		const token = c.req.query("token");
+		const query = getQuery(c);
+		const token = query.token ?? c.req.query("token") ?? undefined;
 		if (!token) {
 			return c.redirect(`${redirectOrigin}#verify=missing_token`);
 		}
@@ -547,21 +538,12 @@ export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
 	}
 }
 
-export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
+export async function handleResendVerification(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = (await c.req.json()) as {
-			email?: string;
-			username?: string;
-		};
+		const body = await getBody<{ email?: string; username?: string }>(c);
 		const email = body.email?.trim().toLowerCase();
 		const username = body.username?.trim();
-		if (!email && !username) {
-			return c.json(
-				{ error: "Provide email or username to resend verification." },
-				400
-			);
-		}
 		const dao = getDAOFactory(c.env);
 		const user = email
 			? await dao.authUserDAO.getUserByEmail(email)
@@ -628,7 +610,7 @@ export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
  *
  * @see docs/AUTHENTICATION_FLOW.md for complete authentication flow documentation
  */
-export async function handleLogout(c: Context<{ Bindings: Env }>) {
+export async function handleLogout(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
 		// This endpoint just returns success - the client should clear local storage

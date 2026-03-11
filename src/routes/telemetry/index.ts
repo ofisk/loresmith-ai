@@ -1,8 +1,7 @@
-import type { Hono } from "hono";
+import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
-import { requireUserJwt } from "@/routes/auth";
 import type { Env } from "@/routes/env";
-import { toApiRoutePath } from "@/routes/env";
 import {
 	handleGetAlerts,
 	handleGetDashboard,
@@ -10,37 +9,26 @@ import {
 	handleRecordContextAccuracy,
 	handleRecordSatisfactionRating,
 } from "@/routes/telemetry";
-import { API_CONFIG } from "@/shared-config";
+import {
+	routeGetAlerts,
+	routeGetDashboard,
+	routeGetMetrics,
+	routeRecordContextAccuracy,
+	routeRecordSatisfactionRating,
+} from "@/routes/telemetry/routes";
 
 export function registerTelemetryRoutes(
-	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
-	// Telemetry endpoints
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.TELEMETRY.RATINGS),
-		requireUserJwt,
-		handleRecordSatisfactionRating
+	app.openapi(
+		routeRecordSatisfactionRating,
+		handleRecordSatisfactionRating as unknown as Handler
 	);
-	app.post(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.TELEMETRY.CONTEXT_ACCURACY),
-		requireUserJwt,
-		handleRecordContextAccuracy
+	app.openapi(
+		routeRecordContextAccuracy,
+		handleRecordContextAccuracy as unknown as Handler
 	);
-
-	// Admin telemetry endpoints
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.METRICS),
-		requireUserJwt,
-		handleGetMetrics
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD),
-		requireUserJwt,
-		handleGetDashboard
-	);
-	app.get(
-		toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.ALERTS),
-		requireUserJwt,
-		handleGetAlerts
-	);
+	app.openapi(routeGetMetrics, handleGetMetrics as unknown as Handler);
+	app.openapi(routeGetDashboard, handleGetDashboard as unknown as Handler);
+	app.openapi(routeGetAlerts, handleGetAlerts as unknown as Handler);
 }
