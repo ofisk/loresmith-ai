@@ -4,6 +4,7 @@ import { getDAOFactory } from "@/dao";
 import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader } from "@/lib/auth-utils";
 import { getEnvVar } from "@/lib/env-utils";
+import { createLogger, getRequestLogger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { getAuthService, LibraryRAGService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
@@ -30,7 +31,9 @@ export async function requireUserJwt(
 	const authHeader = c.req.header("Authorization");
 	const token = extractJwtFromHeader(authHeader);
 	if (!token) {
-		console.error("[requireUserJwt] Missing or invalid Authorization header");
+		getRequestLogger(c).error(
+			"[requireUserJwt] Missing or invalid Authorization header"
+		);
 		return c.json({ error: "Missing or invalid Authorization header" }, 401);
 	}
 
@@ -40,7 +43,7 @@ export async function requireUserJwt(
 		const { payload } = await jwtVerify(token, jwtSecret);
 
 		if (!payload || payload.type !== "user-auth") {
-			console.error("[requireUserJwt] Invalid token payload");
+			getRequestLogger(c).error("[requireUserJwt] Invalid token payload");
 			return c.json({ error: "Invalid token" }, 401);
 		}
 
@@ -48,7 +51,7 @@ export async function requireUserJwt(
 		setUserAuth(c, payload as AuthPayload);
 		await next();
 	} catch (err) {
-		console.error("[requireUserJwt] JWT verification error:", err);
+		getRequestLogger(c).error("[requireUserJwt] JWT verification error", err);
 		return c.json({ error: "Invalid or expired token" }, 401);
 	}
 }
@@ -103,7 +106,10 @@ export async function determineAgent(
 		try {
 			ragService = new LibraryRAGService(env);
 		} catch (error) {
-			console.warn("Failed to initialize LibraryRAGService:", error);
+			createLogger(env, "[AgentRouter]").warn(
+				"Failed to initialize LibraryRAGService",
+				error
+			);
 		}
 	}
 
@@ -114,7 +120,7 @@ export async function determineAgent(
 		null // We don't have the model here, so it will create a new one
 	);
 
-	console.log(
+	createLogger(env, "[AgentRouter]").debug(
 		`[AgentRouter] Routing to ${intent.agent} (confidence: ${intent.confidence}) - ${intent.reason}`
 	);
 
@@ -135,6 +141,7 @@ function isAllowedReturnUrl(returnUrl: string, appOrigin?: string): boolean {
 }
 
 export async function handleGoogleAuth(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	try {
 		const returnUrl =
 			c.req.query("return_url") || (c.env.APP_ORIGIN ?? DEFAULT_APP_ORIGIN);
@@ -160,12 +167,13 @@ export async function handleGoogleAuth(c: Context<{ Bindings: Env }>) {
 		});
 		return c.redirect(`${GOOGLE_OAUTH_URLS.AUTH}?${params.toString()}`);
 	} catch (error) {
-		console.error("Google auth error:", error);
+		log.error("Google auth error", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	try {
 		const code = c.req.query("code");
 		const state = c.req.query("state");
@@ -211,7 +219,7 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
 		});
 		if (!tokenRes.ok) {
 			const err = await tokenRes.text();
-			console.error("Google token exchange failed:", err);
+			log.error("Google token exchange failed", err);
 			return c.redirect(`${returnUrl}#error=token_exchange_failed`);
 		}
 		const tokenJson = (await tokenRes.json()) as {
@@ -264,7 +272,7 @@ export async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
 			`${returnUrl}#google_pending=${encodeURIComponent(pendingToken)}`
 		);
 	} catch (error) {
-		console.error("Google callback error:", error);
+		log.error("Google callback error", error);
 		const returnUrl = (c.env.APP_ORIGIN ?? DEFAULT_APP_ORIGIN) as string;
 		return c.redirect(`${returnUrl}#error=internal`);
 	}
@@ -281,6 +289,7 @@ const OAUTH_USERNAME_PREFIX = "google_";
 export async function handleGoogleCompleteSignup(
 	c: Context<{ Bindings: Env }>
 ) {
+	const log = getRequestLogger(c);
 	try {
 		const body = (await c.req.json()) as {
 			pendingToken?: string;
@@ -349,12 +358,13 @@ export async function handleGoogleCompleteSignup(
 		}
 		return c.json({ token: result.token });
 	} catch (error) {
-		console.error("Google complete signup error:", error);
+		log.error("Google complete signup error", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export async function handleRegister(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	try {
 		const body = (await c.req.json()) as {
 			username?: string;
@@ -435,10 +445,10 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
 			});
 			emailSent = sendResult.ok;
 			if (!sendResult.ok) {
-				console.error("Failed to send verification email:", sendResult.error);
+				log.error("Failed to send verification email", sendResult.error);
 			}
 		} else {
-			console.warn(
+			log.warn(
 				"[auth/register] RESEND_API_KEY not set - verification email not sent"
 			);
 		}
@@ -449,12 +459,13 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
 				: "Account created. Verification email could not be sent (email not configured for this environment). Use 'Resend verification email' after signing in, or contact support.",
 		});
 	} catch (error) {
-		console.error("Register error:", error);
+		log.error("Register error", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export async function handleLogin(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	try {
 		const body = (await c.req.json()) as {
 			username?: string;
@@ -498,14 +509,13 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
 		}
 		return c.json({ token: result.token });
 	} catch (error) {
-		console.error("Login error:", error);
+		log.error("Login error", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
-	// Use request origin so redirect goes back to the app the user came from
-	// (fixes dev: APP_ORIGIN is localhost but deployed dev should redirect to dev Worker)
+	const log = getRequestLogger(c);
 	const redirectOrigin = new URL(c.req.url).origin;
 	try {
 		const token = c.req.query("token");
@@ -532,12 +542,13 @@ export async function handleVerifyEmail(c: Context<{ Bindings: Env }>) {
 		}
 		return c.redirect(`${redirectOrigin}#verify=success`);
 	} catch (error) {
-		console.error("Verify email error:", error);
+		log.error("Verify email error", error);
 		return c.redirect(`${redirectOrigin}#verify=error`);
 	}
 }
 
 export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	try {
 		const body = (await c.req.json()) as {
 			email?: string;
@@ -588,10 +599,10 @@ export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
 			});
 			emailSent = sendResult.ok;
 			if (!sendResult.ok) {
-				console.error("Resend verification failed:", sendResult.error);
+				log.error("Resend verification failed", sendResult.error);
 			}
 		} else {
-			console.warn(
+			log.warn(
 				"[auth/resend-verification] RESEND_API_KEY not set - email not sent"
 			);
 		}
@@ -602,7 +613,7 @@ export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
 				: "Verification email could not be sent (email not configured for this environment). Contact support to verify your account.",
 		});
 	} catch (error) {
-		console.error("Resend verification error:", error);
+		log.error("Resend verification error", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -618,6 +629,7 @@ export async function handleResendVerification(c: Context<{ Bindings: Env }>) {
  * @see docs/AUTHENTICATION_FLOW.md for complete authentication flow documentation
  */
 export async function handleLogout(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	try {
 		// This endpoint just returns success - the client should clear local storage
 		return c.json({
@@ -625,7 +637,7 @@ export async function handleLogout(c: Context<{ Bindings: Env }>) {
 			message: "Logout successful. Please clear your browser's local storage.",
 		});
 	} catch (error) {
-		console.error("Logout error:", error);
+		log.error("Logout error", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

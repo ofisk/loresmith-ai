@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import { getRequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/register-routes";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -582,9 +583,10 @@ export async function handleBillingPortal(c: ContextWithAuth) {
 }
 
 export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
+	const log = getRequestLogger(c);
 	const sig = c.req.header("Stripe-Signature");
 	if (!sig) {
-		console.warn("[BillingWebhook] Missing Stripe-Signature header");
+		log.warn("[BillingWebhook] Missing Stripe-Signature header");
 		return c.json({ error: "Missing Stripe-Signature" }, 400);
 	}
 
@@ -607,7 +609,7 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 		);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : "Invalid signature";
-		console.warn(
+		log.warn(
 			"[BillingWebhook] Signature verification failed - ensure STRIPE_WEBHOOK_SECRET matches the signing secret from Stripe Dashboard for this endpoint:",
 			msg
 		);
@@ -634,7 +636,7 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 					}
 				}
 				if (!username) {
-					console.warn(
+					log.warn(
 						"[BillingWebhook] indexing_credits checkout missing username. metadata:",
 						JSON.stringify(metadata)
 					);
@@ -642,9 +644,10 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 				}
 				const tokens = parseInt((metadata.tokens as string) || "5000", 10);
 				await dao.userCreditsDAO.addCredits(username, tokens);
-				console.log(
-					`[BillingWebhook] Added ${tokens} indexing credits for ${username}`
-				);
+				log.debug("[BillingWebhook] Added indexing credits", {
+					tokens,
+					username,
+				});
 				return c.json({ received: true });
 			}
 
@@ -663,7 +666,7 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 			}
 
 			if (!username) {
-				console.warn(
+				log.warn(
 					"[BillingWebhook] checkout.session.completed missing username in metadata and could not resolve from customer email. metadata:",
 					JSON.stringify(metadata)
 				);

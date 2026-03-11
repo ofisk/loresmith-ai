@@ -6,6 +6,7 @@ import type { Community } from "./dao/community-dao";
 import { getDAOFactory } from "./dao/dao-factory";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
 import { FileSplitter } from "./lib/file/split";
+import { createLogger } from "./lib/logger";
 import { notifyFileStatusUpdated } from "./lib/notifications";
 import { R2Helper } from "./lib/r2";
 import type { Env } from "./middleware/auth";
@@ -37,10 +38,11 @@ export class FileProcessingQueue {
 	 * Process a file from staging to library storage
 	 */
 	async processFile(message: ProcessingMessage): Promise<void> {
+		const log = createLogger(this.env, "[FileProcessingQueue]");
 		const startTime = Date.now();
 		const { key, contentType, tenant, originalName } = message;
 
-		console.log(`[FileProcessingQueue] Starting processing for ${key}`);
+		log.debug("Starting processing", { key });
 
 		try {
 			const r2Helper = new R2Helper(this.env);
@@ -52,9 +54,10 @@ export class FileProcessingQueue {
 				throw new Error(`File not found in staging: ${key}`);
 			}
 
-			console.log(
-				`[FileProcessingQueue] Downloaded ${fileContent.byteLength} bytes from staging`
-			);
+			log.debug("Downloaded from staging", {
+				bytes: fileContent.byteLength,
+				key,
+			});
 
 			// Check if file needs splitting (≤ 4MB can be promoted directly)
 			const maxShardSize = 4 * 1024 * 1024; // 4MB
@@ -66,26 +69,18 @@ export class FileProcessingQueue {
 				// Check if destination already exists (idempotent)
 				if (!(await r2Helper.exists(destKey))) {
 					await r2Helper.put(destKey, fileContent, contentType);
-					console.log(
-						`[FileProcessingQueue] Promoted file directly: ${key} → ${destKey}`
-					);
+					log.debug("Promoted file directly", { key, destKey });
 				} else {
-					console.log(
-						`[FileProcessingQueue] Destination already exists, skipping: ${destKey}`
-					);
+					log.debug("Destination already exists, skipping", { destKey });
 				}
 
 				// Update file status in database for directly promoted files
 				const fileDAO = getDAOFactory(this.env).fileDAO;
 				try {
 					await fileDAO.updateFileStatusByKey(destKey, "processed");
-					console.log(
-						`[FileProcessingQueue] Updated file status to processed: ${destKey}`
-					);
+					log.debug("Updated file status to processed", { destKey });
 				} catch (error) {
-					console.error(
-						`[FileProcessingQueue] Failed to update file status: ${error}`
-					);
+					log.error("Failed to update file status", error);
 				}
 			} else {
 				// Split file into shards
@@ -96,9 +91,10 @@ export class FileProcessingQueue {
 					tenant,
 				});
 
-				console.log(
-					`[FileProcessingQueue] Split into ${splitResult.shards.length} shards`
-				);
+				log.debug("Split into shards", {
+					shardCount: splitResult.shards.length,
+					key,
+				});
 
 				// Upload shards to library storage
 				for (const shard of splitResult.shards) {
@@ -106,9 +102,9 @@ export class FileProcessingQueue {
 					if (!(await r2Helper.exists(shard.key))) {
 						await r2Helper.put(shard.key, shard.content, shard.contentType);
 					} else {
-						console.log(
-							`[FileProcessingQueue] Shard already exists, skipping: ${shard.key}`
-						);
+						log.debug("Shard already exists, skipping", {
+							shardKey: shard.key,
+						});
 					}
 				}
 
@@ -126,13 +122,9 @@ export class FileProcessingQueue {
 						),
 						"application/json"
 					);
-					console.log(
-						`[FileProcessingQueue] Uploaded manifest: ${manifestKey}`
-					);
+					log.debug("Uploaded manifest", { manifestKey });
 				} else {
-					console.log(
-						`[FileProcessingQueue] Manifest already exists, skipping: ${manifestKey}`
-					);
+					log.debug("Manifest already exists, skipping", { manifestKey });
 				}
 			}
 
@@ -142,13 +134,9 @@ export class FileProcessingQueue {
 
 			try {
 				await fileDAO.updateFileStatusByKey(fileKey, "processed");
-				console.log(
-					`[FileProcessingQueue] Updated file status to processed: ${fileKey}`
-				);
+				log.debug("Updated file status to processed", { fileKey });
 			} catch (error) {
-				console.error(
-					`[FileProcessingQueue] Failed to update file status: ${error}`
-				);
+				log.error("Failed to update file status", error);
 				// Don't fail the entire process if database update fails
 			}
 
@@ -156,15 +144,16 @@ export class FileProcessingQueue {
 			await r2Helper.delete(key);
 
 			const processingTime = Date.now() - startTime;
-			console.log(
-				`[FileProcessingQueue] Completed processing ${key} in ${processingTime}ms`
-			);
+			log.debug("Completed processing", {
+				key,
+				processingTimeMs: processingTime,
+			});
 		} catch (error) {
 			const processingTime = Date.now() - startTime;
-			console.error(
-				`[FileProcessingQueue] Error processing ${key} after ${processingTime}ms:`,
-				error
-			);
+			log.error("Error processing", error, {
+				key,
+				processingTimeMs: processingTime,
+			});
 
 			// Send to dead letter queue
 			await this.env.FILE_PROCESSING_DLQ.send({
@@ -182,6 +171,7 @@ export class FileProcessingQueue {
 	 * Handle queue messages
 	 */
 	async handleMessage(message: ProcessingMessage): Promise<void> {
+		const log = createLogger(this.env, "[FileProcessingQueue]");
 		const maxRetries = 3;
 		let retryCount = 0;
 
@@ -191,15 +181,10 @@ export class FileProcessingQueue {
 				return; // Success, exit retry loop
 			} catch (error) {
 				retryCount++;
-				console.error(
-					`[FileProcessingQueue] Attempt ${retryCount}/${maxRetries} failed:`,
-					error
-				);
+				log.error("Attempt failed", error);
 
 				if (retryCount >= maxRetries) {
-					console.error(
-						`[FileProcessingQueue] Max retries exceeded for ${message.key}`
-					);
+					log.error("Max retries exceeded for", message.key, error);
 					throw error;
 				}
 
@@ -214,14 +199,13 @@ export class FileProcessingQueue {
 	 * Clean up old staging files
 	 */
 	async cleanupStaging(): Promise<void> {
+		const log = createLogger(this.env, "[FileProcessingQueue]");
 		try {
 			const r2Helper = new R2Helper(this.env);
 			const deletedCount = await r2Helper.cleanupOldStagingObjects(24); // 24 hours
-			console.log(
-				`[FileProcessingQueue] Cleaned up ${deletedCount} old staging files`
-			);
+			log.debug("Cleaned up old staging files", { deletedCount });
 		} catch (error) {
-			console.error("[FileProcessingQueue] Error cleaning up staging:", error);
+			log.error("Error cleaning up staging", error);
 		}
 	}
 
@@ -233,6 +217,7 @@ export class FileProcessingQueue {
 		library: { objectCount: number; totalSize: number };
 		processingTime: number;
 	}> {
+		const log = createLogger(this.env, "[FileProcessingQueue]");
 		const startTime = Date.now();
 
 		try {
@@ -244,7 +229,7 @@ export class FileProcessingQueue {
 				processingTime: Date.now() - startTime,
 			};
 		} catch (error) {
-			console.error("[FileProcessingQueue] Error getting stats:", error);
+			log.error("Error getting stats", error);
 			return {
 				staging: { objectCount: 0, totalSize: 0 },
 				library: { objectCount: 0, totalSize: 0 },
@@ -286,7 +271,8 @@ export async function queue(
 	>,
 	env: Env
 ): Promise<void> {
-	console.log(`[Queue] Processing ${batch.messages.length} messages`);
+	const log = createLogger(env, "[Queue]");
+	log.debug("Processing messages", { count: batch.messages.length });
 
 	const fileProcessor = new FileProcessingQueue(env);
 	const rebuildProcessor = new RebuildQueueProcessor(env);
@@ -304,7 +290,7 @@ export async function queue(
 			}
 			message.ack();
 		} catch (error) {
-			console.error(`[Queue] Failed to process message:`, error);
+			log.error("Failed to process message", error);
 			message.retry();
 		}
 	}
@@ -314,12 +300,13 @@ export async function scheduled(
 	_event: ScheduledController,
 	env: Env
 ): Promise<void> {
+	const log = createLogger(env, "[Scheduled]");
 	// Prune LLM usage log (rows older than 25 hours) - runs every cron cycle
 	try {
 		const daoFactory = getDAOFactory(env);
 		await daoFactory.llmUsageDAO.pruneOldRows();
 	} catch (error) {
-		console.error("[Scheduled] Failed to prune LLM usage log:", error);
+		log.error("Failed to prune LLM usage log", error);
 	}
 
 	// Clean up old staging files every hour
@@ -343,10 +330,7 @@ export async function scheduled(
 
 	// Analyze checklist status for all campaigns (async, non-blocking)
 	ChecklistStatusService.analyzeAllCampaigns(env).catch((error) => {
-		console.error(
-			"[Scheduled] Failed to analyze checklist status for campaigns:",
-			error
-		);
+		log.error("Failed to analyze checklist status for campaigns", error);
 	});
 }
 
@@ -355,6 +339,7 @@ export async function scheduled(
  * Also checks for campaigns with new entities created since the last rebuild
  */
 async function checkAndTriggerRebuilds(env: Env): Promise<void> {
+	const log = createLogger(env, "[RebuildCron]");
 	try {
 		const daoFactory = getDAOFactory(env);
 		const worldStateChangelogDAO = new WorldStateChangelogDAO(env.DB!);
@@ -379,19 +364,18 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 		}
 
 		if (allCampaignIds.size === 0) {
-			console.log(
-				"[RebuildCron] No campaigns found to check for rebuild needs"
-			);
+			log.debug("No campaigns found to check for rebuild needs");
 			return;
 		}
 
-		console.log(
-			`[RebuildCron] Checking ${allCampaignIds.size} campaign(s) for rebuild needs (${changelogCampaignIds.length} with unapplied changelog entries)`
-		);
+		log.debug("Checking campaigns for rebuild needs", {
+			total: allCampaignIds.size,
+			withChangelog: changelogCampaignIds.length,
+		});
 
 		if (!env.GRAPH_REBUILD_QUEUE) {
-			console.warn(
-				"[RebuildCron] GRAPH_REBUILD_QUEUE binding not configured, skipping rebuild checks"
+			log.warn(
+				"GRAPH_REBUILD_QUEUE binding not configured, skipping rebuild checks"
 			);
 			return;
 		}
@@ -404,9 +388,9 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 				const activeRebuilds =
 					await daoFactory.rebuildStatusDAO.getActiveRebuilds(campaignId);
 				if (activeRebuilds.length > 0) {
-					console.log(
-						`[RebuildCron] Campaign ${campaignId} already has active rebuild, skipping`
-					);
+					log.debug("Campaign already has active rebuild, skipping", {
+						campaignId,
+					});
 					continue;
 				}
 
@@ -455,18 +439,20 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							lastRebuildTime
 						);
 					if (newEntityIds.length > 0) {
-						console.log(
-							`[RebuildCron] Found ${newEntityIds.length} new entities created since last rebuild for campaign ${campaignId}`
-						);
+						log.debug("Found new entities created since last rebuild", {
+							count: newEntityIds.length,
+							campaignId,
+						});
 						for (const id of newEntityIds) {
 							affectedEntityIds.add(id);
 						}
 						// Record impact for new entities (net new to graph since last rebuild)
 						const totalImpact = newEntityIds.length * IMPACT_PER_NEW_ENTITY;
 						await rebuildTriggerService.recordImpact(campaignId, totalImpact);
-						console.log(
-							`[RebuildCron] Recorded ${totalImpact} impact for ${newEntityIds.length} new entities`
-						);
+						log.debug("Recorded impact for new entities", {
+							impact: totalImpact,
+							count: newEntityIds.length,
+						});
 					}
 				} else {
 					// No previous rebuild - check if there are any entities at all
@@ -474,9 +460,10 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 					const entityCount =
 						await daoFactory.entityDAO.getEntityCountByCampaign(campaignId);
 					if (entityCount > 0) {
-						console.log(
-							`[RebuildCron] Campaign ${campaignId} has ${entityCount} entities but no previous rebuild, will check if rebuild needed`
-						);
+						log.debug("Campaign has entities but no previous rebuild", {
+							campaignId,
+							entityCount,
+						});
 						// Get all entity IDs for the rebuild decision
 						const allEntities =
 							await daoFactory.entityDAO.listEntitiesByCampaign(campaignId);
@@ -486,9 +473,10 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 						// Record impact for all entities (treat as new entities)
 						const totalImpact = entityCount * IMPACT_PER_NEW_ENTITY;
 						await rebuildTriggerService.recordImpact(campaignId, totalImpact);
-						console.log(
-							`[RebuildCron] Recorded ${totalImpact} impact for ${entityCount} entities (no previous rebuild)`
-						);
+						log.debug("Recorded impact for entities (no previous rebuild)", {
+							totalImpact,
+							entityCount,
+						});
 					}
 				}
 
@@ -517,8 +505,12 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 					}
 
 					if (communitiesWithFallbackNames.length > 0) {
-						console.log(
-							`[RebuildCron] Found ${communitiesWithFallbackNames.length} communities with fallback names for campaign ${campaignId}, generating summaries...`
+						log.debug(
+							"Found communities with fallback names, generating summaries",
+							{
+								count: communitiesWithFallbackNames.length,
+								campaignId,
+							}
 						);
 
 						const providerKeyEnvVar =
@@ -550,25 +542,25 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 										providerApiKey,
 									});
 									successCount++;
-									console.log(
-										`[RebuildCron] Generated summary for community ${community.id}`
-									);
+									log.debug("Generated summary for community", {
+										communityId: community.id,
+									});
 								} catch (error) {
 									errorCount++;
-									console.error(
-										`[RebuildCron] Failed to generate summary for community ${community.id}:`,
-										error
-									);
+									log.error("Failed to generate summary for community", error, {
+										communityId: community.id,
+									});
 									// Continue with other communities even if one fails
 								}
 							}
 
-							console.log(
-								`[RebuildCron] Summary generation complete: ${successCount} succeeded, ${errorCount} failed`
-							);
+							log.debug("Summary generation complete", {
+								successCount,
+								errorCount,
+							});
 						} else {
-							console.warn(
-								`[RebuildCron] ${MODEL_CONFIG.PROVIDER.DEFAULT} API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
+							log.warn(
+								`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
 							);
 						}
 					}
@@ -581,9 +573,11 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 				);
 
 				if (decision.shouldRebuild) {
-					console.log(
-						`[RebuildCron] Triggering ${decision.rebuildType} rebuild for campaign ${campaignId} (impact: ${decision.cumulativeImpact})`
-					);
+					log.debug("Triggering rebuild for campaign", {
+						rebuildType: decision.rebuildType,
+						campaignId,
+						impact: decision.cumulativeImpact,
+					});
 
 					// decision.rebuildType is guaranteed to be "full" or "partial" when shouldRebuild is true
 					const rebuildType =
@@ -618,24 +612,23 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 						},
 					});
 
-					console.log(
-						`[RebuildCron] Rebuild ${rebuildId} enqueued for campaign ${campaignId}`
-					);
+					log.debug("Rebuild enqueued for campaign", {
+						rebuildId,
+						campaignId,
+					});
 				} else {
-					console.log(
-						`[RebuildCron] Campaign ${campaignId} does not need rebuild (impact: ${decision.cumulativeImpact})`
-					);
+					log.debug("Campaign does not need rebuild", {
+						campaignId,
+						impact: decision.cumulativeImpact,
+					});
 				}
 			} catch (error) {
-				console.error(
-					`[RebuildCron] Error checking campaign ${campaignId}:`,
-					error
-				);
+				log.error("Error checking campaign", error, { campaignId });
 				// Continue with next campaign
 			}
 		}
 	} catch (error) {
-		console.error("[RebuildCron] Error in rebuild check:", error);
+		log.error("Error in rebuild check", error);
 	}
 }
 
@@ -644,6 +637,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
  * This runs periodically to retry processing queued files
  */
 async function processPendingSyncQueueItems(env: Env): Promise<void> {
+	const log = createLogger(env, "[SyncQueue]");
 	try {
 		const fileDAO = getDAOFactory(env).fileDAO;
 
@@ -651,13 +645,13 @@ async function processPendingSyncQueueItems(env: Env): Promise<void> {
 		const usernames = await fileDAO.getUsernamesWithPendingQueueItems();
 
 		if (usernames.length === 0) {
-			console.log("[SyncQueue] No pending queue items to process");
+			log.debug("No pending queue items to process");
 			return;
 		}
 
-		console.log(
-			`[SyncQueue] Processing queue for ${usernames.length} user(s) with pending items`
-		);
+		log.debug("Processing queue for users with pending items", {
+			userCount: usernames.length,
+		});
 
 		let totalProcessed = 0;
 		for (const username of usernames) {
@@ -665,29 +659,22 @@ async function processPendingSyncQueueItems(env: Env): Promise<void> {
 				const result = await SyncQueueService.processSyncQueue(env, username);
 				totalProcessed += result.processed;
 				if (result.processed > 0) {
-					console.log(
-						`[SyncQueue] Processed ${result.processed} item(s) for user ${username}`
-					);
+					log.debug("Processed items for user", {
+						processed: result.processed,
+						username,
+					});
 				}
 			} catch (error) {
-				console.error(
-					`[SyncQueue] Failed to process queue for user ${username}:`,
-					error
-				);
+				log.error("Failed to process queue for user", error, { username });
 				// Continue processing other users even if one fails
 			}
 		}
 
 		if (totalProcessed > 0) {
-			console.log(
-				`[SyncQueue] Completed processing: ${totalProcessed} total item(s) processed`
-			);
+			log.debug("Completed processing", { totalProcessed });
 		}
 	} catch (error) {
-		console.error(
-			"[SyncQueue] Error processing pending sync queue items:",
-			error
-		);
+		log.error("Error processing pending sync queue items", error);
 	}
 }
 
@@ -695,6 +682,7 @@ async function processPendingSyncQueueItems(env: Env): Promise<void> {
  * Process pending file chunks for files that have been split into chunks
  */
 async function processPendingFileChunks(env: Env): Promise<void> {
+	const log = createLogger(env, "[ChunkProcessor]");
 	try {
 		const fileDAO = getDAOFactory(env).fileDAO;
 		const chunkedService = new ChunkedProcessingService(env);
@@ -703,13 +691,11 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 		const pendingChunks = await fileDAO.getPendingFileChunks();
 
 		if (pendingChunks.length === 0) {
-			console.log("[ChunkProcessor] No pending file chunks to process");
+			log.debug("No pending file chunks to process");
 			return;
 		}
 
-		console.log(
-			`[ChunkProcessor] Processing ${pendingChunks.length} pending chunk(s)`
-		);
+		log.debug("Processing pending chunks", { count: pendingChunks.length });
 
 		// Group chunks by file_key
 		const chunksByFile = new Map<string, typeof pendingChunks>();
@@ -726,7 +712,7 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 				// Get file from R2
 				const file = await env.R2.get(fileKey);
 				if (!file) {
-					console.error(`[ChunkProcessor] File not found: ${fileKey}`);
+					log.error("File not found", fileKey);
 					// Mark all chunks as failed
 					for (const chunk of chunks) {
 						await fileDAO.updateFileProcessingChunk(chunk.id, {
@@ -743,7 +729,7 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 					chunks[0].username
 				);
 				if (!dbMetadata) {
-					console.error(`[ChunkProcessor] File metadata not found: ${fileKey}`);
+					log.error("File metadata not found", fileKey);
 					continue;
 				}
 
@@ -770,8 +756,8 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 					try {
 						fileBuffer = await file.arrayBuffer();
 					} catch (bufferError) {
-						console.warn(
-							`[ChunkProcessor] Failed to load full file buffer for ${fileKey}, will fetch per chunk:`,
+						log.warn(
+							"Failed to load full file buffer, will fetch per chunk",
 							bufferError instanceof Error
 								? bufferError.message
 								: String(bufferError)
@@ -779,8 +765,12 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 						usePerChunkFetch = true;
 					}
 				} else {
-					console.log(
-						`[ChunkProcessor] Skipping full buffer load for ${fileKey} (${fileSizeMB.toFixed(2)}MB) - file is too large, will fetch per chunk`
+					log.debug(
+						"Skipping full buffer load - file too large, will fetch per chunk",
+						{
+							fileKey,
+							fileSizeMB: fileSizeMB.toFixed(2),
+						}
 					);
 				}
 
@@ -824,18 +814,17 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 							metadataId
 						);
 
-						console.log(
-							`[ChunkProcessor] Successfully processed chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} for file ${fileKey}`
-						);
+						log.debug("Successfully processed chunk", {
+							chunkIndex: chunk.chunkIndex + 1,
+							totalChunks: chunk.totalChunks,
+							fileKey,
+						});
 					} catch (chunkError) {
 						const errorMessage =
 							chunkError instanceof Error
 								? chunkError.message
 								: String(chunkError);
-						console.error(
-							`[ChunkProcessor] Failed to process chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} for file ${fileKey}:`,
-							errorMessage
-						);
+						log.error("Failed to process chunk", chunkError);
 
 						// Update retry count
 						const currentRetryCount = chunk.retryCount;
@@ -860,29 +849,20 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 				if (mergeResult.allComplete && mergeResult.allSuccessful) {
 					// Mark file as completed
 					await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
-					console.log(
-						`[ChunkProcessor] All chunks complete for file ${fileKey}`
-					);
+					log.debug("All chunks complete for file", { fileKey });
 				} else if (mergeResult.allComplete && !mergeResult.allSuccessful) {
 					// Some chunks failed - mark file as error
 					await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
-					console.error(
-						`[ChunkProcessor] Some chunks failed for file ${fileKey}. Stats:`,
-						mergeResult.stats
-					);
+					log.error("Some chunks failed for file", mergeResult.stats);
 				}
 			} catch (fileError) {
-				console.error(
-					`[ChunkProcessor] Error processing chunks for file ${fileKey}:`,
-					fileError
-				);
+				log.error("Error processing chunks for file", fileError, {
+					fileKey,
+				});
 			}
 		}
 	} catch (error) {
-		console.error(
-			"[ChunkProcessor] Error processing pending file chunks:",
-			error
-		);
+		log.error("Error processing pending file chunks", error);
 	}
 }
 
@@ -898,6 +878,7 @@ export async function cleanupStuckProcessingFiles(
 	cleaned: number;
 	files: Array<{ fileKey: string; fileName: string; username: string }>;
 }> {
+	const log = createLogger(env, "[ScheduledCleanup]");
 	try {
 		const fileDAO = getDAOFactory(env).fileDAO;
 
@@ -910,9 +891,9 @@ export async function cleanupStuckProcessingFiles(
 			: allStuckFiles;
 
 		if (stuckFiles.length > 0) {
-			console.log(
-				`[ScheduledCleanup] Found ${stuckFiles.length} files stuck in processing/syncing status`
-			);
+			log.debug("Found files stuck in processing/syncing status", {
+				count: stuckFiles.length,
+			});
 
 			for (const file of stuckFiles) {
 				// Mark file as failed due to timeout
@@ -931,20 +912,17 @@ export async function cleanupStuckProcessingFiles(
 						FileDAO.STATUS.ERROR
 					);
 				} catch (notifyError) {
-					console.error(
-						`[ScheduledCleanup] Failed to notify user ${file.username} about timeout:`,
-						notifyError
-					);
+					log.error("Failed to notify user about timeout", notifyError, {
+						username: file.username,
+					});
 				}
 
-				console.log(
-					`[ScheduledCleanup] Marked file ${file.file_name} as failed due to timeout`
-				);
+				log.debug("Marked file as failed due to timeout", {
+					fileName: file.file_name,
+				});
 			}
 
-			console.log(
-				`[ScheduledCleanup] Cleaned up ${stuckFiles.length} stuck files`
-			);
+			log.debug("Cleaned up stuck files", { count: stuckFiles.length });
 
 			return {
 				cleaned: stuckFiles.length,
@@ -958,10 +936,7 @@ export async function cleanupStuckProcessingFiles(
 
 		return { cleaned: 0, files: [] };
 	} catch (error) {
-		console.error(
-			"[ScheduledCleanup] Error cleaning up stuck processing files:",
-			error
-		);
+		log.error("Error cleaning up stuck processing files", error);
 		return { cleaned: 0, files: [] };
 	}
 }

@@ -25,6 +25,7 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
+import { getRequestLogger } from "@/lib/logger";
 import {
 	getBlockedExtensionsDescription,
 	isFileAllowedForProposal,
@@ -54,15 +55,14 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 
 // Get all campaigns for user
 export async function handleGetCampaigns(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
-		console.log("[Server] GET /campaigns - starting request");
-		console.log("[Server] Context keys:", Object.keys(c));
+		log.debug("GET /campaigns - starting request");
 
 		const userAuth = (c as any).userAuth;
-		console.log("[Server] User auth from middleware:", userAuth);
 
 		if (!userAuth) {
-			console.error("[Server] No user auth found in context");
+			log.error("No user auth found in context");
 			return c.json({ error: "Authentication required" }, 401);
 		}
 
@@ -71,19 +71,21 @@ export async function handleGetCampaigns(c: ContextWithAuth) {
 			userAuth.username
 		);
 
-		console.log(
-			`[Server] Found ${campaigns.length} campaigns for user ${userAuth.username}`
-		);
+		log.debug("Found campaigns for user", {
+			count: campaigns.length,
+			username: userAuth.username,
+		});
 
 		return c.json({ campaigns: campaigns });
 	} catch (error) {
-		console.error("Error fetching campaigns:", error);
+		log.error("Error fetching campaigns", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 // Create new campaign
 export async function handleCreateCampaign(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const { name, description } = await c.req.json();
@@ -141,25 +143,23 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 				);
 			}
 
-			console.log("[handleCreateCampaign] Synced campaign info");
+			log.debug("[handleCreateCampaign] Synced campaign info");
 		} catch (syncError) {
-			console.error(
-				"[handleCreateCampaign] Failed to sync campaign:",
-				syncError
-			);
+			log.error("[handleCreateCampaign] Failed to sync campaign", syncError);
 			// Don't fail campaign creation if sync fails
 		}
 
 		const response = buildCampaignCreationResponse(newCampaign);
 		return c.json(response, 201);
 	} catch (error) {
-		console.error("Error creating campaign:", error);
+		log.error("Error creating campaign", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 // Get specific campaign
 export async function handleGetCampaign(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -177,13 +177,14 @@ export async function handleGetCampaign(c: ContextWithAuth) {
 
 		return c.json({ campaign });
 	} catch (error) {
-		console.error("Error fetching campaign:", error);
+		log.error("Error fetching campaign", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 // Get campaign checklist status (for tools running outside DO context)
 export async function handleGetChecklistStatus(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -212,7 +213,7 @@ export async function handleGetChecklistStatus(c: ContextWithAuth) {
 			})),
 		});
 	} catch (error) {
-		console.error("Error fetching checklist status:", error);
+		log.error("Error fetching checklist status:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -222,6 +223,7 @@ export async function handleGetChecklistStatus(c: ContextWithAuth) {
 
 // Get campaign resources
 export async function handleGetCampaignResources(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -245,12 +247,13 @@ export async function handleGetCampaignResources(c: ContextWithAuth) {
 
 		return c.json({ resources });
 	} catch (error) {
-		console.error("Error fetching campaign resources:", error);
+		log.error("Error fetching campaign resources:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export async function handleUpdateCampaign(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -261,9 +264,9 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 			metadata?: Record<string, unknown>;
 		};
 
-		console.log(`[Server] PUT /campaigns/${campaignId} - starting request`);
-		console.log("[Server] User auth from middleware:", userAuth);
-		console.log("[Server] Update data:", body);
+		log.debug(`[Server] PUT /campaigns/${campaignId} - starting request`);
+		log.debug("[Server] User auth from middleware:", userAuth);
+		log.debug("[Server] Update data:", body);
 
 		// Validate campaign ownership
 		const { valid, campaign } = await validateCampaignOwnership(
@@ -272,13 +275,13 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 			c.env
 		);
 		if (!valid) {
-			console.log(
+			log.debug(
 				`[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
 			);
 			return c.json({ error: "Campaign not found" }, 404);
 		}
 
-		console.log("[Server] Found campaign:", campaign);
+		log.debug("[Server] Found campaign:", campaign);
 
 		// Get existing campaign metadata to merge with new metadata
 		let existingMetadata: Record<string, unknown> = {};
@@ -289,7 +292,7 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 					unknown
 				>;
 			} catch (error) {
-				console.warn(
+				log.warn(
 					"[handleUpdateCampaign] Failed to parse existing metadata:",
 					error
 				);
@@ -331,7 +334,7 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 
 		await campaignDAO.updateCampaign(campaignId, updateData);
 
-		console.log(`[Server] Updated campaign ${campaignId}`);
+		log.debug(`[Server] Updated campaign ${campaignId}`);
 
 		// Update checklist status if metadata was updated
 		if (body.metadata !== undefined) {
@@ -344,11 +347,11 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 					campaignId,
 					mergedMetadata
 				);
-				console.log(
+				log.debug(
 					"[handleUpdateCampaign] Updated checklist status from metadata"
 				);
 			} catch (checklistError) {
-				console.error(
+				log.error(
 					"[handleUpdateCampaign] Failed to update checklist status:",
 					checklistError
 				);
@@ -384,12 +387,9 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 				);
 			}
 
-			console.log("[handleUpdateCampaign] Synced updated campaign info");
+			log.debug("[handleUpdateCampaign] Synced updated campaign info");
 		} catch (syncError) {
-			console.error(
-				"[handleUpdateCampaign] Failed to sync campaign:",
-				syncError
-			);
+			log.error("[handleUpdateCampaign] Failed to sync campaign:", syncError);
 			// Don't fail campaign update if sync fails
 		}
 
@@ -402,19 +402,20 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 		const response = buildCampaignUpdateResponse(updatedCampaign);
 		return c.json(response);
 	} catch (error) {
-		console.error("Error updating campaign:", error);
+		log.error("Error updating campaign:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export async function handleDeleteCampaign(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
 
-		console.log(`[Server] DELETE /campaigns/${campaignId} - starting request`);
-		console.log("[Server] User auth from middleware:", userAuth);
+		log.debug(`[Server] DELETE /campaigns/${campaignId} - starting request`);
+		log.debug("[Server] User auth from middleware:", userAuth);
 
 		// Only owners can delete campaigns
 		try {
@@ -440,29 +441,30 @@ export async function handleDeleteCampaign(c: ContextWithAuth) {
 		if (!campaign) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		console.log("[Server] Found campaign:", campaign);
+		log.debug("[Server] Found campaign:", campaign);
 
 		// Delete the campaign (DAO handles cascading deletes)
 		const campaignDAO = getDAOFactory(c.env).campaignDAO;
 		await campaignDAO.deleteCampaign(campaignId);
 
-		console.log(`[Server] Deleted campaign ${campaignId}`);
+		log.debug(`[Server] Deleted campaign ${campaignId}`);
 
 		const response = buildCampaignDeletionResponse(campaign!);
 		return c.json(response);
 	} catch (error) {
-		console.error("Error deleting campaign:", error);
+		log.error("Error deleting campaign:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 // Delete all campaigns for user
 export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 
-		console.log("[Server] DELETE /campaigns - starting request");
-		console.log("[Server] User auth from middleware:", userAuth);
+		log.debug("DELETE /campaigns - starting request");
+		log.debug("[Server] User auth from middleware:", userAuth);
 
 		const campaignDAO = getDAOFactory(c.env).campaignDAO;
 
@@ -471,31 +473,30 @@ export async function handleDeleteAllCampaigns(c: ContextWithAuth) {
 			userAuth.username
 		);
 
-		console.log(
-			`[Server] Found ${deletedCampaigns.length} campaigns to delete`
-		);
+		log.debug(`[Server] Found ${deletedCampaigns.length} campaigns to delete`);
 
 		const response = buildBulkDeletionResponse(deletedCampaigns);
 		return c.json(response);
 	} catch (error) {
-		console.error("Error deleting all campaigns:", error);
+		log.error("Error deleting all campaigns:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 // Add resource to campaign
 export async function handleAddResourceToCampaign(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
 		const { type, id, name } = await c.req.json();
 
-		console.log(
+		log.debug(
 			`[Server] POST /campaigns/${campaignId}/resource - starting request`
 		);
-		console.log("[Server] User auth from middleware:", userAuth);
-		console.log("[Server] Request body:", { type, id, name });
+		log.debug("[Server] User auth from middleware:", userAuth);
+		log.debug("[Server] Request body:", { type, id, name });
 
 		if (!type || !id) {
 			return c.json({ error: "Resource type and id are required" }, 400);
@@ -539,7 +540,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		if (!campaign) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
-		console.log("[Server] Found campaign:", campaign);
+		log.debug("[Server] Found campaign:", campaign);
 
 		// 2) Check for existing resource (idempotency)
 		const { exists, resource: existingResource } = await checkResourceExists(
@@ -548,7 +549,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			c.env
 		);
 		if (exists) {
-			console.log(
+			log.debug(
 				`[Server] Resource ${id} already exists in campaign ${campaignId}`
 			);
 			return c.json(
@@ -565,7 +566,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
 
 		if (!fileRecord) {
-			console.warn(
+			log.warn(
 				`[Server] File ${id} not found in file library for user ${userAuth.username}`
 			);
 			return c.json(
@@ -576,12 +577,12 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
 		// Check if file is fully indexed (status should be 'completed')
 		if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
-			console.error(
+			log.error(
 				`[Server] ERROR: File ${id} is not yet indexed but UI allowed addition. Current status: ${fileRecord.status}. This indicates a UI state sync issue.`
 			);
 
 			// Automatically trigger re-indexing to resolve the issue
-			console.log(
+			log.debug(
 				`[Server] Auto-triggering re-index for file ${id} to resolve state mismatch`
 			);
 
@@ -596,11 +597,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 					jwt
 				);
 
-				console.log(
+				log.debug(
 					`[Server] Re-index triggered for ${id}. User should try adding to campaign again once indexing completes.`
 				);
 			} catch (reindexError) {
-				console.error(
+				log.error(
 					`[Server] Failed to trigger re-index for ${id}:`,
 					reindexError
 				);
@@ -617,7 +618,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			);
 		}
 
-		console.log(
+		log.debug(
 			`[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
 		);
 
@@ -641,7 +642,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 				}
 			}
 		} catch (validateErr) {
-			console.warn(
+			log.warn(
 				"[handleAddResourceToCampaign] Content validation failed:",
 				validateErr
 			);
@@ -692,7 +693,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
 		// 5) Queue entity extraction for the newly added resource (asynchronous)
 		try {
-			console.log(
+			log.debug(
 				`[Server] Queueing entity extraction for campaign: ${campaignId}`
 			);
 
@@ -702,7 +703,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 				c.env
 			);
 			if (!campaignRagBasePath) {
-				console.warn(
+				log.warn(
 					`[Server] Campaign RAG not initialized for campaign: ${campaignId}`
 				);
 				// Continue without entity extraction
@@ -718,12 +719,12 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 					fileKey: id,
 				});
 
-				console.log(
+				log.debug(
 					`[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
 				);
 			}
 		} catch (queueError) {
-			console.error(
+			log.error(
 				`[Server] Error queueing entity extraction for resource ${resourceId}:`,
 				queueError
 			);
@@ -737,7 +738,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		);
 		return c.json(response);
 	} catch (error) {
-		console.error("Error adding resource to campaign:", error);
+		log.error("Error adding resource to campaign:", error);
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
 		// Check if it's a memory limit error
@@ -772,6 +773,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 
 // Retry entity extraction for a resource
 export async function handleRetryEntityExtraction(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -779,7 +781,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 		const resourceId = requireParam(c, "resourceId");
 		if (resourceId instanceof Response) return resourceId;
 
-		console.log(
+		log.debug(
 			`[Server] POST /campaigns/${campaignId}/resource/${resourceId}/retry-entity-extraction - starting request`
 		);
 
@@ -794,7 +796,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 			c.env
 		);
 		if (!valid) {
-			console.log(
+			log.debug(
 				`[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
 			);
 			return c.json({ error: "Campaign not found" }, 404);
@@ -808,13 +810,13 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 		);
 
 		if (!resource) {
-			console.log(
+			log.debug(
 				`[Server] Resource ${resourceId} not found in campaign ${campaignId}`
 			);
 			return c.json({ error: "Resource not found in this campaign" }, 404);
 		}
 
-		console.log("[Server] Found resource for retry:", resource);
+		log.debug("[Server] Found resource for retry:", resource);
 
 		// In-progress check: block retry until current extraction completes
 		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
@@ -868,7 +870,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 				fileKey: resource.file_key || undefined,
 			});
 
-			console.log(
+			log.debug(
 				`[Server] Entity extraction retry queued for resource ${resourceId} in campaign ${campaignId}`
 			);
 
@@ -878,7 +880,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 					"Entity extraction has been queued. You'll receive a notification when it's complete.",
 			});
 		} catch (error) {
-			console.error(
+			log.error(
 				`[Server] Error during entity extraction retry for resource ${resourceId}:`,
 				error
 			);
@@ -928,7 +930,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 			);
 		}
 	} catch (error) {
-		console.error("Error retrying entity extraction:", error);
+		log.error("Error retrying entity extraction:", error);
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
 		// Check if it's a memory limit error
@@ -963,6 +965,7 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 
 // Remove resource from campaign
 export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -970,10 +973,10 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 		const resourceId = requireParam(c, "resourceId");
 		if (resourceId instanceof Response) return resourceId;
 
-		console.log(
+		log.debug(
 			`[Server] DELETE /campaigns/${campaignId}/resource/${resourceId} - starting request`
 		);
-		console.log("[Server] User auth from middleware:", userAuth);
+		log.debug("[Server] User auth from middleware:", userAuth);
 
 		// Validate campaign ownership
 		const { valid, campaign } = await validateCampaignOwnership(
@@ -982,13 +985,13 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 			c.env
 		);
 		if (!valid) {
-			console.log(
+			log.debug(
 				`[Server] Campaign ${campaignId} not found or doesn't belong to user ${userAuth.username}`
 			);
 			return c.json({ error: "Campaign not found" }, 404);
 		}
 
-		console.log("[Server] Found campaign:", campaign);
+		log.debug("[Server] Found campaign:", campaign);
 
 		// Check if the resource exists in this campaign
 		const campaignDAO = getDAOFactory(c.env).campaignDAO;
@@ -998,31 +1001,32 @@ export async function handleRemoveResourceFromCampaign(c: ContextWithAuth) {
 		);
 
 		if (!resource) {
-			console.log(
+			log.debug(
 				`[Server] Resource ${resourceId} not found in campaign ${campaignId}`
 			);
 			return c.json({ error: "Resource not found in this campaign" }, 404);
 		}
 
-		console.log("[Server] Found resource:", resource);
+		log.debug("[Server] Found resource:", resource);
 
 		// Remove the resource from the campaign
 		await campaignDAO.removeCampaignResource(campaignId, resourceId);
 
-		console.log(
+		log.debug(
 			`[Server] Removed resource ${resourceId} from campaign ${campaignId}`
 		);
 
 		const response = buildResourceRemovalResponse(resource);
 		return c.json(response);
 	} catch (error) {
-		console.error("Error removing resource from campaign:", error);
+		log.error("Error removing resource from campaign:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 // Get entity extraction queue status for a resource
 export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
@@ -1053,7 +1057,7 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 
 		if (!queueItem) {
 			// Not in queue - extraction is either completed or never started
-			console.log(
+			log.debug(
 				`[Server] Entity extraction status for resource ${resourceId}: not in queue (completed or never started)`
 			);
 			return c.json({
@@ -1062,7 +1066,7 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 			});
 		}
 
-		console.log(
+		log.debug(
 			`[Server] Entity extraction status for resource ${resourceId}: inQueue=true, status=${queueItem.status}, retryCount=${queueItem.retry_count}`
 		);
 		return c.json({
@@ -1076,7 +1080,7 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 			processedAt: queueItem.processed_at,
 		});
 	} catch (error) {
-		console.error("Error getting entity extraction status:", error);
+		log.error("Error getting entity extraction status:", error);
 		return c.json(
 			{
 				error: "Failed to get extraction status",
@@ -1090,6 +1094,7 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 
 // Clean up stuck entity extraction queue items
 export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
@@ -1098,7 +1103,7 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
 			return c.json({ error: "Authentication required" }, 401);
 		}
 
-		console.log(
+		log.debug(
 			`[Server] POST /campaigns/cleanup-stuck-entity-extraction - timeoutMinutes: ${timeoutMinutes}`
 		);
 
@@ -1122,7 +1127,7 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
 			message: `Reset ${result.reset} stuck processing item(s) back to pending`,
 		});
 	} catch (error) {
-		console.error("Error cleaning up stuck entity extraction items:", error);
+		log.error("Error cleaning up stuck entity extraction items:", error);
 		return c.json(
 			{
 				error: "Failed to clean up stuck items",
@@ -1136,6 +1141,7 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
 
 // Manually trigger entity extraction queue processing
 export async function handleProcessEntityExtractionQueue(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 
@@ -1143,7 +1149,7 @@ export async function handleProcessEntityExtractionQueue(c: ContextWithAuth) {
 			return c.json({ error: "Authentication required" }, 401);
 		}
 
-		console.log(
+		log.debug(
 			`[Server] POST /campaigns/process-entity-extraction-queue - manually triggering queue processing for user ${userAuth.username}`
 		);
 
@@ -1160,7 +1166,7 @@ export async function handleProcessEntityExtractionQueue(c: ContextWithAuth) {
 			message: `Processed ${result.processed} item(s), ${result.failed} failed`,
 		});
 	} catch (error) {
-		console.error("Error processing entity extraction queue:", error);
+		log.error("Error processing entity extraction queue:", error);
 		return c.json(
 			{
 				error: "Failed to process queue",
