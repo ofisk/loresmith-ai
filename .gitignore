@@ -142,6 +142,7 @@ dist
 .claude/
 
 # Cloudflare
+wrangler.preview.generated.jsonc
 .wrangler
 .dev.vars
 .vars
