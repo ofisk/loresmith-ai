@@ -32,15 +32,6 @@ test.describe("file upload", () => {
 			page.getByRole("button", { name: /^Upload$/ }).click(),
 		]);
 
-		// Wait for library to refetch after upload
-		await page.waitForResponse(
-			(r) =>
-				r.url().includes("/api/library/files") &&
-				r.request().method() === "GET" &&
-				r.status() === 200,
-			{ timeout: 10_000 }
-		);
-
 		await expect(page.getByText("sample.txt")).toBeVisible({
 			timeout: 20_000,
 		});

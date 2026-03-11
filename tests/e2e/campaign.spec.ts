@@ -106,8 +106,8 @@ test.describe("campaign management", () => {
 		await page.getByRole("button", { name: "Delete campaign" }).click();
 		await page.getByRole("button", { name: "Confirm delete" }).click();
 
-		await expect(
-			page.getByRole("button", { name: /To Delete/ })
-		).not.toBeVisible({ timeout: 5000 });
+		await expect(page.getByRole("button", { name: /To Delete/ })).toHaveCount(
+			0
+		);
 	});
 });
