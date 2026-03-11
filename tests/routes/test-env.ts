@@ -1,6 +1,6 @@
 import { SignJWT } from "jose";
 import { vi } from "vitest";
-import type { Env } from "@/routes/register-routes";
+import type { Env } from "@/routes/env";
 
 function createMockD1() {
 	const mockStmt: {

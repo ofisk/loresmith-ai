@@ -11,7 +11,7 @@ import {
 	queue as queueFn,
 	scheduled as scheduledFn,
 } from "@/queue-consumer";
-import { type Env, registerRoutes } from "@/routes/register-routes";
+import { type Env, registerRoutes } from "@/routes";
 import { API_CONFIG } from "@/shared-config";
 import type { RebuildQueueMessage } from "@/types/rebuild-queue";
 import type { ShardEmbeddingQueueMessage } from "@/types/shard-embedding-queue";
