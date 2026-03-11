@@ -15,7 +15,7 @@ import {
 	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import { analyzePlayerCharacterCompleteness } from "./planning-tools-utils";
 
 const checkPlanningReadinessSchema = z.object({

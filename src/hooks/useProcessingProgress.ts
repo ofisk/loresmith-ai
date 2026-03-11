@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ProcessingProgress, ProgressMessage } from "../types/progress";
+import type { ProcessingProgress, ProgressMessage } from "@/types/progress";
 
 interface UseProcessingProgressOptions {
 	fileKey?: string;

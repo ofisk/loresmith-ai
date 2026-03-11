@@ -14,7 +14,7 @@ import {
 	requireCanSeeSpoilersForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const planningTaskSchema = z.object({
 	title: z

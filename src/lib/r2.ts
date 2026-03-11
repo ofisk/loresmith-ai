@@ -1,5 +1,5 @@
 import { SourceObjectNotFoundError } from "@/lib/errors";
-import type { Env } from "../middleware/auth";
+import type { Env } from "@/middleware/auth";
 
 export interface R2Object {
 	key: string;

@@ -9,11 +9,6 @@ import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { ChangelogArchiveService } from "@/services/graph/changelog-archive-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
-import type { SessionDigestWithData } from "@/types/session-digest";
-import type {
-	WorldStateChangelogEntry,
-	WorldStateChangelogPayload,
-} from "@/types/world-state";
 import {
 	commonSchemas,
 	createToolError,
@@ -23,7 +18,12 @@ import {
 	requireGMRole,
 	type ToolEnv,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
+import type { SessionDigestWithData } from "@/types/session-digest";
+import type {
+	WorldStateChangelogEntry,
+	WorldStateChangelogPayload,
+} from "@/types/world-state";
 
 type TimelineSource =
 	| "session_digest"

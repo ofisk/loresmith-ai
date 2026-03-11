@@ -1,4 +1,4 @@
-import { BaseDAOClass } from "../base-dao";
+import { BaseDAOClass } from "@/dao/base-dao";
 
 /**
  * DAO for the file_processing_chunks table (chunked upload / processing pipeline).

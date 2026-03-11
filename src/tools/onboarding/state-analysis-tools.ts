@@ -1,7 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getAssessmentService } from "../../lib/service-factory";
-import type { Env } from "../../middleware/auth";
+import { getAssessmentService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
+import {
+	commonSchemas,
+	createToolError,
+	createToolSuccess,
+	type ToolExecuteOptions,
+} from "@/tools/utils";
 import type {
 	ActionSuggestion,
 	ActivityType,
@@ -9,14 +15,8 @@ import type {
 	CampaignReadinessSummary,
 	ToolRecommendation,
 	UserState,
-} from "../../types/assessment";
-import type { Campaign, CampaignResource } from "../../types/campaign";
-import {
-	commonSchemas,
-	createToolError,
-	createToolSuccess,
-	type ToolExecuteOptions,
-} from "../utils";
+} from "@/types/assessment";
+import type { Campaign, CampaignResource } from "@/types/campaign";
 
 export type {
 	UserState,

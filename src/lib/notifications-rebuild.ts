@@ -1,7 +1,7 @@
-import { NOTIFICATION_TYPES } from "../constants/notification-types";
-import { getDAOFactory } from "../dao/dao-factory";
-import type { RebuildStatus, RebuildType } from "../dao/rebuild-status-dao";
-import type { Env } from "../middleware/auth";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { RebuildStatus, RebuildType } from "@/dao/rebuild-status-dao";
+import type { Env } from "@/middleware/auth";
 import { notifyUser } from "./notifications";
 
 /**

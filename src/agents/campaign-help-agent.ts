@@ -1,5 +1,5 @@
-import { CAMPAIGN_PLANNING_CHECKLIST } from "../lib/campaign-planning-checklist";
-import { onboardingTools } from "../tools/onboarding";
+import { CAMPAIGN_PLANNING_CHECKLIST } from "@/lib/campaign-planning-checklist";
+import { onboardingTools } from "@/tools/onboarding";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,

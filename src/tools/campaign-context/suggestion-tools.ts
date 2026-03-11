@@ -1,28 +1,28 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
+	API_CONFIG,
+	AUTH_CODES,
+	getGenerationModelForProvider,
+	MODEL_CONFIG,
+	type ToolResult,
+} from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
+import {
 	CAMPAIGN_READINESS_ENTITY_TYPES,
 	isValidEntityType,
 	READINESS_ENTITY_BUCKETS,
 	type StructuredEntityType,
 } from "@/lib/entity/entity-types";
 import { getEnvVar } from "@/lib/env-utils";
-import {
-	API_CONFIG,
-	AUTH_CODES,
-	getGenerationModelForProvider,
-	MODEL_CONFIG,
-	type ToolResult,
-} from "../../app-constants";
-import { getDAOFactory } from "../../dao/dao-factory";
-import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
-import { METADATA_ANALYSIS_PROMPTS } from "../../lib/prompts/metadata-analysis-prompts";
-import { getAssessmentService } from "../../lib/service-factory";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import type { Env } from "../../middleware/auth";
-import { CharacterEntitySyncService } from "../../services/campaign/character-entity-sync-service";
-import { createLLMProvider } from "../../services/llm/llm-provider-factory";
-import { getPlanningServices } from "../../services/rag/rag-service-factory";
+import { METADATA_ANALYSIS_PROMPTS } from "@/lib/prompts/metadata-analysis-prompts";
+import { getAssessmentService } from "@/lib/service-factory";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import type { Env } from "@/middleware/auth";
+import { CharacterEntitySyncService } from "@/services/campaign/character-entity-sync-service";
+import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import { getPlanningServices } from "@/services/rag/rag-service-factory";
 import {
 	commonSchemas,
 	createToolError,
@@ -32,7 +32,7 @@ import {
 	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const getCampaignSuggestionsSchema = z.object({
 	campaignId: commonSchemas.campaignId,

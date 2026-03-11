@@ -15,7 +15,7 @@ import {
 	requireCampaignAccessForTool,
 	type ToolEnv,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 interface RulesReferenceToolEnv extends ToolEnv {
 	DB?: D1Database;

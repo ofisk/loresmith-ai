@@ -1,10 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { MODEL_CONFIG, type ToolResult } from "../../app-constants";
-import { getDAOFactory } from "../../dao/dao-factory";
-import type { PlanningTaskStatus } from "../../dao/planning-task-dao";
-import { getEnvVar } from "../../lib/env-utils";
-import { RecapService } from "../../services/core/recap-service";
+import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
+import { getEnvVar } from "@/lib/env-utils";
+import { RecapService } from "@/services/core/recap-service";
 import {
 	commonSchemas,
 	createToolError,
@@ -14,7 +14,7 @@ import {
 	requireCanSeeSpoilersForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import { searchCampaignContext } from "./search-tools";
 
 const generateContextRecapSchema = z.object({

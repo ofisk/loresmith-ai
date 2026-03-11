@@ -1,6 +1,6 @@
 // Common campaign operations and utilities
-import { NOTIFICATION_TYPES } from "../constants/notification-types";
-import { getDAOFactory } from "../dao/dao-factory";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { notifyCampaignCreated, notifyCampaignMembers } from "./notifications";
 
 export interface CreateCampaignOptions {

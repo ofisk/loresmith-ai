@@ -1,12 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../app-constants";
-import { AUTH_CODES } from "../../shared-config";
+import { API_CONFIG, type ToolResult } from "@/app-constants";
+import { AUTH_CODES } from "@/shared-config";
 import {
 	createToolError,
 	createToolSuccess,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const updateFileMetadataSchema = z.object({
 	fileKey: z.string().describe("The file key of the uploaded file"),

@@ -1,18 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
-import {
-	API_CONFIG,
-	type ToolResult,
-	USER_MESSAGES,
-} from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import { AUTH_CODES } from "../../shared-config";
+import { API_CONFIG, type ToolResult, USER_MESSAGES } from "@/app-constants";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import { AUTH_CODES } from "@/shared-config";
 import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const listCampaignResourcesSchema = z.object({
 	campaignId: commonSchemas.campaignId,

@@ -1,17 +1,17 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../app-constants";
-import { getDAOFactory } from "../../dao/dao-factory";
-import { getLibraryService } from "../../lib/service-factory";
-import type { Env } from "../../middleware/auth";
-import type { FileResponse } from "../../types/file";
-import { fileHelpers } from "../../types/file";
+import { API_CONFIG, type ToolResult } from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { getLibraryService } from "@/lib/service-factory";
+import type { Env } from "@/middleware/auth";
 import {
 	createToolError,
 	createToolSuccess,
 	getEnvFromContext,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
+import type { FileResponse } from "@/types/file";
+import { fileHelpers } from "@/types/file";
 
 const listFilesSchema = z.object({
 	jwt: z

@@ -21,7 +21,7 @@ import {
 	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import { withRulesContext } from "./rules-tools-helper";
 
 const HOUSE_RULE_CATEGORIES = [

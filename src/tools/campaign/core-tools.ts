@@ -1,21 +1,17 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { API_CONFIG, type ToolResult, USER_MESSAGES } from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { EnvironmentRequiredError } from "@/lib/errors";
-import {
-	API_CONFIG,
-	type ToolResult,
-	USER_MESSAGES,
-} from "../../app-constants";
-import { getDAOFactory } from "../../dao/dao-factory";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import type { Env } from "../../middleware/auth";
-import { AUTH_CODES } from "../../shared-config";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import type { Env } from "@/middleware/auth";
+import { AUTH_CODES } from "@/shared-config";
 import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const listCampaignsSchema = z.object({
 	jwt: commonSchemas.jwt,

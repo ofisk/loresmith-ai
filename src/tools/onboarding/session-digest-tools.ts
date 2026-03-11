@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import type { ToolResult } from "../../app-constants";
 import {
 	commonSchemas,
 	createToolError,
@@ -9,7 +9,7 @@ import {
 	requireCampaignAccessForTool,
 	type ToolEnv,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const getRecentSessionDigestsParameters = z.object({
 	campaignId: commonSchemas.campaignId,

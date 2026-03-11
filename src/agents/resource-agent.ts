@@ -1,5 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { fileTools } from "../tools/file";
+import { fileTools } from "@/tools/file";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,

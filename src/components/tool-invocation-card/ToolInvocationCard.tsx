@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 
-import { APPROVAL } from "../../shared-config";
+import { APPROVAL } from "@/shared-config";
 
 interface ToolInvocation {
 	toolName: string;

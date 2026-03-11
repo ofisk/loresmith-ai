@@ -3,8 +3,8 @@ import type {
 	R2Bucket,
 	VectorizeIndex,
 } from "@cloudflare/workers-types";
+import { BaseDAOClass } from "@/dao/base-dao";
 import { LibraryRAGService } from "@/services/rag/rag-service";
-import { BaseDAOClass } from "../base-dao";
 import { FileProcessingChunksDAO } from "./file-processing-chunks-dao";
 
 export interface FileMetadata {

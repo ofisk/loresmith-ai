@@ -1,7 +1,7 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
-import { AUTH_CODES, type ToolResult } from "../../app-constants";
+import { AUTH_CODES, type ToolResult } from "@/app-constants";
 import {
 	commonSchemas,
 	createToolError,
@@ -9,7 +9,7 @@ import {
 	getEnvFromContext,
 	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 /**
  * Tool to suggest where users can search for external resources (DMs Guild, Reddit, etc.).

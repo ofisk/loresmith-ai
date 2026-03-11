@@ -1,7 +1,7 @@
+import addToLibraryIcon from "@/assets/add-to-library.png";
+import campaignIcon from "@/assets/campaign.png";
+import mapIcon from "@/assets/map.png";
 import { Card } from "@/components/card/Card";
-import addToLibraryIcon from "../../assets/add-to-library.png";
-import campaignIcon from "../../assets/campaign.png";
-import mapIcon from "../../assets/map.png";
 
 interface WelcomeMessageProps {
 	onSuggestionSubmit: (suggestion: string) => void;

@@ -28,7 +28,7 @@ import {
 	requireCampaignAccessForTool,
 	requireGMRole,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const handoutFormatSchema = z.enum(HANDOUT_FORMATS);
 const exportFormatSchema = z.enum(["markdown", "text"]);

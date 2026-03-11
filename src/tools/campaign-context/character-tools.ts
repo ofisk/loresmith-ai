@@ -1,12 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { API_CONFIG, AUTH_CODES, type ToolResult } from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
 import { getEnvVar } from "@/lib/env-utils";
-import { API_CONFIG, AUTH_CODES, type ToolResult } from "../../app-constants";
-import { getDAOFactory } from "../../dao/dao-factory";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import type { Env } from "../../middleware/auth";
-import { SemanticDuplicateDetectionService } from "../../services/vectorize/semantic-duplicate-detection-service";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import type { Env } from "@/middleware/auth";
+import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import {
 	commonSchemas,
 	createToolError,
@@ -14,7 +14,7 @@ import {
 	extractUsernameFromJwt,
 	getEnvFromContext,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 import { generateCharacterWithAI } from "./ai-helpers";
 
 const storeCharacterInfoSchema = z.object({

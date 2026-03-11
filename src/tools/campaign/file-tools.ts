@@ -1,15 +1,15 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { API_CONFIG, type ToolResult } from "../../app-constants";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import { AUTH_CODES } from "../../shared-config";
+import { API_CONFIG, type ToolResult } from "@/app-constants";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import { AUTH_CODES } from "@/shared-config";
 import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
 	extractUsernameFromJwt,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const searchFileLibrarySchema = z.object({
 	query: z.string().describe("The search query to find relevant PDF resources"),

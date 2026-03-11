@@ -8,7 +8,7 @@ import {
 	getEnvFromContext,
 	requireCanSeeSpoilersForTool,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const getDocumentContentSchema = z.object({
 	campaignId: z

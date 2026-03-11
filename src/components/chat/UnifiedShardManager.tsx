@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { StagedShardGroup } from "../../types/shard";
+import type { StagedShardGroup } from "@/types/shard";
 import { ShardManagementUI } from "./ShardManagementUI";
 
 interface UnifiedShardManagerProps {

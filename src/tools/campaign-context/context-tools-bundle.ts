@@ -1,8 +1,8 @@
 // Campaign context search and storage tools bundle
 
-import { showCampaignDetails } from "../campaign/core-tools";
-import { searchVisualInspirationTool } from "../campaign/file-tools";
-import { getMessageHistory } from "../message-history-tools";
+import { showCampaignDetails } from "@/tools/campaign/core-tools";
+import { searchVisualInspirationTool } from "@/tools/campaign/file-tools";
+import { getMessageHistory } from "@/tools/message-history-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {

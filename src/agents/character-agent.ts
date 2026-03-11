@@ -1,9 +1,9 @@
 import { isGMRole } from "@/constants/campaign-roles";
-import type { CampaignRole } from "@/types/campaign";
 import {
 	characterManagementTools,
 	playerCharacterTools,
-} from "../tools/campaign-context/character-tools-bundle";
+} from "@/tools/campaign-context/character-tools-bundle";
+import type { CampaignRole } from "@/types/campaign";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,

@@ -1,4 +1,4 @@
-import type { Campaign, CampaignResource } from "../../types/campaign";
+import type { Campaign, CampaignResource } from "@/types/campaign";
 
 /**
  * Campaign assessment dimensions and scoring

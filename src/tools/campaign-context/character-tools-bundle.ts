@@ -1,6 +1,6 @@
 // Character management tools bundle
 
-import { showCampaignDetails } from "../campaign/core-tools";
+import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import {
 	generateCharacterWithAITool,
 	storeCharacterInfo,

@@ -1,9 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { CHECKLIST_ITEM_NAMES } from "../../constants/checklist-items";
-import { getDAOFactory } from "../../dao/dao-factory";
-import { authenticatedFetch, handleAuthError } from "../../lib/tool-auth";
-import { API_CONFIG, AUTH_CODES } from "../../shared-config";
+import { CHECKLIST_ITEM_NAMES } from "@/constants/checklist-items";
+import { getDAOFactory } from "@/dao/dao-factory";
+import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
+import { API_CONFIG, AUTH_CODES } from "@/shared-config";
 import {
 	canSeeSpoilersForCampaignRole,
 	commonSchemas,
@@ -13,7 +13,7 @@ import {
 	runWithEnvOrApi,
 	type ToolEnv,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const getChecklistStatusSchema = z.object({
 	campaignId: commonSchemas.campaignId,

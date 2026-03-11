@@ -1,6 +1,6 @@
 import { isGMRole } from "@/constants/campaign-roles";
+import { entityGraphTools } from "@/tools/campaign-context/entity-graph-tools";
 import type { CampaignRole } from "@/types/campaign";
-import { entityGraphTools } from "../tools/campaign-context/entity-graph-tools";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,

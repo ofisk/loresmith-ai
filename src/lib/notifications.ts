@@ -1,8 +1,8 @@
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
+import { getDAOFactory } from "@/dao/dao-factory";
+import type { NotificationPayload } from "@/durable-objects/notification-hub";
 import { createLogger } from "@/lib/logger";
-import { NOTIFICATION_TYPES } from "../constants/notification-types";
-import { getDAOFactory } from "../dao/dao-factory";
-import type { NotificationPayload } from "../durable-objects/notification-hub";
-import type { Env } from "../middleware/auth";
+import type { Env } from "@/middleware/auth";
 
 /**
  * Publish a notification to a specific user

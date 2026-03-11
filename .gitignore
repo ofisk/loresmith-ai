@@ -149,3 +149,7 @@ dist
 # Uploaded files
 uploads/
 
+# Playwright
+playwright-report/
+test-results/
+

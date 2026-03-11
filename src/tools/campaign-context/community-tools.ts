@@ -18,7 +18,7 @@ import {
 	requireGMRole,
 	runWithEnvOrApi,
 	type ToolExecuteOptions,
-} from "../utils";
+} from "@/tools/utils";
 
 const detectCommunitiesSchema = z.object({
 	campaignId: commonSchemas.campaignId,

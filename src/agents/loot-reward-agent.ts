@@ -1,9 +1,9 @@
 import { isGMRole } from "@/constants/campaign-roles";
-import type { CampaignRole } from "@/types/campaign";
 import {
 	gmLootRewardToolsBundle,
 	playerLootRewardToolsBundle,
-} from "../tools/campaign-context/loot-reward-tools-bundle";
+} from "@/tools/campaign-context/loot-reward-tools-bundle";
+import type { CampaignRole } from "@/types/campaign";
 import { BaseAgent } from "./base-agent";
 import {
 	buildSystemPrompt,
