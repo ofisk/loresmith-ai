@@ -23,6 +23,7 @@ export function registerAppRoutes(
 
 	app.get("/", serveIndexHtml);
 	app.get("/join", serveIndexHtml);
+	app.get("/billing", serveIndexHtml);
 
 	app.get("/assets/*", async (c) => {
 		try {
