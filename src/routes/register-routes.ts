@@ -1,6 +1,7 @@
 import { routeAgentRequest } from "agents";
 import type { Context, Hono } from "hono";
 import type { EnvWithSecrets } from "@/lib/env-utils";
+import type { RequestLogger } from "@/lib/logger";
 import {
 	handleGetAssessmentRecommendations,
 	handleGetUserActivity,
@@ -228,7 +229,9 @@ export interface Env extends AuthEnv, EnvWithSecrets {
 
 const toApiRoutePath = (path: string) => API_CONFIG.apiRoute(path);
 
-export function registerRoutes(app: Hono<{ Bindings: Env }>) {
+export function registerRoutes(
+	app: Hono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
+) {
 	app.post(toApiRoutePath(API_CONFIG.ENDPOINTS.AUTH.LOGOUT), handleLogout);
 	// Auth OAuth routes at root (not under /api)
 	app.get(API_CONFIG.ENDPOINTS.AUTH.GOOGLE, handleGoogleAuth);

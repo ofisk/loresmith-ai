@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { UploadSessionDO } from "@/durable-objects/upload-session";
 import { getCorsHeaders } from "@/lib/api/cors";
-import { createLogger } from "@/lib/logger";
+import {
+	createLogger,
+	REQUEST_LOGGER_KEY,
+	type RequestLogger,
+} from "@/lib/logger";
 import {
 	type ProcessingMessage,
 	queue as queueFn,
@@ -19,13 +23,19 @@ export { UploadSessionDO };
 /**
  * Worker entry point that routes incoming requests to the appropriate handler
  */
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{
+	Bindings: Env;
+	Variables: { logger: RequestLogger };
+}>();
 
 app.use("*", async (c, next) => {
+	const requestId = c.req.header("cf-ray") ?? crypto.randomUUID().slice(0, 8);
 	const logger = createLogger(
 		c.env as unknown as Record<string, unknown>,
-		"[Server]"
+		"[Server]",
+		{ requestId }
 	);
+	c.set(REQUEST_LOGGER_KEY, logger);
 	const start = Date.now();
 	const method = c.req.method;
 	const path = c.req.path;

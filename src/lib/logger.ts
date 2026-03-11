@@ -1,3 +1,4 @@
+import type { ILogObj } from "tslog";
 import { Logger as TsLogger } from "tslog";
 
 export type LogLevelName =
@@ -7,6 +8,13 @@ export type LogLevelName =
 	| "info"
 	| "debug"
 	| "trace";
+
+/** Request-scoped context for log correlation (e.g. CF-Ray, userId) */
+export type RequestContext = {
+	requestId?: string;
+	userId?: string;
+	[key: string]: unknown;
+};
 
 type LogContext = Record<string, unknown>;
 
@@ -90,35 +98,69 @@ function shouldLog(current: LogLevelName, messageLevel: LogLevelName): boolean {
 	return LOG_LEVEL_ORDER[messageLevel] <= LOG_LEVEL_ORDER[current];
 }
 
-const tslog = new TsLogger({
-	name: "loresmith",
-	overwrite: {
-		// Keep `Error` objects in the argument list so they remain inspectable
-		// (and so tests spying on `console.error` can assert `Error` args).
-		formatLogObj: (maskedArgs) => ({ args: maskedArgs, errors: [] }),
+function resolveLogFormat(env?: Record<string, unknown>): "json" | "pretty" {
+	const proc = getProcessEnv();
+	const explicitFormat =
+		env?.LOG_FORMAT === "json"
+			? "json"
+			: env?.LOG_FORMAT === "pretty"
+				? "pretty"
+				: null;
+	if (explicitFormat) return explicitFormat;
 
-		// Ensure WARN/ERROR use console.warn/error (and keep argument order),
-		// which also keeps existing tests that spy on console.error working.
-		transportFormatted: (_meta, logArgs, _errors, logMeta) => {
-			const level = (logMeta?.logLevelName || "").toUpperCase();
-			switch (level) {
-				case "WARN":
-					console.warn(...logArgs);
-					return;
-				case "ERROR":
-				case "FATAL":
-					console.error(...logArgs);
-					return;
-				case "INFO":
-					console.info(...logArgs);
-					return;
-				default:
-					console.log(...logArgs);
-					return;
-			}
+	const isProd =
+		env?.NODE_ENV === "production" ||
+		env?.ENVIRONMENT === "production" ||
+		proc?.NODE_ENV === "production" ||
+		proc?.ENVIRONMENT === "production";
+	return isProd ? "json" : "pretty";
+}
+
+let tslogInstance: TsLogger<ILogObj> | null = null;
+let tslogFormat: "json" | "pretty" | null = null;
+
+function getTsLog(env?: Record<string, unknown>): TsLogger<ILogObj> {
+	const format = resolveLogFormat(env);
+	if (tslogInstance && tslogFormat === format) {
+		return tslogInstance;
+	}
+	if (tslogInstance && tslogFormat !== format) {
+		// Env changed (e.g. first call was without env); keep existing
+		return tslogInstance;
+	}
+	tslogFormat = format;
+	tslogInstance = new TsLogger({
+		name: "loresmith",
+		type: format,
+		overwrite: {
+			// Keep `Error` objects in the argument list so they remain inspectable
+			// (and so tests spying on `console.error` can assert `Error` args).
+			formatLogObj: (maskedArgs) => ({ args: maskedArgs, errors: [] }),
+
+			// Ensure WARN/ERROR use console.warn/error (and keep argument order),
+			// which also keeps existing tests that spy on console.error working.
+			transportFormatted: (_meta, logArgs, _errors, logMeta) => {
+				const level = (logMeta?.logLevelName || "").toUpperCase();
+				switch (level) {
+					case "WARN":
+						console.warn(...logArgs);
+						return;
+					case "ERROR":
+					case "FATAL":
+						console.error(...logArgs);
+						return;
+					case "INFO":
+						console.info(...logArgs);
+						return;
+					default:
+						console.log(...logArgs);
+						return;
+				}
+			},
 		},
-	},
-});
+	});
+	return tslogInstance;
+}
 
 let GLOBAL_LEVEL: LogLevelName = resolveLogLevelName();
 let GLOBAL_LEVEL_CONFIGURED = false;
@@ -138,16 +180,36 @@ export interface RequestLogger {
 	trace: (...args: unknown[]) => void;
 	once: (key: string, level: LogLevelName, ...args: unknown[]) => void;
 	child: (prefix: string) => RequestLogger;
+	withContext: (ctx: RequestContext) => RequestLogger;
+}
+
+function mergeLogArgs(
+	args: unknown[],
+	requestContext?: RequestContext
+): unknown[] {
+	if (!requestContext || Object.keys(requestContext).length === 0) {
+		return args;
+	}
+	// Append context as last arg for tslog to include in JSON output
+	const last = args[args.length - 1];
+	if (last !== null && typeof last === "object" && !Array.isArray(last)) {
+		return [...args.slice(0, -1), { ...last, ...requestContext }];
+	}
+	return [...args, requestContext];
 }
 
 export function createLogger(
 	env?: Record<string, unknown>,
-	prefix?: string
+	prefix?: string,
+	requestContext?: RequestContext
 ): RequestLogger {
 	configureGlobalLevelOnce(env);
 	const level = resolveLogLevelName(env);
+	const tslog = getTsLog(env);
 
 	const basePrefix = prefix?.trim() ? prefix.trim() : "";
+	const ctx = requestContext;
+
 	const withPrefix = (args: unknown[]) => {
 		if (!basePrefix) return args;
 		if (args.length === 0) return [basePrefix];
@@ -161,7 +223,8 @@ export function createLogger(
 		(messageLevel: LogLevelName, fn: (...a: unknown[]) => void) =>
 		(...args: unknown[]) => {
 			if (!shouldLog(level, messageLevel)) return;
-			fn(...withPrefix(args));
+			const prefixed = withPrefix(args);
+			fn(...mergeLogArgs(prefixed, ctx));
 		};
 
 	return {
@@ -174,21 +237,23 @@ export function createLogger(
 			if (!shouldLog(level, messageLevel)) return;
 			if (ONCE_KEYS.has(key)) return;
 			ONCE_KEYS.add(key);
+			const prefixed = withPrefix(args);
+			const merged = mergeLogArgs(prefixed, ctx);
 			switch (messageLevel) {
 				case "error":
-					tslog.error(...withPrefix(args));
+					tslog.error(...merged);
 					return;
 				case "warn":
-					tslog.warn(...withPrefix(args));
+					tslog.warn(...merged);
 					return;
 				case "info":
-					tslog.info(...withPrefix(args));
+					tslog.info(...merged);
 					return;
 				case "debug":
-					tslog.debug(...withPrefix(args));
+					tslog.debug(...merged);
 					return;
 				case "trace":
-					tslog.trace(...withPrefix(args));
+					tslog.trace(...merged);
 					return;
 				default:
 					return;
@@ -199,7 +264,11 @@ export function createLogger(
 				basePrefix && childPrefix?.trim()
 					? `${basePrefix} ${childPrefix.trim()}`
 					: basePrefix || childPrefix?.trim() || "";
-			return createLogger(env, combined);
+			return createLogger(env, combined, ctx);
+		},
+		withContext: (newCtx: RequestContext) => {
+			const mergedCtx: RequestContext = { ...ctx, ...newCtx };
+			return createLogger(env, basePrefix, mergedCtx);
 		},
 	};
 }
@@ -209,39 +278,60 @@ export function createLogger(
  * Uses a globally-resolved level (process.env first, then first env-bound logger call).
  */
 export class ScopedLogger {
-	constructor(private prefix: string) {}
+	constructor(
+		private prefix: string,
+		private requestContext?: RequestContext
+	) {}
+
+	withContext(ctx: RequestContext): ScopedLogger {
+		return new ScopedLogger(this.prefix, {
+			...this.requestContext,
+			...ctx,
+		});
+	}
+
+	private mergeContext(context?: LogContext): LogContext | undefined {
+		const merged = { ...this.requestContext, ...context };
+		if (Object.keys(merged).length === 0) return undefined;
+		return merged;
+	}
 
 	trace(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "trace")) return;
-		tslog.trace(`${this.prefix} ${message}`, context ?? undefined);
+		const merged = this.mergeContext(context);
+		getTsLog().trace(`${this.prefix} ${message}`, merged ?? undefined);
 	}
 
 	debug(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "debug")) return;
-		tslog.debug(`${this.prefix} ${message}`, context ?? undefined);
+		const merged = this.mergeContext(context);
+		getTsLog().debug(`${this.prefix} ${message}`, merged ?? undefined);
 	}
 
 	info(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "info")) return;
-		tslog.info(`${this.prefix} ${message}`, context ?? undefined);
+		const merged = this.mergeContext(context);
+		getTsLog().info(`${this.prefix} ${message}`, merged ?? undefined);
 	}
 
 	warn(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "warn")) return;
-		tslog.warn(`${this.prefix} ${message}`, context ?? undefined);
+		const merged = this.mergeContext(context);
+		getTsLog().warn(`${this.prefix} ${message}`, merged ?? undefined);
 	}
 
 	error(message: string, error?: unknown, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "error")) return;
-		if (context !== undefined) {
-			tslog.error(`${this.prefix} ${message}`, error, context);
+		const merged = this.mergeContext(context);
+		if (merged !== undefined) {
+			getTsLog().error(`${this.prefix} ${message}`, error, merged);
 			return;
 		}
 		if (error !== undefined) {
-			tslog.error(`${this.prefix} ${message}`, error);
+			getTsLog().error(`${this.prefix} ${message}`, error);
 			return;
 		}
-		tslog.error(`${this.prefix} ${message}`);
+		getTsLog().error(`${this.prefix} ${message}`);
 	}
 
 	operation(
@@ -286,5 +376,20 @@ export class ScopedLogger {
 }
 
 export const logger = {
-	scope: (prefix: string) => new ScopedLogger(prefix),
+	scope: (prefix: string, requestContext?: RequestContext) =>
+		new ScopedLogger(prefix, requestContext),
 };
+
+/** Key used to store request-scoped logger on Hono context. */
+export const REQUEST_LOGGER_KEY = "logger";
+
+/** Retrieves the request-scoped logger from Hono context, or a fallback. */
+export function getRequestLogger(c: {
+	get: (key: string) => unknown;
+}): RequestLogger {
+	const log = c.get(REQUEST_LOGGER_KEY);
+	if (log && typeof (log as RequestLogger).info === "function") {
+		return log as RequestLogger;
+	}
+	return createLogger(undefined, "[Server]");
+}

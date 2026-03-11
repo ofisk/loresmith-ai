@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { jwtVerify } from "jose";
 import { extractJwtFromHeader } from "@/lib/auth-utils";
 import { type EnvWithSecrets, getEnvVar } from "@/lib/env-utils";
+import { getRequestLogger } from "@/lib/logger";
 import type { AuthEnv, AuthPayload } from "@/services/core/auth-service";
 
 export interface Env extends AuthEnv, EnvWithSecrets {
@@ -51,7 +52,10 @@ export async function requireUserJwt(
 		setUserAuth(c, userAuth);
 		await next();
 	} catch (error) {
-		console.error("[requireUserJwt] JWT verification failed:", error);
+		getRequestLogger(c).error(
+			"[requireUserJwt] JWT verification failed",
+			error
+		);
 		return c.json(
 			{
 				error:

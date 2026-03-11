@@ -36,7 +36,11 @@
 			"suspicious": {
 				"noExplicitAny": "off",
 				"noConfusingVoidType": "off",
-				"noArrayIndexKey": "warn"
+				"noArrayIndexKey": "warn",
+				"noConsole": {
+					"level": "warn",
+					"options": { "allow": [] }
+				}
 			}
 		}
 	},
@@ -47,5 +51,23 @@
 		"parser": {
 			"tailwindDirectives": true
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"tests/**",
+				"**/*.test.ts",
+				"**/*.test.tsx",
+				"**/*.spec.ts",
+				"**/*.spec.tsx"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		}
+	]
 }
