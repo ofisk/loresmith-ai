@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
 import {
 	analyzeGaps,
+	analyzePlayerCharacterCompleteness,
 	generateHooks,
 	getGapSeverityByImportance,
+	getPlayerCharacterEntities,
 } from "@/tools/campaign/planning-tools-utils";
 
 describe("planning-tools-utils", () => {
@@ -54,6 +56,46 @@ describe("planning-tools-utils", () => {
 			const result = analyzeGaps(script, entities);
 			expect(result.length).toBeGreaterThan(0);
 			expect(result.some((g) => g.type === "items")).toBe(true);
+		});
+
+		it("uses custom classifyGap when provided", () => {
+			const script = "[[CustomEntity]] appears.";
+			const entities: Array<{
+				entityId: string;
+				entityName: string;
+				entityType: string;
+			}> = [];
+			const result = analyzeGaps(script, entities, {
+				classifyGap: () => "locations",
+			});
+			expect(result).toHaveLength(1);
+			expect(result[0].type).toBe("locations");
+			expect(result[0].description).toContain("Location");
+		});
+
+		it("ignores short names (length <= 2)", () => {
+			const script = "[[Ab]] is here.";
+			const entities: Array<{
+				entityId: string;
+				entityName: string;
+				entityType: string;
+			}> = [];
+			const result = analyzeGaps(script, entities);
+			expect(result).toHaveLength(0);
+		});
+
+		it("extracts quoted names", () => {
+			const script = 'The villain "Dark Lord" appears.';
+			const entities: Array<{
+				entityId: string;
+				entityName: string;
+				entityType: string;
+			}> = [];
+			const result = analyzeGaps(script, entities);
+			expect(result.length).toBeGreaterThan(0);
+			expect(result.some((g) => g.description.includes("Dark Lord"))).toBe(
+				true
+			);
 		});
 	});
 
@@ -121,6 +163,91 @@ describe("planning-tools-utils", () => {
 		it("returns minor for low importance (<60)", () => {
 			expect(getGapSeverityByImportance("npc", 50)).toBe("minor");
 			expect(getGapSeverityByImportance("location", 0)).toBe("minor");
+		});
+	});
+
+	describe("getPlayerCharacterEntities", () => {
+		it("returns entities from dao", async () => {
+			const mockEntities = [
+				{
+					id: "1",
+					campaignId: "c1",
+					entityType: ENTITY_TYPE_PCS,
+					name: "Hero",
+					content: {},
+					createdAt: "",
+					updatedAt: "",
+				},
+			];
+			const mockDAO = {
+				listEntitiesByCampaign: async () => mockEntities,
+			};
+			const result = await getPlayerCharacterEntities(
+				mockDAO as any,
+				"campaign-1"
+			);
+			expect(result).toEqual(mockEntities);
+		});
+	});
+
+	describe("analyzePlayerCharacterCompleteness", () => {
+		it("reports gaps when character lacks backstory and motivations", async () => {
+			const mockGraph = { getNeighbors: async () => [] };
+			const result = await analyzePlayerCharacterCompleteness(
+				{
+					id: "pc-1",
+					name: "Incomplete",
+					entityType: ENTITY_TYPE_PCS,
+					content: {},
+				},
+				"campaign-1",
+				mockGraph as any
+			);
+			expect(result.length).toBeGreaterThan(0);
+			expect(result.some((g) => g.type.includes("backstory"))).toBe(true);
+			expect(result.some((g) => g.type.includes("motivations"))).toBe(true);
+		});
+
+		it("reports no backstory gap when character has backstory", async () => {
+			const mockGraph = {
+				getNeighbors: async () => [{ relationshipType: "knows" }],
+			};
+			const result = await analyzePlayerCharacterCompleteness(
+				{
+					id: "pc-2",
+					name: "Complete",
+					entityType: ENTITY_TYPE_PCS,
+					content: {
+						backstory: "A long backstory",
+						motivation: "Justice",
+						goals: ["Save the world"],
+						personalityTraits: "Brave",
+					},
+				},
+				"campaign-1",
+				mockGraph as any
+			);
+			expect(result.some((g) => g.type.includes("backstory"))).toBe(false);
+			expect(result.some((g) => g.type.includes("motivations"))).toBe(false);
+		});
+
+		it("uses importanceService when provided", async () => {
+			const mockGraph = { getNeighbors: async () => [] };
+			const mockImportance = {
+				getEntityImportance: async () => 85,
+			};
+			const result = await analyzePlayerCharacterCompleteness(
+				{
+					id: "pc-3",
+					name: "Test",
+					entityType: "npc",
+					content: {},
+				},
+				"campaign-1",
+				mockGraph as any,
+				mockImportance as any
+			);
+			expect(result.some((g) => g.severity === "important")).toBe(true);
 		});
 	});
 });
