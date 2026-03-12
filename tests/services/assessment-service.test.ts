@@ -66,6 +66,10 @@ describe("AssessmentService", () => {
 	});
 
 	describe("analyzeUserState", () => {
+		beforeEach(() => {
+			AssessmentService.clearUserStateCache();
+		});
+
 		it("should analyze first-time user state correctly", async () => {
 			const username = "testuser";
 
@@ -123,6 +127,44 @@ describe("AssessmentService", () => {
 			await expect(
 				assessmentService.analyzeUserState(username)
 			).rejects.toThrow("Failed to analyze user state");
+		});
+
+		it("returns cached result on second call within TTL", async () => {
+			const username = "testuser";
+
+			mockDAO.getCampaignCount.mockResolvedValue(1);
+			mockDAO.getResourceCount.mockResolvedValue(0);
+			mockDAO.getRecentActivity.mockResolvedValue([]);
+			mockDAO.getLastActivity.mockResolvedValue("2024-01-01T00:00:00Z");
+
+			const result1 = await assessmentService.analyzeUserState(username);
+			const result2 = await assessmentService.analyzeUserState(username);
+
+			expect(result1).toEqual(result2);
+			expect(result1.campaignCount).toBe(1);
+			expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(1);
+		});
+
+		it("refetches after TTL expires", async () => {
+			vi.useFakeTimers();
+			const username = "testuser";
+
+			mockDAO.getCampaignCount.mockResolvedValue(1);
+			mockDAO.getResourceCount.mockResolvedValue(0);
+			mockDAO.getRecentActivity.mockResolvedValue([]);
+			mockDAO.getLastActivity.mockResolvedValue("2024-01-01T00:00:00Z");
+
+			const result1 = await assessmentService.analyzeUserState(username);
+			expect(result1.campaignCount).toBe(1);
+			expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(1);
+
+			vi.advanceTimersByTime(6 * 60 * 1000);
+
+			const result2 = await assessmentService.analyzeUserState(username);
+			expect(result2.campaignCount).toBe(1);
+			expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(2);
+
+			vi.useRealTimers();
 		});
 	});
 

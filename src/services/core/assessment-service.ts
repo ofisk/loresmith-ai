@@ -24,7 +24,20 @@ export type {
 	ToolRecommendation,
 };
 
+interface UserStateCacheEntry {
+	data: UserState;
+	expiresAt: number;
+}
+
 export class AssessmentService {
+	private static userStateCache = new Map<string, UserStateCacheEntry>();
+	private static readonly userStateCacheTTL = 5 * 60 * 1000; // 5 minutes
+
+	/** Clear user state cache (for test isolation). */
+	static clearUserStateCache(): void {
+		AssessmentService.userStateCache.clear();
+	}
+
 	private assessmentDAO: AssessmentDAO;
 	private env: Env;
 
@@ -34,10 +47,21 @@ export class AssessmentService {
 	}
 
 	/**
-	 * Analyze user's current state for contextual guidance
+	 * Analyze user's current state for contextual guidance.
+	 * Results are cached per username with 5-minute TTL to reduce latency and DB load.
 	 */
 	async analyzeUserState(username: string): Promise<UserState> {
 		try {
+			const now = Date.now();
+			const cached = AssessmentService.userStateCache.get(username);
+			if (cached && cached.expiresAt > now) {
+				return cached.data;
+			}
+
+			if (cached && cached.expiresAt <= now) {
+				AssessmentService.userStateCache.delete(username);
+			}
+
 			// Get campaign and resource counts
 			const campaignCount = await this.assessmentDAO.getCampaignCount(username);
 			const resourceCount = await this.assessmentDAO.getResourceCount(username);
@@ -54,7 +78,7 @@ export class AssessmentService {
 			// Calculate total session time (approximated by activity count)
 			const totalSessionTime = recentActivity.length * 30; // Rough estimate: 30 minutes per activity
 
-			return {
+			const userState: UserState = {
 				isFirstTime: campaignCount === 0 && resourceCount === 0,
 				hasCampaigns: campaignCount > 0,
 				hasResources: resourceCount > 0,
@@ -64,6 +88,13 @@ export class AssessmentService {
 				lastLoginDate,
 				totalSessionTime,
 			};
+
+			AssessmentService.userStateCache.set(username, {
+				data: userState,
+				expiresAt: now + AssessmentService.userStateCacheTTL,
+			});
+
+			return userState;
 		} catch (error) {
 			console.error("Failed to analyze user state:", error);
 			throw new UserStateAnalysisError();
