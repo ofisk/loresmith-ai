@@ -1,6 +1,5 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { CHECKLIST_ITEM_NAMES } from "@/constants/checklist-items";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import { API_CONFIG, AUTH_CODES } from "@/shared-config";
@@ -14,6 +13,7 @@ import {
 	type ToolEnv,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
+import { buildChecklistStatusFromRecords } from "./checklist-utils";
 
 const getChecklistStatusSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -77,57 +77,15 @@ export const getChecklistStatusTool = tool({
 						}>;
 					};
 					const statusRecords = data.records ?? [];
-
-					const statusByItem: Record<
-						string,
-						{ status: string; summary: string | null }
-					> = {};
-					for (const record of statusRecords) {
-						statusByItem[record.checklistItemKey] = {
-							status: record.status,
-							summary: record.summary,
-						};
-					}
-
-					const completeItems: string[] = [];
-					const incompleteItems: string[] = [];
-					const partialItems: string[] = [];
-
-					for (const record of statusRecords) {
-						const itemName =
-							CHECKLIST_ITEM_NAMES[record.checklistItemKey] ||
-							record.checklistItemKey;
-						const itemInfo = `${itemName}${record.summary ? `: ${record.summary}` : ""}`;
-
-						if (record.status === "complete") {
-							completeItems.push(itemInfo);
-						} else if (record.status === "partial") {
-							partialItems.push(itemInfo);
-						} else {
-							incompleteItems.push(itemInfo);
-						}
-					}
-
-					const summaryText = `Checklist Status for Campaign:
-
-COMPLETE (${completeItems.length}):
-${completeItems.length > 0 ? completeItems.map((i) => `- ${i}`).join("\n") : "None"}
-
-PARTIAL (${partialItems.length}):
-${partialItems.length > 0 ? partialItems.map((i) => `- ${i}`).join("\n") : "None"}
-
-INCOMPLETE (${incompleteItems.length}):
-${incompleteItems.length > 0 ? incompleteItems.map((i) => `- ${i}`).join("\n") : "None"}
-
-Total tracked items: ${statusRecords.length}`;
+					const built = buildChecklistStatusFromRecords(statusRecords);
 
 					return createToolSuccess(
-						summaryText,
+						built.summaryText,
 						{
-							statusByItem,
-							completeCount: completeItems.length,
-							partialCount: partialItems.length,
-							incompleteCount: incompleteItems.length,
+							statusByItem: built.statusByItem,
+							completeCount: built.completeItems.length,
+							partialCount: built.partialItems.length,
+							incompleteCount: built.incompleteItems.length,
 							totalCount: statusRecords.length,
 						},
 						toolCallId
@@ -165,57 +123,15 @@ Total tracked items: ${statusRecords.length}`;
 					const statusRecords = await checklistStatusDAO.getChecklistStatus(
 						campaignId as string
 					);
-
-					const statusByItem: Record<
-						string,
-						{ status: string; summary: string | null }
-					> = {};
-					for (const record of statusRecords) {
-						statusByItem[record.checklistItemKey] = {
-							status: record.status,
-							summary: record.summary,
-						};
-					}
-
-					const completeItems: string[] = [];
-					const incompleteItems: string[] = [];
-					const partialItems: string[] = [];
-
-					for (const record of statusRecords) {
-						const itemName =
-							CHECKLIST_ITEM_NAMES[record.checklistItemKey] ||
-							record.checklistItemKey;
-						const itemInfo = `${itemName}${record.summary ? `: ${record.summary}` : ""}`;
-
-						if (record.status === "complete") {
-							completeItems.push(itemInfo);
-						} else if (record.status === "partial") {
-							partialItems.push(itemInfo);
-						} else {
-							incompleteItems.push(itemInfo);
-						}
-					}
-
-					const summaryText = `Checklist Status for Campaign:
-
-COMPLETE (${completeItems.length}):
-${completeItems.length > 0 ? completeItems.map((i) => `- ${i}`).join("\n") : "None"}
-
-PARTIAL (${partialItems.length}):
-${partialItems.length > 0 ? partialItems.map((i) => `- ${i}`).join("\n") : "None"}
-
-INCOMPLETE (${incompleteItems.length}):
-${incompleteItems.length > 0 ? incompleteItems.map((i) => `- ${i}`).join("\n") : "None"}
-
-Total tracked items: ${statusRecords.length}`;
+					const built = buildChecklistStatusFromRecords(statusRecords);
 
 					return createToolSuccess(
-						summaryText,
+						built.summaryText,
 						{
-							statusByItem,
-							completeCount: completeItems.length,
-							partialCount: partialItems.length,
-							incompleteCount: incompleteItems.length,
+							statusByItem: built.statusByItem,
+							completeCount: built.completeItems.length,
+							partialCount: built.partialItems.length,
+							incompleteCount: built.incompleteItems.length,
 							totalCount: statusRecords.length,
 						},
 						toolCallId
