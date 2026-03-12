@@ -12,7 +12,6 @@ const TPM_LIMIT = 30000;
 const MAX_CONTENT_TOKENS =
 	TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
 const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN); // ~42k characters
-const CHUNK_PROCESSING_DELAY_MS = 2000;
 
 export interface SemanticMetadataResult {
 	displayName: string;
@@ -65,15 +64,13 @@ export class LibraryMetadataService {
 				`[LibraryMetadataService] Processing ${chunks.length} chunk(s) for metadata generation (max chunk size: ${MAX_CHUNK_SIZE} chars)`
 			);
 
-			// Process chunks and merge results
+			// Process all chunks in parallel
 			const allTags: Set<string> = new Set();
 			const allDescriptions: string[] = [];
 			const allDisplayNames: string[] = [];
 
-			for (let i = 0; i < chunks.length; i++) {
-				const chunk = chunks[i];
+			const promises = chunks.map((chunk, i) => {
 				const chunkPreview = chunk.substring(0, Math.min(1000, chunk.length));
-
 				const semanticPrompt = getSemanticMetadataPrompt(
 					fileName,
 					fileKey,
@@ -83,55 +80,48 @@ export class LibraryMetadataService {
 					chunks.length,
 					i
 				);
-
-				try {
-					if (i > 0) {
-						await new Promise((resolve) =>
-							setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
-						);
-					}
-
-					console.log(
-						`[LibraryMetadataService] Processing chunk ${i + 1}/${chunks.length} for metadata generation`
-					);
-
-					const response = await this.env.AI.run(LLM_MODEL, {
-						messages: [
-							{
-								role: "user",
-								content: semanticPrompt,
-							},
-						],
+				console.log(
+					`[LibraryMetadataService] Processing chunk ${i + 1}/${chunks.length} for metadata generation`
+				);
+				return this.env
+					.AI!.run(LLM_MODEL, {
+						messages: [{ role: "user", content: semanticPrompt }],
 						max_tokens: MAX_RESPONSE_TOKENS,
-					});
+					})
+					.then((response) => ({ response }));
+			});
 
-					const responseText = this.extractResponseText(response);
+			const settled = await Promise.allSettled(promises);
 
-					// Try to extract JSON from the response
-					const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-					if (jsonMatch) {
-						try {
-							const parsed = JSON.parse(jsonMatch[0]);
-							if (parsed.displayName) allDisplayNames.push(parsed.displayName);
-							if (parsed.description) allDescriptions.push(parsed.description);
-							if (Array.isArray(parsed.tags)) {
-								for (const tag of parsed.tags) {
-									allTags.add(tag);
-								}
-							}
-						} catch (parseError) {
-							console.warn(
-								`[LibraryMetadataService] Failed to parse JSON from chunk ${i + 1}:`,
-								parseError
-							);
-						}
-					}
-				} catch (error) {
+			for (let i = 0; i < settled.length; i++) {
+				const result = settled[i];
+				if (result.status === "rejected") {
 					console.error(
 						`[LibraryMetadataService] Error processing chunk ${i + 1}:`,
-						error
+						result.reason
 					);
-					// Continue with other chunks even if one fails
+					continue;
+				}
+				const { response } = result.value;
+				const responseText = this.extractResponseText(response);
+
+				const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+				if (jsonMatch) {
+					try {
+						const parsed = JSON.parse(jsonMatch[0]);
+						if (parsed.displayName) allDisplayNames.push(parsed.displayName);
+						if (parsed.description) allDescriptions.push(parsed.description);
+						if (Array.isArray(parsed.tags)) {
+							for (const tag of parsed.tags) {
+								allTags.add(tag);
+							}
+						}
+					} catch (parseError) {
+						console.warn(
+							`[LibraryMetadataService] Failed to parse JSON from chunk ${i + 1}:`,
+							parseError
+						);
+					}
 				}
 			}
 
