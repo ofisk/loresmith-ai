@@ -109,7 +109,7 @@
 		"file-type": "^21.3.0",
 		"hono": "^4.12.5",
 		"jose": "^6.0.11",
-		"lucide-react": "^0.575.0",
+		"lucide-react": "^0.577.0",
 		"mammoth": "^1.11.0",
 		"marked": "^17.0.3",
 		"pdf-lib": "^1.17.1",
