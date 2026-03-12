@@ -1,11 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { PlanningContextService } from "@/services/rag/planning-context-service";
 import type { SessionDigestWithData } from "@/types/session-digest";
 
 vi.mock("@/dao/dao-factory", () => ({
 	getDAOFactory: vi.fn(),
 }));
+
+vi.mock("@/services/llm/llm-provider-factory", () => ({
+	createLLMProvider: vi.fn(),
+}));
+
+function clearEntityNamesCache(): void {
+	(PlanningContextService as any).entityNamesCache?.clear();
+}
 
 describe("PlanningContextService", () => {
 	let service: PlanningContextService;
@@ -494,6 +503,69 @@ describe("PlanningContextService", () => {
 			await service.indexChangelogEntry(emptyChangelogEntry);
 
 			expect(mockVectorize.upsert).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("extractEntityNamesWithLLM cache", () => {
+		const mockGenerateStructuredOutput = vi.fn();
+
+		beforeEach(() => {
+			clearEntityNamesCache();
+			mockGenerateStructuredOutput.mockResolvedValue({
+				entityNames: ["Gandalf", "Frodo"],
+			});
+			vi.mocked(createLLMProvider).mockReturnValue({
+				generateStructuredOutput: mockGenerateStructuredOutput,
+			} as any);
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it("returns cached result for same (campaignId, query) without calling LLM again", async () => {
+			const extract = (service as any).extractEntityNamesWithLLM.bind(service);
+
+			const result1 = await extract("campaign-1", "What about Gandalf?");
+			const result2 = await extract("campaign-1", "What about Gandalf?");
+
+			expect(result1).toEqual(["Gandalf", "Frodo"]);
+			expect(result2).toEqual(["Gandalf", "Frodo"]);
+			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(1);
+		});
+
+		it("calls LLM again for different campaignId", async () => {
+			const extract = (service as any).extractEntityNamesWithLLM.bind(service);
+
+			await extract("campaign-1", "What about Gandalf?");
+			await extract("campaign-2", "What about Gandalf?");
+
+			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(2);
+		});
+
+		it("calls LLM again for different query", async () => {
+			const extract = (service as any).extractEntityNamesWithLLM.bind(service);
+
+			await extract("campaign-1", "What about Gandalf?");
+			await extract("campaign-1", "Tell me about the dragon");
+
+			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(2);
+		});
+
+		it("does not return expired entries (cache miss after TTL)", async () => {
+			vi.useFakeTimers();
+			const extract = (service as any).extractEntityNamesWithLLM.bind(service);
+
+			const result1 = await extract("campaign-1", "What about Gandalf?");
+			expect(result1).toEqual(["Gandalf", "Frodo"]);
+			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(1);
+
+			// Advance time past 5-minute TTL
+			vi.advanceTimersByTime(6 * 60 * 1000);
+
+			const result2 = await extract("campaign-1", "What about Gandalf?");
+			expect(result2).toEqual(["Gandalf", "Frodo"]);
+			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(2);
 		});
 	});
 });
