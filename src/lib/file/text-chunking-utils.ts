@@ -92,3 +92,36 @@ export function chunkTextByCharacterCount(
 
 	return chunks.length > 0 ? chunks : [text];
 }
+
+const TRUNCATION_SUFFIX =
+	"\n\n[Content truncated for context limit - retrying with reduced length]";
+
+/**
+ * Truncate content at a sentence boundary for retry after context-length error.
+ * Target ~60% of current length to stay within model limits.
+ *
+ * @param content - The text to truncate
+ * @param maxChars - Maximum characters to keep
+ * @returns Truncated content ending at sentence boundary, or original if short enough
+ */
+export function truncateContentAtSentenceBoundary(
+	content: string,
+	maxChars: number
+): string {
+	const MIN_TRUNCATION_CHARS = 2000;
+	const effectiveMax = Math.max(MIN_TRUNCATION_CHARS, maxChars);
+
+	if (!content || content.length <= effectiveMax) {
+		return content;
+	}
+
+	const searchRegion = content.slice(0, effectiveMax);
+	const lastPeriod = searchRegion.lastIndexOf(".");
+	const lastExclamation = searchRegion.lastIndexOf("!");
+	const lastQuestion = searchRegion.lastIndexOf("?");
+	const lastSentence = Math.max(lastPeriod, lastExclamation, lastQuestion);
+
+	const breakPoint =
+		lastSentence > effectiveMax * 0.5 ? lastSentence + 1 : effectiveMax;
+	return content.slice(0, breakPoint).trim() + TRUNCATION_SUFFIX;
+}

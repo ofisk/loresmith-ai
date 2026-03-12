@@ -12,6 +12,7 @@ import { normalizeEntityType } from "@/lib/entity/entity-types";
 import {
 	chunkTextByCharacterCount,
 	chunkTextByPages,
+	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
@@ -111,6 +112,19 @@ function cosineSimilarity(a: number[], b: number[]): number {
 	}
 	if (magA === 0 || magB === 0) return 0;
 	return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+function isContextLengthError(error: unknown): boolean {
+	if (!(error instanceof Error)) return false;
+	const message = error.message.toLowerCase();
+	return (
+		message.includes("maximum context length") ||
+		message.includes("context length") ||
+		message.includes("too many tokens") ||
+		message.includes("reduce the length") ||
+		message.includes("maximum context size") ||
+		message.includes("input too long")
+	);
 }
 
 /**
@@ -440,6 +454,7 @@ export async function stageEntitiesFromResource(
 
 		const failedChunks: number[] = [];
 		const chunkRetryCounts: Map<number, number> = new Map(); // Track retry count per chunk index
+		const chunkContentByRetry: Map<number, string> = new Map(); // Trimmed content for context-length retries
 		const chunksToRetry: number[] = []; // Chunks that need retrying
 		let successfulChunks = 0;
 
@@ -595,10 +610,10 @@ export async function stageEntitiesFromResource(
 					);
 				}
 
-				// Only retry rate-limit errors. Other model/parsing failures should
-				// be treated as one-shot failures to avoid retry storms and CPU overruns.
+				// Retry rate-limit errors with same payload; retry context-length errors with trimmed content.
+				const isContextLength = isContextLengthError(chunkError);
 				if (isRateLimit && retryCount < MAX_CHUNK_RETRIES) {
-					// Increment retry count and schedule retry
+					// Increment retry count and schedule retry (same payload)
 					chunkRetryCounts.set(chunkIndex, retryCount + 1);
 					const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
 					console.log(
@@ -607,15 +622,36 @@ export async function stageEntitiesFromResource(
 					await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
 
 					return false; // Indicates failure but will be retried
-				} else {
-					// Max retries exceeded - mark as permanently failed
-					console.error(
-						`[EntityStaging] Chunk ${chunkNumber} failed after ${MAX_CHUNK_RETRIES} retry attempts, giving up`
-					);
-					failedChunks.push(chunkNumber);
-					chunkRetryCounts.delete(chunkIndex);
-					return false; // Permanently failed
 				}
+				if (isContextLength && retryCount < MAX_CHUNK_RETRIES) {
+					// Trim content to ~60% for retry; each subsequent retry trims again
+					// `chunk` is the content we just failed with (original or previously trimmed)
+					const currentContent = chunk;
+					const targetChars = Math.floor(currentContent.length * 0.6);
+					const trimmedContent = truncateContentAtSentenceBoundary(
+						currentContent,
+						targetChars
+					);
+					if (trimmedContent.length >= 2000) {
+						chunkContentByRetry.set(chunkIndex, trimmedContent);
+						chunkRetryCounts.set(chunkIndex, retryCount + 1);
+						console.log(
+							`[EntityStaging] Context length error on chunk ${chunkNumber}, will retry with trimmed content (${trimmedContent.length} chars, was ${currentContent.length})`
+						);
+						return false; // Will be retried with trimmed content
+					}
+					// Trimmed content too short - give up
+					console.warn(
+						`[EntityStaging] Chunk ${chunkNumber} still exceeds context limit after trim (min 2000 chars); giving up`
+					);
+				}
+				// Max retries exceeded - mark as permanently failed
+				console.error(
+					`[EntityStaging] Chunk ${chunkNumber} failed after ${MAX_CHUNK_RETRIES} retry attempts, giving up`
+				);
+				failedChunks.push(chunkNumber);
+				// Keep retry count so caller won't re-queue (newRetryCount >= MAX_CHUNK_RETRIES)
+				return false; // Permanently failed
 			}
 		};
 
@@ -643,7 +679,10 @@ export async function stageEntitiesFromResource(
 				continue;
 			}
 
-			const success = await processChunk(chunkIndex, chunks[chunkIndex], true);
+			// Use trimmed content for context-length retries; otherwise original chunk
+			const contentToProcess =
+				chunkContentByRetry.get(chunkIndex) ?? chunks[chunkIndex];
+			const success = await processChunk(chunkIndex, contentToProcess, true);
 			if (success) {
 				successfulChunks++;
 			} else {
@@ -699,6 +738,11 @@ export async function stageEntitiesFromResource(
 				success: true,
 				entityCount: 0,
 				stagedEntities: [],
+				...(failedChunks.length > 0 && {
+					failedChunks,
+					successfulChunks,
+					totalChunks: chunks.length,
+				}),
 			};
 		}
 
