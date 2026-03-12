@@ -12,6 +12,7 @@ import {
 
 const RULES_REFERENCE_AGENT_SYSTEM_PROMPT = buildSystemPrompt({
 	agentName: "Rules reference agent",
+	conversationRules: "minimal",
 	responsibilities: [
 		"Rules lookup: Answer system mechanics questions using indexed campaign rule resources and rules entities.",
 		"Citation-first answers: Always ground answers in cited source excerpts or house rules from tool results.",

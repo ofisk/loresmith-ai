@@ -29,6 +29,7 @@ import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
+import { MESSAGE_HISTORY_REFERENCE_RULE } from "./system-prompts";
 
 interface Env {
 	Chat: DurableObjectNamespace;
@@ -62,6 +63,10 @@ const RULES_AWARE_AGENT_TYPES = new Set([
 	"session-digest",
 	"rules-reference",
 ]);
+
+/** Patterns that suggest the user is making an ambiguous reference (e.g. "the next one", "that one") */
+const AMBIGUOUS_REFERENCE_PATTERN =
+	/\b(the next one|that one|these|those|the first one|move to the next)\b/i;
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
 function writeTextChunks(
@@ -571,6 +576,29 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					} catch (rulesError) {
 						log.warn("Failed to inject campaign rules context", rulesError);
 					}
+				}
+
+				// On-demand: inject getMessageHistory rule only when user message suggests ambiguous references
+				const getToolsForRoleForCheck = (
+					this as unknown as {
+						getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
+					}
+				).getToolsForRole;
+				const toolsForTurn =
+					typeof getToolsForRoleForCheck === "function"
+						? getToolsForRoleForCheck(campaignRole)
+						: this.tools;
+				const hasMessageHistory =
+					toolsForTurn && "getMessageHistory" in toolsForTurn;
+				const userContent =
+					typeof lastUserMessage?.content === "string"
+						? lastUserMessage.content
+						: "";
+				const hasAmbiguousRef = AMBIGUOUS_REFERENCE_PATTERN.test(userContent);
+				if (hasMessageHistory && hasAmbiguousRef) {
+					supplementalSystemContext.push(
+						`## On-demand rule (ambiguous reference detected):\n${MESSAGE_HISTORY_REFERENCE_RULE}`
+					);
 				}
 
 				log.debug("Built minimal message context", {
