@@ -67,6 +67,28 @@ export interface IndexedSection {
 export class PlanningContextService extends BaseRAGService {
 	private readonly defaultDecayRate = 0.1;
 
+	private static entityNamesCache = new Map<
+		string,
+		{ names: string[]; expiresAt: number }
+	>();
+	private readonly entityNamesCacheTTL = 5 * 60 * 1000; // 5 minutes
+
+	private buildEntityNamesCacheKey(campaignId: string, query: string): string {
+		const normalized = query.trim().toLowerCase().replace(/\s+/g, " ");
+		const queryHash = this.simpleHash(normalized);
+		return `entity-names:${campaignId}:${queryHash}`;
+	}
+
+	private simpleHash(str: string): string {
+		let hash = 0;
+		for (let i = 0; i < str.length; i++) {
+			const char = str.charCodeAt(i);
+			hash = (hash << 5) - hash + char;
+			hash = hash & hash;
+		}
+		return Math.abs(hash).toString(36);
+	}
+
 	/**
 	 * Extract indexable sections from a session digest
 	 */
@@ -343,8 +365,21 @@ export class PlanningContextService extends BaseRAGService {
 	/**
 	 * Use LLM to intelligently extract entity names from query
 	 * More reliable than manual parsing - understands context and intent
+	 * Results are cached per (campaignId, query) with 5-minute TTL.
 	 */
-	private async extractEntityNamesWithLLM(query: string): Promise<string[]> {
+	private async extractEntityNamesWithLLM(
+		campaignId: string,
+		query: string
+	): Promise<string[]> {
+		const cacheKey = this.buildEntityNamesCacheKey(campaignId, query);
+		const cached = PlanningContextService.entityNamesCache.get(cacheKey);
+		if (cached && cached.expiresAt > Date.now()) {
+			return cached.names;
+		}
+		if (cached && cached.expiresAt <= Date.now()) {
+			PlanningContextService.entityNamesCache.delete(cacheKey);
+		}
+
 		try {
 			const apiKey =
 				typeof this.openaiApiKey === "string" ? this.openaiApiKey : "";
@@ -401,6 +436,10 @@ export class PlanningContextService extends BaseRAGService {
 				);
 			}
 
+			PlanningContextService.entityNamesCache.set(cacheKey, {
+				names: entityNames,
+				expiresAt: Date.now() + this.entityNamesCacheTTL,
+			});
 			return entityNames;
 		} catch (error) {
 			console.warn(
@@ -497,7 +536,10 @@ export class PlanningContextService extends BaseRAGService {
 			// Method 2: LLM-based entity name extraction (if semantic search didn't find enough)
 			// Use intelligent LLM extraction instead of manual parsing
 			if (foundEntities.size < maxEntities) {
-				const llmExtractedNames = await this.extractEntityNamesWithLLM(query);
+				const llmExtractedNames = await this.extractEntityNamesWithLLM(
+					campaignId,
+					query
+				);
 
 				if (llmExtractedNames.length > 0) {
 					console.log(
