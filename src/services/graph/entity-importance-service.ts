@@ -285,6 +285,16 @@ export class EntityImportanceService {
 		return Math.max(0, Math.min(100, normalizedLevel));
 	}
 
+	/**
+	 * Entity importance scoring combines three features (weights in parentheses):
+	 * - PageRank (0.4): Incoming link structure; damping 0.85, max 100 iterations.
+	 * - Betweenness centrality (0.4): Brandes algorithm; bridge/bottleneck nodes.
+	 * - Hierarchy level (0.2): Normalized level within community hierarchy.
+	 *
+	 * Formula: combined = pagerank*0.4 + betweenness*0.4 + hierarchy*0.2
+	 * All inputs normalized to [0, 100] before combination.
+	 * User override (importanceOverride) can map scores to fixed values (high→90, medium→60, low→10).
+	 */
 	async calculateCombinedImportance(
 		campaignId: string,
 		entityId: string,

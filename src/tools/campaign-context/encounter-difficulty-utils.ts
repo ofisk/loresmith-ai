@@ -62,6 +62,10 @@ export function parseNumericChallenge(entity: Entity): number | null {
 
 /**
  * Infer threat band from entity (low/standard/high) based on CR or name/content keywords.
+ *
+ * CR-based bands: CR ≤ 2 → low, CR 3–7 → standard, CR ≥ 8 → high.
+ * Fallback when CR is missing: keyword match in name/content
+ * (e.g. legendary, ancient, boss → high; minion, scout, weak → low).
  */
 export function inferThreatBand(entity: Entity): "low" | "standard" | "high" {
 	const numeric = parseNumericChallenge(entity);
@@ -83,6 +87,10 @@ export function inferThreatBand(entity: Entity): "low" | "standard" | "high" {
 
 /**
  * Get slot counts (low, standard, high) for a target difficulty and party size.
+ *
+ * Slots per difficulty: easy/medium use mostly low slots; hard adds standard;
+ * deadly adds one high slot. Party size scales low-slot count (e.g. easy:
+ * max(1, partySize-1) low, 1 standard, 0 high).
  */
 export function getDifficultySlots(
 	targetDifficulty: Difficulty,
@@ -104,6 +112,10 @@ export function getDifficultySlots(
 
 /**
  * Bump creature count up or down by steps for difficulty scaling.
+ *
+ * Up: +1 when base ≤ 2, else +ceil(base * 0.4) per step.
+ * Down: -1 when base ≤ 2, else -ceil(base * 0.3) per step.
+ * Result is clamped to minimum 1.
  */
 export function bumpCount(base: number, steps: number): number {
 	if (steps === 0) return Math.max(1, base);

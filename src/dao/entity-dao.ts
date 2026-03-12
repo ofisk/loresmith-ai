@@ -8,6 +8,7 @@ import { BaseDAOClass } from "./base-dao";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
 const RELATIONSHIPS_BATCH_SIZE = 49;
+/** Max length for LIKE terms to avoid SQLite "LIKE or GLOB pattern too complex" in D1. */
 const MAX_LIKE_TERM_LENGTH = 120;
 
 function sanitizeLikeTerm(input: string): string {

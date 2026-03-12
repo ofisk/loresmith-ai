@@ -13,6 +13,11 @@ import {
 } from "@/lib/graph/leiden-algorithm";
 import { CommunitySummaryService } from "./community-summary-service";
 
+/**
+ * Community detection uses the Leiden algorithm (not Louvain or label propagation).
+ * See src/lib/graph/leiden-algorithm.ts and Traag et al. (2019) "From Louvain to Leiden".
+ */
+
 export interface CommunityDetectionOptions extends LeidenOptions {
 	minCommunitySize?: number; // Minimum number of entities in a community
 	maxLevels?: number; // Maximum hierarchy levels to detect
@@ -20,12 +25,12 @@ export interface CommunityDetectionOptions extends LeidenOptions {
 	maxRelationships?: number; // Maximum relationships to process (safety limit)
 }
 
-// Default safety limits for community detection
-const DEFAULT_MAX_ENTITIES = 50000;
-const DEFAULT_MAX_RELATIONSHIPS = 200000;
+/** Safety limits for large entity graphs (avoids memory exhaustion in Cloudflare Workers). */
+const DEFAULT_MAX_ENTITIES = 50000; // ~2.5MB estimated
+const DEFAULT_MAX_RELATIONSHIPS = 200000; // ~20MB estimated
 
-// Memory estimation constants (rough estimates in MB)
-const MEMORY_ESTIMATE_BASE_MB = 5; // Base overhead
+/** Memory estimation for graph processing (rough MB; used to warn/abort before OOM). */
+const MEMORY_ESTIMATE_BASE_MB = 5;
 const MEMORY_ESTIMATE_PER_ENTITY_MB = 0.00005; // ~50 bytes per entity
 const MEMORY_ESTIMATE_PER_RELATIONSHIP_MB = 0.0001; // ~100 bytes per relationship
 const MEMORY_WARNING_THRESHOLD_MB = 80; // Warn if estimated >80MB
@@ -205,8 +210,9 @@ export class CommunityDetectionService {
 	}
 
 	/**
-	 * Detect communities for a campaign and store them in the database
-	 * Uses memory-efficient loading (only IDs and edges, not full entity content)
+	 * Detect communities for a campaign and store them in the database.
+	 * Uses Leiden algorithm (see leiden-algorithm.ts). Memory-efficient loading
+	 * (only IDs and edges, not full entity content). Safety limits apply.
 	 */
 	async detectCommunities(
 		campaignId: string,
