@@ -11,6 +11,7 @@ export interface BillingLimits {
 	tpd: number;
 	qpd: number;
 	monthlyTokens?: number;
+	lifetimeTokens?: number;
 	resourcesPerCampaignPerHour?: number;
 }
 

@@ -197,12 +197,17 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 	const dao = getDAOFactory(c.env);
 	const sub = await dao.subscriptionDAO.getByUsername(auth.username);
 
-	// Free tier: include monthly usage and credits for quota visibility
+	// Free tier: include usage and credits for quota visibility (lifetime trial or monthly)
 	let monthlyUsage: number | undefined;
 	let creditsRemaining: number | undefined;
-	if (tier === "free" && limits.monthlyTokens !== undefined) {
+	if (
+		tier === "free" &&
+		(limits.lifetimeTokens !== undefined || limits.monthlyTokens !== undefined)
+	) {
 		[monthlyUsage, creditsRemaining] = await Promise.all([
-			dao.userMonthlyUsageDAO.getCurrentMonthUsage(auth.username),
+			limits.lifetimeTokens !== undefined
+				? dao.userFreeTierUsageDAO.getLifetimeUsage(auth.username)
+				: dao.userMonthlyUsageDAO.getCurrentMonthUsage(auth.username),
 			dao.userCreditsDAO.getCredits(auth.username),
 		]);
 	}
@@ -221,6 +226,7 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 			tpd: limits.tpd,
 			qpd: limits.qpd,
 			monthlyTokens: limits.monthlyTokens,
+			lifetimeTokens: limits.lifetimeTokens,
 			resourcesPerCampaignPerHour: limits.resourcesPerCampaignPerHour,
 		},
 		monthlyUsage,

@@ -35,7 +35,8 @@ export function QuotaWarningModal({
 						Usage:{" "}
 						<strong>
 							{monthlyUsage.toLocaleString()} / {monthlyLimit.toLocaleString()}{" "}
-							tokens this month
+							tokens
+							{reason.includes("trial") ? "" : " this month"}
 						</strong>
 					</p>
 				)}

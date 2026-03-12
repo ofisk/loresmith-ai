@@ -52,7 +52,9 @@ export function CreditPurchaseSection({
 }: CreditPurchaseSectionProps) {
 	const [helpExpanded, setHelpExpanded] = useState(false);
 
-	const hasMonthlyLimit = status.limits.monthlyTokens !== undefined;
+	const hasFreeTierQuota =
+		status.limits.monthlyTokens !== undefined ||
+		status.limits.lifetimeTokens !== undefined;
 
 	const jwt =
 		typeof window !== "undefined"
@@ -84,7 +86,8 @@ export function CreditPurchaseSection({
 		}
 	}
 
-	const baseLimit = status.limits.monthlyTokens ?? 0;
+	const baseLimit =
+		status.limits.lifetimeTokens ?? status.limits.monthlyTokens ?? 0;
 	const credits = status.creditsRemaining ?? 0;
 	const effectiveLimit = baseLimit + credits;
 	const monthlyUsage = status.monthlyUsage ?? 0;
@@ -126,10 +129,12 @@ export function CreditPurchaseSection({
 				)}
 			</div>
 
-			{hasMonthlyLimit && (
+			{hasFreeTierQuota && (
 				<div className="mb-4">
 					<p className="text-sm text-neutral-600 dark:text-neutral-400">
-						This month:{" "}
+						{status.limits.lifetimeTokens !== undefined
+							? "Trial: "
+							: "This month: "}
 						<strong className="text-neutral-800 dark:text-neutral-200">
 							{monthlyUsage.toLocaleString()} /{" "}
 							{effectiveLimit.toLocaleString()} tokens

@@ -326,8 +326,10 @@ export interface TierLimits {
 	qph: number; // queries per hour (was qpm * 60)
 	tpd: number;
 	qpd: number;
-	/** Monthly token cap for free tier only; undefined for paid tiers */
+	/** Monthly token cap; undefined for paid tiers and when using lifetimeTokens */
 	monthlyTokens?: number;
+	/** One-time trial token cap for free tier; undefined for paid tiers. When set, replaces monthlyTokens. */
+	lifetimeTokens?: number;
 	/** Per-file retries per day for indexation/entity extraction retry */
 	retriesPerFilePerDay: number;
 	/** Per-file retries per month for indexation/entity extraction retry */
@@ -340,14 +342,14 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 	free: {
 		maxCampaigns: 1,
 		maxFiles: 5,
-		storageBytes: 5 * 1024 * 1024, // 5MB
-		tph: 120_000, // was 2k/min * 60
-		qph: 300, // 5/min * 60 = queries per hour
+		storageBytes: 25 * 1024 * 1024, // 25MB
+		tph: 120_000,
+		qph: 300,
 		tpd: 10_000,
 		qpd: 50,
-		monthlyTokens: 10_000,
-		retriesPerFilePerDay: 1,
-		retriesPerFilePerMonth: 3,
+		lifetimeTokens: 150_000, // One-time trial capacity; no monthly reset
+		retriesPerFilePerDay: 2,
+		retriesPerFilePerMonth: 6,
 		resourcesPerCampaignPerHour: 5,
 	},
 	basic: {

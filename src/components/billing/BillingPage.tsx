@@ -379,16 +379,22 @@ export function BillingPage({ onBack }: BillingPageProps) {
 								<td className="py-2">Tokens per day</td>
 								<td className="py-2 text-right">{formatNumber(limits.tpd)}</td>
 							</tr>
-							{limits.monthlyTokens !== undefined && (
+							{(limits.lifetimeTokens !== undefined ||
+								limits.monthlyTokens !== undefined) && (
 								<>
 									<tr>
-										<td className="py-2">Monthly tokens (free tier)</td>
+										<td className="py-2">
+											{limits.lifetimeTokens !== undefined
+												? "Trial tokens"
+												: "Monthly tokens (free tier)"}
+										</td>
 										<td className="py-2 text-right">
 											{status.monthlyUsage !== undefined
 												? `${formatNumber(status.monthlyUsage)} / `
 												: ""}
 											{formatNumber(
-												limits.monthlyTokens + (status.creditsRemaining ?? 0)
+												(limits.lifetimeTokens ?? limits.monthlyTokens ?? 0) +
+													(status.creditsRemaining ?? 0)
 											)}
 										</td>
 									</tr>
