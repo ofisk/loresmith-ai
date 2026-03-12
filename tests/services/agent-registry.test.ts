@@ -26,6 +26,7 @@ vi.mock("@ai-sdk/openai", () => ({
 
 vi.mock("ai", () => ({
 	streamText: vi.fn(),
+	generateText: vi.fn(),
 	createDataStreamResponse: vi.fn(),
 	tool: vi.fn(),
 }));
