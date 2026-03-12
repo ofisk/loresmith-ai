@@ -4,9 +4,18 @@ import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { createToolError, extractUsernameFromJwt } from "./tool-utils";
 
 /** Re-export for v6 tool execute signature. */
 export type { ToolExecutionOptions };
+
+/** Re-export pure tool helpers. */
+export {
+	createAuthHeaders,
+	createToolError,
+	createToolSuccess,
+	extractUsernameFromJwt,
+} from "./tool-utils";
 
 /**
  * Options passed to tool execute (v6). Base agent extends with env when running in Worker/DO.
@@ -49,44 +58,6 @@ export const commonSchemas = {
 };
 
 /**
- * Extract username from JWT token
- */
-export function extractUsernameFromJwt(jwt: string | null | undefined): string {
-	if (!jwt) return "";
-
-	try {
-		const parts = jwt.split(".");
-		if (parts.length !== 3) {
-			console.error(
-				"Error parsing JWT: invalid format, expected 3 parts but got",
-				parts.length
-			);
-			return "";
-		}
-
-		let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-		const pad = base64.length % 4;
-		if (pad) base64 += "=".repeat(4 - pad);
-
-		const payload = JSON.parse(atob(base64));
-		return payload.username || "";
-	} catch (error) {
-		console.error("Error parsing JWT:", error);
-		return "";
-	}
-}
-
-/**
- * Create authenticated headers for API requests
- */
-export function createAuthHeaders(jwt?: string | null): Record<string, string> {
-	return {
-		"Content-Type": "application/json",
-		...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-	};
-}
-
-/**
  * Get campaign name from campaignId (async helper for tools)
  */
 export async function getCampaignName(
@@ -115,75 +86,6 @@ export async function getCampaignName(
 		console.error("[getCampaignName] Error fetching campaign name:", error);
 		return null;
 	}
-}
-
-/**
- * Format message with campaign context
- */
-function formatMessageWithCampaign(
-	message: string,
-	campaignName: string | null | undefined
-): string {
-	if (!campaignName) {
-		return message;
-	}
-	return `${message} for campaign "${campaignName}"`;
-}
-
-/**
- * Standard error response for tool execution
- */
-export function createToolError(
-	message: string,
-	error: any,
-	code: number,
-	toolCallId: string,
-	_campaignId?: string | null,
-	campaignName?: string | null
-): ToolResult {
-	const formattedMessage = campaignName
-		? formatMessageWithCampaign(message, campaignName)
-		: message;
-
-	return {
-		toolCallId,
-		result: {
-			success: false,
-			message: formattedMessage,
-			data: {
-				error: error instanceof Error ? error.message : String(error),
-				errorCode: code,
-				...(campaignName ? { campaignName } : {}),
-			},
-		},
-	};
-}
-
-/**
- * Standard success response for tool execution
- */
-export function createToolSuccess(
-	message: string,
-	data: any,
-	toolCallId: string,
-	_campaignId?: string | null,
-	campaignName?: string | null
-): ToolResult {
-	const formattedMessage = campaignName
-		? formatMessageWithCampaign(message, campaignName)
-		: message;
-
-	return {
-		toolCallId,
-		result: {
-			success: true,
-			message: formattedMessage,
-			data: {
-				...data,
-				...(campaignName ? { campaignName } : {}),
-			},
-		},
-	};
 }
 
 /**

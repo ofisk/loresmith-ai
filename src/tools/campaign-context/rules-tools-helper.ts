@@ -8,6 +8,7 @@ import {
 	getEnvFromContext,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
+import { RULES_CONTEXT_ERRORS } from "./rules-tools-utils";
 
 export async function withRulesContext<_T>(
 	options: ToolExecuteOptions | undefined,
@@ -18,8 +19,8 @@ export async function withRulesContext<_T>(
 	const env = getEnvFromContext(options);
 	if (!env) {
 		return createToolError(
-			"Environment not available",
-			"Direct database access is required for campaign rules resolution.",
+			RULES_CONTEXT_ERRORS.envNotAvailable,
+			RULES_CONTEXT_ERRORS.envNotAvailableDetail,
 			500,
 			toolCallId
 		);
@@ -33,7 +34,7 @@ export async function withRulesContext<_T>(
 		return await handler(resolved);
 	} catch (error) {
 		return createToolError(
-			"Failed to resolve campaign rules context",
+			RULES_CONTEXT_ERRORS.resolveFailed,
 			error instanceof Error ? error.message : "Unknown error",
 			500,
 			toolCallId

@@ -2,12 +2,39 @@ import { describe, expect, it } from "vitest";
 import {
 	bumpCount,
 	getDifficultySlots,
+	getEntityText,
 	inferThreatBand,
 	parseNumericChallenge,
 } from "@/tools/campaign-context/encounter-difficulty-utils";
 import { makeEntity } from "../factories";
 
 describe("encounter difficulty utils", () => {
+	describe("getEntityText", () => {
+		it("returns empty string for invalid content", () => {
+			expect(getEntityText(makeEntity({ content: undefined }))).toBe("");
+			expect(getEntityText(makeEntity({ content: null }))).toBe("");
+			expect(getEntityText(makeEntity({ content: [] }))).toBe("");
+		});
+
+		it("returns JSON string for valid object content", () => {
+			const entity = makeEntity({
+				content: { cr: 5, name: "Goblin" },
+				entityType: "monsters",
+			});
+			expect(getEntityText(entity)).toBe('{"cr":5,"name":"Goblin"}');
+		});
+
+		it("returns empty string when JSON.stringify throws", () => {
+			const circular: Record<string, unknown> = {};
+			circular.self = circular;
+			const entity = makeEntity({
+				content: circular,
+				entityType: "monsters",
+			});
+			expect(getEntityText(entity)).toBe("");
+		});
+	});
+
 	describe("parseNumericChallenge", () => {
 		it("parses cr from entity content", () => {
 			const entity = makeEntity({
@@ -208,6 +235,14 @@ describe("encounter difficulty utils", () => {
 				low: 6,
 				standard: 2,
 				high: 1,
+			});
+		});
+
+		it("returns default slots for unknown difficulty", () => {
+			expect(getDifficultySlots("unknown" as any, 4)).toEqual({
+				low: 4,
+				standard: 1,
+				high: 0,
 			});
 		});
 	});

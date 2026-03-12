@@ -21,6 +21,11 @@ import {
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
+import {
+	isNoOutputError,
+	normalizeCurrency,
+	normalizeLootItem,
+} from "./loot-reward-utils";
 
 const lootItemSchema = z.object({
 	name: z.string(),
@@ -34,60 +39,6 @@ const lootItemSchema = z.object({
 	/** Unit for estimatedValue (e.g. gp, gold, credits). Omit if implied by setting. */
 	valueUnit: z.string().optional(),
 });
-
-function normalizeLootItem(raw: unknown): unknown {
-	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
-	const o = raw as Record<string, unknown>;
-	const nn = (v: unknown) => (v === null || v === undefined ? undefined : v);
-	const num = (v: unknown): number | undefined => {
-		if (typeof v === "number" && !Number.isNaN(v))
-			return Math.max(0, Math.floor(v));
-		if (typeof v === "string") {
-			const n = Number(v);
-			return !Number.isNaN(n) ? Math.max(0, Math.floor(n)) : undefined;
-		}
-		return undefined;
-	};
-	return {
-		name: String(nn(o.name) ?? ""),
-		itemType: String(nn(o.itemType) ?? nn(o.item_type) ?? "item"),
-		rarity: String(nn(o.rarity) ?? "common"),
-		description: String(nn(o.description) ?? ""),
-		mechanicalNotes: nn(o.mechanicalNotes) ?? nn(o.mechanical_notes),
-		storyHook: nn(o.storyHook) ?? nn(o.story_hook),
-		estimatedValue:
-			num(o.estimatedValue) ??
-			num(o.estimated_value) ??
-			num(o.estimatedValueGp) ??
-			num(o.estimated_value_gp),
-		valueUnit:
-			typeof o.valueUnit === "string"
-				? o.valueUnit
-				: typeof o.value_unit === "string"
-					? o.value_unit
-					: undefined,
-	};
-}
-
-/** Normalize currency to Record<unitName, amount>. Game-agnostic (any unit names). */
-function normalizeCurrency(raw: unknown): Record<string, number> {
-	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-	const o = raw as Record<string, unknown>;
-	const num = (v: unknown) =>
-		typeof v === "number"
-			? Math.max(0, Math.floor(v))
-			: typeof v === "string"
-				? Math.max(0, Math.floor(Number(v)))
-				: 0;
-	const result: Record<string, number> = {};
-	for (const [key, val] of Object.entries(o)) {
-		if (typeof key === "string" && key.length > 0) {
-			const n = num(val);
-			if (n > 0) result[key] = n;
-		}
-	}
-	return result;
-}
 
 const generatedLootSchema = z.preprocess(
 	(raw: unknown) => {
@@ -124,14 +75,6 @@ const magicItemSuggestionSchema = z.object({
 		.default([]),
 	usageIdeas: z.array(z.string()).default([]),
 });
-
-function isNoOutputError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return (
-		message.includes("No output generated") ||
-		message.includes("AI_NoOutputGeneratedError")
-	);
-}
 
 async function getLlmProvider(env: unknown, toolCallId: string) {
 	const providerApiKey = await getDefaultProviderApiKey(

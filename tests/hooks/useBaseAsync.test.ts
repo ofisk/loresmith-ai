@@ -79,10 +79,39 @@ describe("useBaseAsync", () => {
 		expect(result.current.loading).toBe(false);
 	});
 
-	it("retry returns execute function", () => {
+	it("retry returns execute function when autoExecute is false", () => {
 		const fn = vi.fn();
 		const { result } = renderHook(() => useBaseAsync(fn));
 		expect(typeof result.current.retry).toBe("function");
+		expect(result.current.retry()).toBe(result.current.execute);
+	});
+
+	it("uses errorMessage when rejection is not an Error", async () => {
+		const fn = vi.fn().mockRejectedValue("string error");
+		const { result } = renderHook(() =>
+			useBaseAsync(fn, { errorMessage: "Custom fallback" })
+		);
+		await act(async () => {
+			try {
+				await result.current.execute();
+			} catch {
+				// expected
+			}
+		});
+		expect(result.current.error).toBe("Custom fallback");
+	});
+
+	it("uses Operation failed when rejection is not Error and no errorMessage", async () => {
+		const fn = vi.fn().mockRejectedValue({ code: 500 });
+		const { result } = renderHook(() => useBaseAsync(fn));
+		await act(async () => {
+			try {
+				await result.current.execute();
+			} catch {
+				// expected
+			}
+		});
+		expect(result.current.error).toBe("Operation failed");
 	});
 
 	it("retry with autoExecute re-runs with autoExecuteArgs", async () => {

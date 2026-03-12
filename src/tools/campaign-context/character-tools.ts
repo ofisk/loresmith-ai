@@ -15,7 +15,10 @@ import {
 	getEnvFromContext,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
-import { generateCharacterWithAI } from "./ai-helpers";
+import {
+	generateCharacterWithAI,
+	NEEDS_CLARIFICATION_MARKER,
+} from "./ai-helpers";
 
 const storeCharacterInfoSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -71,25 +74,13 @@ export const storeCharacterInfo = tool({
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[storeCharacterInfo] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] storeCharacterInfo received:", {
-			campaignId,
-			characterName,
-			characterClass,
-			characterLevel,
-			characterRace,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] storeCharacterInfo - Environment found:", !!env);
-			console.log("[Tool] storeCharacterInfo - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env?.DB) {
 				const userId = extractUsernameFromJwt(jwt);
-				console.log("[Tool] storeCharacterInfo - User ID extracted:", userId);
 
 				if (!userId) {
 					return createToolError(
@@ -189,13 +180,6 @@ export const storeCharacterInfo = tool({
 					sourceType: "user_stored",
 				});
 
-				console.log(
-					"[Tool] Stored character as entity:",
-					characterId,
-					"name:",
-					characterName
-				);
-
 				return createToolSuccess(
 					`Successfully stored character information for ${characterName}`,
 					{
@@ -262,7 +246,6 @@ export const storeCharacterInfo = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error storing character information:", error);
 			return createToolError(
 				"Failed to store character information",
 				error,
@@ -279,9 +262,12 @@ const generateCharacterWithAISchema = z.object({
 	characterClass: z
 		.string()
 		.optional()
-		.describe("The character's class (e.g., Fighter, Wizard, etc.)"),
+		.describe("The character's class/role (from campaign rules)"),
 	characterLevel: z.number().optional().describe("The character's level"),
-	characterRace: z.string().optional().describe("The character's race"),
+	characterRace: z
+		.string()
+		.optional()
+		.describe("The character's species/race/ancestry (from campaign rules)"),
 	campaignSetting: z
 		.string()
 		.optional()
@@ -294,6 +280,12 @@ const generateCharacterWithAISchema = z.object({
 		.array(z.string())
 		.optional()
 		.describe("Array of existing party members for relationship generation"),
+	allowInventIfNoRules: z
+		.boolean()
+		.optional()
+		.describe(
+			"When true, the AI may invent reasonable character options if the campaign has no character rules indexed. Set when the user says 'yes, invent options' or similar."
+		),
 	jwt: commonSchemas.jwt,
 });
 
@@ -314,31 +306,17 @@ export const generateCharacterWithAITool = tool({
 			campaignSetting,
 			playerPreferences,
 			partyComposition,
+			allowInventIfNoRules,
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[generateCharacterWithAITool] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] generateCharacterWithAI received:", {
-			campaignId,
-			characterName,
-			characterClass,
-			characterLevel,
-			characterRace,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] generateCharacterWithAI - Environment found:", !!env);
-			console.log("[Tool] generateCharacterWithAI - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env) {
 				const userId = extractUsernameFromJwt(jwt);
-				console.log(
-					"[Tool] generateCharacterWithAI - User ID extracted:",
-					userId
-				);
 
 				if (!userId) {
 					return createToolError(
@@ -366,20 +344,31 @@ export const generateCharacterWithAITool = tool({
 					);
 				}
 
-				// Generate character using AI
-				const characterData = await generateCharacterWithAI({
-					characterName,
-					characterClass,
-					characterLevel: characterLevel || 1, // Default to level 1 if undefined
-					characterRace,
-					campaignSetting,
-					playerPreferences,
-					partyComposition,
-					campaignName: String(
-						(campaignResult as { name?: string }).name ?? ""
-					),
-					toolCallId,
-				});
+				// Generate character using AI (pulls rules from campaign graph)
+				const characterData = await generateCharacterWithAI(
+					{
+						campaignId,
+						characterName,
+						characterClass,
+						characterLevel: characterLevel || 1,
+						characterRace,
+						campaignSetting,
+						playerPreferences,
+						partyComposition,
+						campaignName: String(
+							(campaignResult as { name?: string }).name ?? ""
+						),
+						toolCallId,
+						allowInventIfNoRules,
+					},
+					env
+				);
+
+				// If needs clarification, return as-is so the agent can ask the user
+				const data = characterData.result.data as Record<string, unknown>;
+				if (data?.[NEEDS_CLARIFICATION_MARKER]) {
+					return characterData;
+				}
 
 				// Store the generated character as an entity
 				const daoFactory = getDAOFactory(env as Env);
@@ -409,13 +398,6 @@ export const generateCharacterWithAITool = tool({
 					},
 					sourceType: "ai_generated",
 				});
-
-				console.log(
-					"[Tool] Generated and stored character as entity:",
-					characterId,
-					"name:",
-					characterDataTyped.characterName
-				);
 
 				return createToolSuccess(
 					`Successfully created character ${characterDataTyped.characterName} using AI generation`,
@@ -473,7 +455,6 @@ export const generateCharacterWithAITool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error generating character with AI:", error);
 			return createToolError(
 				"Failed to generate character with AI",
 				error,
