@@ -868,25 +868,29 @@ export class EntityDAO extends BaseDAOClass {
 			result.set(entityId, []);
 		}
 
-		// Iterate in small groups: D1 limit 100 params/query; we use 2*N (from + to IN). Cap so 2*chunk ≤ 100.
+		// Iterate in small groups: D1 limit 100 params/query. UNION uses 2*chunk + 2*type params.
+		// Use UNION instead of OR so each branch can use idx_entity_relationships_from/to.
 		const batchSize = Math.min(RELATIONSHIPS_BATCH_SIZE, 49);
 		for (let i = 0; i < entityIds.length; i += batchSize) {
 			const chunk = entityIds.slice(i, i + batchSize);
 			if (chunk.length === 0) continue;
 			const placeholders = chunk.map(() => "?").join(", ");
-			const params: unknown[] = [...chunk, ...chunk];
-			const filters: string[] = [
-				`(from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
-			];
-
-			if (options.relationshipType) {
-				filters.push("relationship_type = ?");
-				params.push(options.relationshipType);
-			}
+			const typeFilter = options.relationshipType
+				? " AND relationship_type = ?"
+				: "";
+			const params: unknown[] = options.relationshipType
+				? [
+						...chunk,
+						options.relationshipType,
+						...chunk,
+						options.relationshipType,
+					]
+				: [...chunk, ...chunk];
 
 			const sql = `
-      SELECT * FROM entity_relationships
-      WHERE ${filters.join(" AND ")}
+      SELECT * FROM entity_relationships WHERE from_entity_id IN (${placeholders})${typeFilter}
+      UNION
+      SELECT * FROM entity_relationships WHERE to_entity_id IN (${placeholders})${typeFilter}
       ORDER BY created_at DESC
     `;
 
