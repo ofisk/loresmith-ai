@@ -1,6 +1,7 @@
-import { streamText } from "ai";
-import { MODEL_CONFIG } from "@/app-constants";
+import { generateText } from "ai";
+import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { AgentNotRegisteredError } from "@/lib/errors";
+import { createModel } from "./model-config";
 import { ModelManager } from "./model-manager";
 import { AGENT_ROUTING_PROMPTS } from "./prompts/agent-routing-prompts";
 
@@ -218,8 +219,15 @@ Respond with ONLY the agent type followed by a confidence score (0-100) and a br
 
 Example format: "agent_type|confidence|reason"`;
 
-			// Use the provided model or get from global model manager
-			const modelToUse = model || ModelManager.getInstance().getModel();
+			// Prefer PIPELINE_LIGHT for routing (faster, lower cost) when API key is available
+			const modelManager = ModelManager.getInstance();
+			const apiKey = modelManager.getApiKey();
+			const modelToUse =
+				(apiKey
+					? createModel(getGenerationModelForProvider("PIPELINE_LIGHT"), apiKey)
+					: null) ||
+				model ||
+				modelManager.getModel();
 
 			// If no model is available, we can't route the message
 			if (!modelToUse) {
@@ -229,8 +237,8 @@ Example format: "agent_type|confidence|reason"`;
 				return "campaign|50|No model available for routing, using default agent";
 			}
 
-			// Use streamText for the routing decision (single turn, no tools)
-			const result = await streamText({
+			// Use generateText for the routing decision (single turn, no tools)
+			const result = await generateText({
 				model: modelToUse,
 				system: systemPrompt,
 				messages: [{ role: "user", content: userMessage }],
@@ -241,13 +249,7 @@ Example format: "agent_type|confidence|reason"`;
 				}),
 			});
 
-			// Extract the response text
-			let responseText = "";
-			for await (const chunk of result.textStream) {
-				responseText += chunk;
-			}
-
-			const trimmedResponse = responseText.trim();
+			const trimmedResponse = (result.text ?? "").trim();
 			console.log("[AgentRouter] LLM routing result:", trimmedResponse);
 			return trimmedResponse;
 		} catch (error) {
