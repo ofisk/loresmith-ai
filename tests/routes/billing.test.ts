@@ -25,11 +25,16 @@ const mockAuthUserDAO = {
 };
 const mockUserMonthlyUsageDAO = { getCurrentMonthUsage: vi.fn() };
 const mockUserCreditsDAO = { getCredits: vi.fn() };
+const mockUserFreeTierUsageDAO = {
+	getLifetimeUsage: vi.fn().mockResolvedValue(0),
+	incrementUsage: vi.fn().mockResolvedValue(undefined),
+};
 const mockDAOFactory = {
 	subscriptionDAO: mockSubscriptionDAO,
 	authUserDAO: mockAuthUserDAO,
 	userMonthlyUsageDAO: mockUserMonthlyUsageDAO,
 	userCreditsDAO: mockUserCreditsDAO,
+	userFreeTierUsageDAO: mockUserFreeTierUsageDAO,
 };
 
 vi.mock("@/dao/dao-factory", () => ({

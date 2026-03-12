@@ -35,6 +35,7 @@ import { SubscriptionDAO } from "./subscription-dao";
 import { UserCreditsDAO } from "./user-credits-dao";
 import type { UserStorageUsage } from "./user-dao";
 import { UserDAO } from "./user-dao";
+import { UserFreeTierUsageDAO } from "./user-free-tier-usage-dao";
 import { UserMonthlyUsageDAO } from "./user-monthly-usage-dao";
 
 // Cache for DAO factory instances
@@ -65,6 +66,7 @@ export interface DAOFactory {
 	campaignResourceProposalDAO: CampaignResourceProposalDAO;
 	subscriptionDAO: SubscriptionDAO;
 	userMonthlyUsageDAO: UserMonthlyUsageDAO;
+	userFreeTierUsageDAO: UserFreeTierUsageDAO;
 	userCreditsDAO: UserCreditsDAO;
 	fileRetryUsageDAO: FileRetryUsageDAO;
 	resourceAddLogDAO: ResourceAddLogDAO;
@@ -104,6 +106,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly campaignResourceProposalDAO: CampaignResourceProposalDAO;
 	public readonly subscriptionDAO: SubscriptionDAO;
 	public readonly userMonthlyUsageDAO: UserMonthlyUsageDAO;
+	public readonly userFreeTierUsageDAO: UserFreeTierUsageDAO;
 	public readonly userCreditsDAO: UserCreditsDAO;
 	public readonly fileRetryUsageDAO: FileRetryUsageDAO;
 	public readonly resourceAddLogDAO: ResourceAddLogDAO;
@@ -138,6 +141,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.campaignResourceProposalDAO = new CampaignResourceProposalDAO(db);
 		this.subscriptionDAO = new SubscriptionDAO(db);
 		this.userMonthlyUsageDAO = new UserMonthlyUsageDAO(db);
+		this.userFreeTierUsageDAO = new UserFreeTierUsageDAO(db);
 		this.userCreditsDAO = new UserCreditsDAO(db);
 		this.fileRetryUsageDAO = new FileRetryUsageDAO(db);
 		this.resourceAddLogDAO = new ResourceAddLogDAO(db);
