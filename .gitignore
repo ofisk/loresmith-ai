@@ -154,3 +154,6 @@ uploads/
 playwright-report/
 test-results/
 
+# D1 EXPLAIN audit output (regenerate with npm run d1:explain-audit)
+docs/database/explain-results.md
+
