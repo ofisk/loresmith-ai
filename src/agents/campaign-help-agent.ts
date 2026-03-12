@@ -12,6 +12,7 @@ import {
  */
 const CAMPAIGN_HELP_SYSTEM_PROMPT = buildSystemPrompt({
 	agentName: "Campaign Help Agent",
+	conversationRules: "minimal",
 	responsibilities: [
 		"First-Time User Experience: Guide new users through the app's core value proposition and features",
 		"Prompt Suggestions: Suggest useful prompts and actions users can try to get value from the app",
