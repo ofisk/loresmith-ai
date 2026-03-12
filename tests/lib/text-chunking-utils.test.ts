@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	chunkTextByCharacterCount,
 	chunkTextByPages,
+	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
 
 describe("chunkTextByPages", () => {
@@ -64,5 +65,41 @@ describe("chunkTextByCharacterCount", () => {
 		expect(chunks.join(" ").replace(/\s+/g, " ").trim()).toBe(
 			text.replace(/\s+/g, " ").trim()
 		);
+	});
+});
+
+describe("truncateContentAtSentenceBoundary", () => {
+	it("returns content as-is when shorter than maxChars", () => {
+		const text = "Short content.";
+		expect(truncateContentAtSentenceBoundary(text, 5000)).toBe(text);
+	});
+
+	it("truncates at sentence boundary when exceeding maxChars", () => {
+		const text = "First sentence. Second sentence. ".repeat(200);
+		expect(text.length).toBeGreaterThan(2000);
+		const result = truncateContentAtSentenceBoundary(text, 1500);
+		expect(result.length).toBeLessThan(text.length);
+		expect(result).toContain("First sentence.");
+		expect(result).toContain("[Content truncated for context limit");
+	});
+
+	it("respects minimum truncation chars of 2000", () => {
+		const text = "a".repeat(5000);
+		const result = truncateContentAtSentenceBoundary(text, 1000);
+		expect(result.length).toBeGreaterThanOrEqual(2000);
+	});
+
+	it("breaks at last sentence boundary before maxChars", () => {
+		const part1 = "Sentence one. ".repeat(150);
+		const part2 = "Sentence two. ".repeat(150);
+		const text = part1 + part2;
+		const result = truncateContentAtSentenceBoundary(text, 2500);
+		expect(result).toContain("[Content truncated for context limit");
+		// Content before suffix should end at sentence boundary
+		const beforeSuffix = result.replace(
+			/\n\n\[Content truncated for context limit[^\]]*\]$/,
+			""
+		);
+		expect(beforeSuffix.endsWith(".")).toBe(true);
 	});
 });
