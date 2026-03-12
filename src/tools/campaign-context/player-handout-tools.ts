@@ -29,6 +29,7 @@ import {
 	requireGMRole,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
+import { sanitizeFileName } from "./player-handout-utils";
 
 const handoutFormatSchema = z.enum(HANDOUT_FORMATS);
 const exportFormatSchema = z.enum(["markdown", "text"]);
@@ -64,15 +65,6 @@ async function getLlmProvider(env: unknown, toolCallId: string) {
 		maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 	});
 	return { error: null, provider } as const;
-}
-
-function sanitizeFileName(raw: string): string {
-	const safe = raw
-		.toLowerCase()
-		.replace(/[^a-z0-9\-_\s]/g, "")
-		.trim()
-		.replace(/\s+/g, "-");
-	return safe.length > 0 ? safe : "handout";
 }
 
 const generateHandoutSchema = z.object({
