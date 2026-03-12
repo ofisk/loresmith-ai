@@ -305,7 +305,7 @@ CONTENT END`;
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey,
 				// Use non-interactive structured pipeline tier for extraction
-				defaultModel: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
+				defaultModel: getGenerationModelForProvider("PIPELINE_LIGHT"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 			});
@@ -314,7 +314,7 @@ CONTENT END`;
 			const result = await llmProvider.generateStructuredOutput<
 				z.infer<typeof EntityExtractionSchema>
 			>(prompt, {
-				model: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
+				model: getGenerationModelForProvider("PIPELINE_LIGHT"),
 				temperature: 0.1,
 				maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 				username: usageOptions?.username,
