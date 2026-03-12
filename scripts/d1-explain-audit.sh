@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run EXPLAIN QUERY PLAN on hot D1 query paths (issue #490).
-# Usage: ./scripts/d1-explain-audit.sh [dev|local]
+# Usage: ./scripts/d1-explain-audit.sh [dev|local|prod]
 # Output: docs/database/explain-results.md
 # Requires: migration 0014 applied (for new indexes). Run npm run migrate:dev first.
 
@@ -21,6 +21,10 @@ if [ "$ENV" = "local" ]; then
 	DB_NAME="loresmith-db"
 	CONFIG="wrangler.local.jsonc"
 	REMOTE="--local"
+elif [ "$ENV" = "prod" ]; then
+	DB_NAME="loresmith-db"
+	CONFIG="wrangler.jsonc"
+	REMOTE="--remote"
 else
 	DB_NAME="loresmith-db-dev"
 	CONFIG="wrangler.dev.jsonc"
