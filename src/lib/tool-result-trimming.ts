@@ -4,7 +4,22 @@ import { estimateTokenCount } from "./token-utils";
 /**
  * Trim tool results by relevancy when they exceed token limits
  * Keeps highest priority items (by score, importance, etc.) and removes lowest priority ones
+ *
+ * Proactive stripping: verbose metadata and redundant fields are removed from each item
+ * before the token check, reducing size without dropping items.
  */
+
+/** Max characters per item's text field before truncation. ~1500 tokens at 4 chars/token. */
+const MAX_TEXT_CHARS_PER_ITEM = 6000;
+
+/** Verbose fields to strip from result items (redundant or low-value for LLM). */
+const VERBOSE_FIELDS_TO_STRIP = new Set([
+	"metadata", // Often large JSON; not needed for content understanding
+	"relationships", // Redundant when text contains "EXPLICIT ENTITY RELATIONSHIPS"
+	// relatedEntities: NOT stripped - planning context needs it for graph linkage
+	"campaignMetadata", // Raw JSON blob
+	"fileKey", // Internal ID; fileName/title sufficient for display
+]);
 
 interface TrimmableResult {
 	score?: number;
@@ -26,6 +41,68 @@ function estimateToolResultTokens(result: unknown): number {
 	if (!result) return 0;
 	const jsonStr = JSON.stringify(result);
 	return estimateTokenCount(jsonStr);
+}
+
+/**
+ * Strip verbose metadata and redundant fields from a single result item.
+ * Applied proactively before token checks to reduce payload size.
+ */
+function stripVerboseFieldsFromItem(item: TrimmableResult): TrimmableResult {
+	const stripped: TrimmableResult = {};
+
+	for (const [key, value] of Object.entries(item)) {
+		if (VERBOSE_FIELDS_TO_STRIP.has(key)) {
+			continue; // Omit verbose fields
+		}
+
+		// Truncate long text fields
+		if (
+			key === "text" &&
+			typeof value === "string" &&
+			value.length > MAX_TEXT_CHARS_PER_ITEM
+		) {
+			stripped[key] =
+				value.slice(0, MAX_TEXT_CHARS_PER_ITEM) +
+				"\n\n[truncated for context length]";
+			continue;
+		}
+
+		stripped[key] = value;
+	}
+
+	return stripped;
+}
+
+/**
+ * Proactively strip verbose fields from all items in a results/entities array.
+ * Returns a new payload; does not mutate the input.
+ */
+function stripVerboseFieldsFromPayload(
+	payload: ToolResultData,
+	isNested: boolean,
+	arrayKey: "results" | "entities"
+): ToolResultData {
+	const items = (
+		isNested && payload.data && typeof payload.data === "object"
+			? (payload.data as ToolResultData)[arrayKey]
+			: payload[arrayKey]
+	) as TrimmableResult[] | undefined;
+
+	if (!Array.isArray(items) || items.length === 0) {
+		return payload;
+	}
+
+	const strippedItems = items.map(stripVerboseFieldsFromItem);
+
+	const result: ToolResultData = { ...payload };
+	if (isNested && payload.data && typeof payload.data === "object") {
+		const trimmedData = { ...(payload.data as ToolResultData) };
+		trimmedData[arrayKey] = strippedItems;
+		result.data = trimmedData;
+	} else {
+		result[arrayKey] = strippedItems;
+	}
+	return result;
 }
 
 /**
@@ -139,12 +216,36 @@ export async function trimToolResultsByRelevancy(
 		return toolResult;
 	}
 
-	// Estimate current token count
-	const currentTokens = estimateToolResultTokens(toolResult);
+	// Proactive strip: remove verbose metadata and redundant fields from each item.
+	// This reduces payload size before we check tokens; may avoid dropping items entirely.
+	const strippedPayload = stripVerboseFieldsFromPayload(
+		result,
+		isNested,
+		arrayKey
+	);
+	const strippedResult = inner
+		? {
+				...raw,
+				result: {
+					...inner,
+					data: strippedPayload,
+				},
+			}
+		: strippedPayload;
+
+	// Estimate token count after proactive strip
+	const currentTokens = estimateToolResultTokens(strippedResult);
 
 	if (currentTokens <= maxTokens) {
-		return toolResult; // Within limit, no trimming needed
+		return strippedResult; // Within limit after strip
 	}
+
+	// Still over limit: drop lowest-priority items. Use stripped payload as base.
+	const strippedItems = (
+		isNested && strippedPayload.data && typeof strippedPayload.data === "object"
+			? (strippedPayload.data as ToolResultData)[arrayKey]
+			: strippedPayload[arrayKey]
+	) as TrimmableResult[];
 
 	const importanceByEntityId = new Map<string, number>();
 	const shouldFetchImportance = Boolean(campaignId && env?.DB);
@@ -152,7 +253,7 @@ export async function trimToolResultsByRelevancy(
 		try {
 			const uniqueEntityIds = Array.from(
 				new Set(
-					itemsToTrim
+					strippedItems
 						.map((item) => item.entityId)
 						.filter(
 							(entityId): entityId is string => typeof entityId === "string"
@@ -183,7 +284,7 @@ export async function trimToolResultsByRelevancy(
 	}
 
 	// Calculate priority scores for all items.
-	const itemsWithPriority = itemsToTrim.map((item) => ({
+	const itemsWithPriority = strippedItems.map((item) => ({
 		item,
 		priority: getItemPriority(item, importanceByEntityId),
 	}));
@@ -195,7 +296,7 @@ export async function trimToolResultsByRelevancy(
 	const keptItems = itemsWithPriority.map((i) => i.item);
 	while (keptItems.length > 0) {
 		const trimmedPayload = buildTrimmedPayload(
-			result,
+			strippedPayload,
 			isNested,
 			arrayKey,
 			keptItems
@@ -218,7 +319,12 @@ export async function trimToolResultsByRelevancy(
 	}
 
 	// Nothing fit within budget; return same shape with an empty result list.
-	const emptyPayload = buildTrimmedPayload(result, isNested, arrayKey, []);
+	const emptyPayload = buildTrimmedPayload(
+		strippedPayload,
+		isNested,
+		arrayKey,
+		[]
+	);
 	return inner
 		? {
 				...raw,
