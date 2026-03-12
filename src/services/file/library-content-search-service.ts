@@ -3,6 +3,9 @@ import type { Env } from "@/middleware/auth";
 
 const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
+/** Max concurrent AI requests to stay within Cloudflare Workers AI limits */
+const AI_CONCURRENCY_LIMIT = 8;
+
 const CONTENT_TYPES = [
 	"monsters",
 	"npcs",
@@ -60,81 +63,93 @@ export class LibraryContentSearchService {
 
 			const allResults: any[] = [];
 
-			// Query each content type individually to avoid truncation
-			for (const contentType of CONTENT_TYPES) {
-				try {
-					console.log(
-						`[LibraryContentSearchService] Querying for ${contentType}...`
-					);
-
-					const typeSpecificPrompt =
-						RPG_EXTRACTION_PROMPTS.getTypeSpecificExtractionPrompt(contentType);
-
-					const aiResponse = await this.env.AI.run(LLM_MODEL, {
-						messages: [
-							{
-								role: "system",
-								content: typeSpecificPrompt,
-							},
-							{
-								role: "user",
-								content: query,
-							},
-						],
-						max_tokens: 2000,
-						temperature: 0.1,
-					});
-
-					// Parse the AI response for this content type
-					const responseText = aiResponse.response as string;
-					console.log(
-						`[LibraryContentSearchService] ${contentType} response: ${responseText.substring(0, 200)}...`
-					);
-
-					// Clean up the response - remove markdown formatting if present
-					const cleanResponse = this.cleanJsonResponse(responseText);
-
+			// Query content types with bounded concurrency to avoid Cloudflare AI limits
+			const settled: PromiseSettledResult<{
+				contentType: (typeof CONTENT_TYPES)[number];
+				aiResponse: unknown;
+			}>[] = new Array(CONTENT_TYPES.length);
+			let nextIndex = 0;
+			const numWorkers = Math.min(AI_CONCURRENCY_LIMIT, CONTENT_TYPES.length);
+			const workers = Array.from({ length: numWorkers }, async () => {
+				while (true) {
+					const i = nextIndex++;
+					if (i >= CONTENT_TYPES.length) return;
+					const contentType = CONTENT_TYPES[i];
 					try {
-						const parsedContent = JSON.parse(cleanResponse);
-						if (
-							parsedContent[contentType] &&
-							Array.isArray(parsedContent[contentType])
-						) {
-							// Convert to search result format
-							parsedContent[contentType].forEach((item: any, index: number) => {
-								if (item && typeof item === "object") {
-									allResults.push({
-										id: item.id || `${contentType}_${index}_${Date.now()}`,
-										score: 0.9 - index * 0.01,
-										metadata: {
-											entityType: contentType,
-											...item,
-										},
-										text:
-											item.summary ||
-											item.description ||
-											item.name ||
-											JSON.stringify(item),
-									});
-								}
-							});
-							console.log(
-								`[LibraryContentSearchService] Extracted ${parsedContent[contentType].length} ${contentType}`
+						const typeSpecificPrompt =
+							RPG_EXTRACTION_PROMPTS.getTypeSpecificExtractionPrompt(
+								contentType
 							);
-						}
-					} catch (parseError) {
-						console.warn(
-							`[LibraryContentSearchService] Failed to parse ${contentType} response:`,
-							parseError
-						);
-						// Continue with other content types
+						const aiResponse = await this.env.AI!.run(LLM_MODEL, {
+							messages: [
+								{ role: "system", content: typeSpecificPrompt },
+								{ role: "user", content: query },
+							],
+							max_tokens: 2000,
+							temperature: 0.1,
+						});
+						settled[i] = {
+							status: "fulfilled",
+							value: { contentType, aiResponse },
+						};
+					} catch (error) {
+						settled[i] = { status: "rejected", reason: error };
 					}
-				} catch (typeError) {
+				}
+			});
+			await Promise.all(workers);
+
+			for (let i = 0; i < settled.length; i++) {
+				const result = settled[i];
+				const contentType = CONTENT_TYPES[i];
+				if (result.status === "rejected") {
 					console.warn(
 						`[LibraryContentSearchService] Error querying ${contentType}:`,
-						typeError
+						result.reason
 					);
-					// Continue with other content types
+					continue;
+				}
+				const { aiResponse } = result.value;
+
+				const responseText = (aiResponse as any).response as string;
+				console.log(
+					`[LibraryContentSearchService] ${contentType} response: ${responseText.substring(0, 200)}...`
+				);
+
+				const cleanResponse = this.cleanJsonResponse(responseText);
+
+				try {
+					const parsedContent = JSON.parse(cleanResponse);
+					if (
+						parsedContent[contentType] &&
+						Array.isArray(parsedContent[contentType])
+					) {
+						parsedContent[contentType].forEach((item: any, index: number) => {
+							if (item && typeof item === "object") {
+								allResults.push({
+									id: item.id || `${contentType}_${index}_${Date.now()}`,
+									score: 0.9 - index * 0.01,
+									metadata: {
+										entityType: contentType,
+										...item,
+									},
+									text:
+										item.summary ||
+										item.description ||
+										item.name ||
+										JSON.stringify(item),
+								});
+							}
+						});
+						console.log(
+							`[LibraryContentSearchService] Extracted ${parsedContent[contentType].length} ${contentType}`
+						);
+					}
+				} catch (parseError) {
+					console.warn(
+						`[LibraryContentSearchService] Failed to parse ${contentType} response:`,
+						parseError
+					);
 				}
 			}
 
