@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
+import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -259,6 +260,42 @@ function extractTargetSessionFromTitle(title: string): number | null {
 }
 
 /**
+ * Batch load communities for multiple entities. Returns a map from entityId to
+ * communities containing that entity. More efficient than per-entity lookups.
+ */
+async function batchLoadCommunitiesByEntity(
+	campaignId: string,
+	entityIds: string[],
+	communityDAO: {
+		findCommunitiesContainingEntities: (
+			cid: string,
+			eids: string[]
+		) => Promise<Community[]>;
+	}
+): Promise<Map<string, Community[]>> {
+	if (entityIds.length === 0) {
+		return new Map();
+	}
+	const uniqueIds = [...new Set(entityIds)];
+	const communities = await communityDAO.findCommunitiesContainingEntities(
+		campaignId,
+		uniqueIds
+	);
+	const entityIdsSet = new Set(uniqueIds);
+	const result = new Map<string, Community[]>();
+	for (const c of communities) {
+		for (const eid of c.entityIds) {
+			if (entityIdsSet.has(eid)) {
+				const list = result.get(eid) ?? [];
+				list.push(c);
+				result.set(eid, list);
+			}
+		}
+	}
+	return result;
+}
+
+/**
  * Strip graph-RAG metadata (relationship headers, MEMBER_OF lines, etc.) from
  * entity text so the readout contains only narrative/content for the DM.
  */
@@ -374,7 +411,27 @@ export const getSessionReadoutContext = tool({
 				);
 			}
 
-			const steps: Array<{
+			const opts = {
+				env,
+				toolCallId: `${toolCallId}-step`,
+			} as ToolExecuteOptions;
+
+			const baseSearchArgs = {
+				campaignId,
+				jwt,
+				searchOriginalFiles: false,
+				includeTraversedEntities: true,
+				offset: 0,
+				limit: 50,
+				forSessionReadout: true,
+			};
+
+			async function processTaskForReadout(task: {
+				id: string;
+				title: string;
+				completionNotes: string | null;
+				createdAt: string;
+			}): Promise<{
 				task: {
 					id: string;
 					title: string;
@@ -384,14 +441,8 @@ export const getSessionReadoutContext = tool({
 				instruction: string;
 				readoutBlock: string;
 				entityResults: Array<{ entityId: string; title: string; text: string }>;
-			}> = [];
-
-			const opts = {
-				env,
-				toolCallId: `${toolCallId}-step`,
-			} as ToolExecuteOptions;
-
-			for (const task of completedTasks) {
+				entityIds: string[];
+			}> {
 				const notesSlice = (task.completionNotes ?? "").slice(0, 400).trim();
 				const queryFromTask = [task.title, notesSlice]
 					.filter(Boolean)
@@ -399,20 +450,8 @@ export const getSessionReadoutContext = tool({
 					.trim();
 				const searchQuery = queryFromTask || task.title;
 
-				const searchArgs = {
-					campaignId,
-					jwt,
-					searchOriginalFiles: false,
-					includeTraversedEntities: true,
-					offset: 0,
-					limit: 50,
-					forSessionReadout: true,
-				};
-
-				const searchRes = (await searchCampaignContext.execute?.(
-					{ ...searchArgs, query: searchQuery },
-					opts
-				)) as
+				// Run initial search and notes-only search in parallel when both apply
+				type SearchRes =
 					| {
 							result: {
 								success: boolean;
@@ -420,28 +459,29 @@ export const getSessionReadoutContext = tool({
 							};
 					  }
 					| undefined;
+				const [searchRes, notesOnlyRes] = (await Promise.all([
+					searchCampaignContext.execute?.(
+						{ ...baseSearchArgs, query: searchQuery },
+						opts
+					),
+					notesSlice && notesSlice.length > 80
+						? searchCampaignContext.execute?.(
+								{ ...baseSearchArgs, query: notesSlice },
+								opts
+							)
+						: Promise.resolve(undefined),
+				])) as [SearchRes, SearchRes];
 
 				const initialResults: SearchResultItem[] =
 					searchRes?.result?.success && searchRes?.result?.data?.results
 						? searchRes.result.data.results
 						: [];
 
-				if (notesSlice && notesSlice.length > 80) {
-					const notesOnlyRes = (await searchCampaignContext.execute?.(
-						{ ...searchArgs, query: notesSlice },
-						opts
-					)) as
-						| {
-								result: {
-									success: boolean;
-									data?: { results?: SearchResultItem[] };
-								};
-						  }
-						| undefined;
-					const notesResults =
-						notesOnlyRes?.result?.success && notesOnlyRes?.result?.data?.results
-							? notesOnlyRes.result.data.results
-							: [];
+				if (
+					notesOnlyRes?.result?.success &&
+					notesOnlyRes?.result?.data?.results
+				) {
+					const notesResults = notesOnlyRes.result.data.results;
 					const seenIds = new Set(
 						initialResults.map((r) => r.entityId).filter(Boolean)
 					);
@@ -461,16 +501,10 @@ export const getSessionReadoutContext = tool({
 				if (entityIds.length > 0) {
 					const traverseRes = (await searchCampaignContext.execute?.(
 						{
-							campaignId,
-							jwt,
+							...baseSearchArgs,
 							query: task.title,
-							searchOriginalFiles: false,
 							traverseFromEntityIds: entityIds,
 							traverseDepth: 2,
-							includeTraversedEntities: true,
-							offset: 0,
-							limit: 50,
-							forSessionReadout: true,
 						},
 						opts
 					)) as
@@ -516,55 +550,13 @@ export const getSessionReadoutContext = tool({
 								: v.text,
 					}));
 
-				// Debug logging: which entities and communities are feeding this step's readout.
-				// This helps inspect which data points are actually being used when
-				// constructing the session plan.
-				const communitiesByEntity: Record<
-					string,
-					{ id: string; level: number; entityCount: number }[]
-				> = {};
-
-				for (const entity of entityResults) {
-					try {
-						const communities =
-							await communityDAO.findCommunitiesContainingEntity(
-								campaignId,
-								entity.entityId
-							);
-						if (communities.length > 0) {
-							communitiesByEntity[entity.entityId] = communities.map((c) => ({
-								id: c.id,
-								level: c.level,
-								entityCount: c.entityIds.length,
-							}));
-						}
-					} catch (communityError) {
-						console.warn(
-							"[getSessionReadoutContext] Failed to load communities for entity",
-							entity.entityId,
-							communityError
-						);
-					}
-				}
-
-				console.log("[getSessionReadoutContext] Step context summary", {
-					campaignId,
-					taskId: task.id,
-					taskTitle: task.title,
-					entityResults: entityResults.map((e) => ({
-						entityId: e.entityId,
-						title: e.title,
-					})),
-					communitiesByEntity,
-				});
-
 				const readoutBlock = [
 					`## ${task.title}`,
 					"",
 					...entityResults.flatMap((e) => [`### ${e.title}`, "", e.text, ""]),
 				].join("\n");
 
-				steps.push({
+				return {
 					task: {
 						id: task.id,
 						title: task.title,
@@ -575,8 +567,57 @@ export const getSessionReadoutContext = tool({
 						"Transform the readoutBlock below into part of a session plan for the DM. Use the full entity content (Background, Character Traits, Emotional Stakes, NPC Reactions, mechanics, etc.) but present it as a scene or encounter in the plan: Description, Helpful DM Info, Dialogue, player options. Do not expose graph structure or relationship metadata. Output should read like a session script outline the DM can run at the table—not a raw dump of entity data. Include all substantive detail from the readoutBlock.",
 					readoutBlock,
 					entityResults,
-				});
+					entityIds: entityResults.map((e) => e.entityId),
+				};
 			}
+
+			const taskResults = await Promise.all(
+				completedTasks.map((task) => processTaskForReadout(task))
+			);
+
+			const allEntityIds = [
+				...new Set(taskResults.flatMap((r) => r.entityIds)),
+			];
+			const communitiesByEntityId = await batchLoadCommunitiesByEntity(
+				campaignId,
+				allEntityIds,
+				communityDAO
+			);
+
+			const steps = taskResults.map((tr) => {
+				const communitiesByEntity: Record<
+					string,
+					{ id: string; level: number; entityCount: number }[]
+				> = {};
+				for (const entity of tr.entityResults) {
+					const communities = communitiesByEntityId.get(entity.entityId) ?? [];
+					if (communities.length > 0) {
+						communitiesByEntity[entity.entityId] = communities.map((c) => ({
+							id: c.id,
+							level: c.level,
+							entityCount: c.entityIds.length,
+						}));
+					}
+				}
+
+				console.log("[getSessionReadoutContext] Step context summary", {
+					campaignId,
+					taskId: tr.task.id,
+					taskTitle: tr.task.title,
+					entityResults: tr.entityResults.map((e) => ({
+						entityId: e.entityId,
+						title: e.title,
+					})),
+					communitiesByEntity,
+				});
+
+				return {
+					task: tr.task,
+					instruction: tr.instruction,
+					readoutBlock: tr.readoutBlock,
+					entityResults: tr.entityResults,
+				};
+			});
 
 			// Generate session plan via LLM and persist
 			const providerEnvVar =
