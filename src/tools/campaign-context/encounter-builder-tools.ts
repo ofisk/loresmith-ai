@@ -22,6 +22,13 @@ import {
 } from "./encounter-difficulty-utils";
 import { lookupStatBlockTool } from "./rules-reference-tools";
 
+/**
+ * Encounter difficulty and composition logic.
+ * Custom system; not based on D&D 5e DMG XP budgets. Uses threat bands (low/standard/high),
+ * party composition scaling, and slot-based creature counts. Edge cases: low-level parties
+ * penalize high-threat creatures; high-level parties penalize low-threat.
+ */
+
 const difficultySchema = z.enum(["easy", "medium", "hard", "deadly"]);
 
 const generateEncounterSchema = z.object({
@@ -103,6 +110,7 @@ const getEncounterStatBlocksSchema = z.object({
 	jwt: commonSchemas.jwt,
 });
 
+/** Difficulty ranking for step-based scaling (easy=1 through deadly=4). */
 const DIFFICULTY_RANK: Record<Difficulty, number> = {
 	easy: 1,
 	medium: 2,

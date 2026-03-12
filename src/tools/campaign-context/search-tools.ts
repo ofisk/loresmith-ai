@@ -34,6 +34,17 @@ const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
  * Calculate name similarity between a query and an entity name.
  * Returns a score between 0.0 and 1.0, where 1.0 is an exact match.
  * Used to detect when users are asking about a specific named entity.
+ *
+ * Scoring rationale:
+ * - 1.0: Exact match (same string after normalization)
+ * - 0.8: Containment with prefix boost (longer starts with shorter; e.g. "The Dragon" vs "Dragon")
+ * - 0.6: Containment without prefix boost
+ * - 0.7: All words match, possibly different order
+ * - 0.5: Some words match
+ * - 0.0: No meaningful overlap
+ *
+ * We use string-based similarity rather than Levenshtein because TTRPG entity names
+ * often share common words ("of", "the", "lord") that inflate edit-distance scores.
  */
 export function calculateNameSimilarity(
 	query: string,
