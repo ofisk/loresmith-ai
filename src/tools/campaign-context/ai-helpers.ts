@@ -1,8 +1,26 @@
-import type { ToolResult } from "@/app-constants";
+import {
+	getGenerationModelForProvider,
+	MODEL_CONFIG,
+	type ToolResult,
+} from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
+import {
+	buildCharacterGenerationPrompt,
+	CHARACTER_RULES_CLARIFICATION_QUESTIONS,
+} from "@/lib/prompts/character-generation-prompts";
+import {
+	createProviderForTier,
+	getDefaultProviderApiKey,
+} from "@/services/llm/llm-provider-utils";
 import { createToolSuccess } from "@/tools/utils";
+import { parseGeneratedCharacter } from "./character-generation-utils";
+import { fetchCharacterCreationRules } from "./character-rules-fetcher";
 
-// Helper function to generate character data using AI
-export async function generateCharacterWithAI(params: {
+/** Tool result data when campaign lacks character rules and invent is not allowed. */
+export const NEEDS_CLARIFICATION_MARKER = "needsClarification" as const;
+
+export interface GenerateCharacterParams {
+	campaignId: string;
 	characterName: string;
 	characterClass?: string;
 	characterLevel: number;
@@ -12,7 +30,20 @@ export async function generateCharacterWithAI(params: {
 	partyComposition?: string[];
 	campaignName: string;
 	toolCallId: string;
-}): Promise<ToolResult> {
+	/** When true, LLM may invent options if campaign has no character rules. */
+	allowInventIfNoRules?: boolean;
+}
+
+/**
+ * Generate character data using the LLM and campaign rules from the entity graph.
+ * System-agnostic: uses whatever classes, species, and rules exist in the campaign.
+ * If no rules exist and allowInventIfNoRules is false, returns a needsClarification result
+ * so the agent can ask the user.
+ */
+export async function generateCharacterWithAI(
+	params: GenerateCharacterParams,
+	env: Record<string, unknown>
+): Promise<ToolResult> {
 	const {
 		characterName,
 		characterClass,
@@ -23,42 +54,108 @@ export async function generateCharacterWithAI(params: {
 		partyComposition,
 		campaignName,
 		toolCallId,
+		allowInventIfNoRules = false,
 	} = params;
 
-	// Generate random class if not provided
-	const finalCharacterClass = characterClass || generateRandomClass();
-
-	// Generate random race if not provided
-	const finalCharacterRace = characterRace || generateRandomRace();
-
-	// Generate backstory
-	const backstory = generateBackstory({
-		characterName,
-		characterClass: finalCharacterClass,
-		characterRace: finalCharacterRace,
-		characterLevel,
-		campaignSetting,
-		playerPreferences,
-	});
-
-	// Generate personality traits
-	const personalityTraits = generatePersonalityTraits(
-		finalCharacterClass,
-		finalCharacterRace
+	const daoFactory = getDAOFactory(env as any);
+	const { rules, hasMinimalRules } = await fetchCharacterCreationRules(
+		params.campaignId,
+		daoFactory
 	);
 
-	// Generate goals
-	const goals = generateGoals({
-		characterName,
-		characterClass: finalCharacterClass,
-		characterRace: finalCharacterRace,
-		campaignSetting,
+	if (!hasMinimalRules && !allowInventIfNoRules) {
+		return createToolSuccess(
+			"This campaign does not have character creation rules indexed yet. Ask the user to add rules or grant permission to invent options.",
+			{
+				[NEEDS_CLARIFICATION_MARKER]: true,
+				message:
+					"Campaign has no character classes, species, or rules indexed. Add rulebooks or house rules to your campaign, or say 'yes, invent options' to allow the AI to create reasonable options.",
+				suggestedQuestions: [...CHARACTER_RULES_CLARIFICATION_QUESTIONS],
+			},
+			toolCallId
+		);
+	}
+
+	const apiKey = await getDefaultProviderApiKey(env, false);
+	if (!apiKey?.trim()) {
+		return createToolSuccess(
+			"AI is not configured for character generation. Store character info manually.",
+			{
+				[NEEDS_CLARIFICATION_MARKER]: true,
+				message:
+					"API key not configured. Character generation requires an LLM. Use storeCharacterInfo to add character details manually.",
+				suggestedQuestions: [
+					"Configure an API key for AI generation, or provide character details manually using storeCharacterInfo.",
+				],
+			},
+			toolCallId
+		);
+	}
+
+	const provider = createProviderForTier({
+		apiKey,
+		tier: "SESSION_PLANNING",
+		temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+		maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 	});
 
-	// Generate relationships
-	const relationships = generateRelationships(partyComposition || []);
+	const prompt = buildCharacterGenerationPrompt({
+		rules,
+		params: {
+			characterName,
+			characterClass,
+			characterLevel,
+			characterRace,
+			campaignSetting,
+			playerPreferences,
+			partyComposition,
+			campaignName,
+		},
+		allowInvent: !hasMinimalRules && allowInventIfNoRules,
+	});
 
-	// Create metadata
+	let raw: unknown;
+	try {
+		const text = await provider.generateSummary(prompt, {
+			model: getGenerationModelForProvider("SESSION_PLANNING"),
+			temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+			maxTokens: 1200,
+		});
+		const trimmed = text.trim();
+		const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+		const rawJson = (fenced?.[1] ?? trimmed).trim();
+		raw = JSON.parse(rawJson);
+	} catch (_err) {
+		return createToolSuccess(
+			"Character generation failed. Try again or add character details manually.",
+			{
+				[NEEDS_CLARIFICATION_MARKER]: true,
+				message: "AI could not generate valid character output.",
+				suggestedQuestions: [
+					"Try again, or use storeCharacterInfo to add character details manually.",
+				],
+			},
+			toolCallId
+		);
+	}
+
+	let characterData: ReturnType<typeof parseGeneratedCharacter>;
+	try {
+		characterData = parseGeneratedCharacter(raw);
+	} catch (_err) {
+		return createToolSuccess(
+			"Character generation produced invalid data. Try again.",
+			{
+				[NEEDS_CLARIFICATION_MARKER]: true,
+				message: "Generated character data was invalid.",
+				suggestedQuestions: [
+					"Try again or provide character details manually.",
+				],
+			},
+			toolCallId
+		);
+	}
+
 	const metadata = {
 		generatedBy: "AI",
 		campaignName,
@@ -70,172 +167,9 @@ export async function generateCharacterWithAI(params: {
 	return createToolSuccess(
 		"Character generated successfully",
 		{
-			characterName,
-			characterClass: finalCharacterClass,
-			characterLevel,
-			characterRace: finalCharacterRace,
-			backstory,
-			personalityTraits,
-			goals,
-			relationships,
+			...characterData,
 			metadata,
 		},
 		toolCallId
 	);
-}
-
-// Helper function to generate a random character class
-export function generateRandomClass(): string {
-	const classes = [
-		"Fighter",
-		"Wizard",
-		"Cleric",
-		"Rogue",
-		"Ranger",
-		"Paladin",
-		"Bard",
-		"Sorcerer",
-		"Warlock",
-		"Monk",
-		"Druid",
-		"Barbarian",
-	];
-	return classes[Math.floor(Math.random() * classes.length)];
-}
-
-// Helper function to generate a random character race
-export function generateRandomRace(): string {
-	const races = [
-		"Human",
-		"Elf",
-		"Dwarf",
-		"Halfling",
-		"Dragonborn",
-		"Tiefling",
-		"Half-Elf",
-		"Half-Orc",
-		"Gnome",
-		"Aarakocra",
-		"Genasi",
-		"Goliath",
-	];
-	return races[Math.floor(Math.random() * races.length)];
-}
-
-// Helper function to generate character backstory
-export function generateBackstory(params: {
-	characterName: string;
-	characterClass: string;
-	characterRace: string;
-	characterLevel?: number;
-	campaignSetting?: string;
-	playerPreferences?: string;
-}): string {
-	const {
-		characterName,
-		characterClass,
-		characterRace,
-		characterLevel,
-		campaignSetting,
-		playerPreferences,
-	} = params;
-
-	const setting = campaignSetting || "fantasy world";
-	const preferences = playerPreferences || "adventurous";
-
-	return `${characterName} is a ${characterLevel || 1}st level ${characterClass} ${characterRace} from a ${setting}. ${characterName} has always been ${preferences}, seeking adventure and challenges. Their journey began when they discovered their innate abilities and decided to use them for the greater good. Now they travel the world, seeking to make a difference and uncover the mysteries that lie ahead.`;
-}
-
-// Helper function to generate personality traits based on class and race
-export function generatePersonalityTraits(
-	characterClass: string,
-	characterRace: string
-): string {
-	const classTraits: Record<string, string[]> = {
-		Fighter: ["Brave", "Disciplined", "Protective", "Honorable"],
-		Wizard: ["Intellectual", "Curious", "Studious", "Analytical"],
-		Cleric: ["Devout", "Compassionate", "Wise", "Faithful"],
-		Rogue: ["Cunning", "Quick-witted", "Stealthy", "Independent"],
-		Ranger: ["Nature-loving", "Observant", "Self-reliant", "Protective"],
-		Paladin: ["Noble", "Just", "Courageous", "Righteous"],
-		Bard: ["Charismatic", "Creative", "Sociable", "Inspiring"],
-		Sorcerer: ["Mysterious", "Powerful", "Impulsive", "Charismatic"],
-		Warlock: ["Ambitious", "Mysterious", "Determined", "Cunning"],
-		Monk: ["Disciplined", "Peaceful", "Focused", "Humble"],
-		Druid: ["Nature-connected", "Wise", "Protective", "Mystical"],
-		Barbarian: ["Fierce", "Passionate", "Strong-willed", "Protective"],
-	};
-
-	const raceTraits: Record<string, string[]> = {
-		Human: ["Adaptable", "Ambitious", "Versatile"],
-		Elf: ["Graceful", "Long-lived", "Magical"],
-		Dwarf: ["Sturdy", "Traditional", "Hard-working"],
-		Halfling: ["Cheerful", "Brave", "Lucky"],
-		Dragonborn: ["Proud", "Honorable", "Powerful"],
-		Tiefling: ["Mysterious", "Resilient", "Charismatic"],
-		"Half-Elf": ["Diplomatic", "Adaptable", "Charismatic"],
-		"Half-Orc": ["Strong", "Fierce", "Loyal"],
-		Gnome: ["Curious", "Inventive", "Energetic"],
-		Aarakocra: ["Free-spirited", "Observant", "Graceful"],
-		Genasi: ["Elemental", "Mysterious", "Powerful"],
-		Goliath: ["Strong", "Honorable", "Competitive"],
-	};
-
-	const classTrait =
-		classTraits[characterClass]?.[
-			Math.floor(Math.random() * classTraits[characterClass]?.length || 1)
-		] || "Adventurous";
-	const raceTrait =
-		raceTraits[characterRace]?.[
-			Math.floor(Math.random() * raceTraits[characterRace]?.length || 1)
-		] || "Unique";
-
-	return `${classTrait}, ${raceTrait}, and always ready for adventure.`;
-}
-
-// Helper function to generate character goals
-export function generateGoals(params: {
-	characterName: string;
-	characterClass: string;
-	characterRace: string;
-	campaignSetting?: string;
-}): string {
-	const { characterName, characterClass } = params;
-
-	const goals = [
-		`Master the art of ${characterClass.toLowerCase()} abilities`,
-		`Discover ancient secrets and lost knowledge`,
-		`Protect the innocent and fight evil`,
-		`Explore the world and uncover its mysteries`,
-		`Build a legacy that will be remembered`,
-		`Find their true purpose in life`,
-	];
-
-	const randomGoal = goals[Math.floor(Math.random() * goals.length)];
-	return `${characterName} seeks to ${randomGoal.toLowerCase()}.`;
-}
-
-// Helper function to generate character relationships
-export function generateRelationships(partyComposition: string[]): string[] {
-	if (!partyComposition || partyComposition.length === 0) {
-		return [
-			"Has a mentor who taught them their skills",
-			"Lost their family in a tragic event",
-		];
-	}
-
-	const relationships = partyComposition.map((member, index) => {
-		const relationshipTypes = [
-			"trusted ally",
-			"rival",
-			"mentor",
-			"student",
-			"friend",
-			"companion",
-		];
-		const type = relationshipTypes[index % relationshipTypes.length];
-		return `Has a ${type} relationship with ${member}`;
-	});
-
-	return relationships;
 }

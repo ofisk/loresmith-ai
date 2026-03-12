@@ -59,10 +59,49 @@ describe("useModalState", () => {
 		expect(result.current.selectedCampaigns).toEqual([]);
 	});
 
-	it("handleAdminDashboardOpen opens admin modal", () => {
+	it("handleAdminDashboardOpen and handleAdminDashboardClose", () => {
 		const { result } = renderHook(() => useModalState());
 		act(() => result.current.handleAdminDashboardOpen());
 		expect(result.current.isAdminDashboardModalOpen).toBe(true);
+		act(() => result.current.handleAdminDashboardClose());
+		expect(result.current.isAdminDashboardModalOpen).toBe(false);
+	});
+
+	it("handleEditFile and handleEditFileClose", () => {
+		const { result } = renderHook(() => useModalState());
+		const file = {
+			id: "f1",
+			name: "test.pdf",
+			campaignIds: ["c1"],
+		} as any;
+		act(() => result.current.handleEditFile(file));
+		expect(result.current.isEditFileModalOpen).toBe(true);
+		expect(result.current.editingFile).toEqual(file);
+		act(() => result.current.handleEditFileClose());
+		expect(result.current.isEditFileModalOpen).toBe(false);
+		expect(result.current.editingFile).toBeNull();
+	});
+
+	it("handleAddToCampaign and handleAddToCampaignClose", () => {
+		const { result } = renderHook(() => useModalState());
+		const file = { id: "f1", name: "doc.pdf", campaignIds: [] } as any;
+		act(() => result.current.handleAddToCampaign(file));
+		expect(result.current.isAddToCampaignModalOpen).toBe(true);
+		expect(result.current.selectedFile).toEqual(file);
+		act(() => result.current.handleAddToCampaignClose());
+		expect(result.current.isAddToCampaignModalOpen).toBe(false);
+		expect(result.current.selectedFile).toBeNull();
+	});
+
+	it("handleCampaignClick and handleCampaignDetailsClose", () => {
+		const { result } = renderHook(() => useModalState());
+		const campaign = { id: "c1", name: "Test" } as any;
+		act(() => result.current.handleCampaignClick(campaign));
+		expect(result.current.isCampaignDetailsModalOpen).toBe(true);
+		expect(result.current.selectedCampaign).toEqual(campaign);
+		act(() => result.current.handleCampaignDetailsClose());
+		expect(result.current.isCampaignDetailsModalOpen).toBe(false);
+		expect(result.current.selectedCampaign).toBeNull();
 	});
 
 	it("showProposalConfirmModal sets legal notice and opens modal", () => {
