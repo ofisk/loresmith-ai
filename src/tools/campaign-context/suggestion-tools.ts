@@ -663,7 +663,7 @@ async function analyzeMetadataCoverage(
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 			apiKey: providerApiKey,
-			defaultModel: getGenerationModelForProvider("METADATA_ANALYSIS"),
+			defaultModel: getGenerationModelForProvider("PIPELINE_LIGHT"),
 			defaultTemperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
 			defaultMaxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
 		});
@@ -671,7 +671,7 @@ async function analyzeMetadataCoverage(
 		const result = await llmProvider.generateStructuredOutput<
 			z.infer<typeof coverageSchema>
 		>(prompt, {
-			model: getGenerationModelForProvider("METADATA_ANALYSIS"),
+			model: getGenerationModelForProvider("PIPELINE_LIGHT"),
 			temperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
 			maxTokens: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_MAX_TOKENS,
 		});

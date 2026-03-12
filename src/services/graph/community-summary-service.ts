@@ -14,7 +14,7 @@ import { createLLMProvider } from "@/services/llm/llm-provider-factory";
  */
 const SUMMARY_CONFIG = {
 	// LLM Configuration
-	DEFAULT_MODEL: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
+	DEFAULT_MODEL: getGenerationModelForProvider("PIPELINE_LIGHT"),
 	DEFAULT_TEMPERATURE: 0.3,
 	DEFAULT_MAX_TOKENS: 2000,
 	LLM_PROVIDER: MODEL_CONFIG.PROVIDER.DEFAULT,

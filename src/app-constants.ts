@@ -235,6 +235,8 @@ export const MODEL_CONFIG = {
 		ANALYSIS: "gpt-5-mini",
 		// Model for non-interactive structured/background pipeline steps
 		PIPELINE_STRUCTURED: "gpt-5-mini",
+		// Lighter model for low-complexity structured extraction (entity extraction, summaries, metadata)
+		PIPELINE_LIGHT: "gpt-4o-mini",
 		// Model for non-interactive analysis/evaluation pipeline steps
 		PIPELINE_ANALYSIS: "gpt-5-mini",
 		// Model for metadata analysis (checklist coverage, campaign readiness)
@@ -250,6 +252,7 @@ export const MODEL_CONFIG = {
 		INTERACTIVE: "claude-sonnet-4-6",
 		ANALYSIS: "claude-sonnet-4-6",
 		PIPELINE_STRUCTURED: "claude-sonnet-4-6",
+		PIPELINE_LIGHT: "claude-haiku-4-5",
 		PIPELINE_ANALYSIS: "claude-sonnet-4-6",
 		METADATA_ANALYSIS: "claude-sonnet-4-6",
 		SESSION_PLANNING: "claude-sonnet-4-6",
@@ -293,6 +296,7 @@ export type TextGenerationTier =
 	| "INTERACTIVE"
 	| "ANALYSIS"
 	| "PIPELINE_STRUCTURED"
+	| "PIPELINE_LIGHT"
 	| "PIPELINE_ANALYSIS"
 	| "METADATA_ANALYSIS"
 	| "SESSION_PLANNING";
