@@ -445,18 +445,31 @@ export async function stageEntitiesFromResource(
 		const extractionService = new EntityExtractionService(llmApiKey);
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 
-		// Rate limit: Process chunks with delay to respect TPM limits
-		// If processing multiple chunks, add a delay to stay under 30k tokens per minute
-		const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0; // 2 second delay between chunks
+		const CHUNK_CONCURRENCY = 3;
+		const CHUNK_START_INTERVAL_MS = 1000; // Min interval between chunk starts to respect provider TPM
 		const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk (rate limits only)
 		const INITIAL_RETRY_DELAY_MS = 2000; // Initial delay for retries (2 seconds)
 		const MAX_RETRY_DELAY_MS = 30000; // Maximum delay for retries (30 seconds)
+
+		// Serialized throttle: at most one chunk starts per CHUNK_START_INTERVAL_MS
+		let nextStartTime = 0;
+		let throttleChain = Promise.resolve();
+		const acquireChunkSlot = (): Promise<void> => {
+			throttleChain = throttleChain.then(async () => {
+				const now = Date.now();
+				const wait = nextStartTime - now;
+				if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+				nextStartTime = Date.now() + CHUNK_START_INTERVAL_MS;
+			});
+			return throttleChain;
+		};
 
 		const failedChunks: number[] = [];
 		const chunkRetryCounts: Map<number, number> = new Map(); // Track retry count per chunk index
 		const chunkContentByRetry: Map<number, string> = new Map(); // Trimmed content for context-length retries
 		const chunksToRetry: number[] = []; // Chunks that need retrying
 		let successfulChunks = 0;
+		let completedCount = 0; // Monotonic count for onChunkCheckpoint (parallel completion)
 
 		// Helper function to process a single chunk
 		const processChunk = async (
@@ -467,15 +480,7 @@ export async function stageEntitiesFromResource(
 			const chunkNumber = chunkIndex + 1;
 			const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
 
-			// Add delay before processing (except for first chunk on initial pass)
-			if (!isRetry && chunkIndex > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
-				console.log(
-					`[EntityStaging] Rate limiting: waiting ${CHUNK_PROCESSING_DELAY_MS}ms before processing chunk ${chunkNumber}/${chunks.length}`
-				);
-				await new Promise((resolve) =>
-					setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
-				);
-			}
+			await acquireChunkSlot();
 
 			// Add exponential backoff delay for retries
 			if (isRetry && retryCount > 0) {
@@ -559,8 +564,9 @@ export async function stageEntitiesFromResource(
 						`[EntityStaging] Successfully retried chunk ${chunkNumber} after ${retryCount} failed attempts`
 					);
 				}
+				completedCount++;
 				await onChunkCheckpoint?.({
-					processedChunks: chunkNumber,
+					processedChunks: completedCount,
 					totalChunks: chunks.length,
 				});
 				return true;
@@ -587,6 +593,11 @@ export async function stageEntitiesFromResource(
 					console.warn(
 						`[EntityStaging] Chunk ${chunkNumber} returned no structured output, treating as empty`
 					);
+					completedCount++;
+					await onChunkCheckpoint?.({
+						processedChunks: completedCount,
+						totalChunks: chunks.length,
+					});
 					return true;
 				}
 
@@ -650,49 +661,73 @@ export async function stageEntitiesFromResource(
 					`[EntityStaging] Chunk ${chunkNumber} failed after ${MAX_CHUNK_RETRIES} retry attempts, giving up`
 				);
 				failedChunks.push(chunkNumber);
+				completedCount++;
+				await onChunkCheckpoint?.({
+					processedChunks: completedCount,
+					totalChunks: chunks.length,
+				});
 				// Keep retry count so caller won't re-queue (newRetryCount >= MAX_CHUNK_RETRIES)
 				return false; // Permanently failed
 			}
 		};
 
-		// Initial pass: process all chunks
-		for (const { chunk, globalIndex } of chunksToProcess) {
+		// Initial pass: process chunks with bounded concurrency
+		const runWorkers = (
+			items: Array<{ globalIndex: number; chunk: string }>,
+			isRetryPhase: boolean
+		) => {
+			const numWorkers = Math.min(CHUNK_CONCURRENCY, items.length);
+			let nextIndex = 0;
+			const workers = Array.from({ length: numWorkers }, async () => {
+				while (true) {
+					const currentIndex = nextIndex++;
+					if (currentIndex >= items.length) return;
+					const { globalIndex, chunk } = items[currentIndex];
+					const success = await processChunk(globalIndex, chunk, isRetryPhase);
+					if (success) {
+						successfulChunks++;
+					} else {
+						const retryCount = chunkRetryCounts.get(globalIndex) || 0;
+						if (retryCount < MAX_CHUNK_RETRIES) {
+							chunksToRetry.push(globalIndex);
+						}
+					}
+				}
+			});
+			return Promise.all(workers);
+		};
+
+		if (chunksToProcess.length === 1) {
+			// Single chunk: no concurrency benefit, process directly
+			const { chunk, globalIndex } = chunksToProcess[0];
 			const success = await processChunk(globalIndex, chunk, false);
 			if (success) {
 				successfulChunks++;
 			} else {
-				// Check if it will be retried (retry count hasn't exceeded max)
 				const retryCount = chunkRetryCounts.get(globalIndex) || 0;
 				if (retryCount < MAX_CHUNK_RETRIES) {
 					chunksToRetry.push(globalIndex);
 				}
 			}
+		} else {
+			await runWorkers(
+				chunksToProcess.map((c) => ({
+					globalIndex: c.globalIndex,
+					chunk: c.chunk,
+				})),
+				false
+			);
 		}
 
-		// Retry failed chunks
+		// Retry failed chunks with bounded concurrency (batch approach)
 		while (chunksToRetry.length > 0) {
-			const chunkIndex = chunksToRetry.shift()!;
-			const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
-
-			if (retryCount >= MAX_CHUNK_RETRIES) {
-				// Already exceeded max retries, skip
-				continue;
-			}
-
-			// Use trimmed content for context-length retries; otherwise original chunk
-			const contentToProcess =
-				chunkContentByRetry.get(chunkIndex) ?? chunks[chunkIndex];
-			const success = await processChunk(chunkIndex, contentToProcess, true);
-			if (success) {
-				successfulChunks++;
-			} else {
-				// Check if we should retry again
-				const newRetryCount = chunkRetryCounts.get(chunkIndex) || 0;
-				if (newRetryCount < MAX_CHUNK_RETRIES) {
-					// Add back to retry queue
-					chunksToRetry.push(chunkIndex);
-				}
-			}
+			const currentRetries = [...chunksToRetry];
+			chunksToRetry.length = 0;
+			const retryItems = currentRetries.map((chunkIndex) => ({
+				globalIndex: chunkIndex,
+				chunk: chunkContentByRetry.get(chunkIndex) ?? chunks[chunkIndex],
+			}));
+			await runWorkers(retryItems, true);
 		}
 
 		// Log summary of chunk processing
