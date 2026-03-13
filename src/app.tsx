@@ -28,6 +28,7 @@ function ChatContent() {
 		handleUpload,
 		handleFileUpdate,
 		addFileToCampaigns,
+		isAddingToCampaigns,
 		addLocalNotification,
 		onProposalConfirm,
 		onProposalCancel,
@@ -63,6 +64,7 @@ function ChatContent() {
 					handleUpload={handleUpload}
 					handleFileUpdate={handleFileUpdate}
 					addFileToCampaigns={addFileToCampaigns}
+					isAddingToCampaigns={isAddingToCampaigns}
 					addLocalNotification={(type, title, message?) =>
 						addLocalNotification(type, title, message ?? "")
 					}
@@ -91,6 +93,7 @@ function ChatContent() {
 				handleUpload={handleUpload}
 				handleFileUpdate={handleFileUpdate}
 				addFileToCampaigns={addFileToCampaigns}
+				isAddingToCampaigns={isAddingToCampaigns}
 				addLocalNotification={(type, title, message?) =>
 					addLocalNotification(type, title, message ?? "")
 				}

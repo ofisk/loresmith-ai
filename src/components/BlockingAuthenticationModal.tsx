@@ -270,6 +270,7 @@ export function BlockingAuthenticationModal({
 							<FormField
 								id={usernameId}
 								label="Username"
+								required
 								placeholder="2–64 characters, letters, numbers, _ or -"
 								value={currentUsername}
 								onValueChange={(v, _) => setCurrentUsername(v)}
@@ -384,15 +385,23 @@ export function BlockingAuthenticationModal({
 								<FormField
 									id={usernameId}
 									label="Username"
+									required
 									placeholder="2–64 characters, letters, numbers, _ or -"
 									value={currentUsername}
 									onValueChange={(v, _) => setCurrentUsername(v)}
 									disabled={false}
 									pattern=".*"
 								/>
+								{currentUsername.trim().length > 0 &&
+									currentUsername.trim().length < 2 && (
+										<p className="text-xs text-amber-600 dark:text-amber-400 -mt-2">
+											Username must be at least 2 characters
+										</p>
+									)}
 								<FormField
 									id={emailId}
 									label="Email"
+									required
 									placeholder="you@example.com"
 									value={email}
 									onValueChange={(v, _) => setEmail(v)}
@@ -401,6 +410,7 @@ export function BlockingAuthenticationModal({
 								<FormField
 									id={passwordId}
 									label="Password"
+									required
 									placeholder="At least 8 characters"
 									type="password"
 									autoComplete="new-password"
@@ -408,9 +418,15 @@ export function BlockingAuthenticationModal({
 									onValueChange={(v, _) => setPassword(v)}
 									disabled={false}
 								/>
+								{password.length > 0 && password.length < 8 && (
+									<p className="text-xs text-amber-600 dark:text-amber-400 -mt-2">
+										Password must be at least 8 characters
+									</p>
+								)}
 								<FormField
 									id={confirmPasswordId}
 									label="Confirm password"
+									required
 									placeholder="Same as above"
 									type="password"
 									autoComplete="new-password"
@@ -418,6 +434,11 @@ export function BlockingAuthenticationModal({
 									onValueChange={(v, _) => setConfirmPassword(v)}
 									disabled={false}
 								/>
+								{confirmPassword.length > 0 && password !== confirmPassword && (
+									<p className="text-xs text-amber-600 dark:text-amber-400 -mt-2">
+										Passwords do not match
+									</p>
+								)}
 								{error && <div className="text-red-500 text-sm">{error}</div>}
 								<div className="flex gap-2">
 									<PrimaryActionButton
@@ -455,6 +476,7 @@ export function BlockingAuthenticationModal({
 							<FormField
 								id={usernameId}
 								label="Username"
+								required
 								placeholder="Your username"
 								value={currentUsername}
 								onValueChange={(v, _) => setCurrentUsername(v)}
@@ -464,6 +486,7 @@ export function BlockingAuthenticationModal({
 							<FormField
 								id={passwordId}
 								label="Password"
+								required
 								placeholder="Your password"
 								type="password"
 								autoComplete="current-password"

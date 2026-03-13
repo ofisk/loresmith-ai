@@ -267,11 +267,7 @@ export const Modal = ({
 				tabIndex={-1}
 			>
 				<Card
-					className={cn(
-						"reveal reveal-sm relative",
-						"[z-index:var(--z-modal)]",
-						className
-					)}
+					className={cn("relative z-50 animate-modal-enter", className)}
 					style={cardStyle}
 					ref={modalRef}
 					tabIndex={-1}

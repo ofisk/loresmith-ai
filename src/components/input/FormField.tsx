@@ -85,6 +85,7 @@ interface FormFieldProps
 	value: string;
 	onValueChange: (value: string, isValid: boolean) => void;
 	disabled?: boolean;
+	required?: boolean;
 	className?: string;
 	onKeyPress?: (event: React.KeyboardEvent) => void;
 	children?: React.ReactNode; // For additional content like tags display
@@ -98,6 +99,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 	value,
 	onValueChange,
 	disabled = false,
+	required = false,
 	className = "",
 	onKeyPress,
 	children,
@@ -111,6 +113,11 @@ export const FormField: React.FC<FormFieldProps> = ({
 			<div className="flex items-center gap-2 mb-2">
 				<label htmlFor={id} className="text-ob-base-300 text-sm font-medium">
 					{label}
+					{required && (
+						<span className="text-red-500 dark:text-red-400 ml-0.5" aria-hidden>
+							*
+						</span>
+					)}
 				</label>
 				{tooltip && (
 					<button
@@ -143,6 +150,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 				value={value}
 				onValueChange={onValueChange}
 				disabled={disabled}
+				required={required}
 				className="w-full"
 				style={
 					{

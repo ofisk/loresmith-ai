@@ -52,8 +52,14 @@ export function CampaignsSection({
 				</button>
 			</div>
 			{campaignsLoading ? (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-					<div className="text-neutral-500 dark:text-neutral-400 mb-2">Loading campaigns…</div>
+				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 space-y-2">
+					{["a", "b", "c", "d"].map((id) => (
+						<div
+							key={id}
+							className="h-8 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse"
+							aria-hidden
+						/>
+					))}
 				</div>
 			) : campaignsError ? (
 				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">

@@ -219,13 +219,12 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					Sign in to view billing
 				</p>
 				{onBack && (
-					<button
-						type="button"
-						onClick={onBack}
+					<a
+						href="/"
 						className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
 					>
 						Back to app
-					</button>
+					</a>
 				)}
 			</div>
 		);
@@ -233,8 +232,23 @@ export function BillingPage({ onBack }: BillingPageProps) {
 
 	if (loading && !status) {
 		return (
-			<div className="min-h-screen flex items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
-				<p className="text-neutral-600 dark:text-neutral-400">Loading…</p>
+			<div className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950">
+				<div className="max-w-2xl mx-auto space-y-6">
+					<div className="h-8 w-32 rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+					<div className="p-6 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 space-y-3">
+						<div className="h-5 w-24 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+						<div className="h-10 w-20 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+					</div>
+					<div className="grid gap-4 md:grid-cols-2">
+						{["plan-1", "plan-2"].map((id) => (
+							<div
+								key={id}
+								className="h-40 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 animate-pulse"
+								aria-hidden
+							/>
+						))}
+					</div>
+				</div>
 			</div>
 		);
 	}
@@ -254,13 +268,12 @@ export function BillingPage({ onBack }: BillingPageProps) {
 						Retry
 					</button>
 					{onBack && (
-						<button
-							type="button"
-							onClick={onBack}
+						<a
+							href="/"
 							className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
 						>
 							Back to app
-						</button>
+						</a>
 					)}
 				</div>
 			</div>
@@ -279,14 +292,13 @@ export function BillingPage({ onBack }: BillingPageProps) {
 			<div className="max-w-2xl mx-auto">
 				<div className="flex items-center gap-4 mb-8">
 					{onBack && (
-						<button
-							type="button"
-							onClick={onBack}
+						<a
+							href="/"
 							className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
 						>
 							<ArrowLeft size={18} />
-							Back
-						</button>
+							Back to app
+						</a>
 					)}
 					<div className="flex items-center gap-3">
 						<img src={loresmith} alt="LoreSmith" width={32} height={32} />
