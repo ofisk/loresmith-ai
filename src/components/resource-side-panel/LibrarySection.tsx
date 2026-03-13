@@ -1,5 +1,5 @@
 import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import libraryIcon from "@/assets/library.png";
 import { Card } from "@/components/card/Card";
 import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
@@ -70,13 +70,22 @@ export function LibrarySection({
 		}
 	}, [authReady, fetchResources, setLoading, setError]);
 
+	const fetchResourcesRef = useRef(fetchResources);
+	const setLoadingRef = useRef(setLoading);
+	const setErrorRef = useRef(setError);
+	useEffect(() => {
+		fetchResourcesRef.current = fetchResources;
+		setLoadingRef.current = setLoading;
+		setErrorRef.current = setError;
+	}, [fetchResources, setLoading, setError]);
+
 	useEffect(() => {
 		const handleJwtChanged = () => {
 			const jwt = getStoredJwt();
 			if (jwt && !AuthService.isJwtExpired(jwt)) {
-				setLoading(true);
-				setError(null);
-				fetchResources();
+				setLoadingRef.current(true);
+				setErrorRef.current(null);
+				fetchResourcesRef.current();
 			}
 		};
 		window.addEventListener(
@@ -89,7 +98,7 @@ export function LibrarySection({
 				handleJwtChanged as EventListener
 			);
 		};
-	}, [fetchResources, setLoading, setError]);
+	}, []);
 
 	// Refetch when library section is expanded (user may have uploaded while collapsed)
 	useEffect(() => {
@@ -100,7 +109,7 @@ export function LibrarySection({
 
 	useEffect(() => {
 		const handleCampaignChange = () => {
-			fetchResources();
+			fetchResourcesRef.current();
 		};
 		window.addEventListener(
 			APP_EVENT_TYPE.CAMPAIGN_CREATED,
@@ -128,7 +137,7 @@ export function LibrarySection({
 				handleCampaignChange as EventListener
 			);
 		};
-	}, [fetchResources]);
+	}, []);
 
 	// Merge queued files from UploadQueueContext so all queued uploads appear in the list
 	const displayFiles = useMemo(() => {

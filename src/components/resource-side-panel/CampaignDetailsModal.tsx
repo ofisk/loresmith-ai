@@ -347,15 +347,23 @@ export function CampaignDetailsModal({
 	);
 
 	// Listen for entity extraction completion events from notifications
+	const campaignRef = useRef(campaign);
+	const checkQueueStatusRef = useRef(checkQueueStatus);
 	useEffect(() => {
-		if (!campaign) return;
+		campaignRef.current = campaign;
+		checkQueueStatusRef.current = checkQueueStatus;
+	}, [campaign, checkQueueStatus]);
 
+	useEffect(() => {
 		const handleEntityExtractionCompleted = (event: Event) => {
+			const currentCampaign = campaignRef.current;
+			if (!currentCampaign) return;
+
 			const customEvent = event as CustomEvent;
 			const { campaignId, resourceId } = customEvent.detail;
 
 			// Only handle events for this campaign
-			if (campaignId !== campaign.campaignId) return;
+			if (campaignId !== currentCampaign.campaignId) return;
 
 			// Remove from processing set
 			if (resourceId) {
@@ -368,7 +376,10 @@ export function CampaignDetailsModal({
 
 			// Refresh the queue status for this resource
 			if (resourceId) {
-				checkQueueStatus.execute(campaign.campaignId, resourceId);
+				checkQueueStatusRef.current.execute(
+					currentCampaign.campaignId,
+					resourceId
+				);
 			}
 		};
 
@@ -383,7 +394,7 @@ export function CampaignDetailsModal({
 				handleEntityExtractionCompleted
 			);
 		};
-	}, [campaign, checkQueueStatus]);
+	}, []);
 
 	// Update ref when processing resources change
 	useEffect(() => {

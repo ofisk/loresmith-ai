@@ -116,13 +116,15 @@ export function ShardGrid({
 	}, [shards, filters, selectedShards]);
 
 	const handleSelectShard = (shardId: string, selected: boolean) => {
-		const newSelected = new Set(selectedShards);
-		if (selected) {
-			newSelected.add(shardId);
-		} else {
-			newSelected.delete(shardId);
-		}
-		setSelectedShards(newSelected);
+		setSelectedShards((prev) => {
+			const next = new Set(prev);
+			if (selected) {
+				next.add(shardId);
+			} else {
+				next.delete(shardId);
+			}
+			return next;
+		});
 	};
 
 	const handleSelectAll = () => {
