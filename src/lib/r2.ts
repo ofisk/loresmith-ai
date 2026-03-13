@@ -27,6 +27,14 @@ export class R2Helper {
 	}
 
 	/**
+	 * Get an object from R2 as a stream (for large files to avoid loading into memory)
+	 */
+	async getStream(key: string): Promise<ReadableStream | null> {
+		const object = await this.env.R2.get(key);
+		return object?.body ?? null;
+	}
+
+	/**
 	 * Put an object to R2
 	 */
 	async put(

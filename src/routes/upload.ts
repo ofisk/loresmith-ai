@@ -1,3 +1,4 @@
+import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { Context } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { extractJwtFromContext } from "@/lib/auth-utils";
@@ -195,7 +196,10 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 			userAuth.username,
 			filename || "",
 			"[DirectUpload]",
-			jwt
+			jwt,
+			"executionCtx" in c
+				? (c as { executionCtx: ExecutionContext }).executionCtx
+				: undefined
 		);
 
 		directUploadLog.debug("File processing scheduled", { filename });
@@ -213,12 +217,21 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 			const filename = c.req.param("filename");
 			const userAuth = (c as any).userAuth as AuthPayload;
 			if (tenant && filename && userAuth?.username === tenant) {
-				await notifyFileUploadFailed(
+				const notifyPromise = notifyFileUploadFailed(
 					c.env,
 					userAuth.username,
 					filename,
 					(error as Error)?.message
-				);
+				).catch(() => {});
+				const executionCtx =
+					"executionCtx" in c
+						? (c as { executionCtx: ExecutionContext }).executionCtx
+						: undefined;
+				if (executionCtx) {
+					executionCtx.waitUntil(notifyPromise);
+				} else {
+					await notifyPromise;
+				}
 			}
 		} catch (_e) {}
 		return c.json({ error: "Internal server error" }, 500);
@@ -768,7 +781,10 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 			session.userId,
 			session.filename,
 			"[LargeUpload]",
-			jwt
+			jwt,
+			"executionCtx" in c
+				? (c as { executionCtx: ExecutionContext }).executionCtx
+				: undefined
 		);
 
 		// Mark session as completed
@@ -798,12 +814,21 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 				);
 				if (sessionResponse.ok) {
 					const s = (await sessionResponse.json()) as UploadSessionData;
-					await notifyFileUploadFailed(
+					const notifyPromise = notifyFileUploadFailed(
 						c.env,
 						s.userId,
 						s.filename,
 						(error as Error)?.message
-					);
+					).catch(() => {});
+					const executionCtx =
+						"executionCtx" in c
+							? (c as { executionCtx: ExecutionContext }).executionCtx
+							: undefined;
+					if (executionCtx) {
+						executionCtx.waitUntil(notifyPromise);
+					} else {
+						await notifyPromise;
+					}
 				}
 			}
 		} catch (_e) {}

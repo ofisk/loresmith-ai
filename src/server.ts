@@ -110,7 +110,7 @@ export default {
 	) => {
 		return queueFn(batch, env);
 	},
-	scheduled: (event: ScheduledController, env: Env, _ctx: ExecutionContext) => {
-		return scheduledFn(event, env);
+	scheduled: (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+		return scheduledFn(event, env, ctx);
 	},
 };

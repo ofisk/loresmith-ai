@@ -31,7 +31,10 @@ function requireAdmin(c: ContextWithAuth): void {
 }
 
 function getTelemetryService(c: ContextWithAuth): TelemetryService {
-	return new TelemetryService(new TelemetryDAO(c.env.DB!));
+	if (!c.env.DB) {
+		throw new Error("Database not configured");
+	}
+	return new TelemetryService(new TelemetryDAO(c.env.DB));
 }
 
 /**

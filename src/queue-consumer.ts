@@ -1,3 +1,4 @@
+import type { ExecutionContext } from "@cloudflare/workers-types";
 import { MODEL_CONFIG, PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -154,15 +155,6 @@ export class FileProcessingQueue {
 				key,
 				processingTimeMs: processingTime,
 			});
-
-			// Send to dead letter queue
-			await this.env.FILE_PROCESSING_DLQ.send({
-				originalMessage: message,
-				error: error instanceof Error ? error.message : "Unknown error",
-				timestamp: new Date().toISOString(),
-				processingTime,
-			});
-
 			throw error;
 		}
 	}
@@ -174,6 +166,7 @@ export class FileProcessingQueue {
 		const log = createLogger(this.env, "[FileProcessingQueue]");
 		const maxRetries = 3;
 		let retryCount = 0;
+		const startTime = Date.now();
 
 		while (retryCount < maxRetries) {
 			try {
@@ -185,6 +178,13 @@ export class FileProcessingQueue {
 
 				if (retryCount >= maxRetries) {
 					log.error("Max retries exceeded for", message.key, error);
+					const processingTime = Date.now() - startTime;
+					await this.env.FILE_PROCESSING_DLQ.send({
+						originalMessage: message,
+						error: error instanceof Error ? error.message : "Unknown error",
+						timestamp: new Date().toISOString(),
+						processingTime,
+					});
 					throw error;
 				}
 
@@ -298,7 +298,8 @@ export async function queue(
 
 export async function scheduled(
 	_event: ScheduledController,
-	env: Env
+	env: Env,
+	ctx?: ExecutionContext
 ): Promise<void> {
 	const log = createLogger(env, "[Scheduled]");
 	// Prune LLM usage log (rows older than 25 hours) - runs every cron cycle
@@ -329,9 +330,16 @@ export async function scheduled(
 	await checkAndTriggerRebuilds(env);
 
 	// Analyze checklist status for all campaigns (async, non-blocking)
-	ChecklistStatusService.analyzeAllCampaigns(env).catch((error) => {
-		log.error("Failed to analyze checklist status for campaigns", error);
-	});
+	const analyzePromise = ChecklistStatusService.analyzeAllCampaigns(env).catch(
+		(error) => {
+			log.error("Failed to analyze checklist status for campaigns", error);
+		}
+	);
+	if (ctx) {
+		ctx.waitUntil(analyzePromise);
+	} else {
+		void analyzePromise;
+	}
 }
 
 /**
@@ -341,8 +349,12 @@ export async function scheduled(
 async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 	const log = createLogger(env, "[RebuildCron]");
 	try {
+		if (!env.DB) {
+			log.warn("DB binding not configured, skipping rebuild checks");
+			return;
+		}
 		const daoFactory = getDAOFactory(env);
-		const worldStateChangelogDAO = new WorldStateChangelogDAO(env.DB!);
+		const worldStateChangelogDAO = new WorldStateChangelogDAO(env.DB);
 		const rebuildTriggerService = new RebuildTriggerService(
 			daoFactory.campaignDAO
 		);

@@ -167,10 +167,10 @@ export class RebuildPipelineService {
 			}
 
 			// Archive changelog entries that were applied
-			if (unappliedEntryIds.length > 0 && this.env?.R2) {
+			if (unappliedEntryIds.length > 0 && this.env?.R2 && this.env.DB) {
 				try {
 					const archiveService = new ChangelogArchiveService({
-						db: this.env.DB!,
+						db: this.env.DB,
 						r2: this.env.R2,
 						vectorize: this.env.VECTORIZE,
 						openaiApiKey: openaiApiKey,

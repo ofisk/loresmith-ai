@@ -16,6 +16,10 @@ export async function notifyUser(
 		env as unknown as Record<string, unknown>,
 		"[notifyUser]"
 	);
+	if (!env.NOTIFICATIONS) {
+		logger.debug("NOTIFICATIONS binding not configured, skipping");
+		return;
+	}
 	logger.debug(`Sending notification to user: ${userId}`);
 
 	try {

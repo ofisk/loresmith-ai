@@ -246,19 +246,22 @@ async function getTimelineContext(
 ): Promise<TimelineEvent[]> {
 	const daoFactory = getDAOFactory(env);
 
+	if (!env.DB) {
+		throw new Error("DB binding not configured");
+	}
 	const [sessionDigests, liveChangelogEntries] = await Promise.all([
 		daoFactory.sessionDigestDAO.getSessionDigestsByCampaign(campaignId),
-		new WorldStateChangelogService({ db: env.DB! }).listChangelogs(campaignId, {
+		new WorldStateChangelogService({ db: env.DB }).listChangelogs(campaignId, {
 			fromTimestamp: options.fromDate,
 			toTimestamp: options.toDate,
 		}),
 	]);
 
 	let archivedEntries: WorldStateChangelogEntry[] = [];
-	if (options.includeArchived !== false && env.R2) {
+	if (options.includeArchived !== false && env.R2 && env.DB) {
 		try {
 			const archiveService = new ChangelogArchiveService({
-				db: env.DB!,
+				db: env.DB,
 				r2: env.R2,
 				vectorize: env.VECTORIZE as VectorizeIndex | undefined,
 				openaiApiKey:

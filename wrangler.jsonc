@@ -88,8 +88,7 @@
 			{
 				"queue": "upload-events",
 				"max_batch_size": 1,
-				"max_retries": 5,
-				"dead_letter_queue": "file-processing-dlq"
+				"max_retries": 5
 			},
 			{
 				"queue": "graph-rebuild-queue",
