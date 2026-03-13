@@ -157,3 +157,6 @@ test-results/
 # D1 EXPLAIN audit output (regenerate with npm run d1:explain-audit)
 docs/database/explain-results.md
 
+# Agent skills (restored from skills-lock.json via npm run postinstall)
+.agents/
+
