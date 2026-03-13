@@ -466,18 +466,24 @@ export class EntityDAO extends BaseDAOClass {
 		return result?.count || 0;
 	}
 
+	/** Default limit when none provided to avoid unbounded result at scale */
+	private static readonly CAMPAIGN_IDS_DEFAULT_LIMIT = 1000;
+
 	/**
 	 * Get distinct campaign IDs that have entities
 	 * Useful for batch processing campaigns that have entity data
 	 */
 	async getCampaignIdsWithEntities(limit?: number): Promise<string[]> {
+		const effectiveLimit = limit ?? EntityDAO.CAMPAIGN_IDS_DEFAULT_LIMIT;
 		const sql = `
       SELECT DISTINCT campaign_id
       FROM entities
       ORDER BY campaign_id
-      ${limit ? `LIMIT ${limit}` : ""}
+      LIMIT ?
     `;
-		const results = await this.queryAll<{ campaign_id: string }>(sql, []);
+		const results = await this.queryAll<{ campaign_id: string }>(sql, [
+			effectiveLimit,
+		]);
 		return results.map((r) => r.campaign_id);
 	}
 
@@ -717,10 +723,15 @@ export class EntityDAO extends BaseDAOClass {
 			"SELECT campaign_id FROM entities WHERE id = ?",
 			[entityId]
 		);
-		await this.execute(
-			"DELETE FROM entity_relationships WHERE from_entity_id = ? OR to_entity_id = ?",
-			[entityId, entityId]
-		);
+		// Two DELETEs instead of OR so each can use idx_entity_relationships_from/to
+		await this.db.batch([
+			this.db
+				.prepare("DELETE FROM entity_relationships WHERE from_entity_id = ?")
+				.bind(entityId),
+			this.db
+				.prepare("DELETE FROM entity_relationships WHERE to_entity_id = ?")
+				.bind(entityId),
+		]);
 		await this.execute("DELETE FROM entities WHERE id = ?", [entityId]);
 		if (row) {
 			await incrementCampaignCacheVersion(this.db, row.campaign_id);

@@ -144,12 +144,21 @@ export class GraphRebuildDirtyDAO extends BaseDAOClass {
          WHERE campaign_id = ? AND entity_id IN (${placeholders})`,
 				[campaignId, ...chunk]
 			);
-			await this.execute(
-				`DELETE FROM graph_dirty_relationships
-         WHERE campaign_id = ?
-           AND (from_entity_id IN (${placeholders}) OR to_entity_id IN (${placeholders}))`,
-				[campaignId, ...chunk, ...chunk]
-			);
+			// Two DELETEs instead of OR so each can use idx_graph_dirty_relationships_campaign_from/to
+			await this.db.batch([
+				this.db
+					.prepare(
+						`DELETE FROM graph_dirty_relationships
+           WHERE campaign_id = ? AND from_entity_id IN (${placeholders})`
+					)
+					.bind(campaignId, ...chunk),
+				this.db
+					.prepare(
+						`DELETE FROM graph_dirty_relationships
+           WHERE campaign_id = ? AND to_entity_id IN (${placeholders})`
+					)
+					.bind(campaignId, ...chunk),
+			]);
 		}
 	}
 
@@ -161,6 +170,8 @@ export class GraphRebuildDirtyDAO extends BaseDAOClass {
 		if (seedEntityIds.length === 0) {
 			return { entityIds: [], edgeCount: 0 };
 		}
+		// Safety cap to avoid 30s timeout on large campaigns (Cloudflare D1 limit)
+		const RELATIONSHIPS_FETCH_LIMIT = 50_000;
 		const relationships = await this.queryAll<{
 			from_entity_id: string;
 			to_entity_id: string;
@@ -168,8 +179,9 @@ export class GraphRebuildDirtyDAO extends BaseDAOClass {
 		}>(
 			`SELECT from_entity_id, to_entity_id, metadata
        FROM entity_relationships
-       WHERE campaign_id = ?`,
-			[campaignId]
+       WHERE campaign_id = ?
+       LIMIT ?`,
+			[campaignId, RELATIONSHIPS_FETCH_LIMIT]
 		);
 
 		const adjacency = new Map<string, Set<string>>();
