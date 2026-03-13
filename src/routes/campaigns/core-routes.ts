@@ -185,13 +185,11 @@ const routeAddResourceToCampaign = createRoute({
 		body: {
 			content: {
 				"application/json": {
-					schema: z
-						.object({
-							type: z.string(),
-							id: z.string(),
-							name: z.string().optional(),
-						})
-						.passthrough(),
+					schema: z.object({
+						type: z.string(),
+						id: z.string(),
+						name: z.string().optional(),
+					}),
 				},
 			},
 		},
