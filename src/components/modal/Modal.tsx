@@ -256,7 +256,7 @@ export const Modal = ({
 			{/* Modal content container */}
 			<div
 				className={cn(
-					"relative z-10 bg-white dark:bg-neutral-900 shadow-lg overflow-y-auto",
+					"relative z-10 bg-white dark:bg-neutral-900 shadow-lg overflow-y-auto overscroll-behavior-contain",
 					fullScreenOnMobile
 						? "w-full h-dvh max-h-dvh rounded-none md:w-auto md:h-auto md:max-h-[var(--height-modal-max-desktop)] md:rounded-lg"
 						: "rounded-lg max-h-[var(--height-modal-max)] md:max-h-[var(--height-modal-max-desktop)]"

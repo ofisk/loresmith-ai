@@ -324,6 +324,7 @@ export function AppModals({
 				onUpdate={handleCampaignUpdate}
 				checkQuotaBeforeAdd={async () => ({ allowed: true })}
 				onShowQuotaWarning={modalState.showQuotaWarningModalFn}
+				addLocalNotification={addLocalNotification}
 				onAddFileToCampaign={async (fileKey: string, fileName: string) => {
 					if (modalState.selectedCampaign) {
 						return await addFileToCampaigns(

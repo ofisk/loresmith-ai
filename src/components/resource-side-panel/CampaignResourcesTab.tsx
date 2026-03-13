@@ -62,15 +62,15 @@ export function CampaignResourcesTab({
 							? "Only the campaign owner or Co-GM can add resources"
 							: undefined
 					}
-					className="w-full sm:w-auto !text-purple-600 dark:!text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
+					className="w-full sm:w-auto !text-blue-600 dark:!text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					<Plus size={16} weight="bold" />
 					Add resource
 				</Button>
 			</div>
 			{loading ? (
-				<div className="text-center py-8 text-muted-foreground">
-					Loading resources...
+				<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+					Loading resources…
 				</div>
 			) : error ? (
 				<div className="text-center py-8 text-red-500 dark:text-red-400">
@@ -98,7 +98,7 @@ export function CampaignResourcesTab({
 							<button
 								key={resource.id}
 								type="button"
-								className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
+								className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500"
 								onClick={toggleExpand}
 							>
 								<div className="flex flex-col h-full">
@@ -114,24 +114,25 @@ export function CampaignResourcesTab({
 												toggleExpand();
 											}}
 											type="button"
+											aria-label={isExpanded ? "Collapse" : "Expand"}
 											className="flex-shrink-0 p-1 rounded-md bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-200"
 										>
 											{isExpanded ? (
 												<CaretDownIcon
 													size={16}
-													className="text-purple-600 dark:text-purple-400"
+													className="text-blue-600 dark:text-blue-400"
 												/>
 											) : (
 												<CaretRightIcon
 													size={16}
-													className="text-purple-600 dark:text-purple-400"
+													className="text-blue-600 dark:text-blue-400"
 												/>
 											)}
 										</button>
 									</div>
 
 									{isExpanded && (
-										<div className="overflow-y-auto transition-all duration-300 ease-in-out max-h-96 opacity-100">
+										<div className="overflow-y-auto transition-opacity transition-[max-height] duration-300 ease-in-out max-h-96 opacity-100">
 											<div className="mt-4 text-xs space-y-1">
 												{resource.display_name && (
 													<div className="flex justify-between items-center">
@@ -156,18 +157,14 @@ export function CampaignResourcesTab({
 														Added:
 													</span>
 													<span className="font-medium text-neutral-900 dark:text-neutral-100">
-														{new Date(resource.created_at)
-															.toLocaleDateString("en-US", {
-																month: "short",
-																day: "numeric",
-																year: "2-digit",
-																hour: "numeric",
-																minute: "2-digit",
-																hour12: true,
-															})
-															.replace(",", "")
-															.replace(" PM", "p")
-															.replace(" AM", "a")}
+														{new Intl.DateTimeFormat("en-US", {
+															month: "short",
+															day: "numeric",
+															year: "2-digit",
+															hour: "numeric",
+															minute: "2-digit",
+															hour12: true,
+														}).format(new Date(resource.created_at))}
 													</span>
 												</div>
 											</div>
@@ -254,7 +251,7 @@ export function CampaignResourcesTab({
 																			size={16}
 																			className="animate-spin"
 																		/>
-																		Processing...
+																		Processing…
 																	</span>
 																) : retryingResourceId === resource.id ? (
 																	<span className="flex items-center justify-center gap-2">
@@ -262,7 +259,7 @@ export function CampaignResourcesTab({
 																			size={16}
 																			className="animate-spin"
 																		/>
-																		Retrying...
+																		Retrying…
 																	</span>
 																) : (
 																	"Retry entity extraction"

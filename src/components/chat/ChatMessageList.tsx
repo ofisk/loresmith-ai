@@ -111,7 +111,10 @@ export function ChatMessageList({
 																	{part.text.startsWith(
 																		"scheduled message"
 																	) && (
-																		<span className="absolute -top-3 -left-2 text-base">
+																		<span
+																			className="absolute -top-3 -left-2 text-base"
+																			aria-hidden="true"
+																		>
 																			🕒
 																		</span>
 																	)}

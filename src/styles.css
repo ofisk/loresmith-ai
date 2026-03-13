@@ -747,7 +747,7 @@ html {
 	transition-duration: 150ms;
 }
 
-.add-focus {
+.add-focus:focus-visible {
 	outline: none;
 }
 .add-focus:focus-visible {

@@ -242,6 +242,8 @@ export function JoinCampaignPage({
 					src={loresmith}
 					alt="LoreSmith"
 					className="mb-6 h-12 w-auto opacity-90"
+					width={48}
+					height={48}
 				/>
 				<div className="text-center text-neutral-300">
 					<p className="text-lg font-medium text-red-400">{error}</p>
@@ -263,6 +265,8 @@ export function JoinCampaignPage({
 					src={loresmith}
 					alt="LoreSmith"
 					className="mb-6 h-12 w-auto opacity-90"
+					width={48}
+					height={48}
 				/>
 				<div className="text-center text-neutral-300">
 					<p className="text-lg font-medium text-green-400">
@@ -290,6 +294,8 @@ export function JoinCampaignPage({
 					src={loresmith}
 					alt="LoreSmith"
 					className="mb-6 h-12 w-auto opacity-90"
+					width={48}
+					height={48}
 				/>
 				<div className="w-full max-w-md rounded-lg border border-neutral-700 bg-neutral-900 p-6">
 					<PlayerCharacterSelectionPanel
@@ -317,6 +323,8 @@ export function JoinCampaignPage({
 				src={loresmith}
 				alt="LoreSmith"
 				className="mb-6 h-12 w-auto opacity-90"
+				width={48}
+				height={48}
 			/>
 			<div className="max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-6 text-center">
 				<h1 className="text-xl font-semibold text-white">Join campaign</h1>

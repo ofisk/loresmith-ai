@@ -118,6 +118,7 @@ describe("ResourceSidePanel", () => {
 
 	it("should call onLogout when logout button is clicked", async () => {
 		mockOnLogout.mockResolvedValue(undefined);
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
 		render(
 			<ResourceSidePanel
@@ -135,6 +136,31 @@ describe("ResourceSidePanel", () => {
 		await waitFor(() => {
 			expect(mockOnLogout).toHaveBeenCalledTimes(1);
 		});
+
+		confirmSpy.mockRestore();
+	});
+
+	it("should not call onLogout when user cancels logout confirmation", async () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+		render(
+			<ResourceSidePanel
+				isAuthenticated={true}
+				campaigns={mockCampaigns}
+				onLogout={mockOnLogout}
+				showUserMenu={true}
+				setShowUserMenu={mockSetShowUserMenu}
+			/>
+		);
+
+		const logoutButton = screen.getByText("Logout");
+		fireEvent.click(logoutButton);
+
+		await waitFor(() => {
+			expect(mockOnLogout).not.toHaveBeenCalled();
+		});
+
+		confirmSpy.mockRestore();
 	});
 
 	it("should toggle user menu when username button is clicked", () => {
