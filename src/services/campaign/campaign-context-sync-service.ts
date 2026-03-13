@@ -53,8 +53,6 @@ export class CampaignContextSyncService {
 			new TextEncoder().encode(JSON.stringify(shard)).buffer,
 			"application/json"
 		);
-
-		console.log(`[CampaignContextSync] Synced character: ${approvedKey}`);
 	}
 
 	/**
@@ -101,8 +99,6 @@ export class CampaignContextSyncService {
 			new TextEncoder().encode(JSON.stringify(shard)).buffer,
 			"application/json"
 		);
-
-		console.log(`[CampaignContextSync] Synced context: ${approvedKey}`);
 	}
 
 	/**
@@ -144,8 +140,6 @@ export class CampaignContextSyncService {
 			new TextEncoder().encode(JSON.stringify(shard)).buffer,
 			"application/json"
 		);
-
-		console.log(`[CampaignContextSync] Synced character sheet: ${approvedKey}`);
 	}
 
 	/**
@@ -159,7 +153,6 @@ export class CampaignContextSyncService {
 		const approvedKey = `${campaignBasePath}/context/approved/${characterId}.json`;
 
 		await this.r2Helper.delete(approvedKey);
-		console.log(`[CampaignContextSync] Deleted character: ${approvedKey}`);
 	}
 
 	/**
@@ -170,7 +163,6 @@ export class CampaignContextSyncService {
 		const approvedKey = `${campaignBasePath}/context/approved/${contextId}.json`;
 
 		await this.r2Helper.delete(approvedKey);
-		console.log(`[CampaignContextSync] Deleted context: ${approvedKey}`);
 	}
 
 	/**
@@ -184,9 +176,6 @@ export class CampaignContextSyncService {
 		const approvedKey = `${campaignBasePath}/context/approved/${sheetId}.json`;
 
 		await this.r2Helper.delete(approvedKey);
-		console.log(
-			`[CampaignContextSync] Deleted character sheet: ${approvedKey}`
-		);
 	}
 
 	/**
@@ -359,22 +348,10 @@ export class CampaignContextSyncService {
 					sourceType: "ai_detected",
 					sourceId: sourceMessageId || noteId,
 				});
-
-				console.log(
-					`[CampaignContextSync] Created staging entity in database: ${noteId}`
-				);
-			} catch (entityError) {
-				console.error(
-					`[CampaignContextSync] Failed to create staging entity in database:`,
-					entityError
-				);
+			} catch (_entityError) {
 				// Don't fail the operation if entity creation fails - R2 storage succeeded
 			}
 		}
-
-		console.log(
-			`[CampaignContextSync] Created staging shard for review: ${stagingKey}`
-		);
 
 		return { stagingKey, shard };
 	}
@@ -423,8 +400,6 @@ export class CampaignContextSyncService {
 			new TextEncoder().encode(JSON.stringify(shard)).buffer,
 			"application/json"
 		);
-
-		console.log(`[CampaignContextSync] Synced campaign note: ${approvedKey}`);
 	}
 
 	/**
@@ -435,7 +410,6 @@ export class CampaignContextSyncService {
 		const approvedKey = `${campaignBasePath}/context/approved/${noteId}.json`;
 
 		await this.r2Helper.delete(approvedKey);
-		console.log(`[CampaignContextSync] Deleted campaign note: ${approvedKey}`);
 	}
 
 	/**

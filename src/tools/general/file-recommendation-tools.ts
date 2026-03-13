@@ -112,10 +112,6 @@ export const getFileRecommendations = {
 				message: `Found ${result.recommendations.length} file recommendations based on your criteria.`,
 			};
 		} catch (error) {
-			console.error(
-				"[FileRecommendationTool] Error getting recommendations:",
-				error
-			);
 			return {
 				success: false,
 				error: `Failed to get file recommendations: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -177,7 +173,6 @@ export const getFileAnalysisStatus = {
 				message: `File ${args.file_key} has analysis status: ${result.status}`,
 			};
 		} catch (error) {
-			console.error("[FileAnalysisStatusTool] Error getting status:", error);
 			return {
 				success: false,
 				error: `Failed to get file analysis status: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -238,10 +233,6 @@ export const triggerFileAnalysis = {
 				analysis: result.analysis,
 			};
 		} catch (error) {
-			console.error(
-				"[FileAnalysisTriggerTool] Error triggering analysis:",
-				error
-			);
 			return {
 				success: false,
 				error: `Failed to trigger file analysis: ${error instanceof Error ? error.message : "Unknown error"}`,

@@ -148,16 +148,8 @@ export async function executeAISearchWithRetry(
 ) {
 	const libraryRAGService = new LibraryRAGService(env);
 
-	console.log(
-		`[AI Search] Extracting structured content from ${resourceFileName}`
-	);
-
 	const structuredExtractionPrompt =
 		RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(resourceFileName);
-
-	console.log(
-		`[AI Search] Prompt preview: ${structuredExtractionPrompt.substring(0, 200)}...`
-	);
 
 	return await libraryRAGService.searchContent(
 		username,
@@ -171,14 +163,6 @@ export function parseAIResponse(aiResponse: string) {
 	const cleanResponse = aiResponse.trim();
 	const jsonSlice = extractJsonSlice(cleanResponse);
 	const parsedContent = JSON.parse(jsonSlice || cleanResponse);
-
-	console.log(`[AI Search] Parsed response structure:`, {
-		keys: Object.keys(parsedContent),
-		hasMeta: !!parsedContent.meta,
-		contentTypes: Object.keys(parsedContent).filter(
-			(key) => key !== "meta" && Array.isArray(parsedContent[key])
-		),
-	});
 
 	return parsedContent;
 }

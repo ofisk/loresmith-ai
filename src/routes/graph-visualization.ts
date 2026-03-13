@@ -249,7 +249,6 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 			edges,
 		});
 	} catch (error) {
-		console.error("[GraphVisualization] Error getting graph data:", error);
 		return c.json(
 			{
 				error: "Failed to get graph visualization data",
@@ -376,10 +375,6 @@ export async function handleGetCommunityEntityGraph(c: ContextWithAuth) {
 			edges,
 		});
 	} catch (error) {
-		console.error(
-			"[GraphVisualization] Error getting community entity graph:",
-			error
-		);
 		return c.json(
 			{
 				error: "Failed to get community entity graph",
@@ -678,7 +673,6 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 
 		return c.json(results);
 	} catch (error) {
-		console.error("[GraphVisualization] Error searching entity:", error);
 		return c.json(
 			{
 				error: "Failed to search entity",

@@ -163,7 +163,6 @@ What would you like to work on today?`,
 				);
 			}
 		} catch (error) {
-			console.error("Failed to provide welcome guidance:", error);
 			return createToolError(
 				"Failed to generate welcome guidance",
 				error instanceof Error ? error.message : "Unknown error",
@@ -268,7 +267,6 @@ export const suggestNextActionsTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to suggest next actions:", error);
 			return createToolError(
 				"Failed to suggest next actions",
 				error instanceof Error ? error.message : "Unknown error",
@@ -347,7 +345,6 @@ export const provideCampaignGuidanceTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to provide campaign guidance:", error);
 			return createToolError(
 				"Failed to provide campaign guidance",
 				error instanceof Error ? error.message : "Unknown error",

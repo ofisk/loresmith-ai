@@ -325,20 +325,11 @@ export class ChecklistStatusService {
 					analyzed++;
 					await checklistStatusService.analyzeEntityCounts(campaignId, env);
 					updated++;
-				} catch (error) {
+				} catch (_error) {
 					errors++;
-					console.error(
-						`[ChecklistStatusService] Failed to analyze campaign ${campaignId}:`,
-						error
-					);
 				}
 			}
-		} catch (error) {
-			console.error(
-				"[ChecklistStatusService] Failed to analyze all campaigns:",
-				error
-			);
-		}
+		} catch (_error) {}
 
 		return { analyzed, updated, errors };
 	}

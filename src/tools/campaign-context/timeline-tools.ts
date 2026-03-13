@@ -271,12 +271,7 @@ async function getTimelineContext(
 				fromTimestamp: options.fromDate,
 				toTimestamp: options.toDate,
 			});
-		} catch (error) {
-			console.warn(
-				"[timeline-tools] Failed to load archived changelog entries:",
-				error
-			);
-		}
+		} catch (_error) {}
 	}
 
 	const merged = [
@@ -378,7 +373,6 @@ export const buildTimelineTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[buildTimelineTool] Error:", error);
 			return createToolError(
 				"Failed to build timeline",
 				error instanceof Error ? error.message : "Unknown error",
@@ -447,7 +441,6 @@ export const queryTimelineRangeTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[queryTimelineRangeTool] Error:", error);
 			return createToolError(
 				"Failed to query timeline range",
 				error instanceof Error ? error.message : "Unknown error",
@@ -533,7 +526,6 @@ export const addTimelineEventTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[addTimelineEventTool] Error:", error);
 			return createToolError(
 				"Failed to add timeline event",
 				error instanceof Error ? error.message : "Unknown error",

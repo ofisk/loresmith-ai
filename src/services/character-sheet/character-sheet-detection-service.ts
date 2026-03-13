@@ -85,9 +85,6 @@ export class CharacterSheetDetectionService {
 
 		// For larger content, split into chunks and analyze strategically
 		const chunks = chunkTextByCharacterCount(textContent, MAX_CHUNK_SIZE);
-		console.log(
-			`[CharacterSheetDetection] Analyzing ${chunks.length} chunk(s) for character sheet detection`
-		);
 
 		// Analyze key chunks: first, middle, and last (to catch indicators anywhere in the document)
 		const chunksToAnalyze: Array<{ chunk: string; position: string }> = [];
@@ -111,18 +108,11 @@ export class CharacterSheetDetectionService {
 
 		// Analyze all selected chunks
 		const results: CharacterSheetDetectionResult[] = [];
-		for (const { chunk, position } of chunksToAnalyze) {
+		for (const { chunk } of chunksToAnalyze) {
 			try {
 				const result = await this.analyzeChunk(chunk, options);
 				results.push(result);
-				console.log(
-					`[CharacterSheetDetection] ${position} chunk: isCharacterSheet=${result.isCharacterSheet}, confidence=${result.confidence}`
-				);
-			} catch (error) {
-				console.warn(
-					`[CharacterSheetDetection] Error analyzing ${position} chunk:`,
-					error
-				);
+			} catch (_error) {
 				// Continue with other chunks even if one fails
 			}
 		}
@@ -182,9 +172,6 @@ export class CharacterSheetDetectionService {
 
 			// No output from model: treat as "not a character sheet", continue with normal extraction
 			if (isNoOutput) {
-				console.warn(
-					"[CharacterSheetDetection] Model returned no output, assuming not a character sheet"
-				);
 				return {
 					isCharacterSheet: false,
 					confidence: 0,

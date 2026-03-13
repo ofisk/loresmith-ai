@@ -122,8 +122,7 @@ async function withCampaignContext(
 			entityDAO,
 			getServices,
 		});
-	} catch (error) {
-		console.error(`[Entities] ${errorMessage}:`, error);
+	} catch (_error) {
 		return c.json({ error: errorMessage }, 500);
 	}
 }
@@ -310,11 +309,7 @@ export async function handleGetEntityRelationships(c: ContextWithAuth) {
 				const relationshipsWithOverlay =
 					worldStateService.applyRelationshipOverlay(relationships, overlay);
 				return ctx.json({ relationships: relationshipsWithOverlay });
-			} catch (error) {
-				console.warn(
-					`[Entities] Failed to fetch relationships for ${entityId}`,
-					error
-				);
+			} catch (_error) {
 				return ctx.json({ error: "Failed to fetch relationships" }, 400);
 			}
 		}
@@ -359,11 +354,7 @@ export async function handleGetEntityNeighbors(c: ContextWithAuth) {
 					return { ...neighbor, worldState: state };
 				});
 				return ctx.json({ neighbors: neighborsWithOverlay });
-			} catch (error) {
-				console.warn(
-					`[Entities] Failed to fetch neighbors for ${entityId}`,
-					error
-				);
+			} catch (_error) {
 				return ctx.json({ error: "Failed to fetch neighbors" }, 400);
 			}
 		}
@@ -423,11 +414,7 @@ export async function handleCreateEntityRelationship(c: ContextWithAuth) {
 				});
 
 				return ctx.json({ relationships });
-			} catch (error) {
-				console.warn(
-					`[Entities] Failed to create relationship for ${entityId}`,
-					error
-				);
+			} catch (_error) {
 				return ctx.json({ error: "Failed to create relationship" }, 400);
 			}
 		}
@@ -453,11 +440,7 @@ export async function handleDeleteEntityRelationship(c: ContextWithAuth) {
 			try {
 				await graphService.removeEdgeById(relationshipId);
 				return ctx.json({ status: "deleted" });
-			} catch (error) {
-				console.warn(
-					`[Entities] Failed to delete relationship ${relationshipId}`,
-					error
-				);
+			} catch (_error) {
 				return ctx.json({ error: "Failed to delete relationship" }, 400);
 			}
 		}
@@ -653,10 +636,6 @@ export async function handleTestEntityExtractionFromR2(
 		const fileKey = requestBody.fileKey;
 		const sourceName = requestBody.sourceName || fileKey;
 
-		console.log(
-			`[TestEntityExtraction] Testing entity extraction for file: ${fileKey}`
-		);
-
 		// Extract content from R2 file
 		const r2Helper = new R2Helper(c.env);
 		const provider = new DirectFileContentExtractionProvider(c.env, r2Helper);
@@ -700,10 +679,6 @@ export async function handleTestEntityExtractionFromR2(
 					? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
 					: chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
 				: [fileContent];
-
-		console.log(
-			`[TestEntityExtraction] Processing ${chunks.length} chunk(s) for file: ${fileKey}`
-		);
 
 		// Extract entities from each chunk
 		const extractionService = new EntityExtractionService(llmApiKey);
@@ -775,10 +750,6 @@ export async function handleTestEntityExtractionFromR2(
 
 		const extractedEntities = Array.from(allExtractedEntities.values());
 
-		console.log(
-			`[TestEntityExtraction] Extracted ${extractedEntities.length} entities from file: ${fileKey}`
-		);
-
 		// Format response same as EntityStagingResult
 		const stagedEntities = extractedEntities.map((entity) => ({
 			id: entity.id,
@@ -806,7 +777,6 @@ export async function handleTestEntityExtractionFromR2(
 			},
 		});
 	} catch (error) {
-		console.error("[TestEntityExtraction] Error:", error);
 		return c.json(
 			{
 				success: false,

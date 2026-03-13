@@ -74,18 +74,9 @@ export const getCampaignSuggestions = tool({
 			? suggestionType
 			: [suggestionType || "session"];
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[getCampaignSuggestions] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] getCampaignSuggestions received:", {
-			campaignId,
-			suggestionType,
-			context: _contextParam,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] getCampaignSuggestions - Environment found:", !!env);
-			console.log("[Tool] getCampaignSuggestions - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env) {
@@ -99,10 +90,6 @@ export const getCampaignSuggestions = tool({
 					return access;
 				}
 				const { campaign, userId } = access;
-				console.log(
-					"[Tool] getCampaignSuggestions - User ID extracted:",
-					userId
-				);
 
 				// Verify campaign exists and belongs to user using DAO
 				const daoFactory = getDAOFactory(env as Env);
@@ -134,11 +121,7 @@ export const getCampaignSuggestions = tool({
 				try {
 					const syncService = new CharacterEntitySyncService(env as Env);
 					await syncService.syncAllCharacterBackstories(campaignId);
-				} catch (syncError) {
-					console.error(
-						"[Tool] getCampaignSuggestions - Failed to sync character_backstory entries:",
-						syncError
-					);
+				} catch (_syncError) {
 					// Don't fail suggestions if sync fails
 				}
 
@@ -148,17 +131,6 @@ export const getCampaignSuggestions = tool({
 					await assessmentService.getCampaignCharacters(campaignId);
 				const allResources =
 					await assessmentService.getCampaignResources(campaignId);
-
-				console.log("[Tool] getCampaignSuggestions - Retrieved characters:", {
-					total: allCharacters.length,
-					fromCampaignCharacters: allCharacters.filter(
-						(c: any) => c.id && !c.entity_type && !c.context_type
-					).length,
-					fromEntities: allCharacters.filter((c: any) => c.entity_type).length,
-					fromContext: allCharacters.filter(
-						(c: any) => c.context_type === "character_backstory"
-					).length,
-				});
 
 				// Generate suggestions for all requested types,
 				// filtering out any that already exist as open planning tasks.
@@ -188,24 +160,10 @@ export const getCampaignSuggestions = tool({
 					newSuggestions.push(...filtered);
 				}
 
-				console.log(
-					"[Tool] Generated new suggestions (after filtering existing tasks):",
-					newSuggestions.length,
-					`across ${suggestionTypes.length} type(s)`
-				);
-				console.log(
-					"[Tool] getCampaignSuggestions - Returning character count:",
-					allCharacters.length
-				);
-
 				// Persist new suggestions as planning tasks ("next steps") so they appear
 				// in the app's Next steps UI and can be tracked over time.
 				let createdPlanningTasks: any[] = [];
 				if (newSuggestions.length > 0) {
-					console.log(
-						"[Tool] getCampaignSuggestions - Recording planning tasks for campaign:",
-						campaignId
-					);
 					createdPlanningTasks = await planningTaskDAO.bulkCreatePlanningTasks(
 						campaignId,
 						newSuggestions.map((s: any) => ({
@@ -304,7 +262,6 @@ export const getCampaignSuggestions = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error getting campaign suggestions:", error);
 			return createToolError(
 				"Failed to get campaign suggestions",
 				error,
@@ -334,25 +291,13 @@ export const assessCampaignReadiness = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, assessmentType = "session", jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[assessCampaignReadiness] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] assessCampaignReadiness received:", {
-			campaignId,
-			assessmentType,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] assessCampaignReadiness - Environment found:", !!env);
-			console.log("[Tool] assessCampaignReadiness - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env) {
 				const userId = extractUsernameFromJwt(jwt);
-				console.log(
-					"[Tool] assessCampaignReadiness - User ID extracted:",
-					userId
-				);
 
 				if (!userId) {
 					return createToolError(
@@ -390,12 +335,7 @@ export const assessCampaignReadiness = tool({
 				try {
 					const syncService = new CharacterEntitySyncService(env as Env);
 					await syncService.syncAllCharacterBackstories(campaignId);
-					console.log("[Tool] Synced character_backstory entries to entities");
-				} catch (syncError) {
-					console.error(
-						"[Tool] Failed to sync character_backstory entries:",
-						syncError
-					);
+				} catch (_syncError) {
 					// Don't fail assessment if sync fails
 				}
 
@@ -407,18 +347,6 @@ export const assessCampaignReadiness = tool({
 					await assessmentService.getCampaignContext(campaignId);
 				const allResources =
 					await assessmentService.getCampaignResources(campaignId);
-
-				console.log("[Tool] Character counts:", {
-					totalCharacters: allCharacters.length,
-					campaignCharacters: allCharacters.filter(
-						(c: any) => c.id && !c.entity_type && !c.context_type
-					).length,
-					entityCharacters: allCharacters.filter((c: any) => c.entity_type)
-						.length,
-					contextCharacters: allCharacters.filter(
-						(c: any) => c.context_type === "character_backstory"
-					).length,
-				});
 
 				// Retrieve campaign details to check metadata before semantic search
 				const daoFactory = getDAOFactory(env);
@@ -443,8 +371,6 @@ export const assessCampaignReadiness = tool({
 					allContext,
 					semanticAnalysis
 				);
-
-				console.log("[Tool] Assessment completed:", assessment.score);
 
 				return createToolSuccess(
 					`Campaign readiness assessment completed`,
@@ -496,7 +422,6 @@ export const assessCampaignReadiness = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error assessing campaign readiness:", error);
 			return createToolError(
 				"Failed to assess campaign readiness",
 				error,
@@ -525,9 +450,6 @@ async function analyzeMetadataCoverage(
 	const providerApiKeyRaw = await getEnvVar(env, providerEnvVar, false);
 	const providerApiKey = providerApiKeyRaw.trim();
 	if (!providerApiKey) {
-		console.warn(
-			`[MetadataAnalysis] No ${MODEL_CONFIG.PROVIDER.DEFAULT} API key available, skipping metadata analysis`
-		);
 		return coverage;
 	}
 
@@ -564,18 +486,10 @@ async function analyzeMetadataCoverage(
 
 		const parsed = coverageSchema.safeParse(result);
 		if (!parsed.success) {
-			console.warn(
-				"[MetadataAnalysis] LLM result failed schema validation:",
-				parsed.error.flatten()
-			);
 			return coverage;
 		}
 		return parsed.data.coverage as Record<string, boolean>;
-	} catch (error) {
-		console.warn(
-			"[MetadataAnalysis] Failed to analyze metadata with LLM:",
-			error instanceof Error ? error.message : String(error)
-		);
+	} catch (_error) {
 		// Return empty coverage on error - semantic search will still work
 		return coverage;
 	}
@@ -607,12 +521,7 @@ async function performSemanticChecklistAnalysis(
 					string,
 					unknown
 				>;
-			} catch (error) {
-				console.warn(
-					"[SemanticAnalysis] Failed to parse campaign metadata:",
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		// Use LLM to analyze metadata coverage if metadata exists
@@ -658,21 +567,12 @@ async function performSemanticChecklistAnalysis(
 					const semanticCoverage =
 						results.length > 0 && results[0].similarityScore > 0.6;
 					coverage[key] = coverage[key] || semanticCoverage;
-				} catch (error) {
-					console.warn(
-						`[SemanticAnalysis] Failed to search planning context for ${key}:`,
-						error
-					);
+				} catch (_error) {
 					// Preserve existing coverage from metadata if available
 					coverage[key] = coverage[key] ?? false;
 				}
 			}
-		} catch (error) {
-			console.warn(
-				"[SemanticAnalysis] Failed to query planning context index:",
-				error
-			);
-		}
+		} catch (_error) {}
 
 		// 2) Also analyze entities + graph relationships for readiness guidance
 		try {
@@ -714,12 +614,7 @@ async function performSemanticChecklistAnalysis(
 						entity.id
 					);
 					relationshipCount = relationships.length;
-				} catch (error) {
-					console.warn(
-						`[SemanticAnalysis] Failed to load relationships for entity ${entity.id}:`,
-						error
-					);
-				}
+				} catch (_error) {}
 
 				if (relationshipCount < 3) {
 					lowRelationshipEntities.push({
@@ -740,17 +635,8 @@ async function performSemanticChecklistAnalysis(
 				entityTypeCounts,
 				lowRelationshipEntities: lowRelationshipEntities.slice(0, 50),
 			};
-		} catch (error) {
-			console.warn(
-				"[SemanticAnalysis] Failed to analyze entities/graph for readiness:",
-				error
-			);
-		}
-	} catch (error) {
-		console.warn(
-			"[SemanticAnalysis] Failed to perform semantic analysis:",
-			error
-		);
+		} catch (_error) {}
+	} catch (_error) {
 		// If semantic search fails, we'll just return empty coverage/stats
 	}
 

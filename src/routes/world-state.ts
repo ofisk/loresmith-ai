@@ -94,7 +94,6 @@ export async function handleCreateWorldStateChangelog(c: ContextWithAuth) {
 		const entry = await service.recordChangelog(campaignId, payload);
 		return c.json({ entry }, 201);
 	} catch (error) {
-		console.error("[WorldState] Failed to record changelog:", error);
 		return c.json(
 			{ error: "Failed to record world state changelog" },
 			error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -129,8 +128,7 @@ export async function handleListWorldStateChangelog(c: ContextWithAuth) {
 		});
 
 		return c.json({ entries });
-	} catch (error) {
-		console.error("[WorldState] Failed to list changelog entries:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to list world state changelog" }, 500);
 	}
 }
@@ -155,8 +153,7 @@ export async function handleGetWorldStateOverlay(c: ContextWithAuth) {
 			overlayTimestamp: upTo ?? new Date().toISOString(),
 			changelog: entries,
 		});
-	} catch (error) {
-		console.error("[WorldState] Failed to fetch overlay:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to fetch world state overlay" }, 500);
 	}
 }
@@ -192,7 +189,6 @@ export async function handleQueryHistoricalState(c: ContextWithAuth) {
 
 		return c.json({ historicalContext });
 	} catch (error) {
-		console.error("[WorldState] Failed to query historical state:", error);
 		return c.json(
 			{
 				error:
@@ -237,8 +233,7 @@ export async function handleGetHistoricalOverlay(c: ContextWithAuth) {
 			sessionId: sessionId ? Number(sessionId) : null,
 			timestamp: timestamp ?? null,
 		});
-	} catch (error) {
-		console.error("[WorldState] Failed to fetch historical overlay:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to fetch historical overlay" }, 500);
 	}
 }

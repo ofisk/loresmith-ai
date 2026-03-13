@@ -91,7 +91,6 @@ export function RateLimitIndicator({
 				setError(null);
 			}
 		} catch (err) {
-			console.error("[RateLimitIndicator] Failed to fetch usage:", err);
 			setError(err instanceof Error ? err.message : "Failed to fetch usage");
 			setUsage(null);
 		} finally {

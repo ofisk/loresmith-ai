@@ -141,14 +141,6 @@ export class RebuildTriggerService {
 		};
 
 		if (shouldRebuild) {
-			console.log(
-				`[RebuildTrigger] Rebuild decision for campaign ${campaignId}:`,
-				{
-					type: rebuildType,
-					cumulativeImpact,
-					affectedEntities: affectedEntityIds?.length ?? 0,
-				}
-			);
 		}
 
 		return decision;
@@ -322,18 +314,11 @@ export class RebuildTriggerService {
 	}
 
 	async logRebuildDecision(
-		campaignId: string,
-		decision: RebuildDecision,
-		rebuildResult?: { success: boolean; communitiesCount?: number }
+		_campaignId: string,
+		_decision: RebuildDecision,
+		_rebuildResult?: { success: boolean; communitiesCount?: number }
 	): Promise<void> {
-		const logEntry = {
-			campaignId,
-			decision,
-			rebuildResult,
-			timestamp: new Date().toISOString(),
-		};
-
-		console.log(`[RebuildTrigger] Rebuild decision log:`, logEntry);
+		// Logging placeholder for future use
 	}
 
 	private buildIdempotencyToken(

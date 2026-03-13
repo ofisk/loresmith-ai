@@ -18,8 +18,7 @@ export async function handleGetUserState(c: ContextWithAuth) {
 		);
 
 		return c.json({ userState });
-	} catch (error) {
-		console.error("Error getting user state:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -41,8 +40,7 @@ export async function handleGetAssessmentRecommendations(c: ContextWithAuth) {
 		);
 
 		return c.json({ recommendations });
-	} catch (error) {
-		console.error("Error getting assessment recommendations:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -55,8 +53,7 @@ export async function handleGetUserActivity(c: ContextWithAuth) {
 		const activity = await assessmentService.getUserActivity(userAuth.username);
 
 		return c.json({ activity });
-	} catch (error) {
-		console.error("Error getting user activity:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -77,8 +74,7 @@ export async function handleModuleIntegration(c: ContextWithAuth) {
 		);
 
 		return c.json({ success: true, result });
-	} catch (error) {
-		console.error("Error integrating module:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

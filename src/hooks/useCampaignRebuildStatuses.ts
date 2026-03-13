@@ -56,11 +56,7 @@ export function useCampaignRebuildStatuses({
 							rebuild.status === "pending" || rebuild.status === "in_progress"
 					);
 					return { campaignId, activeRebuild: active || null };
-				} catch (error) {
-					console.error(
-						`Failed to fetch rebuild status for campaign ${campaignId}:`,
-						error
-					);
+				} catch (_error) {
 					return { campaignId, activeRebuild: null };
 				}
 			});
@@ -71,8 +67,7 @@ export function useCampaignRebuildStatuses({
 				newStatusMap.set(campaignId, activeRebuild);
 			});
 			setRebuildStatuses(newStatusMap);
-		} catch (error) {
-			console.error("Failed to fetch rebuild statuses:", error);
+		} catch (_error) {
 			// Set all to null on error
 			const errorMap = new Map<string, RebuildStatus | null>();
 			for (const id of campaignIds) {

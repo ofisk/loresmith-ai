@@ -86,9 +86,6 @@ export function StructuredShardCard({
 
 	const handleImportanceChange = async (newLevel: ImportanceLevel) => {
 		if (!campaignId) {
-			console.warn(
-				"[StructuredShardCard] Cannot update importance: campaignId not provided"
-			);
 			return;
 		}
 
@@ -154,10 +151,6 @@ export function StructuredShardCard({
 				}
 			}
 		} catch (error) {
-			console.error(
-				"[StructuredShardCard] Failed to update importance:",
-				error
-			);
 			alert(
 				error instanceof Error ? error.message : "Failed to update importance"
 			);
@@ -211,7 +204,6 @@ export function StructuredShardCard({
 			const value = result.value ?? "";
 			onEdit(shard.id, { [field]: value });
 		} catch (e) {
-			console.error("[StructuredShardCard] Generate field error:", e);
 			alert(
 				e instanceof Error ? e.message : "Failed to generate field. Try again."
 			);

@@ -104,7 +104,6 @@ export async function handleCreateSessionDigest(c: ContextWithAuth) {
 
 		return c.json({ digest: created }, 201);
 	} catch (error) {
-		console.error("[SessionDigest] Failed to create digest:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -157,7 +156,6 @@ export async function handleGetSessionDigest(c: ContextWithAuth) {
 
 		return c.json({ digest });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to get digest:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -199,7 +197,6 @@ export async function handleGetSessionDigests(c: ContextWithAuth) {
 
 		return c.json({ digests: responseDigests, nextSessionNumber });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to list digests:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -272,7 +269,6 @@ export async function handleUpdateSessionDigest(c: ContextWithAuth) {
 
 		return c.json({ digest: updated });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to update digest:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -323,7 +319,6 @@ export async function handleDeleteSessionDigest(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to delete digest:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -362,7 +357,6 @@ export async function handleSubmitDigestForReview(c: ContextWithAuth) {
 
 		return c.json({ digest: updated });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to submit for review:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -415,7 +409,6 @@ export async function handleApproveDigest(c: ContextWithAuth) {
 
 		return c.json({ digest: updated });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to approve digest:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -470,7 +463,6 @@ export async function handleRejectDigest(c: ContextWithAuth) {
 
 		return c.json({ digest: updated });
 	} catch (error) {
-		console.error("[SessionDigest] Failed to reject digest:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}

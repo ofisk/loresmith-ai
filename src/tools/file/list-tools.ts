@@ -31,39 +31,23 @@ export const listFiles = tool({
 		const { jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
 		const env = getEnvFromContext(options);
-		console.log("[Tool] listFiles received JWT:", jwt);
-		console.log("[Tool] listFiles context:", options);
-		console.log("[listFiles] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[listFiles] Using JWT:", jwt);
-
 			// Extract username from JWT
 			let username = "default";
 			if (jwt) {
 				try {
 					const payload = JSON.parse(atob(jwt.split(".")[1]));
 					username = payload.username || "default";
-					console.log("[listFiles] Extracted username from JWT:", username);
-				} catch (error) {
-					console.error("Error parsing JWT:", error);
-				}
+				} catch (_error) {}
 			}
-
-			console.log("[listFiles] Listing files for username:", username);
 
 			// Check if we're running in the Worker environment (have access to env bindings)
 			// This determines whether we can make direct service calls or need HTTP requests
 			if (env?.DB) {
-				console.log(
-					"[listFiles] Running in Worker environment, calling database directly"
-				);
-
 				// Get files directly from database
 				const fileDAO = getDAOFactory(env).fileDAO;
 				const files = await fileDAO.getFilesForRag(username);
-
-				console.log("[listFiles] Direct database call result:", files);
 
 				if (!files || files.length === 0) {
 					return createToolSuccess(
@@ -92,20 +76,6 @@ export const listFiles = tool({
 				);
 			}
 
-			// Fallback to HTTP call when not running in Worker environment
-			// This could be browser, Node.js, or other environments without env bindings
-			console.log(
-				"[listFiles] Running in non-Worker environment, making HTTP call"
-			);
-			console.log(
-				"[listFiles] JWT being used:",
-				jwt ? `${jwt.substring(0, 20)}...` : "null"
-			);
-			console.log(
-				"[listFiles] Endpoint being called:",
-				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES, env)
-			);
-
 			const response = await fetch(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES, env),
 				{
@@ -117,9 +87,6 @@ export const listFiles = tool({
 				}
 			);
 
-			console.log("[listFiles] Response status:", response.status);
-			console.log("[listFiles] Response ok:", response.ok);
-
 			if (!response.ok) {
 				return createToolError(
 					"Failed to list files",
@@ -130,9 +97,6 @@ export const listFiles = tool({
 			}
 
 			const result = (await response.json()) as FileResponse;
-			console.log("[listFiles] Response body:", result);
-			console.log("[listFiles] Files array:", result.files);
-			console.log("[listFiles] Files length:", result.files?.length || 0);
 
 			if (!result.files || result.files.length === 0) {
 				return createToolSuccess(
@@ -154,7 +118,6 @@ export const listFiles = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error listing files:", error);
 			return createToolError("Error listing files", error, 500, toolCallId);
 		}
 	},
@@ -174,14 +137,12 @@ export const deleteFileExecution = async (
 	options?: ToolExecuteOptions
 ): Promise<ToolResult> => {
 	const { fileKey, jwt } = input;
-	console.log("[deleteFileExecution] Starting deletion for fileKey:", fileKey);
 
 	const toolCallId = options?.toolCallId ?? "unknown";
 	const env = getEnvFromContext(options);
 
 	try {
 		if (!fileKey) {
-			console.error("[deleteFileExecution] No fileKey provided");
 			return createToolError(
 				"No file key provided for deletion",
 				"Missing fileKey",
@@ -192,22 +153,13 @@ export const deleteFileExecution = async (
 
 		// Check if we're running in the Worker environment (have access to env bindings)
 		if (env?.DB) {
-			console.log(
-				"[deleteFileExecution] Running in Worker environment, calling database directly"
-			);
-
 			// Extract username from JWT for database operations
 			let username = "anonymous";
 			if (jwt) {
 				try {
 					const payload = JSON.parse(atob(jwt.split(".")[1]));
 					username = payload.username || "anonymous";
-				} catch (error) {
-					console.warn(
-						"[deleteFileExecution] Failed to parse JWT, using anonymous:",
-						error
-					);
-				}
+				} catch (_error) {}
 			}
 
 			// Get the library service for direct database access
@@ -232,17 +184,10 @@ export const deleteFileExecution = async (
 			}
 		}
 
-		// Fallback to HTTP call when not running in Worker environment
-		// This could be browser, Node.js, or other environments without env bindings
-		console.log(
-			"[deleteFileExecution] Running in non-Worker environment, making HTTP call"
-		);
-
 		const deleteUrl = API_CONFIG.buildUrl(
 			API_CONFIG.ENDPOINTS.RAG.DELETE_FILE(fileKey),
 			env
 		);
-		console.log("[deleteFileExecution] Delete URL:", deleteUrl);
 
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
@@ -251,8 +196,6 @@ export const deleteFileExecution = async (
 		if (jwt) {
 			headers.Authorization = `Bearer ${jwt}`;
 		}
-
-		console.log("[deleteFileExecution] Making DELETE request to:", deleteUrl);
 		const response = await fetch(deleteUrl, {
 			method: "DELETE",
 			headers,
@@ -260,10 +203,6 @@ export const deleteFileExecution = async (
 
 		if (!response.ok) {
 			const errorText = await response.text();
-			console.error(
-				"[deleteFileExecution] Delete failed with status:",
-				response.status
-			);
 
 			// If it's a 404, the file might have already been deleted
 			if (response.status === 404) {
@@ -304,9 +243,6 @@ export const deleteFileExecution = async (
 					);
 
 					if (fileStillExists) {
-						console.warn(
-							"[deleteFileExecution] File was not actually deleted from database"
-						);
 						return createToolError(
 							"File deletion reported success but file still exists in database",
 							"Deletion verification failed",
@@ -315,11 +251,7 @@ export const deleteFileExecution = async (
 						);
 					}
 				}
-			} catch (verificationError) {
-				console.warn(
-					"[deleteFileExecution] Could not verify deletion:",
-					verificationError
-				);
+			} catch (_verificationError) {
 				// Don't fail the deletion if verification fails
 			}
 		}
@@ -330,7 +262,6 @@ export const deleteFileExecution = async (
 			toolCallId
 		);
 	} catch (error) {
-		console.error("[deleteFileExecution] Unexpected error:", error);
 		return createToolError(
 			"Unexpected error during file deletion",
 			error,
@@ -364,27 +295,8 @@ export const getFileStats = tool({
 	): Promise<ToolResult> => {
 		const { jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] getFileStats received JWT:", jwt);
-		console.log("[Tool] getFileStats context:", options);
-		console.log("[getFileStats] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[getFileStats] Using JWT:", jwt);
-
-			// Extract username from JWT
-			let username = "default";
-			if (jwt) {
-				try {
-					const payload = JSON.parse(atob(jwt.split(".")[1]));
-					username = payload.username || "default";
-					console.log("[getFileStats] Extracted username from JWT:", username);
-				} catch (error) {
-					console.error("Error parsing JWT:", error);
-				}
-			}
-
-			console.log("[getFileStats] Getting stats for username:", username);
-
 			// Call the server endpoint to get actual stats
 			const response = await fetch(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.STATS),
@@ -430,7 +342,6 @@ export const getFileStats = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error getting file stats:", error);
 			return createToolError(
 				"Error getting file stats",
 				error,

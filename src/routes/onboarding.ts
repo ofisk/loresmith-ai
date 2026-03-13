@@ -14,11 +14,6 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
 		const userAuth = c.get("userAuth");
 		const username = userAuth.username;
 
-		console.log(
-			"[Guidance] Generating personalized guidance for user:",
-			username
-		);
-
 		// Get user's current state
 		const daoFactory = getDAOFactory(c.env);
 		const campaigns = await daoFactory.campaignDAO.getCampaignsByUser(username);
@@ -87,12 +82,8 @@ export async function handleGetWelcomeGuidance(c: ContextWithAuth) {
 				},
 			],
 		};
-
-		console.log("[Guidance] Generated guidance successfully");
 		return c.json(guidance);
-	} catch (error) {
-		console.error("Error getting welcome guidance:", error);
-
+	} catch (_error) {
 		// Fallback to generic guidance if analysis fails
 		const fallbackGuidance = {
 			message:
@@ -152,8 +143,7 @@ export async function handleGetNextActions(c: ContextWithAuth) {
 		];
 
 		return c.json({ nextActions });
-	} catch (error) {
-		console.error("Error getting next actions:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -174,8 +164,7 @@ export async function handleGetStateAnalysis(c: ContextWithAuth) {
 		};
 
 		return c.json({ analysis });
-	} catch (error) {
-		console.error("Error getting state analysis:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

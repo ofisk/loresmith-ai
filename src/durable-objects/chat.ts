@@ -79,7 +79,6 @@ export class Chat extends SimpleChatAgent<Env> {
 			if (messageData.jwt) {
 				jwtToken = messageData.jwt;
 				await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
-				console.log("[Chat] Extracted and stored JWT token from message data");
 			}
 		}
 
@@ -111,13 +110,8 @@ export class Chat extends SimpleChatAgent<Env> {
 		try {
 			const serverKey = await this.getServerProviderKey();
 			if (!serverKey) return;
-
-			console.log(
-				`[Chat] Using server ${MODEL_CONFIG.PROVIDER.DEFAULT} API key from environment`
-			);
 			await this.initializeAgents(serverKey);
 		} catch (error) {
-			console.error("[Chat] Error initializing agents from server key:", error);
 			// Re-throw authentication errors so they can be handled properly
 			if (
 				error instanceof AuthenticationRequiredError ||
@@ -130,44 +124,32 @@ export class Chat extends SimpleChatAgent<Env> {
 	}
 
 	private async initializeAgents(providerApiKey: string | null) {
-		try {
-			const modelManager = ModelManager.getInstance();
+		const modelManager = ModelManager.getInstance();
 
-			if (providerApiKey) {
-				modelManager.initializeModel(providerApiKey);
-				console.log(
-					`[Chat] Initialized model with ${MODEL_CONFIG.PROVIDER.DEFAULT} API key`
-				);
-			} else {
-				throw new LLMProviderAPIKeyError(
-					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
-				);
-			}
-
-			const registeredAgentTypes =
-				await AgentRegistryService.getRegisteredAgentTypes();
-
-			for (const agentType of registeredAgentTypes) {
-				const agentClass = await AgentRegistryService.getAgentClass(
-					agentType as AgentType
-				);
-				if (agentClass) {
-					const agentInstance = new agentClass(
-						this.ctx,
-						this.env,
-						modelManager.getModel()
-					);
-
-					this.agents.set(agentType, agentInstance);
-				}
-			}
-
-			console.log(
-				`Agents initialized successfully: ${registeredAgentTypes.join(", ")}`
+		if (providerApiKey) {
+			modelManager.initializeModel(providerApiKey);
+		} else {
+			throw new LLMProviderAPIKeyError(
+				`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 			);
-		} catch (error) {
-			console.error("Error initializing agents:", error);
-			throw error;
+		}
+
+		const registeredAgentTypes =
+			await AgentRegistryService.getRegisteredAgentTypes();
+
+		for (const agentType of registeredAgentTypes) {
+			const agentClass = await AgentRegistryService.getAgentClass(
+				agentType as AgentType
+			);
+			if (agentClass) {
+				const agentInstance = new agentClass(
+					this.ctx,
+					this.env,
+					modelManager.getModel()
+				);
+
+				this.agents.set(agentType, agentInstance);
+			}
 		}
 	}
 
@@ -179,7 +161,6 @@ export class Chat extends SimpleChatAgent<Env> {
 		const jwtToken = extractJwtFromHeader(authHeader);
 		if (jwtToken) {
 			await this.ctx.storage.put(JWT_STORAGE_KEY, jwtToken);
-			console.log("[Chat] Stored JWT token from Authorization header");
 		}
 
 		// Handle POST chat message (e.g. from AI SDK useChat)
@@ -262,7 +243,6 @@ export class Chat extends SimpleChatAgent<Env> {
 				const response = await this.onChatMessage(() => {});
 				return response;
 			} catch (err) {
-				console.error("[Chat] Error handling POST:", err);
 				return new Response(
 					JSON.stringify({
 						error: err instanceof Error ? err.message : String(err),
@@ -284,9 +264,6 @@ export class Chat extends SimpleChatAgent<Env> {
 		const model = modelManager.getModel();
 
 		if (!model) {
-			console.log(
-				"[Chat] No model available for agent routing, using default agent"
-			);
 			return "recap";
 		}
 
@@ -327,10 +304,6 @@ export class Chat extends SimpleChatAgent<Env> {
 
 			if (this.agents.size === 0) {
 				if (!jwtToken) {
-					console.log(
-						"[Chat] No JWT token found in storage or message data, requiring authentication"
-					);
-
 					// Try to get username from message data JWT if available (for notification purposes)
 					let username: string | null = null;
 					if (
@@ -342,12 +315,7 @@ export class Chat extends SimpleChatAgent<Env> {
 						if (messageData.jwt) {
 							try {
 								username = AuthService.parseJwtForUsername(messageData.jwt);
-							} catch (error) {
-								console.warn(
-									"[Chat] Failed to parse username from message data JWT:",
-									error
-								);
-							}
+							} catch (_error) {}
 						}
 					}
 
@@ -359,12 +327,7 @@ export class Chat extends SimpleChatAgent<Env> {
 								username,
 								"Authentication required. Please sign in to continue."
 							);
-						} catch (notifyError) {
-							console.error(
-								"[Chat] Failed to send authentication notification:",
-								notifyError
-							);
-						}
+						} catch (_notifyError) {}
 					}
 
 					throw new AuthenticationRequiredError(
@@ -385,18 +348,11 @@ export class Chat extends SimpleChatAgent<Env> {
 						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 					);
 				}
-
-				console.log(
-					`[Chat] Initializing agents with server ${MODEL_CONFIG.PROVIDER.DEFAULT} API key`
-				);
 				await this.initializeAgents(serverKey);
 			}
 
 			if (!lastUserMessage) {
 				if (this.agents.size === 0) {
-					console.log(
-						"[Chat] No agents initialized and no user messages, returning empty response"
-					);
 					return;
 				}
 
@@ -408,9 +364,6 @@ export class Chat extends SimpleChatAgent<Env> {
 			}
 
 			if (this.agents.size === 0) {
-				console.log(
-					"[Chat] Agents not initialized for message processing, requiring authentication"
-				);
 				throw new AuthenticationRequiredError(
 					"AUTHENTICATION_REQUIRED: Authentication required."
 				);
@@ -419,9 +372,6 @@ export class Chat extends SimpleChatAgent<Env> {
 			const userContent =
 				(lastUserMessage as { content?: string })?.content ?? "";
 			const targetAgent = await this.determineAgent(userContent);
-			console.log(
-				`[Chat] Routing to ${targetAgent} agent for message: "${(lastUserMessage as any).content}"`
-			);
 
 			const targetAgentInstance = this.getAgentInstance(targetAgent);
 			// Persist the latest user message to message history using the agent's
@@ -436,12 +386,7 @@ export class Chat extends SimpleChatAgent<Env> {
 						}
 					);
 				}
-			} catch (persistError) {
-				console.error(
-					"[Chat] Failed to persist latest user message to history:",
-					persistError
-				);
-			}
+			} catch (_persistError) {}
 			targetAgentInstance.messages = [...messages];
 
 			return targetAgentInstance.onChatMessage(onFinish, {
@@ -450,7 +395,6 @@ export class Chat extends SimpleChatAgent<Env> {
 		} catch (error) {
 			// AuthenticationRequiredError: user must sign in - send notification that triggers auth modal
 			if (error instanceof AuthenticationRequiredError) {
-				console.error("[Chat] Authentication error in onChatMessage:", error);
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
 
@@ -470,31 +414,16 @@ export class Chat extends SimpleChatAgent<Env> {
 								username,
 								errorMessage
 							);
-							console.log(
-								"[Chat] Sent authentication notification to user:",
-								username
-							);
 						}
 					}
-				} catch (notifyError) {
-					console.error(
-						"[Chat] Failed to send authentication notification:",
-						notifyError
-					);
-				}
+				} catch (_notifyError) {}
 				throw error;
 			}
 
 			// LLMProviderAPIKeyError: server misconfiguration - do NOT show auth modal (user is already signed in)
 			if (error instanceof LLMProviderAPIKeyError) {
-				console.error(
-					"[Chat] API key not configured - server needs ANTHROPIC_API_KEY or OPENAI_API_KEY:",
-					error
-				);
 				throw error;
 			}
-			// For other errors, log and re-throw
-			console.error("[Chat] Error in onChatMessage:", error);
 			throw error;
 		}
 	}
@@ -512,7 +441,6 @@ export class Chat extends SimpleChatAgent<Env> {
 		const agentInstance = this.agents.get(targetAgent);
 		if (!agentInstance) {
 			const firstAgent = this.agents.values().next().value;
-			console.warn(`Agent '${targetAgent}' not found, using fallback agent`);
 			return firstAgent;
 		}
 
@@ -524,23 +452,12 @@ export class Chat extends SimpleChatAgent<Env> {
 	 */
 	onError(error: unknown): void {
 		if (error instanceof AuthenticationRequiredError) {
-			console.error(
-				"[Chat] Authentication error in onError:",
-				error instanceof Error ? error.message : String(error)
-			);
 		} else if (error instanceof LLMProviderAPIKeyError) {
-			console.error(
-				"[Chat] API key not configured in onError:",
-				error instanceof Error ? error.message : String(error)
-			);
 		} else {
-			console.error("[Chat] Error:", error);
 		}
 	}
 
-	async executeTask(description: string, _task: Schedule<string>) {
-		const messages = this.getMessages();
-		console.log("[Chat] Executing scheduled task:", description, messages);
+	async executeTask(_description: string, _task: Schedule<string>) {
 		// Task execution logic here if needed
 	}
 }

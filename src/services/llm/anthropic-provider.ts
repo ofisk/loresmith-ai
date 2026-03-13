@@ -123,7 +123,6 @@ export class AnthropicProvider implements LLMProvider {
 			}
 			return text;
 		} catch (error) {
-			console.error("[AnthropicProvider] Error generating summary:", error);
 			throw new Error(
 				`Failed to generate summary: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
@@ -226,16 +225,7 @@ export class AnthropicProvider implements LLMProvider {
 			}
 
 			if (APICallError.isInstance(error)) {
-				console.error(
-					"[AnthropicProvider] Structured output API error:",
-					error.statusCode,
-					error.responseBody ?? "(no body)"
-				);
 			} else {
-				console.error(
-					"[AnthropicProvider] Error generating structured output:",
-					error
-				);
 			}
 			throw new Error(`Failed to generate structured output: ${errorMessage}`);
 		}

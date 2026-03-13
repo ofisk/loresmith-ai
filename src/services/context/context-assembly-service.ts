@@ -372,9 +372,7 @@ export class ContextAssemblyService {
 					planningContextTime,
 				},
 			})
-			.catch((error) => {
-				console.error("[ContextAssembly] Failed to record telemetry:", error);
-			});
+			.catch((_error) => {});
 
 		// Store in cache
 		ContextAssemblyService.cache.set(cacheKey, {
@@ -536,12 +534,7 @@ export class ContextAssemblyService {
 					uncachedEntities: uncachedEntityIds.length,
 				},
 			})
-			.catch((error) => {
-				console.error(
-					"[ContextAssembly] Failed to record cache telemetry:",
-					error
-				);
-			});
+			.catch((_error) => {});
 
 		return {
 			entities: entitiesWithRelationships,

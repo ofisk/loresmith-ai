@@ -130,9 +130,9 @@ export function NotificationBell({
 							</div>
 						) : (
 							<div className="divide-y divide-gray-700">
-								{notifications.map((notification, index) => (
+								{notifications.map((notification) => (
 									<div
-										key={`${notification.timestamp}-${index}`}
+										key={`${notification.timestamp}-${notification.title}-${notification.message}`}
 										className={`p-3 hover:bg-gray-800 transition-colors ${getTypeStyles(notification.type)}`}
 									>
 										<div className="flex items-start space-x-3">
@@ -157,7 +157,9 @@ export function NotificationBell({
 											<button
 												type="button"
 												onClick={() =>
-													onDismiss(`${notification.timestamp}-${index}`)
+													onDismiss(
+														`${notification.timestamp}-${notification.title}-${notification.message}`
+													)
 												}
 												className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
 												aria-label="Dismiss notification"

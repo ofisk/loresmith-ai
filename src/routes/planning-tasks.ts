@@ -47,7 +47,6 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
 
 		return c.json({ tasks, nextSessionNumber });
 	} catch (error) {
-		console.error("[PlanningTasks] Failed to list tasks:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -98,7 +97,6 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
 
 		return c.json({ task }, 201);
 	} catch (error) {
-		console.error("[PlanningTasks] Failed to create task:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -191,7 +189,6 @@ export async function handleUpdatePlanningTask(c: ContextWithAuth) {
 
 		return c.json({ task: updated });
 	} catch (error) {
-		console.error("[PlanningTasks] Failed to update task:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -231,7 +228,6 @@ export async function handleDeletePlanningTask(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
-		console.error("[PlanningTasks] Failed to delete task:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -293,7 +289,6 @@ export async function handleBulkCompletePlanningTasks(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
-		console.error("[PlanningTasks] Failed to bulk-complete tasks:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}

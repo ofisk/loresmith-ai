@@ -18,11 +18,11 @@ describe("checklist-utils", () => {
 				{ checklistItemKey: "world_name", status: "incomplete", summary: null },
 			];
 			const result = buildChecklistStatusFromRecords(records);
-			expect(result.statusByItem["campaign_tone"]).toEqual({
+			expect(result.statusByItem.campaign_tone).toEqual({
 				status: "complete",
 				summary: "Dark fantasy",
 			});
-			expect(result.statusByItem["factions"]).toEqual({
+			expect(result.statusByItem.factions).toEqual({
 				status: "partial",
 				summary: "2 defined",
 			});

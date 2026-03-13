@@ -161,7 +161,6 @@ export function ChatArea({
 				setClaimOptions([]);
 			} catch (error) {
 				if (cancelled) return;
-				console.error("Failed to load player character claim options:", error);
 				setCharacterClaimError(
 					error instanceof Error
 						? error.message

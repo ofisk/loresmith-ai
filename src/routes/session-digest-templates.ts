@@ -60,7 +60,6 @@ export async function handleCreateSessionDigestTemplate(c: ContextWithAuth) {
 
 		return c.json({ template: created }, 201);
 	} catch (error) {
-		console.error("[SessionDigestTemplate] Failed to create template:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -103,7 +102,6 @@ export async function handleGetSessionDigestTemplate(c: ContextWithAuth) {
 
 		return c.json({ template });
 	} catch (error) {
-		console.error("[SessionDigestTemplate] Failed to get template:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -132,7 +130,6 @@ export async function handleGetSessionDigestTemplates(c: ContextWithAuth) {
 
 		return c.json({ templates });
 	} catch (error) {
-		console.error("[SessionDigestTemplate] Failed to list templates:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -206,7 +203,6 @@ export async function handleUpdateSessionDigestTemplate(c: ContextWithAuth) {
 
 		return c.json({ template: updated });
 	} catch (error) {
-		console.error("[SessionDigestTemplate] Failed to update template:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -251,7 +247,6 @@ export async function handleDeleteSessionDigestTemplate(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
-		console.error("[SessionDigestTemplate] Failed to delete template:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}

@@ -29,26 +29,13 @@ export async function createCampaign(options: CreateCampaignOptions) {
 
 	// Create campaign using DAO
 	const campaignDAO = getDAOFactory(env).campaignDAO;
-	console.log(`[CampaignOps] Creating campaign in database: ${campaignId}`);
-
-	try {
-		await campaignDAO.createCampaign(
-			campaignId,
-			name,
-			username,
-			description,
-			campaignRagBasePath
-		);
-		console.log(
-			`[CampaignOps] Campaign created successfully in database: ${campaignId}`
-		);
-	} catch (dbError) {
-		console.error(
-			`[CampaignOps] Database error creating campaign ${campaignId}:`,
-			dbError
-		);
-		throw dbError;
-	}
+	await campaignDAO.createCampaign(
+		campaignId,
+		name,
+		username,
+		description,
+		campaignRagBasePath
+	);
 
 	const newCampaign = {
 		campaignId,
@@ -58,10 +45,6 @@ export async function createCampaign(options: CreateCampaignOptions) {
 		createdAt: now,
 		updatedAt: now,
 	};
-
-	console.log(
-		`[CampaignOps] Created campaign: ${campaignId} for user ${username}`
-	);
 
 	// Notify campaign creation
 	try {
@@ -92,10 +75,6 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
 		"",
 		"[]",
 		"active"
-	);
-
-	console.log(
-		`[CampaignOps] Added resource ${fileKey} to campaign ${campaignId}`
 	);
 
 	// Notify all campaign members that a file was added

@@ -15,29 +15,19 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 };
 
 function getUserAuth(c: ContextWithAuth): AuthPayload {
-	console.log("[getUserAuth] Checking context for userAuth");
 	const userAuth = (c as any).userAuth;
-	console.log("[getUserAuth] userAuth from context:", userAuth);
 
 	if (!userAuth) {
-		console.error("[getUserAuth] No userAuth found in context");
 		throw new UserAuthenticationMissingError();
 	}
 	return userAuth;
 }
 
 function requireAdmin(c: ContextWithAuth): void {
-	console.log("[requireAdmin] Checking admin access");
 	const userAuth = getUserAuth(c);
-	console.log("[requireAdmin] User auth:", {
-		username: userAuth.username,
-		isAdmin: userAuth.isAdmin,
-	});
 	if (!userAuth.isAdmin) {
-		console.error("[requireAdmin] User is not admin");
 		throw new Error("Admin access required");
 	}
-	console.log("[requireAdmin] Admin check passed");
 }
 
 function getTelemetryService(c: ContextWithAuth): TelemetryService {
@@ -71,7 +61,6 @@ export async function handleRecordSatisfactionRating(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
-		console.error("Error recording satisfaction rating:", error);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
@@ -110,7 +99,6 @@ export async function handleRecordContextAccuracy(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
-		console.error("Error recording context accuracy:", error);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
@@ -198,7 +186,6 @@ export async function handleGetMetrics(c: ContextWithAuth) {
 			metrics: results.filter((m) => m !== null),
 		});
 	} catch (error) {
-		console.error("Error getting metrics:", error);
 		if (error instanceof Error && error.message === "Admin access required") {
 			return c.json({ error: "Admin access required" }, 403);
 		}
@@ -216,31 +203,21 @@ export async function handleGetMetrics(c: ContextWithAuth) {
  * Get dashboard summary (admin only)
  */
 export async function handleGetDashboard(c: ContextWithAuth) {
-	console.log("[handleGetDashboard] Request received for:", c.req.path);
-	console.log("[handleGetDashboard] Context keys:", Object.keys(c));
-
 	try {
 		const userAuth = (c as any).userAuth;
-		console.log("[handleGetDashboard] User auth from context:", userAuth);
 
 		if (!userAuth) {
-			console.error("[handleGetDashboard] No user auth found");
 			return c.json({ error: "Authentication required" }, 401);
 		}
 
 		if (!userAuth.isAdmin) {
-			console.error("[handleGetDashboard] User is not admin");
 			return c.json({ error: "Admin access required" }, 403);
 		}
-
-		console.log("[handleGetDashboard] Admin check passed");
-	} catch (error) {
-		console.error("[handleGetDashboard] Error in auth check:", error);
+	} catch (_error) {
 		return c.json({ error: "Authentication required" }, 401);
 	}
 
 	try {
-		console.log("[handleGetDashboard] Getting telemetry service");
 		const telemetryService = getTelemetryService(c);
 
 		// Get recent metrics for dashboard overview
@@ -277,7 +254,6 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 			lastUpdated: now.toISOString(),
 		});
 	} catch (error) {
-		console.error("Error getting dashboard:", error);
 		if (error instanceof Error && error.message === "Admin access required") {
 			return c.json({ error: "Admin access required" }, 403);
 		}
@@ -312,7 +288,6 @@ export async function handleGetAlerts(c: ContextWithAuth) {
 		// For now, return empty array
 		return c.json({ alerts: [] });
 	} catch (error) {
-		console.error("Error getting alerts:", error);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",

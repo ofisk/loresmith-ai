@@ -156,7 +156,6 @@ export const getDocumentContent = tool({
 				toolCallId
 			);
 		} catch (err) {
-			console.error("[getDocumentContent] Error:", err);
 			return createToolError(
 				"Failed to get document content",
 				err,

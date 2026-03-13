@@ -85,12 +85,18 @@ export function ChatMessageList({
 														part.text.trim() !== ""
 													) {
 														const isLastTextPart = i === lastTextPartIndex;
+														const occurrenceIndex = parts
+															.slice(0, i + 1)
+															.filter(
+																(p) =>
+																	p.type === "text" &&
+																	typeof p.text === "string" &&
+																	p.text === part.text
+															).length;
+														const partKey = `${m.id}-text-${part.text}-n${occurrenceIndex}`;
 
 														return (
-															<div
-																key={`${m.id}-text-${i}`}
-																className="min-w-0"
-															>
+															<div key={partKey} className="min-w-0">
 																<Card
 																	className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm min-w-0 ${
 																		isUser

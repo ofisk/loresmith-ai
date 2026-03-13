@@ -56,8 +56,6 @@ export class AgentRouter {
 			tools,
 			systemPrompt,
 		};
-
-		console.log(`[AgentRouter] Registered agent: ${agentType}`);
 	}
 
 	/**
@@ -168,7 +166,6 @@ export class AgentRouter {
 
 			// Validate that the agent is registered
 			if (!registeredAgents.includes(agent)) {
-				console.log(`[AgentRouter] Invalid agent '${agent}', using default`);
 				return {
 					agent: "resources" as AgentType,
 					confidence: 30,
@@ -181,9 +178,7 @@ export class AgentRouter {
 				confidence: parseInt(confidenceStr, 10) || 50,
 				reason: reason || "LLM-based routing",
 			};
-		} catch (error) {
-			console.log("[AgentRouter] LLM routing failed, using default:", error);
-
+		} catch (_error) {
 			// Default to resources for file-related operations
 			return {
 				agent: "resources" as AgentType,
@@ -197,18 +192,17 @@ export class AgentRouter {
 		userMessage: string,
 		model?: any
 	): Promise<string> {
-		try {
-			// Get all registered agents and their descriptions
-			const registeredAgents = AgentRouter.getRegisteredAgentTypes();
-			const agentDescriptions = registeredAgents
-				.map((agentType) => {
-					const description = AgentRouter.getAgentDescription(agentType);
-					return `${agentType}: ${description}`;
-				})
-				.join("\n");
+		// Get all registered agents and their descriptions
+		const registeredAgents = AgentRouter.getRegisteredAgentTypes();
+		const agentDescriptions = registeredAgents
+			.map((agentType) => {
+				const description = AgentRouter.getAgentDescription(agentType);
+				return `${agentType}: ${description}`;
+			})
+			.join("\n");
 
-			// Create a generic system prompt that only uses agent descriptions
-			const systemPrompt = `You are an intelligent router that determines which AI agent should handle a user's request.
+		// Create a generic system prompt that only uses agent descriptions
+		const systemPrompt = `You are an intelligent router that determines which AI agent should handle a user's request.
 
 Available agents and their capabilities:
 ${agentDescriptions}
@@ -219,43 +213,35 @@ Respond with ONLY the agent type followed by a confidence score (0-100) and a br
 
 Example format: "agent_type|confidence|reason"`;
 
-			// Prefer PIPELINE_LIGHT for routing (faster, lower cost) when API key is available
-			const modelManager = ModelManager.getInstance();
-			const apiKey = modelManager.getApiKey();
-			const modelToUse =
-				(apiKey
-					? createModel(getGenerationModelForProvider("PIPELINE_LIGHT"), apiKey)
-					: null) ||
-				model ||
-				modelManager.getModel();
+		// Prefer PIPELINE_LIGHT for routing (faster, lower cost) when API key is available
+		const modelManager = ModelManager.getInstance();
+		const apiKey = modelManager.getApiKey();
+		const modelToUse =
+			(apiKey
+				? createModel(getGenerationModelForProvider("PIPELINE_LIGHT"), apiKey)
+				: null) ||
+			model ||
+			modelManager.getModel();
 
-			// If no model is available, we can't route the message
-			if (!modelToUse) {
-				console.log(
-					"[AgentRouter] No model available for routing, returning default agent"
-				);
-				return "campaign|50|No model available for routing, using default agent";
-			}
-
-			// Use generateText for the routing decision (single turn, no tools)
-			const result = await generateText({
-				model: modelToUse,
-				system: systemPrompt,
-				messages: [{ role: "user", content: userMessage }],
-				...(!MODEL_CONFIG.isReasoningModel(
-					((modelToUse as { modelId?: string })?.modelId ?? "").toLowerCase()
-				) && {
-					temperature: 0,
-				}),
-			});
-
-			const trimmedResponse = (result.text ?? "").trim();
-			console.log("[AgentRouter] LLM routing result:", trimmedResponse);
-			return trimmedResponse;
-		} catch (error) {
-			console.error("[AgentRouter] LLM routing failed:", error);
-			throw error;
+		// If no model is available, we can't route the message
+		if (!modelToUse) {
+			return "campaign|50|No model available for routing, using default agent";
 		}
+
+		// Use generateText for the routing decision (single turn, no tools)
+		const result = await generateText({
+			model: modelToUse,
+			system: systemPrompt,
+			messages: [{ role: "user", content: userMessage }],
+			...(!MODEL_CONFIG.isReasoningModel(
+				((modelToUse as { modelId?: string })?.modelId ?? "").toLowerCase()
+			) && {
+				temperature: 0,
+			}),
+		});
+
+		const trimmedResponse = (result.text ?? "").trim();
+		return trimmedResponse;
 	}
 
 	static getAgentDescription(agentType: string): string {

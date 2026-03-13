@@ -32,7 +32,7 @@ export type ResolveToolContextResult = ToolContextResult | ToolContextError;
  */
 export function resolveToolContext(
 	options: unknown,
-	toolCallId: string,
+	_toolCallId: string,
 	errorMessages: { notAvailable: string; detail: string } = {
 		notAvailable: "Environment not available",
 		detail: "Direct database access is required.",

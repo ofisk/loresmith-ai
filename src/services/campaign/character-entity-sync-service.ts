@@ -51,9 +51,6 @@ export class CharacterEntitySyncService {
 					openaiApiKey,
 				});
 			if (existingEntity) {
-				console.log(
-					`[CharacterEntitySync] Found duplicate entity for "${characterName}", using existing ID: ${existingEntity.id}`
-				);
 			}
 		}
 
@@ -100,10 +97,6 @@ export class CharacterEntitySyncService {
 				sourceId: contextId,
 			});
 		}
-
-		console.log(
-			`[CharacterEntitySync] Synced character_backstory ${contextId} to entity ${entityId}`
-		);
 	}
 
 	/**
@@ -133,9 +126,5 @@ export class CharacterEntitySyncService {
 				metadata
 			);
 		}
-
-		console.log(
-			`[CharacterEntitySync] Synced ${entries.length} character_backstory entries for campaign ${campaignId}`
-		);
 	}
 }

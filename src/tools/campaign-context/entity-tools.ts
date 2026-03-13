@@ -200,7 +200,6 @@ export const extractEntitiesFromContentTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[extractEntitiesFromContentTool] Error:", error);
 			return createToolError(
 				"Failed to extract entities from content",
 				error instanceof Error ? error.message : "Unknown error",
@@ -416,7 +415,6 @@ export const createEntityRelationshipTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[createEntityRelationshipTool] Error:", error);
 			return createToolError(
 				"Failed to create relationship",
 				error instanceof Error ? error.message : "Unknown error",
@@ -572,7 +570,6 @@ export const defineHouseRuleTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[defineHouseRuleTool] Error:", error);
 			return createToolError(
 				"Failed to define house rule",
 				error instanceof Error ? error.message : "Unknown error",
@@ -659,7 +656,6 @@ export const listHouseRulesTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[listHouseRulesTool] Error:", error);
 			return createToolError(
 				"Failed to list house rules",
 				error instanceof Error ? error.message : "Unknown error",
@@ -817,7 +813,6 @@ export const updateHouseRuleTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[updateHouseRuleTool] Error:", error);
 			return createToolError(
 				"Failed to update house rule",
 				error instanceof Error ? error.message : "Unknown error",
@@ -941,7 +936,6 @@ export const checkHouseRuleConflictTool = tool({
 				}
 			);
 		} catch (error) {
-			console.error("[checkHouseRuleConflictTool] Error:", error);
 			return createToolError(
 				"Failed to check house rule conflict",
 				error instanceof Error ? error.message : "Unknown error",
@@ -1122,7 +1116,6 @@ export const linkInspirationToEntityTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[linkInspirationToEntityTool] Error:", error);
 			return createToolError(
 				"Failed to link inspiration to entity",
 				error instanceof Error ? error.message : "Unknown error",
@@ -1281,7 +1274,6 @@ export const updateEntityMetadataTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[updateEntityMetadataTool] Error:", error);
 			return createToolError(
 				"Failed to update entity metadata",
 				error instanceof Error ? error.message : "Unknown error",
@@ -1409,7 +1401,6 @@ export const updateEntityTypeTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[updateEntityTypeTool] Error:", error);
 			return createToolError(
 				"Failed to update entity type",
 				error instanceof Error ? error.message : "Unknown error",
@@ -1500,11 +1491,7 @@ export const deleteEntityTool = tool({
 							| undefined
 					);
 					await embeddingService.deleteEmbedding(entityId);
-				} catch (error) {
-					console.warn(
-						`[deleteEntityTool] Failed to delete embedding for ${entityId}:`,
-						error
-					);
+				} catch (_error) {
 					// Continue - entity is already deleted from DB
 				}
 			}
@@ -1518,7 +1505,6 @@ export const deleteEntityTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[deleteEntityTool] Error:", error);
 			return createToolError(
 				"Failed to delete entity",
 				error instanceof Error ? error.message : "Unknown error",

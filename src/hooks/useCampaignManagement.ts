@@ -81,12 +81,7 @@ export function useCampaignManagement({
 						body: JSON.stringify(payload),
 					}
 				);
-			} catch (error) {
-				console.error(
-					"[useCampaignManagement] Failed to send notification:",
-					error
-				);
-			}
+			} catch (_error) {}
 		},
 		[]
 	);
@@ -105,14 +100,8 @@ export function useCampaignManagement({
 			try {
 				const jwt = getStoredJwt();
 				if (!isValidJwt(jwt)) {
-					console.error("No JWT token available");
 					return;
 				}
-
-				console.log("Creating campaign:", {
-					name: campaignNameToUse,
-					description: campaignDescriptionToUse,
-				});
 
 				const response = await authenticatedFetchWithExpiration(
 					API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.CREATE),
@@ -136,7 +125,6 @@ export function useCampaignManagement({
 				}
 
 				const data = (await response.response.json()) as { campaign: Campaign };
-				console.log("Campaign created successfully:", data);
 
 				// Emit campaign created event
 				send({
@@ -149,12 +137,7 @@ export function useCampaignManagement({
 				// Reset form
 				setCampaignName("");
 				setCampaignDescription("");
-
-				// Show success feedback
-				console.log("Campaign created successfully!");
-			} catch (error) {
-				console.error("Failed to create campaign:", error);
-			}
+			} catch (_error) {}
 		},
 		[campaignName, campaignDescription, send]
 	);
@@ -169,15 +152,8 @@ export function useCampaignManagement({
 			try {
 				const jwt = getStoredJwt();
 				if (!isValidJwt(jwt)) {
-					console.error("No JWT token available");
 					return;
 				}
-
-				console.log("Adding file to campaign:", {
-					campaignId,
-					fileKey: uploadedFileInfo.fileKey,
-					filename: uploadedFileInfo.filename,
-				});
 
 				const response = await authenticatedFetchWithExpiration(
 					API_CONFIG.buildUrl(
@@ -218,7 +194,6 @@ export function useCampaignManagement({
 					};
 					[key: string]: unknown;
 				};
-				console.log("File added to campaign successfully:", result);
 
 				// Send appropriate notification based on the result
 				if (result.message?.includes("already exists")) {
@@ -256,9 +231,7 @@ export function useCampaignManagement({
 						{ fileName: uploadedFileInfo.filename }
 					);
 				}
-			} catch (error) {
-				console.error("Failed to add file to campaign:", error);
-			}
+			} catch (_error) {}
 		},
 		[sendNotification]
 	);
@@ -274,7 +247,6 @@ export function useCampaignManagement({
 			try {
 				const jwt = getStoredJwt();
 				if (!isValidJwt(jwt)) {
-					console.error("No JWT token available");
 					return;
 				}
 
@@ -318,9 +290,7 @@ export function useCampaignManagement({
 				// Reset form
 				setCampaignName("");
 				setCampaignDescription("");
-			} catch (error) {
-				console.error("Failed to create campaign for file:", error);
-			}
+			} catch (_error) {}
 		},
 		[campaignName, campaignDescription, send, handleAddFileToCampaign]
 	);
@@ -330,11 +300,8 @@ export function useCampaignManagement({
 			try {
 				const jwt = getStoredJwt();
 				if (!isValidJwt(jwt)) {
-					console.error("No JWT token available");
 					return;
 				}
-
-				console.log("Deleting campaign:", campaignId);
 
 				const response = await authenticatedFetchWithExpiration(
 					API_CONFIG.buildUrl(
@@ -351,8 +318,6 @@ export function useCampaignManagement({
 					throw new Error(`Failed to delete campaign: ${errorText}`);
 				}
 
-				console.log("Campaign deleted successfully");
-
 				// Show success feedback
 				await sendNotification(
 					NOTIFICATION_TYPES.SUCCESS,
@@ -360,7 +325,6 @@ export function useCampaignManagement({
 					"Campaign deleted successfully"
 				);
 			} catch (error) {
-				console.error("Failed to delete campaign:", error);
 				await sendNotification(
 					NOTIFICATION_TYPES.ERROR,
 					"Campaign Deletion Failed",
@@ -380,11 +344,8 @@ export function useCampaignManagement({
 			try {
 				const jwt = getStoredJwt();
 				if (!isValidJwt(jwt)) {
-					console.error("No JWT token available");
 					return;
 				}
-
-				console.log("Updating campaign:", { campaignId, updates });
 
 				const response = await authenticatedFetchWithExpiration(
 					API_CONFIG.buildUrl(
@@ -405,8 +366,6 @@ export function useCampaignManagement({
 					throw new Error(`Failed to update campaign: ${errorText}`);
 				}
 
-				console.log("Campaign updated successfully");
-
 				// Show success feedback
 				await sendNotification(
 					NOTIFICATION_TYPES.SUCCESS,
@@ -414,7 +373,6 @@ export function useCampaignManagement({
 					"Campaign updated successfully"
 				);
 			} catch (error) {
-				console.error("Failed to update campaign:", error);
 				await sendNotification(
 					NOTIFICATION_TYPES.ERROR,
 					"Campaign Update Failed",

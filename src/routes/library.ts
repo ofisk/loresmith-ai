@@ -31,11 +31,6 @@ export const handleGetFiles = async (
 		const fileDAO = getDAOFactory(c.env).fileDAO;
 		const files = await fileDAO.getFilesForRag(userId);
 
-		console.log(`[Library] Retrieved files for user:`, {
-			userId,
-			count: files.length,
-		});
-
 		return c.json({
 			success: true,
 			files,
@@ -47,8 +42,7 @@ export const handleGetFiles = async (
 				total: files.length,
 			},
 		});
-	} catch (error) {
-		console.error("[Library] Error getting files:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get files" }, 500);
 	}
 };
@@ -81,12 +75,6 @@ export const handleSearchFiles = async (
 			searchQuery.limit
 		);
 
-		console.log(`[Library] Search results:`, {
-			query,
-			userId,
-			resultsCount: Array.isArray(results) ? results.length : 0,
-		});
-
 		return c.json({
 			success: true,
 			results: Array.isArray(results) ? results : [],
@@ -97,8 +85,7 @@ export const handleSearchFiles = async (
 				total: Array.isArray(results) ? results.length : 0,
 			},
 		});
-	} catch (error) {
-		console.error("[Library] Error searching files:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to search files" }, 500);
 	}
 };
@@ -107,14 +94,9 @@ export const handleGetStorageUsage = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
 	try {
-		console.log("[handleGetStorageUsage] Starting storage usage request");
-		console.log("[handleGetStorageUsage] Context keys:", Object.keys(c));
-
 		const userAuth = (c as any).userAuth;
-		console.log("[handleGetStorageUsage] Retrieved userAuth:", userAuth);
 
 		if (!userAuth) {
-			console.log("[handleGetStorageUsage] No userAuth found, returning 401");
 			return c.json({ error: "Authentication required" }, 401);
 		}
 
@@ -124,16 +106,11 @@ export const handleGetStorageUsage = async (
 			userAuth.isAdmin || false
 		);
 
-		console.log(
-			`[Library] Retrieved storage usage for user: { type: ${userAuth.type}, username: ${userAuth.username}, isAdmin: ${userAuth.isAdmin} }`
-		);
-
 		return c.json({
 			success: true,
 			usage,
 		});
-	} catch (error) {
-		console.error("[Library] Error getting storage usage:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get storage usage" }, 500);
 	}
 };
@@ -180,8 +157,7 @@ export const handleGetLlmUsage = async (
 			},
 			limits,
 		});
-	} catch (error) {
-		console.error("[Library] Error getting LLM usage:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get LLM usage" }, 500);
 	}
 };
@@ -206,8 +182,7 @@ export const handleGetFileDetails = async (
 			success: true,
 			metadata,
 		});
-	} catch (error) {
-		console.error("[Library] Error getting file metadata:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get file metadata" }, 500);
 	}
 };
@@ -218,10 +193,7 @@ export const handleUpdateFile = async (
 	try {
 		const fileId = requireParam(c, "fileId");
 		if (fileId instanceof Response) return fileId;
-		const userAuth = (c as any).userAuth;
-		const userId = userAuth?.username || "anonymous";
-		const updates = await c.req.json();
-
+		await c.req.json(); // Consume request body
 		const fileDAO = getDAOFactory(c.env).fileDAO;
 		await fileDAO.updateFileRecord(fileId, "completed");
 		const success = true;
@@ -230,15 +202,8 @@ export const handleUpdateFile = async (
 			return c.json({ error: "Failed to update file metadata" }, 500);
 		}
 
-		console.log(`[Library] Updated file metadata:`, {
-			fileId,
-			userId,
-			updates,
-		});
-
 		return c.json({ success: true });
-	} catch (error) {
-		console.error("[Library] Error updating file metadata:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to update file metadata" }, 500);
 	}
 };
@@ -273,15 +238,8 @@ export const handleDeleteFile = async (
 			.bind(fileId, userId)
 			.run();
 
-		console.log(`[Library] Deleted file:`, {
-			fileId,
-			userId,
-			fileKey: metadata.fileKey,
-		});
-
 		return c.json({ success: true });
-	} catch (error) {
-		console.error("[Library] Error deleting file:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to delete file" }, 500);
 	}
 };
@@ -308,8 +266,7 @@ export const handleGetFileDownload = async (
 			filename: metadata.filename,
 			fileSize: metadata.fileSize,
 		});
-	} catch (error) {
-		console.error("[Library] Error generating download URL:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to generate download URL" }, 500);
 	}
 };
@@ -330,17 +287,11 @@ export const handleRegenerateFileMetadata = async (
 			return c.json({ error: "File not found" }, 404);
 		}
 
-		// Metadata generation is handled automatically during file processing
-		console.log(
-			`[Library] Metadata generation handled automatically for file: ${metadata.filename}`
-		);
-
 		return c.json({
 			success: true,
 			metadata,
 		});
-	} catch (error) {
-		console.error("[Library] Error regenerating metadata:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to regenerate metadata" }, 500);
 	}
 };

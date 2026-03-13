@@ -108,7 +108,6 @@ export async function handleDetectCommunities(c: ContextWithAuth) {
 			stats: calculateCommunityStats(communities),
 		});
 	} catch (error) {
-		console.error("[Communities] Error detecting communities:", error);
 		return c.json(
 			{
 				error: "Failed to detect communities",
@@ -175,7 +174,6 @@ export async function handleListCommunities(c: ContextWithAuth) {
 			stats: calculateCommunityStats(communities),
 		});
 	} catch (error) {
-		console.error("[Communities] Error listing communities:", error);
 		return c.json(
 			{
 				error: "Failed to list communities",
@@ -231,7 +229,6 @@ export async function handleGetCommunity(c: ContextWithAuth) {
 			children: includeChildren ? children : undefined,
 		});
 	} catch (error) {
-		console.error("[Communities] Error getting community:", error);
 		return c.json(
 			{
 				error: "Failed to get community",
@@ -284,7 +281,6 @@ export async function handleGetCommunitiesByLevel(c: ContextWithAuth) {
 			count: communities.length,
 		});
 	} catch (error) {
-		console.error("[Communities] Error getting communities by level:", error);
 		return c.json(
 			{
 				error: "Failed to get communities by level",
@@ -336,7 +332,6 @@ export async function handleGetChildCommunities(c: ContextWithAuth) {
 			count: children.length,
 		});
 	} catch (error) {
-		console.error("[Communities] Error getting child communities:", error);
 		return c.json(
 			{
 				error: "Failed to get child communities",
@@ -381,7 +376,6 @@ export async function handleGetCommunityHierarchy(c: ContextWithAuth) {
 			stats: calculateCommunityStats(communities),
 		});
 	} catch (error) {
-		console.error("[Communities] Error getting community hierarchy:", error);
 		return c.json(
 			{
 				error: "Failed to get community hierarchy",
@@ -447,7 +441,6 @@ export async function handleGetCommunitySummary(c: ContextWithAuth) {
 			},
 		});
 	} catch (error) {
-		console.error("[Communities] Error getting community summary:", error);
 		return c.json(
 			{
 				error: "Failed to get community summary",
@@ -522,7 +515,6 @@ export async function handleListCommunitySummaries(c: ContextWithAuth) {
 			},
 		});
 	} catch (error) {
-		console.error("[Communities] Error listing community summaries:", error);
 		return c.json(
 			{
 				error: "Failed to list community summaries",
@@ -612,7 +604,6 @@ export async function handleGenerateCommunitySummary(c: ContextWithAuth) {
 			keyEntities: result.keyEntities,
 		});
 	} catch (error) {
-		console.error("[Communities] Error generating community summary:", error);
 		return c.json(
 			{
 				error: "Failed to generate community summary",

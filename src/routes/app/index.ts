@@ -22,9 +22,7 @@ export function registerAppRoutes(
 			if (assetResponse.status === 200) {
 				return assetResponse;
 			}
-		} catch (_error) {
-			console.log("Index.html not found in assets");
-		}
+		} catch (_error) {}
 		return new Response("Index.html not found", { status: 404 });
 	};
 
@@ -38,9 +36,7 @@ export function registerAppRoutes(
 			if (assetResponse.status === 200) {
 				return assetResponse;
 			}
-		} catch (_error) {
-			console.log("Asset not found:", c.req.path);
-		}
+		} catch (_error) {}
 		return new Response("Asset not found", { status: 404 });
 	});
 
@@ -50,9 +46,7 @@ export function registerAppRoutes(
 			if (assetResponse.status === 200) {
 				return assetResponse;
 			}
-		} catch (_error) {
-			console.log("Favicon not found");
-		}
+		} catch (_error) {}
 		return new Response("Favicon not found", { status: 404 });
 	});
 

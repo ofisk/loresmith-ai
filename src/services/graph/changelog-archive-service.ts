@@ -63,10 +63,6 @@ export class ChangelogArchiveService {
 			throw new Error("Cannot archive empty entry list");
 		}
 
-		console.log(
-			`[ChangelogArchive] Archiving ${entryIds.length} entries for rebuild ${rebuildId}`
-		);
-
 		// Get entries from D1
 		const entries = await this.changelogDAO.listEntriesForCampaign(campaignId, {
 			limit: entryIds.length * 2, // Get more to filter by IDs
@@ -155,10 +151,6 @@ export class ChangelogArchiveService {
 			"application/gzip"
 		);
 
-		console.log(
-			`[ChangelogArchive] Stored archive to R2: ${archiveKey} (${compressedBuffer.length} bytes compressed from ${jsonBuffer.length} bytes)`
-		);
-
 		// Create metadata in D1
 		const metadataId = generateId();
 		const metadataInput: CreateChangelogArchiveMetadataInput = {
@@ -175,9 +167,6 @@ export class ChangelogArchiveService {
 
 		// Generate embeddings for archived entries
 		if (this.planningContextService) {
-			console.log(
-				`[ChangelogArchive] Generating embeddings for ${entriesToArchive.length} archived entries`
-			);
 			for (const entry of entriesToArchive) {
 				try {
 					await this.planningContextService.indexChangelogEntry(entry, {
@@ -185,11 +174,7 @@ export class ChangelogArchiveService {
 						archiveKey,
 						r2Key: archiveKey,
 					});
-				} catch (error) {
-					console.error(
-						`[ChangelogArchive] Failed to index archived entry ${entry.id}:`,
-						error
-					);
+				} catch (_error) {
 					// Continue with other entries even if one fails
 				}
 			}
@@ -197,10 +182,6 @@ export class ChangelogArchiveService {
 
 		// Delete entries from D1
 		await this.changelogDAO.deleteEntries(entryIds);
-
-		console.log(
-			`[ChangelogArchive] Successfully archived ${entriesToArchive.length} entries and deleted from D1`
-		);
 
 		const metadata = await this.archiveDAO.getArchiveMetadataByKey(archiveKey);
 		if (!metadata) {
@@ -235,9 +216,6 @@ export class ChangelogArchiveService {
 				// Load and decompress archive from R2
 				const compressedData = await this.r2Helper.get(metadata.archiveKey);
 				if (!compressedData) {
-					console.warn(
-						`[ChangelogArchive] Archive not found in R2: ${metadata.archiveKey}`
-					);
 					continue;
 				}
 
@@ -304,11 +282,7 @@ export class ChangelogArchiveService {
 				);
 
 				allEntries.push(...entries);
-			} catch (error) {
-				console.error(
-					`[ChangelogArchive] Failed to load archive ${metadata.archiveKey}:`,
-					error
-				);
+			} catch (_error) {
 				// Continue with other archives even if one fails
 			}
 		}
@@ -328,6 +302,5 @@ export class ChangelogArchiveService {
 	async deleteArchivedChangelog(archiveKey: string): Promise<void> {
 		await this.r2Helper.delete(archiveKey);
 		await this.archiveDAO.deleteArchiveMetadata(archiveKey);
-		console.log(`[ChangelogArchive] Deleted archive: ${archiveKey}`);
 	}
 }

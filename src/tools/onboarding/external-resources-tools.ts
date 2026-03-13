@@ -134,7 +134,6 @@ export const recommendExternalToolsTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to recommend external tools:", error);
 			return createToolError(
 				"Failed to recommend external tools",
 				error instanceof Error ? error.message : "Unknown error",
@@ -232,7 +231,6 @@ export const suggestInspirationSourcesTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to suggest inspiration sources:", error);
 			return createToolError(
 				"Failed to suggest inspiration sources",
 				error instanceof Error ? error.message : "Unknown error",
@@ -342,7 +340,6 @@ export const recommendGMResourcesTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to recommend GM resources:", error);
 			return createToolError(
 				"Failed to recommend GM resources",
 				error instanceof Error ? error.message : "Unknown error",

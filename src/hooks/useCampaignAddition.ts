@@ -291,9 +291,6 @@ export function useCampaignAddition(
 				setCampaignAdditionProgress({ [fileKey]: 100 });
 
 				if (addedCampaignIds.length > 0) {
-					console.log(
-						`Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
-					);
 					addLocalNotification(
 						NOTIFICATION_TYPES.SUCCESS,
 						"File added to campaign",
@@ -338,7 +335,6 @@ export function useCampaignAddition(
 					setIsAddingToCampaigns(false);
 					return;
 				}
-				console.error("Error adding file to campaigns:", error);
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
 				addLocalNotification(

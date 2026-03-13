@@ -169,10 +169,6 @@ export const generateDigestFromNotesTool = tool({
 				defaultMaxTokens: 4000,
 			});
 
-			console.log(
-				`[generateDigestFromNotesTool] Generating digest for session ${sessionNumber} from ${notes.length} characters of notes`
-			);
-
 			const generatedDigest =
 				await llmProvider.generateStructuredOutput<SessionDigestData>(prompt, {
 					model: getGenerationModelForProvider("SESSION_PLANNING"),
@@ -182,10 +178,6 @@ export const generateDigestFromNotesTool = tool({
 
 			// Validate the generated digest
 			if (!validateSessionDigestData(generatedDigest)) {
-				console.error(
-					"[generateDigestFromNotesTool] Generated digest failed validation",
-					generatedDigest
-				);
 				return createToolError(
 					"Generation failed validation",
 					"The AI-generated digest did not match the required schema. Please try again or create the digest manually.",
@@ -210,8 +202,6 @@ export const generateDigestFromNotesTool = tool({
 				campaign.name
 			);
 		} catch (error) {
-			console.error("[generateDigestFromNotesTool] Error:", error);
-
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
 

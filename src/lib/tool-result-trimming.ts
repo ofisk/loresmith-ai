@@ -274,13 +274,7 @@ export async function trimToolResultsByRelevancy(
 					);
 				}
 			}
-		} catch (error) {
-			// Ignore errors - importance lookup is optional.
-			console.warn(
-				"[ToolResultTrimming] Failed to load batch entity importance:",
-				error
-			);
-		}
+		} catch (_error) {}
 	}
 
 	// Calculate priority scores for all items.

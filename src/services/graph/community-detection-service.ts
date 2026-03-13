@@ -113,12 +113,7 @@ export class CommunityDetectionService {
 					isRejected = true;
 					rejectedRelationships++;
 				}
-			} catch (_error) {
-				// If metadata parsing fails, include the relationship (safe default)
-				console.warn(
-					`[CommunityDetection] Failed to parse relationship metadata, including it`
-				);
-			}
+			} catch (_error) {}
 
 			if (!isRejected) {
 				entityIds.add(rel.fromEntityId);
@@ -132,9 +127,6 @@ export class CommunityDetectionService {
 		}
 
 		if (rejectedRelationships > 0) {
-			console.log(
-				`[CommunityDetection] Filtered out ${rejectedRelationships} rejected/ignored relationships (${relationshipRecords.length} total, ${edges.length} included)`
-			);
 		}
 
 		// Load minimal entity data using DAO (id, metadata)
@@ -167,22 +159,13 @@ export class CommunityDetectionService {
 				}
 				entityIds.add(record.id);
 			} catch (_error) {
-				console.warn(
-					`[CommunityDetection] Failed to parse metadata for entity ${record.id}, including it`
-				);
 				entityIds.add(record.id);
 			}
 		}
 
 		if (rejectedEntityIds.size > 0) {
-			console.log(
-				`[CommunityDetection] Filtered out ${rejectedEntityIds.size} rejected/ignored entities (${entityIdRecords.length} total, ${entityIds.size} included)`
-			);
 		}
 		if (stubEntityIds.size > 0) {
-			console.log(
-				`[CommunityDetection] Excluding ${stubEntityIds.size} stub entities from Leiden (${entityIdRecords.length} total)`
-			);
 		}
 
 		// Exclude stub and rejected entity IDs from entity set; exclude edges touching stubs or rejected
@@ -201,9 +184,6 @@ export class CommunityDetectionService {
 		}
 
 		if (filteredEdges.length < edgesBeforeFilter) {
-			console.log(
-				`[CommunityDetection] Filtered out ${edgesBeforeFilter - filteredEdges.length} edges involving rejected/stub entities (${edgesBeforeFilter} total, ${filteredEdges.length} included)`
-			);
 		}
 
 		return { entityIds: filteredEntityIds, edges: filteredEdges };
@@ -221,14 +201,7 @@ export class CommunityDetectionService {
 		// Load minimal graph data (only IDs and edges, not full entity records)
 		const { entityIds, edges } = await this.loadMinimalGraphData(campaignId);
 
-		console.log(
-			`[CommunityDetection] Loaded graph data: ${entityIds.size} entities, ${edges.length} edges for campaign ${campaignId}`
-		);
-
 		if (entityIds.size === 0 || edges.length === 0) {
-			console.log(
-				`[CommunityDetection] No entities or relationships found for campaign ${campaignId} (entities: ${entityIds.size}, edges: ${edges.length})`
-			);
 			return [];
 		}
 
@@ -264,17 +237,7 @@ export class CommunityDetectionService {
 		}
 
 		if (estimatedMB > MEMORY_WARNING_THRESHOLD_MB) {
-			console.warn(
-				`[CommunityDetection] High memory usage estimated: ${estimatedMB.toFixed(1)}MB ` +
-					`(${entityIds.size} entities, ${edges.length} relationships). ` +
-					`Consider optimization if memory errors occur.`
-			);
 		}
-
-		console.log(
-			`[CommunityDetection] Processing ${entityIds.size} entities and ${edges.length} relationships ` +
-				`(memory-efficient: only IDs and edges loaded, ~${estimatedMB.toFixed(1)}MB estimated)`
-		);
 
 		// Run Leiden algorithm (edges already in correct format)
 		const assignments = detectCommunities(edges, options);
@@ -295,18 +258,8 @@ export class CommunityDetectionService {
 			([, entityIds]) => entityIds.length >= minSize
 		);
 
-		console.log(
-			`[CommunityDetection] Leiden algorithm found ${totalCommunitiesBeforeFilter} communities, ${validCommunities.length} meet minimum size requirement (minSize: ${minSize})`
-		);
-
 		if (validCommunities.length === 0 && totalCommunitiesBeforeFilter > 0) {
-			const communitySizes = Array.from(communitiesMap.values()).map(
-				(ids) => ids.length
-			);
-			const maxSize = Math.max(...communitySizes);
-			console.warn(
-				`[CommunityDetection] All ${totalCommunitiesBeforeFilter} communities filtered out. Largest community has ${maxSize} entities (minSize: ${minSize}). Community sizes: ${communitySizes.join(", ")}`
-			);
+			// All communities were filtered out
 		}
 
 		// Delete existing communities for this campaign
@@ -347,12 +300,7 @@ export class CommunityDetectionService {
 			if (openaiApiKey) {
 				try {
 					await this.generateSummariesAsync(createdCommunities, openaiApiKey);
-				} catch (error) {
-					console.error(
-						`[CommunityDetection] Error generating summaries:`,
-						error
-					);
-				}
+				} catch (_error) {}
 			}
 		}
 
@@ -474,12 +422,7 @@ export class CommunityDetectionService {
 				) {
 					try {
 						await this.generateSummariesAsync([created], openaiApiKey);
-					} catch (error) {
-						console.error(
-							`[CommunityDetection] Error generating summary for sub-community ${created.id}:`,
-							error
-						);
-					}
+					} catch (_error) {}
 				}
 				// Recursively build children
 				const childHierarchy = await this.buildCommunityHierarchy(
@@ -715,10 +658,6 @@ export class CommunityDetectionService {
 			return;
 		}
 
-		console.log(
-			`[CommunityDetection] Generating summaries for ${communities.length} communities...`
-		);
-
 		// Verify all communities exist in database before generating summaries
 		const verifiedCommunities: Community[] = [];
 		for (const community of communities) {
@@ -727,22 +666,11 @@ export class CommunityDetectionService {
 				if (existing) {
 					verifiedCommunities.push(existing);
 				} else {
-					console.warn(
-						`[CommunityDetection] Community ${community.id} not found in database, skipping summary generation`
-					);
 				}
-			} catch (error) {
-				console.error(
-					`[CommunityDetection] Error verifying community ${community.id}:`,
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		if (verifiedCommunities.length === 0) {
-			console.warn(
-				`[CommunityDetection] No verified communities found, skipping summary generation`
-			);
 			return;
 		}
 
@@ -753,11 +681,6 @@ export class CommunityDetectionService {
 					openaiApiKey,
 				}
 			);
-			console.log(
-				`[CommunityDetection] Successfully generated summaries for ${verifiedCommunities.length} communities`
-			);
-		} catch (error) {
-			console.error(`[CommunityDetection] Error generating summaries:`, error);
-		}
+		} catch (_error) {}
 	}
 }

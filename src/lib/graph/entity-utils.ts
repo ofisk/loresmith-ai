@@ -67,11 +67,7 @@ export async function getEntityWithRelationships(
 					relationshipType: neighbor.relationshipType,
 				})),
 		};
-	} catch (error) {
-		console.warn(
-			`[getEntityWithRelationships] Failed to get entity ${entityId}:`,
-			error
-		);
+	} catch (_error) {
 		return null;
 	}
 }

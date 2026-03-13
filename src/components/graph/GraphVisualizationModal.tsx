@@ -107,41 +107,21 @@ export function GraphVisualizationModal({
 		};
 	}, [isOpen, campaignId, makeRequestWithData]);
 
-	// Serialize filters to prevent unnecessary re-renders
-	const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
-
 	// Fetch community graph data when modal opens or filters change
 	useEffect(() => {
-		console.log("[GraphVisualizationModal] useEffect triggered:", {
-			isOpen,
-			viewMode,
-			filtersKey,
-		});
-
 		if (!isOpen || viewMode !== "community") {
-			console.log("[GraphVisualizationModal] Skipping fetch:", {
-				isOpen,
-				viewMode,
-			});
 			return;
 		}
 
-		console.log(
-			"[GraphVisualizationModal] Triggering fetch with filters:",
-			filtersRef.current
-		);
-
 		// Use a small delay to debounce rapid filter changes
 		const timeoutId = setTimeout(() => {
-			console.log("[GraphVisualizationModal] Executing fetchCommunityGraph");
 			fetchCommunityGraphRef.current(filtersRef.current);
 		}, 100);
 
 		return () => {
-			console.log("[GraphVisualizationModal] Cleaning up timeout");
 			clearTimeout(timeoutId);
 		};
-	}, [isOpen, viewMode, filtersKey]);
+	}, [isOpen, viewMode]);
 
 	// Fetch entity graph data when a community is selected
 	useEffect(() => {
@@ -203,22 +183,13 @@ export function GraphVisualizationModal({
 	}, [searchResults]);
 
 	// Handle export PNG
-	const handleExportPNG = useCallback(() => {
-		// This will be implemented when we add export functionality
-		console.log("Export PNG - to be implemented");
-	}, []);
+	const handleExportPNG = useCallback(() => {}, []);
 
 	// Handle export SVG
-	const handleExportSVG = useCallback(() => {
-		// This will be implemented when we add export functionality
-		console.log("Export SVG - to be implemented");
-	}, []);
+	const handleExportSVG = useCallback(() => {}, []);
 
 	// Handle reset view
-	const handleResetView = useCallback(() => {
-		// This will reset zoom/pan in Cytoscape
-		console.log("Reset view - to be implemented");
-	}, []);
+	const handleResetView = useCallback(() => {}, []);
 
 	const filteredCommunityGraphData = communityGraphData;
 

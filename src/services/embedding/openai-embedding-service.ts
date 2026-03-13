@@ -75,7 +75,6 @@ export class OpenAIEmbeddingService {
 
 			return embedding;
 		} catch (error) {
-			console.error("Error generating embeddings with OpenAI:", error);
 			if (
 				error instanceof EmbeddingGenerationError ||
 				error instanceof LLMProviderAPIKeyError
@@ -132,7 +131,6 @@ export class OpenAIEmbeddingService {
 
 			return embeddings;
 		} catch (error) {
-			console.error("Error generating embeddings with OpenAI:", error);
 			if (
 				error instanceof EmbeddingGenerationError ||
 				error instanceof LLMProviderAPIKeyError

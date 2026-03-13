@@ -207,12 +207,15 @@ export class DAOFactoryImpl implements DAOFactory {
 	}
 
 	async parallel<T>(operations: (() => Promise<T>)[]): Promise<T[]> {
-		try {
-			return await Promise.all(operations.map((op) => op()));
-		} catch (error) {
-			console.error("DAO parallel error:", error);
-			throw error;
-		}
+		const wrapped = operations.map(async (op) => {
+			try {
+				return await op();
+			} catch (error) {
+				console.error("DAO parallel error:", error);
+				throw error;
+			}
+		});
+		return await Promise.all(wrapped);
 	}
 
 	async batch(statements: D1PreparedStatement[]): Promise<D1Result[]> {

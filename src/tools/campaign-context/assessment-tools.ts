@@ -58,8 +58,7 @@ export async function assessCampaignReadinessTool(
 			campaignResources
 		);
 		return assessment;
-	} catch (error) {
-		console.error("Failed to assess campaign readiness:", error);
+	} catch (_error) {
 		throw new CampaignReadinessAnalysisError();
 	}
 }
@@ -79,8 +78,7 @@ export async function extractModuleFromPDFTool(
 			moduleName
 		);
 		return analysis;
-	} catch (error) {
-		console.error("Failed to extract module information:", error);
+	} catch (_error) {
 		throw new ModuleExtractionError();
 	}
 }
@@ -106,8 +104,7 @@ export async function integrateModuleIntoTool(
 				? "Module information successfully integrated into campaign context"
 				: "Failed to integrate module information",
 		};
-	} catch (error) {
-		console.error("Failed to integrate module:", error);
+	} catch (_error) {
 		return {
 			success: false,
 			message: "Failed to integrate module information",
@@ -150,8 +147,7 @@ export async function getCampaignReadinessScoreTool(
 			summary,
 			priorityAreas,
 		};
-	} catch (error) {
-		console.error("Failed to get campaign readiness assessment:", error);
+	} catch (_error) {
 		throw new Error("Failed to analyze campaign readiness");
 	}
 }
@@ -223,8 +219,7 @@ export async function getCampaignRecommendationsTool(
 			recommendations,
 			focusArea,
 		};
-	} catch (error) {
-		console.error("Failed to get campaign recommendations:", error);
+	} catch (_error) {
 		throw new RecommendationGenerationError();
 	}
 }
@@ -271,8 +266,7 @@ export async function analyzeCampaignDimensionTool(
 			details: { overallScore: score },
 			suggestions,
 		};
-	} catch (error) {
-		console.error("Failed to analyze campaign dimension:", error);
+	} catch (_error) {
 		throw new CampaignDimensionAnalysisError();
 	}
 }

@@ -13,7 +13,6 @@ import {
  */
 export async function handleTriggerRebuild(c: ContextWithAuth) {
 	try {
-		console.log("[GraphRebuild] Trigger rebuild endpoint called");
 		const auth = getUserAuth(c);
 		const campaignId = c.req.param("campaignId");
 
@@ -23,7 +22,6 @@ export async function handleTriggerRebuild(c: ContextWithAuth) {
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
-			console.log(`[GraphRebuild] Access denied for campaign: ${campaignId}`);
 			return c.json({ error: "Campaign not found" }, 404);
 		}
 
@@ -66,10 +64,6 @@ export async function handleTriggerRebuild(c: ContextWithAuth) {
 			},
 		});
 
-		console.log(
-			`[GraphRebuild] Rebuild ${rebuildId} enqueued for campaign: ${campaignId}`
-		);
-
 		return c.json({
 			rebuildId,
 			campaignId,
@@ -78,7 +72,6 @@ export async function handleTriggerRebuild(c: ContextWithAuth) {
 			message: `Rebuild ${rebuildId} has been queued for processing`,
 		});
 	} catch (error) {
-		console.error("[GraphRebuild] Failed to trigger rebuild:", error);
 		return c.json(
 			{ error: "Failed to trigger rebuild" },
 			error instanceof Error && /required|must/i.test(error.message) ? 400 : 500
@@ -119,8 +112,7 @@ export async function handleGetRebuildStatus(c: ContextWithAuth) {
 		}
 
 		return c.json({ rebuildStatus });
-	} catch (error) {
-		console.error("[GraphRebuild] Failed to get rebuild status:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get rebuild status" }, 500);
 	}
 }
@@ -166,8 +158,7 @@ export async function handleGetRebuildHistory(c: ContextWithAuth) {
 				total: rebuildHistory.length,
 			},
 		});
-	} catch (error) {
-		console.error("[GraphRebuild] Failed to get rebuild history:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get rebuild history" }, 500);
 	}
 }
@@ -219,17 +210,12 @@ export async function handleCancelRebuild(c: ContextWithAuth) {
 
 		await daoFactory.rebuildStatusDAO.cancelRebuild(rebuildId);
 
-		console.log(
-			`[GraphRebuild] Rebuild ${rebuildId} cancelled for campaign: ${campaignId}`
-		);
-
 		return c.json({
 			rebuildId,
 			status: "cancelled",
 			message: "Rebuild has been cancelled",
 		});
-	} catch (error) {
-		console.error("[GraphRebuild] Failed to cancel rebuild:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to cancel rebuild" }, 500);
 	}
 }
@@ -257,8 +243,7 @@ export async function handleGetActiveRebuilds(c: ContextWithAuth) {
 			await daoFactory.rebuildStatusDAO.getActiveRebuilds(campaignId);
 
 		return c.json({ rebuilds: activeRebuilds });
-	} catch (error) {
-		console.error("[GraphRebuild] Failed to get active rebuilds:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get active rebuilds" }, 500);
 	}
 }

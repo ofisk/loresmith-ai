@@ -89,6 +89,32 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": [
+				"src/lib/zod-utils.ts",
+				"src/lib/notifications.ts",
+				"src/lib/shard-generation-utils.ts",
+				"src/dao/file/file-dao.ts",
+				"src/dao/dao-factory.ts"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/components/shard/PropertyField.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noArrayIndexKey": "off"
+					}
+				}
+			}
 		}
 	]
 }

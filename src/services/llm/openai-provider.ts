@@ -95,7 +95,6 @@ export class OpenAIProvider implements LLMProvider {
 			}
 			return text;
 		} catch (error) {
-			console.error("[OpenAIProvider] Error generating summary:", error);
 			if (error instanceof LLMProviderAPIKeyError) {
 				throw error;
 			}
@@ -137,14 +136,6 @@ export class OpenAIProvider implements LLMProvider {
 				: `Respond with valid JSON only.\n\n${prompt}`;
 			const parsedSchema = parseStructuredSchema(options.schema);
 
-			// Reasoning models (gpt-5-mini, gpt-5.2, etc.) do not support temperature
-			console.log("[OpenAIProvider] Structured output request (AI SDK chat)", {
-				model: modelId,
-				maxTokens,
-				promptLength: finalPrompt.length,
-				hasSchema: Boolean(parsedSchema),
-			});
-
 			let result: Awaited<ReturnType<typeof generateText>>;
 			if (parsedSchema) {
 				try {
@@ -179,11 +170,7 @@ export class OpenAIProvider implements LLMProvider {
 						}),
 					};
 					result = await generateText(requestWithSchema);
-				} catch (schemaError) {
-					console.warn(
-						"[OpenAIProvider] Schema-structured output failed, falling back to json_object path:",
-						schemaError
-					);
+				} catch (_schemaError) {
 					const fallbackRequest: Parameters<typeof generateText>[0] = {
 						model,
 						prompt: finalPrompt,
@@ -238,16 +225,7 @@ export class OpenAIProvider implements LLMProvider {
 			return output as T;
 		} catch (error) {
 			if (APICallError.isInstance(error)) {
-				console.error(
-					"[OpenAIProvider] Structured output API error:",
-					error.statusCode,
-					error.responseBody ?? "(no body)"
-				);
 			} else {
-				console.error(
-					"[OpenAIProvider] Error generating structured output:",
-					error
-				);
 			}
 			if (error instanceof LLMProviderAPIKeyError) {
 				throw error;

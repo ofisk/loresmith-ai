@@ -21,7 +21,6 @@ export class SessionDigestDAO extends BaseDAOClass {
 		try {
 			digestDataJson = JSON.stringify(input.digestData);
 		} catch (error) {
-			console.error("[SessionDigestDAO] JSON serialization error:", error);
 			throw new Error(
 				`Failed to serialize digest data: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
@@ -44,32 +43,19 @@ export class SessionDigestDAO extends BaseDAOClass {
         updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
-
-		try {
-			await this.execute(sql, [
-				id,
-				input.campaignId,
-				input.sessionNumber,
-				input.sessionDate || null,
-				digestDataJson,
-				input.status || "draft",
-				input.qualityScore ?? null,
-				input.reviewNotes ?? null,
-				input.generatedByAi ? 1 : 0,
-				input.templateId ?? null,
-				input.sourceType || "manual",
-			]);
-		} catch (error) {
-			console.error("[SessionDigestDAO] Insert error:", {
-				id,
-				campaignId: input.campaignId,
-				sessionNumber: input.sessionNumber,
-				sessionDate: input.sessionDate,
-				digestDataSize: digestDataJson.length,
-				error: error instanceof Error ? error.message : String(error),
-			});
-			throw error;
-		}
+		await this.execute(sql, [
+			id,
+			input.campaignId,
+			input.sessionNumber,
+			input.sessionDate || null,
+			digestDataJson,
+			input.status || "draft",
+			input.qualityScore ?? null,
+			input.reviewNotes ?? null,
+			input.generatedByAi ? 1 : 0,
+			input.templateId ?? null,
+			input.sourceType || "manual",
+		]);
 	}
 
 	/**
@@ -426,12 +412,7 @@ export class SessionDigestDAO extends BaseDAOClass {
 				throw new Error("Invalid digest data structure");
 			}
 			digestData = parsed;
-		} catch (error) {
-			console.error(
-				"[SessionDigestDAO] Failed to parse digest_data:",
-				error,
-				record
-			);
+		} catch (_error) {
 			// Return empty structure if parsing fails
 			digestData = {
 				last_session_recap: {

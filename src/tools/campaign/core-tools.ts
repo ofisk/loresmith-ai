@@ -82,7 +82,6 @@ export const listCampaigns = tool({
 				);
 			}
 		} catch (error) {
-			console.error("Error listing campaigns:", error);
 			return createToolError(
 				`Failed to list campaigns: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -162,7 +161,6 @@ Your campaign is now ready and waiting for you to add resources, plan sessions, 
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error creating campaign:", error);
 			return createToolError(
 				`Failed to create campaign: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -231,7 +229,6 @@ export const showCampaignDetails = tool({
 					metadata?: string | null;
 				};
 			};
-			console.log("[showCampaignDetails] API data:", data);
 
 			const campaign = data.campaign;
 			const descriptionText = campaign.description
@@ -254,12 +251,7 @@ export const showCampaignDetails = tool({
 					if (metadataEntries) {
 						metadataText = `\n\nMetadata:\n${metadataEntries}`;
 					}
-				} catch (error) {
-					console.warn(
-						"[showCampaignDetails] Failed to parse metadata:",
-						error
-					);
-				}
+				} catch (_error) {}
 			}
 
 			return createToolSuccess(
@@ -268,7 +260,6 @@ export const showCampaignDetails = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error getting campaign details:", error);
 			return createToolError(
 				`Failed to get campaign details: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -302,14 +293,6 @@ export const updateCampaign = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, name, description, metadata, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[updateCampaign] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] updateCampaign received:", {
-			campaignId,
-			name,
-			description,
-			metadata,
-		});
 
 		try {
 			const updateBody: {
@@ -336,8 +319,6 @@ export const updateCampaign = tool({
 					toolCallId
 				);
 			}
-
-			console.log("[updateCampaign] Making API request");
 			const response = await authenticatedFetch(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DETAILS(campaignId)),
 				{
@@ -378,15 +359,12 @@ export const updateCampaign = tool({
 					description?: string;
 				};
 			};
-
-			console.log("[updateCampaign] Campaign updated successfully");
 			return createToolSuccess(
 				`Campaign "${data.campaign.name}" has been updated successfully.`,
 				{ campaign: data.campaign },
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error updating campaign:", error);
 			return createToolError(
 				`Failed to update campaign: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -412,12 +390,8 @@ export const deleteCampaign = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] deleteCampaign received:", { campaignId, jwt });
-		console.log("[Tool] deleteCampaign context:", options);
-		console.log("[deleteCampaign] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[deleteCampaign] Making API request");
 			const response = await authenticatedFetch(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.DELETE(campaignId)),
 				{
@@ -443,15 +417,12 @@ export const deleteCampaign = tool({
 					toolCallId
 				);
 			}
-
-			console.log("[deleteCampaign] Campaign deleted successfully");
 			return createToolSuccess(
 				`Campaign "${campaignId}" has been deleted successfully.`,
 				{ campaignId },
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error deleting campaign:", error);
 			return createToolError(
 				`Failed to delete campaign: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -475,13 +446,8 @@ export const deleteCampaigns = tool({
 	): Promise<ToolResult> => {
 		const { jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] deleteCampaigns received JWT:", jwt);
-		console.log("[Tool] deleteCampaigns context:", options);
-		console.log("[deleteCampaigns] Using JWT:", jwt);
-		console.log("[deleteCampaigns] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[deleteCampaigns] Making API request");
 			const response = await authenticatedFetch(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.BASE),
 				{
@@ -507,15 +473,12 @@ export const deleteCampaigns = tool({
 					toolCallId
 				);
 			}
-
-			console.log("[deleteCampaigns] All campaigns deleted successfully");
 			return createToolSuccess(
 				"All campaigns have been deleted successfully.",
 				{ deleted: true },
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error deleting campaigns:", error);
 			return createToolError(
 				`Failed to delete campaigns: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },

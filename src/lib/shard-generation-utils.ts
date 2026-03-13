@@ -107,15 +107,11 @@ export function validateSearchPath(searchPath: string): void {
 
 	// Warn about potential issues
 	if (searchPath.match(/^[a-f0-9-]{36}$/)) {
-		console.warn(
-			`[ShardGeneration] Search path looks like a UUID: "${searchPath}". This might indicate a field mapping issue.`
-		);
+		console.warn("Search path looks like a UUID");
 	}
 
 	if (!searchPath.includes("/")) {
-		console.warn(
-			`[ShardGeneration] Search path has no path separators: "${searchPath}". This might not match indexed content.`
-		);
+		console.warn("Search path has no path separators");
 	}
 }
 
@@ -145,13 +141,16 @@ export function logShardGenerationContext(
 	searchPath: string,
 	campaignId: string
 ): void {
-	console.log(`[ShardGeneration] Context:`, {
+	const pathMatches =
+		resource.file_key === searchPath ||
+		resource.file_key.startsWith(searchPath);
+	console.log("[ShardGeneration] Context:", {
 		resourceId: resource.id,
 		fileKey: resource.file_key,
 		fileName: resource.file_name,
 		searchPath,
 		campaignId,
-		pathMatches: resource.file_key === searchPath,
+		pathMatches,
 	});
 }
 

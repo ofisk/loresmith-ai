@@ -48,19 +48,11 @@ export function useFileUpload({
 				throw new Error("No username/tenant available for upload");
 			}
 
-			console.log("[useFileUpload] handleUpload called with:", {
-				filename,
-				fileSize: file.size,
-				fileType: file.type,
-			});
-
 			const uploadId = `${filename}`;
 			setCurrentUploadId(uploadId);
 
 			// Emit upload started event
 			const fileKey = buildStagingFileKey(tenant, filename);
-
-			console.log("[useFileUpload] Built fileKey:", fileKey);
 
 			send({
 				type: EVENT_TYPES.FILE_UPLOAD.STARTED,
@@ -74,16 +66,8 @@ export function useFileUpload({
 			onUploadStart?.();
 
 			try {
-				console.log("[useFileUpload] Starting upload process...");
-				console.log("[useFileUpload] JWT token: present");
-				console.log("[useFileUpload] Tenant:", tenant);
-				console.log("[useFileUpload] File size:", file.size, "bytes");
-
 				// Check if we should use large file upload (multipart)
 				const useLargeFileUpload = shouldUseLargeFileUpload(file.size);
-				console.log(
-					`[useFileUpload] Using ${useLargeFileUpload ? "multipart" : "direct"} upload`
-				);
 
 				if (useLargeFileUpload) {
 					// Use multipart upload for large files
@@ -113,18 +97,6 @@ export function useFileUpload({
 					const uploadUrl = API_CONFIG.buildUrl(
 						API_CONFIG.ENDPOINTS.UPLOAD.DIRECT(tenant, filename)
 					);
-
-					console.log("[useFileUpload] Upload request body:", {
-						tenant,
-						originalName: filename,
-						contentType: file.type || "application/pdf",
-						fileSize: file.size,
-						uploadUrl,
-						jwt: "present",
-					});
-
-					// Direct upload to R2 storage
-					console.log("[useFileUpload] Starting upload request to:", uploadUrl);
 					const uploadResponse = await authenticatedFetchWithExpiration(
 						uploadUrl,
 						{
@@ -136,12 +108,6 @@ export function useFileUpload({
 							},
 						}
 					);
-
-					console.log("[useFileUpload] Upload response:", {
-						status: uploadResponse.response.status,
-						ok: uploadResponse.response.ok,
-						jwtExpired: uploadResponse.jwtExpired,
-					});
 
 					if (uploadResponse.jwtExpired) {
 						throw new Error("Authentication expired. Please log in again.");
@@ -177,16 +143,6 @@ export function useFileUpload({
 						throw err;
 					}
 				}
-
-				// Emit upload completed event (file uploaded to R2, ready for indexing)
-				console.log("[useFileUpload] Emitting file upload completed event:", {
-					type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
-					fileKey,
-					filename,
-					progress: 40,
-					status: "uploaded",
-					source: "useFileUpload",
-				});
 				send({
 					type: EVENT_TYPES.FILE_UPLOAD.COMPLETED,
 					fileKey,
@@ -206,12 +162,6 @@ export function useFileUpload({
 				// Call success callback
 				onUploadSuccess?.(filename, fileKey);
 			} catch (error) {
-				console.error("[useFileUpload] Upload error:", error);
-				console.error("[useFileUpload] Error details:", {
-					message: error instanceof Error ? error.message : "Unknown error",
-					stack: error instanceof Error ? error.stack : undefined,
-				});
-
 				const isLimitExceeded = (
 					error as Error & { isUploadLimitExceeded?: boolean }
 				)?.isUploadLimitExceeded;

@@ -43,18 +43,9 @@ export const generateSessionHooks = tool({
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[generateSessionHooks] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] generateSessionHooks received:", {
-			campaignId,
-			hookType,
-			context: contextParam,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] generateSessionHooks - Environment found:", !!env);
-			console.log("[Tool] generateSessionHooks - JWT provided:", !!jwt);
 
 			if (env) {
 				const daoFactory = getDAOFactory(env as { DB: D1Database });
@@ -79,7 +70,6 @@ export const generateSessionHooks = tool({
 					return access;
 				}
 				const { userId } = access;
-				console.log("[Tool] generateSessionHooks - User ID extracted:", userId);
 
 				const gmError = await requireGMRole(
 					env as { DB: D1Database },
@@ -100,8 +90,6 @@ export const generateSessionHooks = tool({
 					characters,
 					resources
 				);
-
-				console.log("[Tool] Generated hooks:", hooks.length);
 
 				return createToolSuccess(
 					`Generated ${hooks.length} ${hookType} hooks`,
@@ -151,7 +139,6 @@ export const generateSessionHooks = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error generating session hooks:", error);
 			return createToolError(
 				"Failed to generate session hooks",
 				error instanceof Error ? error.message : String(error),

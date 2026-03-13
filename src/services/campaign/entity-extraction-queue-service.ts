@@ -125,17 +125,10 @@ export class EntityExtractionQueueService {
 			proposedBy
 		);
 
-		console.log(
-			`[EntityExtractionQueue] Queued entity extraction for resource ${resourceId} in campaign ${campaignId}`
-		);
-
 		// Trigger processing in the background (non-blocking)
-		EntityExtractionQueueService.processQueue(env, username).catch((error) => {
-			console.error(
-				`[EntityExtractionQueue] Failed to trigger queue processing:`,
-				error
-			);
-		});
+		EntityExtractionQueueService.processQueue(env, username).catch(
+			(_error) => {}
+		);
 	}
 
 	/**
@@ -157,9 +150,6 @@ export class EntityExtractionQueueService {
 				(item) => item.username === username
 			);
 			if (userStuckItems.length > 0) {
-				console.log(
-					`[EntityExtractionQueue] Found ${userStuckItems.length} stuck processing item(s) for user ${username}, resetting`
-				);
 				for (const item of userStuckItems) {
 					await queueDAO.resetStuckProcessingItem(
 						item.id,
@@ -177,10 +167,6 @@ export class EntityExtractionQueueService {
 		if (queueItems.length === 0) {
 			return { processed: 0, failed: 0 };
 		}
-
-		console.log(
-			`[EntityExtractionQueue] Processing ${queueItems.length} queued entity extraction job(s)`
-		);
 
 		let processed = 0;
 		let failed = 0;
@@ -286,9 +272,6 @@ export class EntityExtractionQueueService {
 							: item.last_error
 					);
 					processed++;
-					console.log(
-						`[EntityExtractionQueue] Checkpointed resource ${item.resource_id} at chunk ${nextChunk}/${totalChunks}; will resume next run`
-					);
 					continue;
 				}
 
@@ -299,18 +282,10 @@ export class EntityExtractionQueueService {
 				// No need to send duplicate notification here
 
 				processed++;
-				console.log(
-					`[EntityExtractionQueue] Successfully processed entity extraction for resource ${item.resource_id} (${result.entityCount} entities)`
-				);
 			} catch (error) {
 				failed++;
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
-
-				console.error(
-					`[EntityExtractionQueue] Failed to process entity extraction for resource ${item.resource_id}:`,
-					errorMessage
-				);
 
 				// Authentication errors should fail fast (do not retry).
 				if (isAuthenticationError(error)) {
@@ -318,9 +293,6 @@ export class EntityExtractionQueueService {
 						item.id,
 						`Authentication/configuration error: ${errorMessage}`,
 						"AUTHENTICATION_ERROR"
-					);
-					console.error(
-						`[EntityExtractionQueue] Failing fast for resource ${item.resource_id} due to authentication error (no retry)`
 					);
 				} else if (isRateLimitError(error)) {
 					const currentRetryCount = item.retry_count + 1;
@@ -331,9 +303,6 @@ export class EntityExtractionQueueService {
 							item.id,
 							`Rate limit exceeded after ${MAX_RETRIES} retries: ${errorMessage}`,
 							"RATE_LIMIT_EXCEEDED"
-						);
-						console.error(
-							`[EntityExtractionQueue] Max retries exceeded for resource ${item.resource_id}`
 						);
 					} else {
 						// Calculate backoff delay
@@ -351,10 +320,6 @@ export class EntityExtractionQueueService {
 							currentRetryCount,
 							nextRetryAt,
 							errorMessage
-						);
-
-						console.log(
-							`[EntityExtractionQueue] Rate limit detected for resource ${item.resource_id}, will retry in ${Math.round(backoffDelay / 1000)}s (attempt ${currentRetryCount}/${MAX_RETRIES})`
 						);
 					}
 				} else {
@@ -395,17 +360,6 @@ export class EntityExtractionQueueService {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
 			const MAX_JOBS_PER_SCHEDULED_RUN = 2;
-			const SCHEDULED_RUN_INTERVAL_MINUTES = 5;
-
-			const beforeMetrics = await queueDAO.getQueueMetrics();
-			const estimatedRuns = Math.ceil(
-				beforeMetrics.readyNow / MAX_JOBS_PER_SCHEDULED_RUN
-			);
-			const estimatedEtaMinutes =
-				estimatedRuns * SCHEDULED_RUN_INTERVAL_MINUTES;
-			console.log(
-				`[EntityExtractionQueue] Queue status before run: pending=${beforeMetrics.pending}, processing=${beforeMetrics.processing}, rateLimited=${beforeMetrics.rateLimited}, readyNow=${beforeMetrics.readyNow}, budget=${MAX_JOBS_PER_SCHEDULED_RUN}/run, estETA=${estimatedEtaMinutes}m`
-			);
 
 			// First, clean up stuck processing items
 			await EntityExtractionQueueService.cleanupStuckProcessingItems(env);
@@ -414,15 +368,8 @@ export class EntityExtractionQueueService {
 			const usernames = await queueDAO.getUsernamesWithPendingItems();
 
 			if (usernames.length === 0) {
-				console.log(
-					"[EntityExtractionQueue] No pending queue items to process"
-				);
 				return;
 			}
-
-			console.log(
-				`[EntityExtractionQueue] Processing queue for ${usernames.length} user(s) with pending items`
-			);
 
 			let totalProcessed = 0;
 			let totalFailed = 0;
@@ -442,35 +389,12 @@ export class EntityExtractionQueueService {
 					);
 					totalProcessed += result.processed;
 					totalFailed += result.failed;
-				} catch (error) {
-					console.error(
-						`[EntityExtractionQueue] Failed to process queue for user ${username}:`,
-						error
-					);
-				}
+				} catch (_error) {}
 			}
 
 			if (totalProcessed > 0 || totalFailed > 0) {
-				console.log(
-					`[EntityExtractionQueue] Completed processing: ${totalProcessed} processed, ${totalFailed} failed`
-				);
 			}
-
-			const afterMetrics = await queueDAO.getQueueMetrics();
-			const remainingRuns = Math.ceil(
-				afterMetrics.readyNow / MAX_JOBS_PER_SCHEDULED_RUN
-			);
-			const remainingEtaMinutes =
-				remainingRuns * SCHEDULED_RUN_INTERVAL_MINUTES;
-			console.log(
-				`[EntityExtractionQueue] Queue status after run: pending=${afterMetrics.pending}, processing=${afterMetrics.processing}, rateLimited=${afterMetrics.rateLimited}, readyNow=${afterMetrics.readyNow}, estETA=${remainingEtaMinutes}m`
-			);
-		} catch (error) {
-			console.error(
-				"[EntityExtractionQueue] Error processing pending queue items:",
-				error
-			);
-		}
+		} catch (_error) {}
 	}
 
 	/**
@@ -491,26 +415,14 @@ export class EntityExtractionQueueService {
 				return { reset: 0, items: [] };
 			}
 
-			console.log(
-				`[EntityExtractionQueue] Found ${stuckItems.length} stuck processing item(s), resetting to pending`
-			);
-
 			// Reset each stuck item back to pending
 			for (const item of stuckItems) {
 				const errorMessage = `Processing timeout - job stuck in processing status for more than ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}. Resetting to pending for retry.`;
 				await queueDAO.resetStuckProcessingItem(item.id, errorMessage);
-
-				console.log(
-					`[EntityExtractionQueue] Reset stuck processing item ${item.id} (resource ${item.resource_id}) back to pending`
-				);
 			}
 
 			return { reset: stuckItems.length, items: stuckItems };
-		} catch (error) {
-			console.error(
-				"[EntityExtractionQueue] Error cleaning up stuck processing items:",
-				error
-			);
+		} catch (_error) {
 			return { reset: 0, items: [] };
 		}
 	}

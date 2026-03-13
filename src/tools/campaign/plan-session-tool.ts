@@ -125,22 +125,9 @@ export const planSession = tool({
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[planSession] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] planSession received:", {
-			campaignId,
-			sessionTitle,
-			sessionType,
-			estimatedDuration,
-			focusAreas,
-			isOneOff,
-			encounterSpecProvided: !!encounterSpec,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] planSession - Environment found:", !!env);
-			console.log("[Tool] planSession - JWT provided:", !!jwt);
 
 			if (!env) {
 				const response = await authenticatedFetch(
@@ -202,8 +189,6 @@ export const planSession = tool({
 			}
 			const { userId, campaign } = access;
 
-			console.log("[Tool] planSession - User ID extracted:", userId);
-
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
 
@@ -227,8 +212,6 @@ export const planSession = tool({
 			}
 
 			const { planningContext } = await getPlanningServices(env);
-
-			console.log("[planSession] Gathering planning context...");
 
 			const recentDigestsRaw =
 				await daoFactory.sessionDigestDAO.getRecentSessionDigests(
@@ -363,8 +346,6 @@ export const planSession = tool({
 			const prompt =
 				SESSION_SCRIPT_PROMPTS.formatSessionScriptPrompt(scriptContext);
 
-			console.log("[planSession] Generating session script with LLM...");
-
 			const llmProvider = createLLMProvider({
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey: providerApiKey,
@@ -381,8 +362,6 @@ export const planSession = tool({
 			});
 
 			const gaps = analyzeGaps(sessionScript, filteredEntities);
-
-			console.log("[planSession] Session script generated, gaps:", gaps.length);
 
 			return createToolSuccess(
 				`Session script generated: ${sessionTitle}`,
@@ -403,7 +382,6 @@ export const planSession = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error planning session:", error);
 			return createToolError(
 				"Failed to plan session",
 				error instanceof Error ? error.message : String(error),

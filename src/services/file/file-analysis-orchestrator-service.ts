@@ -62,9 +62,6 @@ export class FileAnalysisOrchestrator {
 			// Get file metadata
 			const file = await this.fileDAO.getFileMetadata(fileKey);
 			if (!file) {
-				console.warn(
-					`[FileAnalysisOrchestrator] File ${fileKey} not found for user ${username}`
-				);
 				return { status: "failed", fileKey, error: "File not found" };
 			}
 
@@ -90,21 +87,12 @@ export class FileAnalysisOrchestrator {
 				...analysisResult,
 				analysis_status: "completed",
 			});
-
-			console.log(
-				`[FileAnalysisOrchestrator] Successfully analyzed file ${fileKey}`
-			);
 			return {
 				status: "completed",
 				fileKey,
 				analysis: analysisResult,
 			};
 		} catch (error) {
-			console.error(
-				`[FileAnalysisOrchestrator] Error analyzing file ${fileKey}:`,
-				error
-			);
-
 			// Update status to failed with error details
 			try {
 				await this.fileDAO.updateEnhancedMetadata(fileKey, username, {
@@ -112,12 +100,7 @@ export class FileAnalysisOrchestrator {
 					analysis_error:
 						error instanceof Error ? error.message : "Unknown error",
 				});
-			} catch (dbError) {
-				console.error(
-					`[FileAnalysisOrchestrator] Failed to update error status for ${fileKey}:`,
-					dbError
-				);
-			}
+			} catch (_dbError) {}
 
 			return {
 				status: "failed",
@@ -136,9 +119,6 @@ export class FileAnalysisOrchestrator {
 		username: string
 	): Promise<BatchAnalysisResult> {
 		if (!this.config.autoTriggerAnalysis) {
-			console.log(
-				`[FileAnalysisOrchestrator] Auto-analysis disabled for user ${username}`
-			);
 			return {
 				totalFiles: 0,
 				analyzedCount: 0,
@@ -148,9 +128,6 @@ export class FileAnalysisOrchestrator {
 		}
 
 		if (fileKeys.length === 0) {
-			console.log(
-				`[FileAnalysisOrchestrator] No file keys provided for analysis`
-			);
 			return {
 				totalFiles: 0,
 				analyzedCount: 0,
@@ -159,67 +136,51 @@ export class FileAnalysisOrchestrator {
 			};
 		}
 
-		try {
-			console.log(
-				`[FileAnalysisOrchestrator] Starting analysis for ${fileKeys.length} files for user ${username}`
+		let analyzedCount = 0;
+		let waitingCount = 0;
+		let errorCount = 0;
+
+		// Process files in batches to avoid overwhelming the system
+		for (let i = 0; i < fileKeys.length; i += this.config.batchSize) {
+			const batch = fileKeys.slice(i, i + this.config.batchSize);
+
+			const batchResults = await Promise.allSettled(
+				batch.map((fileKey) => this.analyzeFile(fileKey, username))
 			);
 
-			let analyzedCount = 0;
-			let waitingCount = 0;
-			let errorCount = 0;
-
-			// Process files in batches to avoid overwhelming the system
-			for (let i = 0; i < fileKeys.length; i += this.config.batchSize) {
-				const batch = fileKeys.slice(i, i + this.config.batchSize);
-
-				const batchResults = await Promise.allSettled(
-					batch.map((fileKey) => this.analyzeFile(fileKey, username))
-				);
-
-				// Count results
-				batchResults.forEach((result) => {
-					if (result.status === "fulfilled") {
-						switch (result.value.status) {
-							case "completed":
-								analyzedCount++;
-								break;
-							case "waiting_for_indexing":
-								waitingCount++;
-								break;
-							case "failed":
-								errorCount++;
-								break;
-						}
-					} else {
-						errorCount++;
+			// Count results
+			batchResults.forEach((result) => {
+				if (result.status === "fulfilled") {
+					switch (result.value.status) {
+						case "completed":
+							analyzedCount++;
+							break;
+						case "waiting_for_indexing":
+							waitingCount++;
+							break;
+						case "failed":
+							errorCount++;
+							break;
 					}
-				});
-
-				// Small delay between batches
-				if (i + this.config.batchSize < fileKeys.length) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, this.config.delayBetweenBatches)
-					);
+				} else {
+					errorCount++;
 				}
+			});
+
+			// Small delay between batches
+			if (i + this.config.batchSize < fileKeys.length) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, this.config.delayBetweenBatches)
+				);
 			}
-
-			console.log(
-				`[FileAnalysisOrchestrator] Analysis completed for user ${username}: ${analyzedCount} analyzed, ${waitingCount} waiting, ${errorCount} failed`
-			);
-
-			return {
-				totalFiles: fileKeys.length,
-				analyzedCount,
-				waitingCount,
-				errorCount,
-			};
-		} catch (error) {
-			console.error(
-				`[FileAnalysisOrchestrator] Error analyzing files for user ${username}:`,
-				error
-			);
-			throw error;
 		}
+
+		return {
+			totalFiles: fileKeys.length,
+			analyzedCount,
+			waitingCount,
+			errorCount,
+		};
 	}
 
 	/**
@@ -230,9 +191,6 @@ export class FileAnalysisOrchestrator {
 		username: string
 	): Promise<BatchAnalysisResult> {
 		if (!this.config.autoTriggerAnalysis) {
-			console.log(
-				`[FileAnalysisOrchestrator] Auto-analysis disabled for user ${username}`
-			);
 			return {
 				totalFiles: 0,
 				analyzedCount: 0,
@@ -241,46 +199,23 @@ export class FileAnalysisOrchestrator {
 			};
 		}
 
-		try {
-			console.log(
-				`[FileAnalysisOrchestrator] Starting analysis for indexed files for user ${username}`
-			);
+		// Get all files that are pending analysis
+		const pendingFiles = await this.fileDAO.getFilesPendingAnalysis(username);
 
-			// Get all files that are pending analysis
-			const pendingFiles = await this.fileDAO.getFilesPendingAnalysis(username);
-
-			if (pendingFiles.length === 0) {
-				console.log(
-					`[FileAnalysisOrchestrator] No files pending analysis for user ${username}`
-				);
-				return {
-					totalFiles: 0,
-					analyzedCount: 0,
-					waitingCount: 0,
-					errorCount: 0,
-				};
-			}
-
-			console.log(
-				`[FileAnalysisOrchestrator] Found ${pendingFiles.length} files pending analysis for user ${username}`
-			);
-
-			// Extract file keys and use the batch processor
-			const fileKeys = pendingFiles.map((file) => file.file_key);
-			const result = await this.analyzeFiles(fileKeys, username);
-
-			console.log(
-				`[FileAnalysisOrchestrator] Analysis completed for user ${username}: ${result.analyzedCount} analyzed, ${result.waitingCount} waiting, ${result.errorCount} failed`
-			);
-
-			return result;
-		} catch (error) {
-			console.error(
-				`[FileAnalysisOrchestrator] Error triggering analysis for user ${username}:`,
-				error
-			);
-			throw error;
+		if (pendingFiles.length === 0) {
+			return {
+				totalFiles: 0,
+				analyzedCount: 0,
+				waitingCount: 0,
+				errorCount: 0,
+			};
 		}
+
+		// Extract file keys and use the batch processor
+		const fileKeys = pendingFiles.map((file) => file.file_key);
+		const result = await this.analyzeFiles(fileKeys, username);
+
+		return result;
 	}
 
 	/**
@@ -294,47 +229,39 @@ export class FileAnalysisOrchestrator {
 		failed: number;
 		pending: number;
 	}> {
-		try {
-			const allFiles = await this.fileDAO.getFilesByUser(username);
+		const allFiles = await this.fileDAO.getFilesByUser(username);
 
-			const stats = {
-				total: allFiles.length,
-				completed: 0,
-				analyzing: 0,
-				waiting: 0,
-				failed: 0,
-				pending: 0,
-			};
+		const stats = {
+			total: allFiles.length,
+			completed: 0,
+			analyzing: 0,
+			waiting: 0,
+			failed: 0,
+			pending: 0,
+		};
 
-			allFiles.forEach((file) => {
-				const status = file.analysis_status || "pending";
-				switch (status) {
-					case "completed":
-						stats.completed++;
-						break;
-					case "analyzing":
-						stats.analyzing++;
-						break;
-					case "waiting_for_indexing":
-						stats.waiting++;
-						break;
-					case "failed":
-						stats.failed++;
-						break;
-					default:
-						stats.pending++;
-						break;
-				}
-			});
+		allFiles.forEach((file) => {
+			const status = file.analysis_status || "pending";
+			switch (status) {
+				case "completed":
+					stats.completed++;
+					break;
+				case "analyzing":
+					stats.analyzing++;
+					break;
+				case "waiting_for_indexing":
+					stats.waiting++;
+					break;
+				case "failed":
+					stats.failed++;
+					break;
+				default:
+					stats.pending++;
+					break;
+			}
+		});
 
-			return stats;
-		} catch (error) {
-			console.error(
-				`[FileAnalysisOrchestrator] Error getting analysis stats for user ${username}:`,
-				error
-			);
-			throw error;
-		}
+		return stats;
 	}
 
 	/**
@@ -346,46 +273,34 @@ export class FileAnalysisOrchestrator {
 		successCount: number;
 		errorCount: number;
 	}> {
-		try {
-			// Get files with failed analysis status
-			const allFiles = await this.fileDAO.getFilesByUser(username);
-			const failedFiles = allFiles.filter(
-				(file) => file.analysis_status === "failed"
-			);
+		// Get files with failed analysis status
+		const allFiles = await this.fileDAO.getFilesByUser(username);
+		const failedFiles = allFiles.filter(
+			(file) => file.analysis_status === "failed"
+		);
 
-			if (failedFiles.length === 0) {
-				return { retriedCount: 0, successCount: 0, errorCount: 0 };
-			}
-
-			console.log(
-				`[FileAnalysisOrchestrator] Retrying analysis for ${failedFiles.length} failed files for user ${username}`
-			);
-
-			// Reset status to pending for retry in parallel
-			await Promise.all(
-				failedFiles.map((file) =>
-					this.fileDAO.updateEnhancedMetadata(file.file_key, username, {
-						analysis_status: "pending",
-						analysis_error: undefined,
-					})
-				)
-			);
-
-			// Extract file keys and use the batch processing infrastructure
-			const fileKeys = failedFiles.map((file) => file.file_key);
-			const results = await this.analyzeFiles(fileKeys, username);
-
-			return {
-				retriedCount: failedFiles.length,
-				successCount: results.analyzedCount,
-				errorCount: results.errorCount,
-			};
-		} catch (error) {
-			console.error(
-				`[FileAnalysisOrchestrator] Error retrying failed analyses for user ${username}:`,
-				error
-			);
-			throw error;
+		if (failedFiles.length === 0) {
+			return { retriedCount: 0, successCount: 0, errorCount: 0 };
 		}
+
+		// Reset status to pending for retry in parallel
+		await Promise.all(
+			failedFiles.map((file) =>
+				this.fileDAO.updateEnhancedMetadata(file.file_key, username, {
+					analysis_status: "pending",
+					analysis_error: undefined,
+				})
+			)
+		);
+
+		// Extract file keys and use the batch processing infrastructure
+		const fileKeys = failedFiles.map((file) => file.file_key);
+		const results = await this.analyzeFiles(fileKeys, username);
+
+		return {
+			retriedCount: failedFiles.length,
+			successCount: results.analyzedCount,
+			errorCount: results.errorCount,
+		};
 	}
 }

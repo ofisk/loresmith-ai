@@ -33,7 +33,6 @@ export const checkPlanningReadiness = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[checkPlanningReadiness] Using toolCallId:", toolCallId);
 
 		try {
 			const env = getEnvFromContext(options);
@@ -219,7 +218,6 @@ export const checkPlanningReadiness = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error checking planning readiness:", error);
 			return createToolError(
 				"Failed to check planning readiness",
 				error instanceof Error ? error.message : String(error),

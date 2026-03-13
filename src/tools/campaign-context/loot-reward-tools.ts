@@ -133,9 +133,6 @@ async function generateStructuredWithFallback<T>({
 		if (!isNoOutputError(error)) {
 			throw error;
 		}
-		console.warn(
-			"[loot-reward-tools] Primary structured generation returned no output, retrying with compact fallback prompt"
-		);
 		try {
 			return await provider!.generateStructuredOutput<T>(fallbackPrompt, {
 				model: fallbackModel,
@@ -146,9 +143,6 @@ async function generateStructuredWithFallback<T>({
 			if (!isNoOutputError(fallbackError)) {
 				throw fallbackError;
 			}
-			console.warn(
-				"[loot-reward-tools] Structured fallback also returned no output, retrying via text generation with JSON extraction"
-			);
 			const textResponse = await provider!.generateSummary(
 				`${fallbackPrompt}\n\n${fallbackJsonHint}\nRespond with JSON only.`,
 				{
@@ -297,11 +291,6 @@ export const generateLootTool = tool({
 			});
 			const parsed = generatedLootSchema.safeParse(generated);
 			if (!parsed.success) {
-				console.error("[generateLootTool] Validation failed:", {
-					toolCallId,
-					rawOutput: JSON.stringify(generated).slice(0, 2000),
-					zodError: parsed.error.flatten(),
-				});
 				return createToolError(
 					"Failed to validate generated loot",
 					parsed.error.flatten(),
@@ -323,7 +312,6 @@ export const generateLootTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[generateLootTool] Error:", error);
 			return createToolError(
 				"Failed to generate loot",
 				error instanceof Error ? error.message : "Unknown error",
@@ -483,7 +471,6 @@ export const suggestMagicItemTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[suggestMagicItemTool] Error:", error);
 			return createToolError(
 				"Failed to suggest magic item",
 				error instanceof Error ? error.message : "Unknown error",
@@ -714,7 +701,6 @@ export const trackDistributedLootTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[trackDistributedLootTool] Error:", error);
 			return createToolError(
 				"Failed to track distributed loot",
 				error instanceof Error ? error.message : "Unknown error",

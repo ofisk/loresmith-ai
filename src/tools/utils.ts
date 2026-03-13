@@ -82,8 +82,7 @@ export async function getCampaignName(
 		);
 
 		return campaign?.name || null;
-	} catch (error) {
-		console.error("[getCampaignName] Error fetching campaign name:", error);
+	} catch (_error) {
 		return null;
 	}
 }

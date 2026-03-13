@@ -23,14 +23,6 @@ export class CloudflareEmbeddingService {
 				text: truncatedText,
 			});
 
-			console.log(
-				`[CloudflareEmbeddingService] Raw embedding response type:`,
-				typeof embeddingResponse,
-				Array.isArray(embeddingResponse)
-					? `array(length=${embeddingResponse.length})`
-					: "not array"
-			);
-
 			// Handle direct array response (most common case)
 			if (Array.isArray(embeddingResponse)) {
 				if (embeddingResponse.length === 0) {
@@ -49,9 +41,6 @@ export class CloudflareEmbeddingService {
 						`Invalid embedding dimensions: expected 768, got ${embeddingResponse.length}`
 					);
 				}
-				console.log(
-					`[CloudflareEmbeddingService] Got array embedding with ${embeddingResponse.length} dimensions`
-				);
 				return embeddingResponse;
 			}
 
@@ -63,18 +52,12 @@ export class CloudflareEmbeddingService {
 					Array.isArray((embeddingResponse as any).data)
 				) {
 					const data = (embeddingResponse as any).data;
-					console.log(
-						`[CloudflareEmbeddingService] Got data field: array with ${data.length} elements`
-					);
 
 					// BGE model returns data as number[][] - array of embedding arrays
 					// For single text input, we get one embedding array
 					if (data.length > 0) {
 						const firstEmbedding = data[0];
 						if (Array.isArray(firstEmbedding)) {
-							console.log(
-								`[CloudflareEmbeddingService] Extracted embedding array with ${firstEmbedding.length} dimensions from data[0]`
-							);
 							// Validate all elements are numbers
 							const isValid = firstEmbedding.every(
 								(v) => typeof v === "number" && Number.isFinite(v)
@@ -103,25 +86,14 @@ export class CloudflareEmbeddingService {
 					try {
 						const parsed = JSON.parse((embeddingResponse as any).response);
 						if (Array.isArray(parsed)) {
-							console.log(
-								`[CloudflareEmbeddingService] Got embedding from parsed response with ${parsed.length} dimensions`
-							);
 							return parsed;
 						}
-					} catch (parseError) {
-						console.warn(
-							"[CloudflareEmbeddingService] Failed to parse response string:",
-							parseError
-						);
-					}
+					} catch (_parseError) {}
 				}
 
 				// Try to find any array property in the response object
-				for (const [key, value] of Object.entries(embeddingResponse)) {
+				for (const [_key, value] of Object.entries(embeddingResponse)) {
 					if (Array.isArray(value) && value.length > 0) {
-						console.log(
-							`[CloudflareEmbeddingService] Found embedding array in key '${key}' with ${value.length} dimensions`
-						);
 						return value as number[];
 					}
 				}
@@ -132,22 +104,10 @@ export class CloudflareEmbeddingService {
 				try {
 					const parsed = JSON.parse(embeddingResponse);
 					if (Array.isArray(parsed)) {
-						console.log(
-							`[CloudflareEmbeddingService] Got embedding from parsed string with ${parsed.length} dimensions`
-						);
 						return parsed;
 					}
-				} catch (parseError) {
-					console.warn(
-						"[CloudflareEmbeddingService] Failed to parse string response:",
-						parseError
-					);
-				}
+				} catch (_parseError) {}
 			}
-			console.error(
-				`[CloudflareEmbeddingService] Unable to extract embedding from response:`,
-				JSON.stringify(embeddingResponse).substring(0, 500)
-			);
 			throw new InvalidEmbeddingResponseError(
 				"Could not extract embedding array from response"
 			);
@@ -155,10 +115,6 @@ export class CloudflareEmbeddingService {
 			if (error instanceof InvalidEmbeddingResponseError) {
 				throw error;
 			}
-			console.warn(
-				`[CloudflareEmbeddingService] AI embedding failed, using fallback:`,
-				error instanceof Error ? error.message : String(error)
-			);
 			return this.generateFallbackEmbedding(text);
 		}
 	}

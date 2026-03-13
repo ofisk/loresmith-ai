@@ -19,9 +19,7 @@ export async function handleProgressWebSocket(c: Context<{ Bindings: Env }>) {
 			if (data.type === "subscribe" && data.fileKey) {
 				subscribeToProgress(data.fileKey, server);
 			}
-		} catch (error) {
-			console.error("Error parsing WebSocket message:", error);
-		}
+		} catch (_error) {}
 	});
 
 	server.addEventListener("close", () => {

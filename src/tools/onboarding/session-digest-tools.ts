@@ -83,7 +83,6 @@ export const getRecentSessionDigestsTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getRecentSessionDigestsTool] Error:", error);
 			return createToolError(
 				"Failed to get recent session digests",
 				error instanceof Error ? error.message : "Unknown error",

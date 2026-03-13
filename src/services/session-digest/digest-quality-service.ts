@@ -94,12 +94,7 @@ export class DigestQualityService {
 				const combined = await this.checkSpecificityAndRelevance(digestData);
 				specificity = combined.specificity;
 				relevance = combined.relevance;
-			} catch (error) {
-				console.warn(
-					"[DigestQualityService] Failed to run combined specificity/relevance check:",
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		// Calculate overall score (weighted average)
@@ -297,11 +292,7 @@ Return:
 					issues: result.relevance?.issues || [],
 				},
 			};
-		} catch (error) {
-			console.warn(
-				"[DigestQualityService] Combined specificity/relevance check failed:",
-				error
-			);
+		} catch (_error) {
 			return {
 				specificity: { score: 10, issues: [] },
 				relevance: { score: 10, issues: [] },
@@ -357,11 +348,7 @@ Return:
 					campaignId
 				);
 				issues.push(...aiIssues);
-			} catch (error) {
-				console.warn(
-					"[DigestQualityService] Failed to check consistency with GraphRAG:",
-					error
-				);
+			} catch (_error) {
 				// Continue with basic checks if GraphRAG check fails
 			}
 		}
@@ -420,11 +407,7 @@ Return:
 				name: entity.name,
 				entityType: entity.entityType,
 			}));
-		} catch (error) {
-			console.warn(
-				"[DigestQualityService] Failed to extract entities using EntityExtractionService:",
-				error
-			);
+		} catch (_error) {
 			return [];
 		}
 
@@ -458,11 +441,7 @@ Return:
 		try {
 			queryEmbeddings =
 				await planningContextService.generateEmbeddings(entityQueries);
-		} catch (error) {
-			console.warn(
-				"[DigestQualityService] Failed to generate embeddings:",
-				error
-			);
+		} catch (_error) {
 			return [];
 		}
 
@@ -527,11 +506,7 @@ Return:
 					graphEntity: matchedEntity,
 					relationships,
 				});
-			} catch (error) {
-				console.warn(
-					`[DigestQualityService] Failed to query entity ${extractedEntity.name}:`,
-					error
-				);
+			} catch (_error) {
 				entityInfo.push({
 					extractedEntity,
 					graphEntity: null,
@@ -578,11 +553,7 @@ Return:
 			});
 
 			return result.issues || [];
-		} catch (error) {
-			console.warn(
-				"[DigestQualityService] Failed to check consistency with AI:",
-				error
-			);
+		} catch (_error) {
 			return [];
 		}
 	}

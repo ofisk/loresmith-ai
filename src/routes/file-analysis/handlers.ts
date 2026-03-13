@@ -42,7 +42,6 @@ export async function handleAnalyzeFile(c: Context<{ Bindings: Env }>) {
 			500
 		);
 	} catch (error) {
-		console.error(`[FileAnalysis] Error in analyze endpoint:`, error);
 		return c.json(
 			{
 				error: "Internal server error",
@@ -72,7 +71,6 @@ export async function handleGetStatus(c: Context<{ Bindings: Env }>) {
 			error: status.analysis_error,
 		});
 	} catch (error) {
-		console.error(`[FileAnalysis] Error in status endpoint:`, error);
 		return c.json(
 			{
 				error: "Internal server error",
@@ -99,7 +97,6 @@ export async function handleGetPending(c: Context<{ Bindings: Env }>) {
 			})),
 		});
 	} catch (error) {
-		console.error(`[FileAnalysis] Error in pending endpoint:`, error);
 		return c.json(
 			{
 				error: "Internal server error",
@@ -138,7 +135,6 @@ export async function handleGetRecommendations(c: Context<{ Bindings: Env }>) {
 			})),
 		});
 	} catch (error) {
-		console.error(`[FileAnalysis] Error in recommendations endpoint:`, error);
 		return c.json(
 			{
 				error: "Internal server error",
@@ -175,7 +171,6 @@ export async function handleAnalyzeAll(c: Context<{ Bindings: Env }>) {
 			files_waiting: results.waitingCount,
 		});
 	} catch (error) {
-		console.error(`[FileAnalysis] Error in batch analysis endpoint:`, error);
 		return c.json(
 			{
 				error: "Internal server error",

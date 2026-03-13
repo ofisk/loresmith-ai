@@ -206,7 +206,6 @@ export function CampaignDetailsModal({
 					setRetryingResourceId(null);
 				},
 				onError: (error: string) => {
-					console.error("Failed to retry entity extraction:", error);
 					// Show user-friendly error message (error parsing already handled in useAuthenticatedRequest)
 					alert(`Failed to retry entity extraction: ${error}`);
 					setRetryingResourceId(null);
@@ -258,7 +257,6 @@ export function CampaignDetailsModal({
 					}
 				},
 				onError: (error: string) => {
-					console.error("Failed to remove resource from campaign:", error);
 					alert(`Failed to remove resource: ${error}`);
 				},
 			}),
@@ -341,10 +339,6 @@ export function CampaignDetailsModal({
 						!error.includes("Failed to fetch") &&
 						!error.includes("ERR_INSUFFICIENT_RESOURCES")
 					) {
-						console.error(
-							`[CampaignDetailsModal] Error checking queue status:`,
-							error
-						);
 					}
 				},
 			}),
@@ -362,10 +356,6 @@ export function CampaignDetailsModal({
 
 			// Only handle events for this campaign
 			if (campaignId !== campaign.campaignId) return;
-
-			console.log(
-				`[CampaignDetailsModal] Entity extraction completed for resource ${resourceId}`
-			);
 
 			// Remove from processing set
 			if (resourceId) {
@@ -498,8 +488,7 @@ export function CampaignDetailsModal({
 				description: editedDescription,
 			});
 			setIsEditing(false);
-		} catch (error) {
-			console.error("Failed to update campaign:", error);
+		} catch (_error) {
 		} finally {
 			setIsUpdating(false);
 		}
@@ -545,9 +534,7 @@ export function CampaignDetailsModal({
 		}
 		try {
 			await deleteSessionDigest.execute(campaign.campaignId, digest.id);
-		} catch (error) {
-			console.error("Failed to delete session digest:", error);
-		}
+		} catch (_error) {}
 	};
 
 	const handleDigestSave = () => {
@@ -953,8 +940,7 @@ export function CampaignDetailsModal({
 												if (campaign?.campaignId) {
 													fetchCampaignResources.execute(campaign.campaignId);
 												}
-											} catch (error) {
-												console.error("Failed to add resources:", error);
+											} catch (_error) {
 											} finally {
 												setIsAddingResources(false);
 											}

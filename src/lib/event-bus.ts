@@ -126,13 +126,9 @@ class EventBus {
 			listeners.forEach((listener) => {
 				try {
 					listener(fullEvent);
-				} catch (error) {
-					console.error(`Error in event listener for ${event.type}:`, error);
-				}
+				} catch (_error) {}
 			});
 		}
-
-		console.log(`[EventBus] Emitted ${event.type}:`, fullEvent);
 	}
 
 	// Get recent events (useful for debugging)

@@ -90,11 +90,7 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 					return c.json({ error: validation.error }, 400);
 				}
 			}
-		} catch (validateErr) {
-			console.warn(
-				"[handleCreateResourceProposal] Content validation failed:",
-				validateErr
-			);
+		} catch (_validateErr) {
 			return c.json(
 				{
 					error:
@@ -157,7 +153,6 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error creating resource proposal:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -198,7 +193,6 @@ export async function handleListResourceProposals(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error listing resource proposals:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -316,12 +310,7 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				fileKey: proposal.file_key,
 				proposedBy: proposal.proposed_by,
 			});
-		} catch (queueError) {
-			console.warn(
-				"[handleApproveResourceProposal] Failed to queue extraction:",
-				queueError
-			);
-		}
+		} catch (_queueError) {}
 
 		return c.json({
 			success: true,
@@ -340,7 +329,6 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error approving resource proposal:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -389,11 +377,7 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 				return c.json({ error: validation.error }, 400);
 			}
 			bodyStream = validation.stream;
-		} catch (validateErr) {
-			console.warn(
-				"[handleDownloadFileFromProposal] Content validation failed:",
-				validateErr
-			);
+		} catch (_validateErr) {
 			return c.json(
 				{
 					error:
@@ -428,7 +412,6 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error downloading file from proposal:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -485,7 +468,6 @@ export async function handleRejectResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error rejecting resource proposal:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

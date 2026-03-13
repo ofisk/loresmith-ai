@@ -137,9 +137,6 @@ CONTENT END`;
 		});
 
 		if (!parsed) {
-			console.warn(
-				"[EntityExtractionService] No structured content returned from model"
-			);
 			return [];
 		}
 
@@ -179,9 +176,6 @@ CONTENT END`;
 
 				// Log warning if entity doesn't have a proper name field (shouldn't happen if LLM follows instructions)
 				if (!this.getFirstString(record, ["name", "title", "display_name"])) {
-					console.warn(
-						`[EntityExtractionService] Entity ${entityId} (type: ${type}) missing name/title/display_name field. Using fallback: ${name}`
-					);
 				}
 
 				const relations = Array.isArray(record.relations)
@@ -189,10 +183,6 @@ CONTENT END`;
 					: [];
 
 				if (relations.length > 0) {
-					console.log(
-						`[EntityExtractionService] Extracted ${relations.length} relationships for entity ${entityId} (${name}):`,
-						relations.map((r) => `${r.relationshipType} -> ${r.targetId}`)
-					);
 				}
 
 				results.push({
@@ -219,13 +209,6 @@ CONTENT END`;
 		const entitiesWithRelations = results.filter(
 			(e) => e.relations.length > 0
 		).length;
-		console.log(
-			`[EntityExtractionService] Extracted ${totalEntities} total entities (${entitiesWithRelations} with relationships) from ${options.sourceName}. Breakdown by type:`,
-			Object.entries(entityCountsByType)
-				.filter(([_, count]) => count > 0)
-				.map(([type, count]) => `${type}: ${count}`)
-				.join(", ")
-		);
 
 		// Record extraction metrics (fire and forget)
 		if (this.telemetryService) {
@@ -240,12 +223,7 @@ CONTENT END`;
 							sourceId: options.sourceId,
 						},
 					})
-					.catch((error) => {
-						console.error(
-							"[EntityExtraction] Failed to record extraction count:",
-							error
-						);
-					}),
+					.catch((_error) => {}),
 
 				// Record entities extracted
 				this.telemetryService
@@ -257,12 +235,7 @@ CONTENT END`;
 							entitiesWithRelations,
 						},
 					})
-					.catch((error) => {
-						console.error(
-							"[EntityExtraction] Failed to record entities extracted:",
-							error
-						);
-					}),
+					.catch((_error) => {}),
 
 				// Record relationship extraction count
 				this.telemetryService
@@ -273,12 +246,7 @@ CONTENT END`;
 							entitiesWithRelations,
 						},
 					})
-					.catch((error) => {
-						console.error(
-							"[EntityExtraction] Failed to record relationships:",
-							error
-						);
-					}),
+					.catch((_error) => {}),
 			];
 
 			await Promise.allSettled(telemetryPromises);
@@ -341,16 +309,8 @@ CONTENT END`;
 
 			// No output from model: return null so caller can treat as empty extraction
 			if (isNoOutput) {
-				console.warn(
-					"[EntityExtractionService] Model returned no structured output, treating as empty extraction"
-				);
 				return null;
 			}
-
-			console.error(
-				"[EntityExtractionService] Error calling structured extraction model:",
-				error
-			);
 			if (error instanceof EntityExtractionError) {
 				throw error;
 			}

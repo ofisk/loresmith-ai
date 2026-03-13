@@ -113,19 +113,11 @@ export class SemanticDuplicateDetectionService {
 							similar.entityId
 						);
 						if (entity) {
-							console.log(
-								`[SemanticDuplicateDetection] Semantic duplicate: "${normalizedName}" matches "${entity.name}" (${entity.id}) score ${similar.score.toFixed(3)}`
-							);
 							return entity;
 						}
 					}
 				}
-			} catch (error) {
-				console.warn(
-					"[SemanticDuplicateDetection] Semantic duplicate check failed, using lexical fallback:",
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		return daoFactory.entityDAO.findDuplicateByName(
@@ -151,7 +143,6 @@ export class SemanticDuplicateDetectionService {
 			threshold = 0.9,
 			env,
 			openaiApiKey,
-			context,
 		} = options;
 
 		try {
@@ -184,12 +175,6 @@ export class SemanticDuplicateDetectionService {
 						similar.entityId
 					);
 					if (duplicateEntity) {
-						const contextName = context?.name || context?.id || "content";
-						const contextId = context?.id || "unknown";
-						const contextType = context?.type || entityType || "entity";
-						console.log(
-							`[SemanticDuplicateDetection] ${contextType} "${contextName}" (${contextId}) is a semantic duplicate of "${duplicateEntity.name}" (${similar.entityId}) with score ${similar.score.toFixed(3)}, skipping`
-						);
 						return {
 							isDuplicate: true,
 							duplicateEntity: {
@@ -203,14 +188,8 @@ export class SemanticDuplicateDetectionService {
 			}
 
 			return { isDuplicate: false };
-		} catch (error) {
-			// If duplicate detection fails, log but return false (don't block creation)
-			const contextName = context?.name || context?.id || "content";
-			const contextId = context?.id || "unknown";
-			console.warn(
-				`[SemanticDuplicateDetection] Failed to check for semantic duplicates for ${contextName} (${contextId}):`,
-				error
-			);
+		} catch (_error) {
+			// If duplicate detection fails, return false (don't block creation)
 			return { isDuplicate: false };
 		}
 	}

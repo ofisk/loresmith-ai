@@ -50,14 +50,7 @@ export class LibraryContentSearchService {
 	 */
 	async searchContent(query: string): Promise<any[]> {
 		try {
-			console.log(
-				`[LibraryContentSearchService] Searching content with query: ${query}`
-			);
-
 			if (!this.env.AI) {
-				console.warn(
-					`[LibraryContentSearchService] No AI binding available for content generation`
-				);
 				return [];
 			}
 
@@ -103,18 +96,11 @@ export class LibraryContentSearchService {
 				const result = settled[i];
 				const contentType = CONTENT_TYPES[i];
 				if (result.status === "rejected") {
-					console.warn(
-						`[LibraryContentSearchService] Error querying ${contentType}:`,
-						result.reason
-					);
 					continue;
 				}
 				const { aiResponse } = result.value;
 
 				const responseText = (aiResponse as any).response as string;
-				console.log(
-					`[LibraryContentSearchService] ${contentType} response: ${responseText.substring(0, 200)}...`
-				);
 
 				const cleanResponse = this.cleanJsonResponse(responseText);
 
@@ -141,24 +127,11 @@ export class LibraryContentSearchService {
 								});
 							}
 						});
-						console.log(
-							`[LibraryContentSearchService] Extracted ${parsedContent[contentType].length} ${contentType}`
-						);
 					}
-				} catch (parseError) {
-					console.warn(
-						`[LibraryContentSearchService] Failed to parse ${contentType} response:`,
-						parseError
-					);
-				}
+				} catch (_parseError) {}
 			}
-
-			console.log(
-				`[LibraryContentSearchService] Generated ${allResults.length} total structured content items`
-			);
 			return allResults;
-		} catch (error) {
-			console.error(`[LibraryContentSearchService] Search error:`, error);
+		} catch (_error) {
 			return [];
 		}
 	}

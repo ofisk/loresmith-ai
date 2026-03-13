@@ -63,10 +63,6 @@ export async function extractPdfPagesRange(
 			);
 		}
 
-		console.log(
-			`[PDFUtils] Extracting pages ${actualStartPage}-${actualEndPage} of ${numPages}`
-		);
-
 		const pageTexts: string[] = [];
 
 		for (let pageNum = actualStartPage; pageNum <= actualEndPage; pageNum++) {

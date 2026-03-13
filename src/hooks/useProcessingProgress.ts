@@ -30,7 +30,6 @@ export function useProcessingProgress({
 		wsRef.current = ws;
 
 		ws.onopen = () => {
-			console.log("Progress WebSocket connected");
 			if (fileKey) {
 				ws.send(JSON.stringify({ type: "subscribe", fileKey }));
 			}
@@ -53,17 +52,12 @@ export function useProcessingProgress({
 						);
 					}
 				}
-			} catch (error) {
-				console.error("Error parsing progress message:", error);
-			}
+			} catch (_error) {}
 		};
 
-		ws.onerror = (error) => {
-			console.error("Progress WebSocket error:", error);
-		};
+		ws.onerror = (_error) => {};
 
 		ws.onclose = () => {
-			console.log("Progress WebSocket disconnected");
 			// Attempt to reconnect after a delay
 			setTimeout(() => {
 				if (isProcessing) {

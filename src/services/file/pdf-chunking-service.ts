@@ -101,11 +101,7 @@ export class PDFChunkingService {
 		if (buffer) {
 			try {
 				totalPages = await getPdfPageCount(buffer);
-			} catch (error) {
-				console.warn(
-					`[PDFChunkingService] Could not get page count from buffer, using size-based estimation:`,
-					error
-				);
+			} catch (_error) {
 				// Continue with size-based estimation if page count fails
 			}
 		}

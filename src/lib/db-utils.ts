@@ -23,7 +23,6 @@ export class DatabaseUtils {
 				.all();
 			return { results: results as T[], success: true };
 		} catch (error) {
-			console.error("[DatabaseUtils] Query execution failed:", error);
 			return {
 				results: [],
 				success: false,
@@ -46,7 +45,6 @@ export class DatabaseUtils {
 				.first();
 			return { result: result as T, success: true };
 		} catch (error) {
-			console.error("[DatabaseUtils] Single query execution failed:", error);
 			return {
 				result: null,
 				success: false,
@@ -72,7 +70,6 @@ export class DatabaseUtils {
 				affectedRows: result.meta?.changes || 0,
 			};
 		} catch (error) {
-			console.error("[DatabaseUtils] Mutation execution failed:", error);
 			return {
 				success: false,
 				error: error instanceof Error ? error.message : "Database error",
@@ -120,7 +117,6 @@ export class DatabaseUtils {
 
 			return { results, success: true };
 		} catch (error) {
-			console.error("[DatabaseUtils] Transaction failed:", error);
 			return {
 				results: [],
 				success: false,
@@ -294,7 +290,6 @@ export class DatabaseUtils {
 				operation: trackOperation ? ("insert" as const) : undefined,
 			};
 		} catch (error) {
-			console.error("Error in upsertRecord:", error);
 			return {
 				success: false,
 				error: error instanceof Error ? error.message : "Unknown error",

@@ -151,11 +151,7 @@ export class FileExtractionService {
 					visionText,
 				].join("\n"),
 			};
-		} catch (error) {
-			console.warn(
-				"[FileExtractionService] Image vision analysis failed:",
-				error
-			);
+		} catch (_error) {
 			return {
 				text: [
 					"Visual inspiration reference",
@@ -186,10 +182,6 @@ export class FileExtractionService {
 			}).promise;
 
 			const numPages = pdf.numPages;
-			const fileSizeMB = buffer.byteLength / (1024 * 1024);
-			console.log(
-				`[FileExtractionService] PDF has ${numPages} pages, file size: ${fileSizeMB.toFixed(2)}MB`
-			);
 
 			// Process all pages incrementally to avoid timeouts
 			// Extract pages in batches with small delays to yield CPU time
@@ -228,15 +220,8 @@ export class FileExtractionService {
 
 				// Log progress for large files
 				if (numPages > 100 && batchEnd % 100 === 0) {
-					console.log(
-						`[FileExtractionService] Extracted ${batchEnd}/${numPages} pages (${((batchEnd / numPages) * 100).toFixed(1)}%)`
-					);
 				}
 			}
-
-			console.log(
-				`[FileExtractionService] Successfully extracted all ${numPages} pages from PDF`
-			);
 
 			// Join all pages with page breaks for context
 			const fullText = pageTexts
@@ -267,15 +252,7 @@ export class FileExtractionService {
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
-			console.error(
-				`[FileExtractionService] PDF text extraction failed:`,
-				errorMessage
-			);
 			if (errorStack) {
-				console.error(
-					`[FileExtractionService] Extraction error stack:`,
-					errorStack
-				);
 			}
 			throw new PDFExtractionError(
 				`Failed to extract text from PDF: ${errorMessage}. The file may be corrupted, encrypted, or too large.`
@@ -304,15 +281,7 @@ export class FileExtractionService {
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
-			console.error(
-				`[FileExtractionService] DOCX text extraction failed:`,
-				errorMessage
-			);
 			if (errorStack) {
-				console.error(
-					`[FileExtractionService] Extraction error stack:`,
-					errorStack
-				);
 			}
 			throw new Error(
 				`Failed to extract text from DOCX: ${errorMessage}. The file may be corrupted, encrypted, or in an unsupported format.`
@@ -391,12 +360,7 @@ export class FileExtractionService {
 					reason: `File is ${fileSizeMB.toFixed(2)}MB with ${numPages} pages. Large PDFs require background processing to avoid timeout.`,
 				};
 			}
-		} catch (error) {
-			console.warn(
-				`[FileExtractionService] Could not check PDF page count, queueing based on file size:`,
-				error
-			);
-		}
+		} catch (_error) {}
 
 		return {
 			shouldQueue: true,

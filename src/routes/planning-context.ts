@@ -12,17 +12,12 @@ import type { PlanningContextSearchOptions } from "@/services/rag/planning-conte
 
 export async function handleSearchPlanningContext(c: ContextWithAuth) {
 	try {
-		console.log("[PlanningContext] Search endpoint called");
 		const auth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
-		console.log(`[PlanningContext] Searching campaign: ${campaignId}`);
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
-			console.log(
-				`[PlanningContext] Access denied for campaign: ${campaignId}`
-			);
 			return c.json({ error: "Campaign not found" }, 404);
 		}
 		await requireCanSeeSpoilers(c, campaignId);
@@ -38,13 +33,8 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
 		};
 
 		if (!body.query || typeof body.query !== "string") {
-			console.log("[PlanningContext] Invalid query parameter");
 			return c.json({ error: "query is required and must be a string" }, 400);
 		}
-
-		console.log(
-			`[PlanningContext] Starting search with query: "${body.query.substring(0, 100)}"`
-		);
 		const service = await getPlanningContextService(c);
 		const searchOptions: PlanningContextSearchOptions = {
 			campaignId,
@@ -61,13 +51,9 @@ export async function handleSearchPlanningContext(c: ContextWithAuth) {
 		};
 
 		const results = await service.search(searchOptions);
-		console.log(
-			`[PlanningContext] Search completed, returning ${results.length} results`
-		);
 
 		return c.json({ results });
 	} catch (error) {
-		console.error("[PlanningContext] Failed to search:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}
@@ -101,7 +87,6 @@ export async function handleGetRecentPlanningContext(c: ContextWithAuth) {
 
 		return c.json({ digests });
 	} catch (error) {
-		console.error("[PlanningContext] Failed to get recent digests:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}

@@ -167,12 +167,7 @@ async function notifyZeroEntitiesFound(
 			}),
 			[]
 		);
-	} catch (notifyError) {
-		console.error(
-			"[EntityStaging] Failed to send zero-entities notification:",
-			notifyError
-		);
-	}
+	} catch (_notifyError) {}
 }
 
 /**
@@ -213,9 +208,6 @@ export async function stageEntitiesFromResource(
 		});
 
 		if (!llmApiKey) {
-			console.warn(
-				`[EntityStaging] No ${MODEL_CONFIG.PROVIDER.DEFAULT} API key provided, skipping entity extraction for resource: ${resource.id}`
-			);
 			const normalizedResource = normalizeResourceForShardGeneration(resource);
 			await notifyZeroEntitiesFound(
 				env,
@@ -234,10 +226,6 @@ export async function stageEntitiesFromResource(
 
 		const normalizedResource = normalizeResourceForShardGeneration(resource);
 
-		console.log(
-			`[EntityStaging] Starting entity extraction for resource: ${normalizedResource.id}`
-		);
-
 		// Use content extraction provider (defaults to DirectFileContentExtractionProvider if not provided)
 		const provider =
 			contentExtractionProvider ||
@@ -248,10 +236,6 @@ export async function stageEntitiesFromResource(
 		});
 
 		if (!extractionResult.success || !extractionResult.content) {
-			console.warn(
-				`[EntityStaging] Content extraction failed for resource: ${normalizedResource.id}`,
-				extractionResult.error
-			);
 			await notifyZeroEntitiesFound(
 				env,
 				campaignId,
@@ -289,10 +273,6 @@ export async function stageEntitiesFromResource(
 			);
 
 			if (detectionService.isConfidentDetection(detectionResult)) {
-				console.log(
-					`[EntityStaging] Character sheet detected for resource: ${normalizedResource.id} (confidence: ${detectionResult.confidence}, character: ${detectionResult.characterName || "unknown"})`
-				);
-
 				// Parse the character sheet
 				const parserService = new CharacterSheetParserService(llmApiKey);
 				const characterData = await parserService.parseCharacterSheet(
@@ -320,9 +300,6 @@ export async function stageEntitiesFromResource(
 				let finalMetadata: Record<string, unknown>;
 
 				if (existingPC) {
-					console.log(
-						`[EntityStaging] PC with name "${characterName}" already exists (${existingPC.id}), updating instead of creating duplicate`
-					);
 					finalEntityId = existingPC.id;
 					finalMetadata = {
 						...((existingPC.metadata as Record<string, unknown>) || {}),
@@ -374,9 +351,6 @@ export async function stageEntitiesFromResource(
 						sourceId: normalizedResource.id,
 						confidence: detectionResult.confidence,
 					});
-					console.log(
-						`[EntityStaging] Created PC entity ${pcEntityId} (${characterName}) from character sheet`
-					);
 				}
 
 				// Return early with the character sheet PC entity to avoid redundant processing
@@ -395,26 +369,13 @@ export async function stageEntitiesFromResource(
 					],
 				};
 			} else {
-				console.log(
-					`[EntityStaging] Not a character sheet (confidence: ${detectionResult.confidence})`
-				);
 			}
-		} catch (error) {
-			// Log error but continue with normal entity extraction
-			console.error(
-				`[EntityStaging] Error detecting/parsing character sheet for resource ${normalizedResource.id}:`,
-				error
-			);
-			console.log(
-				`[EntityStaging] Continuing with normal entity extraction despite character sheet detection error`
-			);
-		}
+		} catch (_error) {}
 
 		// Chunk content conservatively for provider reliability.
 		// Anthropic structured extraction is far more stable with smaller chunks.
 		const MAX_CHUNK_SIZE =
 			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 12000 : 42464;
-		const CHARS_PER_TOKEN = 4;
 
 		const chunks =
 			fileContent.length > MAX_CHUNK_SIZE
@@ -436,10 +397,6 @@ export async function stageEntitiesFromResource(
 				globalIndex: startChunkIndex + localIndex,
 			}));
 		const hasMoreChunks = endChunkExclusive < chunks.length;
-
-		console.log(
-			`[EntityStaging] Processing ${chunksToProcess.length}/${chunks.length} chunk(s) for resource: ${normalizedResource.id} (start=${startChunkIndex + 1}, end=${endChunkExclusive}, max chunk size: ${MAX_CHUNK_SIZE} chars, ~${Math.floor(MAX_CHUNK_SIZE / CHARS_PER_TOKEN)} tokens)`
-		);
 
 		// Extract entities from each chunk and merge results
 		const extractionService = new EntityExtractionService(llmApiKey);
@@ -487,9 +444,6 @@ export async function stageEntitiesFromResource(
 				const backoffDelay = Math.min(
 					INITIAL_RETRY_DELAY_MS * 2 ** (retryCount - 1),
 					MAX_RETRY_DELAY_MS
-				);
-				console.log(
-					`[EntityStaging] Retrying chunk ${chunkNumber} (attempt ${retryCount + 1}/${MAX_CHUNK_RETRIES + 1}), waiting ${backoffDelay}ms`
 				);
 				await new Promise((resolve) => setTimeout(resolve, backoffDelay));
 			}
@@ -560,9 +514,6 @@ export async function stageEntitiesFromResource(
 				// Success - remove from retry tracking if it was a retry
 				if (isRetry) {
 					chunkRetryCounts.delete(chunkIndex);
-					console.log(
-						`[EntityStaging] Successfully retried chunk ${chunkNumber} after ${retryCount} failed attempts`
-					);
 				}
 				completedCount++;
 				await onChunkCheckpoint?.({
@@ -590,9 +541,6 @@ export async function stageEntitiesFromResource(
 
 				// No output from model: treat as empty chunk (0 entities), don't retry
 				if (isNoOutput) {
-					console.warn(
-						`[EntityStaging] Chunk ${chunkNumber} returned no structured output, treating as empty`
-					);
 					completedCount++;
 					await onChunkCheckpoint?.({
 						processedChunks: completedCount,
@@ -610,15 +558,7 @@ export async function stageEntitiesFromResource(
 				}
 
 				if (isRetry) {
-					console.error(
-						`[EntityStaging] Retry attempt ${retryCount + 1}/${MAX_CHUNK_RETRIES} failed for chunk ${chunkNumber}:`,
-						errorMessage
-					);
 				} else {
-					console.error(
-						`[EntityStaging] Error extracting entities from chunk ${chunkNumber}/${chunks.length} for resource ${normalizedResource.id}:`,
-						errorMessage
-					);
 				}
 
 				// Retry rate-limit errors with same payload; retry context-length errors with trimmed content.
@@ -627,9 +567,6 @@ export async function stageEntitiesFromResource(
 					// Increment retry count and schedule retry (same payload)
 					chunkRetryCounts.set(chunkIndex, retryCount + 1);
 					const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
-					console.log(
-						`[EntityStaging] Rate limit detected, waiting ${rateLimitWaitMs}ms before processing next chunk`
-					);
 					await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
 
 					return false; // Indicates failure but will be retried
@@ -646,20 +583,9 @@ export async function stageEntitiesFromResource(
 					if (trimmedContent.length >= 2000) {
 						chunkContentByRetry.set(chunkIndex, trimmedContent);
 						chunkRetryCounts.set(chunkIndex, retryCount + 1);
-						console.log(
-							`[EntityStaging] Context length error on chunk ${chunkNumber}, will retry with trimmed content (${trimmedContent.length} chars, was ${currentContent.length})`
-						);
 						return false; // Will be retried with trimmed content
 					}
-					// Trimmed content too short - give up
-					console.warn(
-						`[EntityStaging] Chunk ${chunkNumber} still exceeds context limit after trim (min 2000 chars); giving up`
-					);
 				}
-				// Max retries exceeded - mark as permanently failed
-				console.error(
-					`[EntityStaging] Chunk ${chunkNumber} failed after ${MAX_CHUNK_RETRIES} retry attempts, giving up`
-				);
 				failedChunks.push(chunkNumber);
 				completedCount++;
 				await onChunkCheckpoint?.({
@@ -732,21 +658,11 @@ export async function stageEntitiesFromResource(
 
 		// Log summary of chunk processing
 		if (failedChunks.length > 0) {
-			console.warn(
-				`[EntityStaging] Partial success: ${successfulChunks}/${chunks.length} chunks processed successfully. Failed chunks: ${failedChunks.join(", ")}`
-			);
 		}
 
 		const extractedEntities = Array.from(allExtractedEntities.values());
 
-		console.log(
-			`[EntityStaging] Extracted ${extractedEntities.length} total entities (after merging chunks) for resource: ${normalizedResource.id}`
-		);
-
 		if (extractedEntities.length === 0) {
-			console.log(
-				`[EntityStaging] No entities extracted from resource: ${normalizedResource.id}`
-			);
 			if (hasMoreChunks) {
 				return {
 					success: true,
@@ -784,10 +700,10 @@ export async function stageEntitiesFromResource(
 		// Store entities with staging status in metadata
 		const daoFactory = getDAOFactory(env);
 		const stagedEntities: EntityStagingResult["stagedEntities"] = [];
-		let skippedCount = 0;
-		let updatedCount = 0;
-		let createdCount = 0;
-		let duplicateCount = 0;
+		let _skippedCount = 0;
+		let _updatedCount = 0;
+		let _createdCount = 0;
+		let _duplicateCount = 0;
 
 		type RelationPayload = {
 			fromEntityId: string;
@@ -949,15 +865,9 @@ export async function stageEntitiesFromResource(
 						contentUnchanged(existing.content, mergedContent) &&
 						metaUnchanged(existingMetadata, mergedMeta)
 					) {
-						console.log(
-							`[EntityStaging] Entity ${entityId} (${extracted.name}) already approved and unchanged, skipping`
-						);
-						skippedCount++;
+						_skippedCount++;
 						continue;
 					}
-					console.log(
-						`[EntityStaging] Entity ${entityId} (${extracted.name}) approved but has new information, updating`
-					);
 				}
 				await daoFactory.entityDAO.updateEntity(entityId, {
 					name: normalizedName,
@@ -971,7 +881,7 @@ export async function stageEntitiesFromResource(
 					sourceType: "file_upload",
 					sourceId: normalizedResource.id,
 				});
-				updatedCount++;
+				_updatedCount++;
 				for (const rel of updatedRelations) {
 					relationPayloads.push({
 						fromEntityId: entityId,
@@ -1021,9 +931,6 @@ export async function stageEntitiesFromResource(
 						bestInRun.entityId
 					);
 					if (duplicateEntity) {
-						console.log(
-							`[EntityStaging] In-run semantic duplicate "${normalizedName}" matches "${duplicateEntity.name}" (${duplicateEntity.id}) score ${bestInRun.score.toFixed(3)}`
-						);
 					}
 				}
 			}
@@ -1064,15 +971,9 @@ export async function stageEntitiesFromResource(
 						contentUnchanged(duplicateEntity.content, mergedContent) &&
 						metaUnchanged(existingMetadata, mergedMeta)
 					) {
-						console.log(
-							`[EntityStaging] Duplicate "${extracted.name}" already approved and unchanged, skipping`
-						);
-						duplicateCount++;
+						_duplicateCount++;
 						continue;
 					}
-					console.log(
-						`[EntityStaging] Duplicate "${extracted.name}" approved but has new information, updating`
-					);
 				}
 				await daoFactory.entityDAO.updateEntity(duplicateEntity.id, {
 					name: normalizedName,
@@ -1086,7 +987,7 @@ export async function stageEntitiesFromResource(
 					sourceType: "file_upload",
 					sourceId: normalizedResource.id,
 				});
-				updatedCount++;
+				_updatedCount++;
 				for (const rel of updatedRelations) {
 					relationPayloads.push({
 						fromEntityId: duplicateEntity.id,
@@ -1134,7 +1035,7 @@ export async function stageEntitiesFromResource(
 				sourceType: "file_upload",
 				sourceId: normalizedResource.id,
 			});
-			createdCount++;
+			_createdCount++;
 			resolvedEntityIdByExtractedId.set(entityId, entityId);
 			for (const rel of updatedRelations) {
 				relationPayloads.push({
@@ -1192,12 +1093,7 @@ export async function stageEntitiesFromResource(
 					metadata: rel.metadata,
 					allowSelfRelation: false,
 				});
-			} catch (error) {
-				console.warn(
-					`[EntityStaging] Failed to create relationship ${rel.fromEntityId} -> ${rel.toEntityId}:`,
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		// Calculate importance for all entities in batch (including newly staged entities)
@@ -1211,30 +1107,14 @@ export async function stageEntitiesFromResource(
 					daoFactory.entityImportanceDAO
 				);
 
-				console.log(
-					`[EntityStaging] Calculating importance scores in batch for ${stagedEntities.length} newly staged entities`
-				);
-
 				// Batch calculate importance for all entities in the campaign
 				// This calculates PageRank and Betweenness Centrality once, then
 				// calculates hierarchy level for each entity
 				await importanceService.recalculateImportanceForCampaign(campaignId);
-
-				console.log(
-					`[EntityStaging] Batch importance calculation completed for campaign: ${campaignId}`
-				);
-			} catch (error) {
-				console.error(
-					`[EntityStaging] Failed to calculate importance in batch:`,
-					error
-				);
+			} catch (_error) {
 				// Continue even if importance calculation fails - entities are still staged
 			}
 		}
-
-		console.log(
-			`[EntityStaging] Staged ${stagedEntities.length} entities for resource: ${normalizedResource.id} (${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped - already approved, ${duplicateCount} skipped - semantic duplicates)`
-		);
 
 		// Notify all campaign members only when all chunks are complete.
 		if (!hasMoreChunks) {
@@ -1295,12 +1175,7 @@ export async function stageEntitiesFromResource(
 					}),
 					[]
 				);
-			} catch (notifyError) {
-				console.error(
-					"[EntityStaging] Failed to send notification:",
-					notifyError
-				);
-			}
+			} catch (_notifyError) {}
 		}
 
 		// Return success if we got any entities, even if some chunks failed
@@ -1320,7 +1195,6 @@ export async function stageEntitiesFromResource(
 				: {}),
 		};
 	} catch (error) {
-		console.error(`[EntityStaging] Error staging entities:`, error);
 		return {
 			success: false,
 			entityCount: 0,
