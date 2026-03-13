@@ -95,17 +95,20 @@
 			{
 				"queue": "upload-events-dev",
 				"max_batch_size": 1,
-				"max_retries": 5
+				"max_retries": 5,
+				"dead_letter_queue": "file-processing-dlq-dev"
 			},
 			{
 				"queue": "graph-rebuild-queue-dev",
 				"max_batch_size": 1,
-				"max_retries": 3
+				"max_retries": 3,
+				"dead_letter_queue": "graph-rebuild-dlq-dev"
 			},
 			{
 				"queue": "shard-embedding-queue-dev",
 				"max_batch_size": 10,
-				"max_retries": 3
+				"max_retries": 3,
+				"dead_letter_queue": "shard-embedding-dlq-dev"
 			}
 		]
 	},

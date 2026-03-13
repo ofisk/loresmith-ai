@@ -88,17 +88,20 @@
 			{
 				"queue": "upload-events",
 				"max_batch_size": 1,
-				"max_retries": 5
+				"max_retries": 5,
+				"dead_letter_queue": "file-processing-dlq"
 			},
 			{
 				"queue": "graph-rebuild-queue",
 				"max_batch_size": 1,
-				"max_retries": 3
+				"max_retries": 3,
+				"dead_letter_queue": "graph-rebuild-dlq"
 			},
 			{
 				"queue": "shard-embedding-queue",
 				"max_batch_size": 10,
-				"max_retries": 3
+				"max_retries": 3,
+				"dead_letter_queue": "shard-embedding-dlq"
 			}
 		]
 	},
@@ -143,6 +146,9 @@
 	],
 	"observability": {
 		"enabled": true
+	},
+	"placement": {
+		"mode": "smart"
 	},
 	"triggers": {
 		"crons": ["*/5 * * * *"]
