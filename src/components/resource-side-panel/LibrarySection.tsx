@@ -164,7 +164,7 @@ export function LibrarySection({
 		}
 
 		return [...queuedEntries, ...files];
-	}, [files, uploadQueue?.queue]);
+	}, [files, uploadQueue?.queue, authReady]);
 
 	return (
 		<CollapsibleCard

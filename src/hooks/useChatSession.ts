@@ -187,9 +187,15 @@ export function useChatSession(options: UseChatSessionOptions) {
 	const setShowAuthModal = modalState.setShowAuthModal;
 
 	const invisibleUserContentsRef = useRef<Set<string>>(new Set());
-	useEffect(() => {
-		invisibleUserContentsRef.current.add(CONTEXT_RECAP_PLACEHOLDER);
+	const [invisibleUserContentsVersion, setInvisibleUserContentsVersion] =
+		useState(0);
+	const addToInvisible = useCallback((text: string) => {
+		invisibleUserContentsRef.current.add(text);
+		setInvisibleUserContentsVersion((v) => v + 1);
 	}, []);
+	useEffect(() => {
+		addToInvisible(CONTEXT_RECAP_PLACEHOLDER);
+	}, [addToInvisible]);
 
 	const fetchChatHistoryPage = useCallback(
 		async (
@@ -508,7 +514,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 	const handleSuggestionSubmit = useCallback(
 		(suggestion: string) => {
 			const jwt = authState.getStoredJwt();
-			invisibleUserContentsRef.current.add(suggestion);
+			addToInvisible(suggestion);
 
 			append({
 				role: "user",
@@ -520,7 +526,13 @@ export function useChatSession(options: UseChatSessionOptions) {
 			setInput("");
 			scrollToBottom();
 		},
-		[authState.getStoredJwt, selectedCampaignId, append, scrollToBottom]
+		[
+			authState.getStoredJwt,
+			selectedCampaignId,
+			append,
+			scrollToBottom,
+			addToInvisible,
+		]
 	);
 
 	const handleHelpAction = useCallback(
@@ -544,7 +556,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 				const jwt = authState.getStoredJwt();
 				const helpPrompt =
 					"I need help with LoreSmith. Please act as a help agent: explain what you can help me with, give example questions I can ask, and share guidance on app functionality and best practices. Base your response on the product documentation and how the app is designed to be used.";
-				invisibleUserContentsRef.current.add(helpPrompt);
+				addToInvisible(helpPrompt);
 				append({
 					role: "user",
 					content: helpPrompt,
@@ -582,6 +594,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 			authState.getStoredJwt,
 			selectedCampaignId,
 			modalState.handleUsageLimitsOpen,
+			addToInvisible,
 		]
 	);
 
@@ -593,7 +606,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 
 			const recapMessage =
 				"I want to record a session recap. Can you guide me through creating a session digest?";
-			invisibleUserContentsRef.current.add(recapMessage);
+			addToInvisible(recapMessage);
 
 			await append({
 				id: generateId(),
@@ -605,7 +618,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 				},
 			});
 		} catch (_error) {}
-	}, [append, authState.getStoredJwt, selectedCampaignId]);
+	}, [append, authState.getStoredJwt, selectedCampaignId, addToInvisible]);
 
 	const handleNextStepsRequest = useCallback(async () => {
 		if (!selectedCampaignId) return;
@@ -619,7 +632,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 			const nextStepsMessage = isPlayerRole
 				? "What should I do next with my character and at the table?"
 				: "What should I do next for this campaign?";
-			invisibleUserContentsRef.current.add(nextStepsMessage);
+			addToInvisible(nextStepsMessage);
 
 			await append({
 				id: generateId(),
@@ -631,7 +644,13 @@ export function useChatSession(options: UseChatSessionOptions) {
 				},
 			});
 		} catch (_error) {}
-	}, [append, authState.getStoredJwt, selectedCampaignId, selectedCampaign]);
+	}, [
+		append,
+		authState.getStoredJwt,
+		selectedCampaignId,
+		selectedCampaign,
+		addToInvisible,
+	]);
 
 	const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
 		m.parts?.some(
@@ -729,6 +748,8 @@ export function useChatSession(options: UseChatSessionOptions) {
 		formatTime,
 		chatHistoryLoaded,
 		invisibleUserContentsRef,
+		invisibleUserContentsVersion,
+		addToInvisible,
 		append,
 	};
 }

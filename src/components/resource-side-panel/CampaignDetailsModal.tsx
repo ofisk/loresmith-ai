@@ -88,7 +88,6 @@ export function CampaignDetailsModal({
 	const [bulkImportData, setBulkImportData] =
 		useState<SessionDigestData | null>(null);
 	const [resources, setResources] = useState<CampaignResource[]>([]);
-	const [resourcesLoading, setResourcesLoading] = useState(false);
 	const [resourcesError, setResourcesError] = useState<string | null>(null);
 	const [retryingResourceId, setRetryingResourceId] = useState<string | null>(
 		null
@@ -166,12 +165,6 @@ export function CampaignDetailsModal({
 				},
 				onError: (error: string) => {
 					setResourcesError(error);
-				},
-				onStart: () => {
-					setResourcesLoading(true);
-				},
-				onFinish: () => {
-					setResourcesLoading(false);
 				},
 			}),
 			[]
@@ -690,7 +683,7 @@ export function CampaignDetailsModal({
 								)}
 								<CampaignResourcesTab
 									resources={resources}
-									loading={resourcesLoading}
+									loading={fetchCampaignResources.loading}
 									error={resourcesError}
 									expandedResources={expandedResources}
 									onExpandedChange={setExpandedResources}

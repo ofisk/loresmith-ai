@@ -94,19 +94,22 @@ export function AppModals({
 	}, [modalState.showAuthModal, authState.username]);
 
 	// Ensure modal shows on initial load if no JWT exists
+	const getStoredJwt = authState.getStoredJwt;
+	const showAuthModal = modalState.showAuthModal;
+	const setShowAuthModal = modalState.setShowAuthModal;
 	useEffect(() => {
 		const log = logger.scope("[AppModals]");
 		const checkInitialAuth = async () => {
-			const jwt = authState.getStoredJwt();
-			if (!jwt && !modalState.showAuthModal) {
+			const jwt = getStoredJwt();
+			if (!jwt && !showAuthModal) {
 				log.info("No JWT found on initial load, showing auth modal");
-				modalState.setShowAuthModal(true);
+				setShowAuthModal(true);
 			}
 		};
 		// Small delay to allow other hooks to initialize first
 		const timer = setTimeout(checkInitialAuth, 100);
 		return () => clearTimeout(timer);
-	}, [authState, modalState]);
+	}, [getStoredJwt, showAuthModal, setShowAuthModal]);
 
 	const handleCampaignDelete = useCallback(
 		async (campaignId: string) => {
@@ -163,6 +166,26 @@ export function AppModals({
 		},
 		[authState, modalState, refetchCampaigns, addLocalNotification]
 	);
+
+	const handleAddToCampaignConfirm = useCallback(async () => {
+		const file = modalState.selectedFile;
+		const campaignIds = [...(modalState.selectedCampaigns ?? [])];
+		modalState.setSelectedCampaigns([]);
+		modalState.handleAddToCampaignClose();
+		if (!file || campaignIds.length === 0) return;
+		await addFileToCampaigns(
+			file,
+			campaignIds,
+			authState.getStoredJwt,
+			addLocalNotification,
+			() => {}
+		);
+	}, [
+		modalState,
+		authState.getStoredJwt,
+		addLocalNotification,
+		addFileToCampaigns,
+	]);
 
 	const handleCampaignUpdate = useCallback(
 		async (campaignId: string, updates: Partial<Campaign>) => {
@@ -470,25 +493,7 @@ export function AppModals({
 								{availableCampaigns.length > 0 && (
 									<FormButton
 										variant="primary"
-										onClick={async () => {
-											// Close modal and clear selections immediately
-											modalState.setSelectedCampaigns([]);
-											modalState.handleAddToCampaignClose();
-
-											// Use the extracted campaign addition logic
-											if (!modalState.selectedFile) {
-												return;
-											}
-											await addFileToCampaigns(
-												modalState.selectedFile,
-												modalState.selectedCampaigns,
-												authState.getStoredJwt,
-												addLocalNotification,
-												() => {
-													// Success callback - modal is already closed
-												}
-											);
-										}}
+										onClick={handleAddToCampaignConfirm}
 									>
 										{availableCampaigns.length === 0 ? "Close" : "Add"}
 									</FormButton>

@@ -1,5 +1,5 @@
 import { CaretDown, CreditCard, SignOut } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAppShellContextOptional } from "@/contexts/AppShellContext";
 import { useCampaignManagement } from "@/hooks/useCampaignManagement";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
@@ -82,6 +82,14 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 	const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 	const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
 
+	const handleCampaignsToggle = useCallback(() => {
+		setIsCampaignsOpen((prev) => !prev);
+	}, []);
+	const handleLibraryToggle = useCallback(() => {
+		setIsLibraryOpen((prev) => !prev);
+	}, []);
+	const noop = useCallback(() => {}, []);
+
 	const {
 		campaigns: managedCampaigns,
 		campaignsLoading,
@@ -125,10 +133,10 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							campaigns={managedCampaigns}
 							campaignsLoading={campaignsLoading}
 							campaignsError={campaignsError}
-							onToggle={() => setIsCampaignsOpen(!isCampaignsOpen)}
+							onToggle={handleCampaignsToggle}
 							isOpen={isCampaignsOpen}
-							onCreateCampaign={onCreateCampaign || (() => {})}
-							onCampaignClick={onCampaignClick || (() => {})}
+							onCreateCampaign={onCreateCampaign ?? noop}
+							onCampaignClick={onCampaignClick ?? noop}
 						/>
 					</div>
 
@@ -136,10 +144,10 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 					<div className="flex-shrink-0">
 						<LibrarySection
 							isOpen={isLibraryOpen}
-							onToggle={() => setIsLibraryOpen(!isLibraryOpen)}
-							onAddToLibrary={onAddResource || (() => {})}
-							onAddToCampaign={onAddToCampaign || (() => {})}
-							onEditFile={onEditFile || (() => {})}
+							onToggle={handleLibraryToggle}
+							onAddToLibrary={onAddResource ?? noop}
+							onAddToCampaign={onAddToCampaign ?? noop}
+							onEditFile={onEditFile ?? noop}
 							campaigns={campaigns}
 							campaignAdditionProgress={campaignAdditionProgress}
 							isAddingToCampaigns={isAddingToCampaigns}
