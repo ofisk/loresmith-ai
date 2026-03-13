@@ -50,7 +50,6 @@ export abstract class BaseRAGService {
 			});
 			return await embeddingProvider.generateEmbeddings(texts);
 		} catch (error) {
-			console.error("Error generating embeddings:", error);
 			if (
 				error instanceof EmbeddingGenerationError ||
 				error instanceof LLMProviderAPIKeyError
@@ -128,18 +127,8 @@ export abstract class BaseRAGService {
 				const fileDAO = getDAOFactory(this.env).fileDAO;
 				await fileDAO.updateFileRecord(identifier, status);
 			} else {
-				// Fallback to logging if no database access
-				console.log(
-					`[BaseRAGService] Status update for ${identifier}: ${status}`
-				);
 			}
-		} catch (error) {
-			console.error(`[BaseRAGService] Error updating status:`, error);
-			// Fallback to logging on error
-			console.log(
-				`[BaseRAGService] Status update for ${identifier}: ${status}`
-			);
-		}
+		} catch (_error) {}
 	}
 
 	/**
@@ -199,7 +188,6 @@ export abstract class BaseRAGService {
 		message: string,
 		error?: any
 	): { error: string; details?: any } {
-		console.error(`RAG Service Error: ${message}`, error);
 		return {
 			error: message,
 			details: error instanceof Error ? error.message : error,
@@ -209,7 +197,5 @@ export abstract class BaseRAGService {
 	/**
 	 * Log operation for debugging
 	 */
-	protected logOperation(operation: string, details?: any): void {
-		console.log(`[BaseRAGService] ${operation}`, details);
-	}
+	protected logOperation(_operation: string, _details?: any): void {}
 }

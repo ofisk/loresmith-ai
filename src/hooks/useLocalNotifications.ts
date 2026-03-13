@@ -22,16 +22,8 @@ export function useLocalNotifications() {
 				timestamp: Date.now(),
 				data: {},
 			};
-			console.log(
-				"[useLocalNotifications] Adding local notification:",
-				notification
-			);
 			setLocalNotifications((prev) => {
 				const newNotifications = [...prev, notification];
-				console.log(
-					"[useLocalNotifications] Local notifications after add:",
-					newNotifications
-				);
 				return newNotifications;
 			});
 		},

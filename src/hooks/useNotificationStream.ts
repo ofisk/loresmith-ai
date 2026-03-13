@@ -61,22 +61,12 @@ export function useNotificationStream(
 			const elapsed = now - lastFailureTime.current;
 			if (elapsed < circuitBreakerTimeout) {
 				const retryIn = circuitBreakerTimeout - elapsed;
-				console.log(
-					"[useNotificationStream] Circuit breaker active, scheduling retry in",
-					retryIn,
-					"ms"
-				);
 				if (reconnectTimeoutRef.current)
 					clearTimeout(reconnectTimeoutRef.current);
 				reconnectTimeoutRef.current = setTimeout(() => {
 					reconnectTimeoutRef.current = null;
 					if (isMountedRef.current && !isConnectingRef.current) {
-						connect(false).catch((err) => {
-							console.error(
-								"[useNotificationStream] Retry after circuit breaker failed:",
-								err
-							);
-						});
+						connect(false).catch((_err) => {});
 					}
 				}, retryIn);
 				return;
@@ -152,11 +142,6 @@ export function useNotificationStream(
 
 			if (!mintResponse.ok) {
 				const errorText = await mintResponse.text();
-				console.error(
-					"[useNotificationStream] Mint failed:",
-					mintResponse.status,
-					errorText
-				);
 
 				// If 401, the JWT is invalid/expired - clear it and show auth error
 				if (mintResponse.status === 401) {
@@ -186,31 +171,9 @@ export function useNotificationStream(
 				throw new Error("No stream URL returned from server");
 			}
 
-			console.log(
-				"[useNotificationStream] Minted token, streamUrl:",
-				`${streamUrl.substring(0, 100)}...`
-			);
-
 			// Create EventSource with the short-lived stream URL
 			let eventSource: EventSource;
-			try {
-				console.log(
-					"[useNotificationStream] Creating EventSource with URL:",
-					`${streamUrl.substring(0, 100)}...`
-				);
-				eventSource = new EventSource(streamUrl);
-				console.log(
-					"[useNotificationStream] EventSource created, readyState:",
-					eventSource.readyState,
-					"(0=CONNECTING, 1=OPEN, 2=CLOSED)"
-				);
-			} catch (error) {
-				console.error(
-					"[useNotificationStream] Error creating EventSource:",
-					error
-				);
-				throw error;
-			}
+			eventSource = new EventSource(streamUrl);
 
 			eventSourceRef.current = eventSource;
 
@@ -242,12 +205,7 @@ export function useNotificationStream(
 						eventSource.close();
 						setTimeout(() => {
 							isConnectingRef.current = false;
-							connect().catch((error) => {
-								console.error(
-									"[useNotificationStream] Reconnection after DO reset failed:",
-									error
-								);
-							});
+							connect().catch((_error) => {});
 						}, 100);
 						return;
 					}
@@ -267,14 +225,7 @@ export function useNotificationStream(
 						notifications: [notification, ...prev.notifications].slice(0, 50),
 					}));
 					optsRef.current.onNotification?.(notification);
-				} catch (error) {
-					console.error(
-						"[useNotificationStream] Failed to parse notification:",
-						error,
-						"Raw data:",
-						event.data
-					);
-				}
+				} catch (_error) {}
 			};
 
 			// Fallback: if onopen doesn't fire (browser quirk), mark connected when ready
@@ -286,8 +237,7 @@ export function useNotificationStream(
 			}, 1000);
 
 			// Handle connection errors
-			eventSource.onerror = (error) => {
-				console.error("[useNotificationStream] ❌ Connection error:", error);
+			eventSource.onerror = (_error) => {
 				lastFailureTime.current = Date.now(); // Record failure time for circuit breaker
 
 				// If CLOSED, allow immediate reconnection without clearing main auth JWT
@@ -320,18 +270,10 @@ export function useNotificationStream(
 					reconnectTimeoutRef.current = setTimeout(() => {
 						if (isMountedRef.current) {
 							isConnectingRef.current = false;
-							connect().catch((error) => {
-								console.error(
-									"[useNotificationStream] Reconnection failed:",
-									error
-								);
-							});
+							connect().catch((_error) => {});
 						}
 					}, delay);
 				} else {
-					console.error(
-						"[useNotificationStream] Max reconnection attempts reached or component unmounted"
-					);
 					if (isMountedRef.current) {
 						setState((prev) => ({
 							...prev,
@@ -342,11 +284,7 @@ export function useNotificationStream(
 					isConnectingRef.current = false;
 				}
 			};
-		} catch (error) {
-			console.error(
-				"[useNotificationStream] Failed to create EventSource:",
-				error
-			);
+		} catch (_error) {
 			lastFailureTime.current = Date.now(); // Record failure time for circuit breaker
 			setState((prev) => ({
 				...prev,
@@ -398,12 +336,7 @@ export function useNotificationStream(
 			reconnectAttempts.current = 0;
 			// Trigger reconnection, bypassing circuit breaker
 			if (!isConnectingRef.current && !state.isConnected) {
-				connect(true).catch((error) => {
-					console.error(
-						"[useNotificationStream] Reconnection after auth failed:",
-						error
-					);
-				});
+				connect(true).catch((_error) => {});
 			}
 		}
 	}, [options.reconnectTrigger, connect, state.isConnected]);
@@ -422,12 +355,7 @@ export function useNotificationStream(
 						lastFailureTime.current = 0;
 						reconnectAttempts.current = 0;
 						if (!isConnectingRef.current) {
-							connect(true).catch((error) => {
-								console.error(
-									"[useNotificationStream] Reconnection after visibility change failed:",
-									error
-								);
-							});
+							connect(true).catch((_error) => {});
 						}
 					}
 				}
@@ -447,9 +375,6 @@ export function useNotificationStream(
 		// Skip connection if explicitly disabled
 		const enabled = optsRef.current.enabled !== false;
 		if (!enabled) {
-			console.log(
-				"[useNotificationStream] Stream disabled, skipping connection"
-			);
 			return;
 		}
 
@@ -457,8 +382,7 @@ export function useNotificationStream(
 			try {
 				await connect();
 				hasConnectedRef.current = true;
-			} catch (error) {
-				console.error("[useNotificationStream] Failed to connect:", error);
+			} catch (_error) {
 				if (isMountedRef.current) {
 					setState((prev) => ({
 						...prev,

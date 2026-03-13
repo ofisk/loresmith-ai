@@ -36,18 +36,9 @@ export const uploadCharacterSheet = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, fileName, fileContent, characterName, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[uploadCharacterSheet] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] uploadCharacterSheet received:", {
-			campaignId,
-			fileName,
-			characterName,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] uploadCharacterSheet - Environment found:", !!env);
-			console.log("[Tool] uploadCharacterSheet - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env?.DB) {
@@ -72,8 +63,6 @@ export const uploadCharacterSheet = tool({
 					}
 					return access;
 				}
-				const { userId } = access;
-				console.log("[Tool] uploadCharacterSheet - User ID extracted:", userId);
 
 				const characterId = crypto.randomUUID();
 				const now = new Date().toISOString();
@@ -90,8 +79,6 @@ export const uploadCharacterSheet = tool({
 					updatedAt: now,
 				});
 				await daoFactory.campaignDAO.touchUpdatedAt(campaignId);
-
-				console.log("[Tool] Uploaded character sheet:", characterId);
 
 				return createToolSuccess(
 					`Successfully uploaded character sheet: ${fileName}`,
@@ -141,7 +128,6 @@ export const uploadCharacterSheet = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error uploading character sheet:", error);
 			return createToolError(
 				"Failed to upload character sheet",
 				error,
@@ -169,24 +155,13 @@ export const processCharacterSheet = tool({
 	): Promise<ToolResult> => {
 		const { characterSheetId, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[processCharacterSheet] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] processCharacterSheet received:", {
-			characterSheetId,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] processCharacterSheet - Environment found:", !!env);
-			console.log("[Tool] processCharacterSheet - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env?.DB) {
 				const userId = extractUsernameFromJwt(jwt);
-				console.log(
-					"[Tool] processCharacterSheet - User ID extracted:",
-					userId
-				);
 
 				if (!userId) {
 					return createToolError(
@@ -221,8 +196,6 @@ export const processCharacterSheet = tool({
 					now,
 					now
 				);
-
-				console.log("[Tool] Processed character sheet:", characterSheetId);
 
 				return createToolSuccess(
 					`Successfully processed character sheet: ${characterSheet.character_name}`,
@@ -267,7 +240,6 @@ export const processCharacterSheet = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error processing character sheet:", error);
 			return createToolError(
 				"Failed to process character sheet",
 				error,

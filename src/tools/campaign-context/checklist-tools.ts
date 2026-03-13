@@ -139,7 +139,6 @@ export const getChecklistStatusTool = tool({
 				},
 			});
 		} catch (error) {
-			console.error("[getChecklistStatusTool] Error:", error);
 			return createToolError(
 				"Failed to get checklist status",
 				error instanceof Error ? error.message : String(error),

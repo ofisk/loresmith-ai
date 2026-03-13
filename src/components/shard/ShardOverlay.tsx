@@ -31,14 +31,7 @@ export const ShardOverlay = ({
 	);
 
 	// Debug logging
-	useEffect(() => {
-		console.log("ShardOverlay received shards:", {
-			shardsCount: shards.length,
-			totalShards,
-			shards: shards,
-			isLoading,
-		});
-	}, [shards, totalShards, isLoading]);
+	useEffect(() => {}, []);
 
 	// Show loading state in button when fetching shards
 	const displayCount = isLoading ? "..." : totalShards;

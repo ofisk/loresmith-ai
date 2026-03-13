@@ -60,7 +60,6 @@ export function StorageTracker() {
 				throw new Error("Invalid response format");
 			}
 		} catch (err) {
-			console.error("Failed to fetch storage usage:", err);
 			setError(
 				err instanceof Error ? err.message : "Failed to fetch storage usage"
 			);

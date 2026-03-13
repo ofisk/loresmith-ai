@@ -25,16 +25,10 @@ export class ShardEmbeddingQueueProcessor {
 		const openaiApiKey = openaiApiKeyRaw?.trim() || undefined;
 
 		if (!vectorize) {
-			console.warn(
-				"[ShardEmbeddingQueue] VECTORIZE not configured, skipping embedding"
-			);
 			return;
 		}
 
 		if (!openaiApiKey) {
-			console.warn(
-				"[ShardEmbeddingQueue] OPENAI_API_KEY not configured, skipping embedding"
-			);
 			return;
 		}
 
@@ -95,10 +89,6 @@ export class ShardEmbeddingQueueProcessor {
 						metadata: (entity.metadata as Record<string, unknown>) || {},
 					}))
 				);
-
-				console.log(
-					`[ShardEmbeddingQueue] Indexed embeddings for ${chunk.length} entities (batch ${Math.floor(i / EMBEDDING_BATCH_SIZE) + 1})`
-				);
 			}
 		}
 
@@ -134,9 +124,6 @@ export class ShardEmbeddingQueueProcessor {
 				.filter((x): x is NonNullable<typeof x> => x !== null);
 			if (toUpsert.length > 0) {
 				await embeddingService.upsertEmbeddings(toUpsert);
-				console.log(
-					`[ShardEmbeddingQueue] Updated metadata for ${toUpsert.length} existing embeddings`
-				);
 			}
 		}
 	}

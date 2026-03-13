@@ -64,7 +64,6 @@ vi.mock("@/lib/campaign-operations", () => ({
 }));
 
 vi.mock("@/services/campaign/campaign-context-sync-service", () => ({
-	// biome-ignore lint/complexity/useArrowFunction: constructor must be function
 	CampaignContextSyncService: vi.fn().mockImplementation(function (this: any) {
 		this.syncContext = vi.fn().mockResolvedValue(undefined);
 	}),

@@ -57,8 +57,6 @@ export class ModelManager {
 			);
 		}
 		this.apiKey = trimmedKey;
-
-		console.log(`[ModelManager] Model initialized with ${provider} API key`);
 	}
 
 	/**
@@ -66,10 +64,6 @@ export class ModelManager {
 	 */
 	getModel(): any {
 		if (!this.model) {
-			// Model is initialized once a provider key is available (user key or server key).
-			console.log(
-				"[ModelManager] No model initialized - provider API key not configured"
-			);
 			return null;
 		}
 		return this.model;

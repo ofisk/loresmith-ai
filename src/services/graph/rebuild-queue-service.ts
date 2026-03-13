@@ -8,17 +8,6 @@ export class RebuildQueueService {
 	 * Enqueue a rebuild job
 	 */
 	async enqueueRebuild(message: RebuildQueueMessage): Promise<void> {
-		try {
-			await this.queue.send(message);
-			console.log(
-				`[RebuildQueueService] Enqueued rebuild ${message.rebuildId} for campaign ${message.campaignId} (type: ${message.rebuildType})`
-			);
-		} catch (error) {
-			console.error(
-				`[RebuildQueueService] Failed to enqueue rebuild ${message.rebuildId}:`,
-				error
-			);
-			throw error;
-		}
+		await this.queue.send(message);
 	}
 }

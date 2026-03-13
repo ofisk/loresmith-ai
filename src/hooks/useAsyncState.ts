@@ -15,17 +15,11 @@ export const UPLOAD_STATUS = {
 export type UploadStatus = (typeof UPLOAD_STATUS)[keyof typeof UPLOAD_STATUS];
 
 function logEventFilteringMismatch(
-	hookName: string,
-	expected: Record<string, any>,
-	event: Record<string, any>,
-	eventType: string
-) {
-	console.error(`[${hookName}] Event filtering mismatch:`, {
-		...expected,
-		eventType,
-		eventData: event,
-	});
-}
+	_hookName: string,
+	_expected: Record<string, any>,
+	_event: Record<string, any>,
+	_eventType: string
+) {}
 
 function shouldProcessFileUploadEvent(
 	fileKey: string | undefined,
@@ -117,9 +111,6 @@ export function useAsyncState<T = any>(
 export function useFileUploadStatus(fileKey?: string) {
 	// Log warning if no fileKey is provided (will listen to all events)
 	if (!fileKey) {
-		console.warn(
-			"[useFileUploadStatus] No fileKey provided - will listen to all file upload events"
-		);
 	}
 	const [uploadState, setUploadState] = useState<{
 		status: UploadStatus;

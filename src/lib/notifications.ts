@@ -68,6 +68,7 @@ export async function notifyUser(
 		}
 	} catch (error) {
 		logger.error(`Error sending notification to ${userId}:`, error);
+		console.error(`Error sending notification to ${userId}:`, error);
 		throw error; // Re-throw to see the error in the calling function
 	}
 }
@@ -223,11 +224,7 @@ export async function notifyNextStepsCreated(
 					: `${count} next steps were added for "${campaignName}". View them in Campaign Details > Next steps.`,
 			data: { campaignName, count },
 		});
-	} catch (error) {
-		console.error(
-			"[notifyNextStepsCreated] Failed to send notification:",
-			error
-		);
+	} catch (_error) {
 		// Don't throw - notifications are non-critical
 	}
 }
@@ -399,9 +396,7 @@ export async function notifyProposalApproved(
 			message: `✅ Your proposed file "${fileName}" was accepted and added to "${campaignName}".`,
 			data: { campaignName, fileName },
 		});
-	} catch (e) {
-		console.error("[notifyProposalApproved] Failed:", e);
-	}
+	} catch (_e) {}
 }
 
 /**
@@ -420,9 +415,7 @@ export async function notifyProposalRejected(
 			message: `❌ Your proposed file "${fileName}" was declined for "${campaignName}".`,
 			data: { campaignName, fileName },
 		});
-	} catch (e) {
-		console.error("[notifyProposalRejected] Failed:", e);
-	}
+	} catch (_e) {}
 }
 
 /**

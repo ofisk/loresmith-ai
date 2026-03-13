@@ -48,10 +48,6 @@ export class FileAnalysisService extends BaseRAGService {
 
 			return analysis;
 		} catch (error) {
-			console.error(
-				`[FileAnalysisService] Error analyzing file ${request.fileKey}:`,
-				error
-			);
 			throw new Error(
 				`File analysis failed: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
@@ -95,35 +91,27 @@ Focus on making this resource discoverable and useful for campaign planning and 
 	 */
 	private async parseAnalysisResults(
 		searchResults: any,
-		request: FileAnalysisRequest
+		_request: FileAnalysisRequest
 	): Promise<FileAnalysisResult> {
-		try {
-			// Extract the most relevant result and use it to generate analysis
-			// LibraryRAGService.searchContent returns an array of results
-			const results = Array.isArray(searchResults) ? searchResults : [];
+		// Extract the most relevant result and use it to generate analysis
+		// LibraryRAGService.searchContent returns an array of results
+		const results = Array.isArray(searchResults) ? searchResults : [];
 
-			if (results.length === 0) {
-				throw new Error("No LibraryRAGService results found for analysis");
-			}
-
-			// Extract content from LibraryRAGService results to generate analysis
-			const primaryResult = results[0];
-			const resultText =
-				primaryResult.text ||
-				primaryResult.content ||
-				primaryResult.summary ||
-				"";
-
-			// Parse the structured response
-			const analysis = this.parseResponse(resultText);
-			return analysis;
-		} catch (error) {
-			console.error(
-				`[FileAnalysisService] Failed to parse analysis results for ${request.fileKey}:`,
-				error
-			);
-			throw error; // Re-throw to be handled by the caller
+		if (results.length === 0) {
+			throw new Error("No LibraryRAGService results found for analysis");
 		}
+
+		// Extract content from LibraryRAGService results to generate analysis
+		const primaryResult = results[0];
+		const resultText =
+			primaryResult.text ||
+			primaryResult.content ||
+			primaryResult.summary ||
+			"";
+
+		// Parse the structured response
+		const analysis = this.parseResponse(resultText);
+		return analysis;
 	}
 
 	/**
@@ -165,10 +153,6 @@ Focus on making this resource discoverable and useful for campaign planning and 
 				"No structured JSON response found in LibraryRAGService output"
 			);
 		} catch (error) {
-			console.error(
-				"[FileAnalysisService] Failed to parse LibraryRAGService response:",
-				error
-			);
 			throw new Error(
 				`Failed to parse LibraryRAGService analysis response: ${error instanceof Error ? error.message : "Invalid format"}`
 			);

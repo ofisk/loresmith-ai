@@ -67,19 +67,6 @@ export function CytoscapeGraph({
 
 	// Convert graph data to Cytoscape elements
 	const elements = useMemo<ElementDefinition[]>(() => {
-		console.log("[CytoscapeGraph] Converting data to elements:", {
-			hasData: !!data,
-			isEntityGraph: "communityId" in data,
-			nodeCount:
-				"communityId" in data
-					? (data as EntityGraphData).nodes.length
-					: (data as CommunityGraphData).nodes.length,
-			edgeCount:
-				"communityId" in data
-					? (data as EntityGraphData).edges.length
-					: (data as CommunityGraphData).edges.length,
-		});
-
 		const els: ElementDefinition[] = [];
 
 		if ("communityId" in data) {
@@ -160,12 +147,6 @@ export function CytoscapeGraph({
 				});
 			}
 		}
-
-		console.log(
-			"[CytoscapeGraph] Converted to elements:",
-			els.length,
-			"total elements"
-		);
 		return els;
 	}, [data]);
 
@@ -175,9 +156,6 @@ export function CytoscapeGraph({
 
 		// Ensure we have elements before initializing
 		if (elements.length === 0) {
-			console.warn(
-				"[CytoscapeGraph] No elements to render, skipping initialization"
-			);
 			return;
 		}
 
@@ -187,12 +165,6 @@ export function CytoscapeGraph({
 		}
 
 		previousDataKeyRef.current = dataKey;
-
-		console.log(
-			"[CytoscapeGraph] Initializing with",
-			elements.length,
-			"elements"
-		);
 
 		// Destroy existing instance if any
 		if (cyRef.current) {
@@ -210,9 +182,7 @@ export function CytoscapeGraph({
 
 			try {
 				cyRef.current.destroy();
-			} catch (error) {
-				console.warn("[CytoscapeGraph] Error destroying instance:", error);
-			}
+			} catch (_error) {}
 			cyRef.current = null;
 			isReadyRef.current = false;
 			isDestroyingRef.current = false;
@@ -390,22 +360,13 @@ export function CytoscapeGraph({
 								});
 								layoutRef.current = layoutInstance;
 								layoutInstance.run();
-							} catch (layoutError) {
-								console.warn(
-									"[CytoscapeGraph] Error running layout:",
-									layoutError
-								);
+							} catch (_layoutError) {
 								// Fallback to a simple layout if the requested one fails
 								try {
 									const fallbackLayout = cy.layout({ name: "grid" });
 									layoutRef.current = fallbackLayout;
 									fallbackLayout.run();
-								} catch (fallbackError) {
-									console.error(
-										"[CytoscapeGraph] Error running fallback layout:",
-										fallbackError
-									);
-								}
+								} catch (_fallbackError) {}
 							}
 
 							// Re-apply highlights when graph is ready (in case search ran before/during re-init)
@@ -419,12 +380,7 @@ export function CytoscapeGraph({
 							}
 						}, 100);
 					});
-				} catch (error) {
-					console.error(
-						"[CytoscapeGraph] Error initializing Cytoscape:",
-						error
-					);
-				}
+				} catch (_error) {}
 			});
 		};
 
@@ -449,9 +405,7 @@ export function CytoscapeGraph({
 			if (cyRef.current) {
 				try {
 					cyRef.current.destroy();
-				} catch (_error) {
-					console.warn("[CytoscapeGraph] Error during cleanup:", _error);
-				}
+				} catch (_error) {}
 				cyRef.current = null;
 			}
 			isReadyRef.current = false;
@@ -496,19 +450,13 @@ export function CytoscapeGraph({
 			});
 			layoutRef.current = layoutInstance;
 			layoutInstance.run();
-		} catch (layoutError) {
-			console.warn("[CytoscapeGraph] Error running layout:", layoutError);
+		} catch (_layoutError) {
 			// Fallback to a simple layout if the requested one fails
 			try {
 				const fallbackLayout = cy.layout({ name: "grid" });
 				layoutRef.current = fallbackLayout;
 				fallbackLayout.run();
-			} catch (fallbackError) {
-				console.error(
-					"[CytoscapeGraph] Error running fallback layout:",
-					fallbackError
-				);
-			}
+			} catch (_fallbackError) {}
 		}
 	}, [layout]);
 

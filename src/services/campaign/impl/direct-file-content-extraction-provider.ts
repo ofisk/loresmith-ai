@@ -115,10 +115,6 @@ export class DirectFileContentExtractionProvider
 				},
 			};
 		} catch (error) {
-			console.error(
-				`[DirectFileContentExtractionProvider] Error extracting content:`,
-				error
-			);
 			return {
 				content: "",
 				success: false,
@@ -144,9 +140,6 @@ export class DirectFileContentExtractionProvider
 			}).promise;
 
 			const numPages = pdf.numPages;
-			console.log(
-				`[DirectFileContentExtractionProvider] PDF has ${numPages} pages`
-			);
 
 			const pageTexts: string[] = [];
 
@@ -172,10 +165,6 @@ export class DirectFileContentExtractionProvider
 
 			return fullText;
 		} catch (error) {
-			console.error(
-				`[DirectFileContentExtractionProvider] Error extracting PDF text:`,
-				error
-			);
 			throw new PDFExtractionError(
 				error instanceof Error ? error.message : "Unknown error"
 			);

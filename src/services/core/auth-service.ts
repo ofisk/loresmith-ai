@@ -96,7 +96,6 @@ export class AuthService {
 				token,
 			};
 		} catch (error) {
-			console.error("[AuthService] Error creating JWT:", error);
 			return {
 				success: false,
 				error:
@@ -125,13 +124,11 @@ export class AuthService {
 			const { payload } = await jwtVerify(token, secret);
 
 			if (payload.type !== "user-auth") {
-				console.log("[AuthService] Invalid token type:", payload.type);
 				return null;
 			}
 
 			return payload as AuthPayload;
-		} catch (error) {
-			console.error("[AuthService] JWT verification failed:", error);
+		} catch (_error) {
 			return null;
 		}
 	}
@@ -261,7 +258,6 @@ export class AuthService {
 	 * Handle JWT expiration
 	 */
 	handleJwtExpiration(): void {
-		console.log("[AuthService] JWT expired, clearing stored token");
 		AuthService.clearJwt();
 	}
 
@@ -438,8 +434,7 @@ export class AuthService {
 			if (pad) base64 += "=".repeat(4 - pad);
 			const payload = JSON.parse(atob(base64));
 			return payload.username || null;
-		} catch (error) {
-			console.error("Error parsing JWT for username:", error);
+		} catch (_error) {
 			return null;
 		}
 	}
@@ -453,8 +448,7 @@ export class AuthService {
 			const jwt = AuthService.getStoredJwt();
 			if (!jwt) return null;
 			return AuthService.parseJwtForUsername(jwt);
-		} catch (error) {
-			console.error("Error getting username from stored JWT:", error);
+		} catch (_error) {
 			return null;
 		}
 	}

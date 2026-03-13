@@ -35,15 +35,10 @@ export const searchFileLibrary = tool({
 		options: ToolExecuteOptions
 	): Promise<ToolResult> => {
 		const { query, context, limit = 5, jwt } = input;
-		console.log("[Tool] searchFileLibrary received query:", query);
-		console.log("[Tool] searchFileLibrary options:", options);
 
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[searchFileLibrary] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[searchFileLibrary] Using JWT:", jwt);
-
 			const searchQuery = context ? `${query} ${context}` : query;
 			const searchUrl = new URL(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.SEARCH)
@@ -57,11 +52,8 @@ export const searchFileLibrary = tool({
 					...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
 				},
 			});
-
-			console.log("[searchFileLibrary] Response status:", response.status);
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error("[searchFileLibrary] Error response:", errorText);
 				return createToolError(
 					`Failed to search file library: ${response.status} - ${errorText}`,
 					{ error: `HTTP ${response.status}` },
@@ -119,7 +111,6 @@ export const searchFileLibrary = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error searching file library:", error);
 			return createToolError(
 				`Failed to search file library: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -144,13 +135,8 @@ export const getFileLibraryStats = tool({
 	): Promise<ToolResult> => {
 		const { jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] getFileLibraryStats received JWT:", jwt);
-		console.log("[Tool] getFileLibraryStats options:", options);
-		console.log("[getFileLibraryStats] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[getFileLibraryStats] Using JWT:", jwt);
-
 			const response = await fetch(
 				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.FILES),
 				{
@@ -160,11 +146,8 @@ export const getFileLibraryStats = tool({
 					},
 				}
 			);
-
-			console.log("[getFileLibraryStats] Response status:", response.status);
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error("[getFileLibraryStats] Error response:", errorText);
 				return createToolError(
 					`Failed to get file library stats: ${response.status} - ${errorText}`,
 					{ error: `HTTP ${response.status}` },
@@ -269,7 +252,6 @@ export const getFileLibraryStats = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error getting file library stats:", error);
 			return createToolError(
 				`Failed to get file library stats: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -484,7 +466,6 @@ export const uploadInspirationImageTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[uploadInspirationImageTool] Error:", error);
 			return createToolError(
 				"Failed to upload inspiration image",
 				error instanceof Error ? error.message : String(error),
@@ -593,7 +574,6 @@ export const searchVisualInspirationTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[searchVisualInspirationTool] Error:", error);
 			return createToolError(
 				"Failed to search visual inspiration",
 				error instanceof Error ? error.message : String(error),

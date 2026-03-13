@@ -49,8 +49,6 @@ export class AISearchService {
 		// Include file path in query for context
 		const contextualQuery = `${query} (from file: ${filePath})`;
 
-		console.log(`[CentralizedAISearch] Searching file content: ${filePath}`);
-
 		return await ragService.searchContent(
 			username,
 			contextualQuery,
@@ -71,8 +69,6 @@ export class AISearchService {
 		const structuredExtractionPrompt =
 			RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(filePath);
 
-		console.log(`[AISearch] Extracting structured content from ${filePath}`);
-
 		let lastError: any;
 		for (let attempt = 0; attempt <= maxRetries; attempt++) {
 			try {
@@ -89,10 +85,6 @@ export class AISearchService {
 			} catch (error) {
 				lastError = error;
 				if (attempt < maxRetries) {
-					console.warn(
-						`[CentralizedAISearch] Attempt ${attempt + 1} failed, retrying in 500ms:`,
-						error
-					);
 					await new Promise((r) => setTimeout(r, 500));
 				}
 			}
@@ -107,8 +99,6 @@ export class AISearchService {
 	static async checkFileExists(env: any, username: string, fileKey: string) {
 		const filename = fileKey.split("/").pop() || "";
 		const ragService = new LibraryRAGService(env);
-
-		console.log(`[CentralizedAISearch] Checking if file exists: ${filename}`);
 
 		return await ragService.searchContent(
 			username,
@@ -126,8 +116,6 @@ export class AISearchService {
 		query: string,
 		options: AISearchOptions = {}
 	) {
-		console.log(`[CentralizedAISearch] General library search: ${query}`);
-
 		return await AISearchService.searchLibrary(env, username, query, options);
 	}
 }

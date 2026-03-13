@@ -80,16 +80,12 @@ export class FileDAO extends BaseDAOClass {
 	 * @param fileKey - The file key for error logging
 	 * @returns Parsed tags array or empty array if parsing fails
 	 */
-	private parseTags(tags: string | null, fileKey: string): string[] {
+	private parseTags(tags: string | null, _fileKey: string): string[] {
 		if (!tags) return [];
 
 		try {
 			return JSON.parse(tags);
-		} catch (error) {
-			console.warn(
-				`[FileDAO] Failed to parse tags for file ${fileKey}:`,
-				error
-			);
+		} catch (_error) {
 			return [];
 		}
 	}
@@ -406,22 +402,11 @@ export class FileDAO extends BaseDAOClass {
 				1
 			);
 
-			console.log(
-				`[FileDAO] LibraryRAGService search result for ${filename}:`,
-				JSON.stringify(searchResult, null, 2)
-			);
-
 			// Check if we have results (file is indexed)
 			const hasResults = Array.isArray(searchResult) && searchResult.length > 0;
 
-			console.log(`[FileDAO] Parsed response for ${filename}:`, {
-				hasResults,
-				resultCount: Array.isArray(searchResult) ? searchResult.length : 0,
-			});
-
 			return { isIndexed: hasResults };
 		} catch (error) {
-			console.error(`Error checking indexing status for ${fileKey}:`, error);
 			return {
 				isIndexed: false,
 				error: error instanceof Error ? error.message : "Unknown error",
@@ -510,12 +495,8 @@ export class FileDAO extends BaseDAOClass {
 		if (r2Bucket && metadata) {
 			try {
 				await r2Bucket.delete(fileKey);
-				console.log(`[FileDAO] Deleted file from R2: ${fileKey}`);
 			} catch (error) {
-				console.warn(
-					`[FileDAO] Failed to delete file from R2: ${fileKey}`,
-					error
-				);
+				console.warn("Failed to delete file from R2:", error);
 			}
 		}
 
@@ -523,12 +504,8 @@ export class FileDAO extends BaseDAOClass {
 		if (vectorizeIndex && metadata?.vector_id) {
 			try {
 				await vectorizeIndex.deleteByIds([metadata.vector_id]);
-				console.log(`[FileDAO] Deleted vector embeddings for: ${fileKey}`);
 			} catch (error) {
-				console.warn(
-					`[FileDAO] Failed to delete vector embeddings for: ${fileKey}`,
-					error
-				);
+				console.warn("Failed to delete vector embeddings:", error);
 			}
 		}
 	}

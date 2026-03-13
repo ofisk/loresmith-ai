@@ -58,8 +58,7 @@ export async function handleMintStreamToken(
 		};
 
 		return c.json(response);
-	} catch (error) {
-		console.error("[Notifications] Error minting stream token:", error);
+	} catch (_error) {
 		return new Response("Internal Server Error", { status: 500 });
 	}
 }
@@ -144,11 +143,7 @@ export async function handleNotificationStream(
 			let response: Response;
 			try {
 				response = await notificationHub.fetch(finalRequest);
-			} catch (doError) {
-				console.error(
-					`[handleNotificationStream] Durable Object fetch error:`,
-					doError
-				);
+			} catch (_doError) {
 				// If DO fetch fails (e.g., due to reset), return a reset message
 				const { readable, writable } = new TransformStream();
 				const writer = writable.getWriter();
@@ -181,9 +176,6 @@ export async function handleNotificationStream(
 			}
 
 			if (!response.ok) {
-				console.error(
-					`[handleNotificationStream] DO response error: ${response.status} ${response.statusText}`
-				);
 				return new Response("Failed to establish notification stream", {
 					status: 500,
 					headers: getCorsHeaders(c.req.raw, c.env),
@@ -208,8 +200,6 @@ export async function handleNotificationStream(
 				},
 			});
 		} catch (jwtError) {
-			console.error("[Notifications] JWT verification error:", jwtError);
-
 			// Check if this is a Durable Object reset error
 			if (
 				jwtError instanceof Error &&
@@ -251,8 +241,7 @@ export async function handleNotificationStream(
 				},
 			});
 		}
-	} catch (error) {
-		console.error("[Notifications] Error handling stream request:", error);
+	} catch (_error) {
 		return new Response("Internal Server Error", {
 			status: 500,
 			headers: getCorsHeaders(c.req.raw, c.env),
@@ -310,8 +299,7 @@ export async function handleNotificationPublish(
 		});
 
 		return await notificationHub.fetch(doRequest);
-	} catch (error) {
-		console.error("[Notifications] Error handling publish request:", error);
+	} catch (_error) {
 		return new Response("Internal Server Error", { status: 500 });
 	}
 }

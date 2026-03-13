@@ -182,9 +182,6 @@ export class CharacterSheetParserService {
 
 		// For larger content, split into chunks and parse all chunks
 		const chunks = chunkTextByCharacterCount(textContent, MAX_CHUNK_SIZE);
-		console.log(
-			`[CharacterSheetParser] Parsing ${chunks.length} chunk(s) for character sheet (total length: ${textContent.length} chars)`
-		);
 
 		// Parse all chunks
 		const parsedChunks: CharacterData[] = [];
@@ -192,14 +189,7 @@ export class CharacterSheetParserService {
 			try {
 				const result = await this.parseChunk(chunks[i], characterName);
 				parsedChunks.push(result);
-				console.log(
-					`[CharacterSheetParser] Parsed chunk ${i + 1}/${chunks.length}`
-				);
-			} catch (error) {
-				console.warn(
-					`[CharacterSheetParser] Error parsing chunk ${i + 1}/${chunks.length}:`,
-					error
-				);
+			} catch (_error) {
 				// Continue with other chunks even if one fails
 			}
 		}

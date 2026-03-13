@@ -62,168 +62,152 @@ export class AgentRegistryService {
 		if (AgentRegistryService.initialized) {
 			return;
 		}
+		// Lazy load agents to avoid module loading issues
+		const { CampaignAgent } = await import("../agents/campaign-agent");
+		const { RecapAgent } = await import("../agents/recap-agent");
+		const { CampaignContextAgent } = await import(
+			"../agents/campaign-context-agent"
+		);
+		const { CampaignAnalysisAgent } = await import(
+			"../agents/campaign-analysis-agent"
+		);
+		const { CharacterAgent } = await import("../agents/character-agent");
+		const { CharacterSheetAgent } = await import(
+			"../agents/character-sheet-agent"
+		);
+		const { EntityGraphAgent } = await import("../agents/entity-graph-agent");
+		const { CampaignHelpAgent } = await import("../agents/campaign-help-agent");
+		const { ResourceAgent } = await import("../agents/resource-agent");
+		const { SessionDigestAgent } = await import(
+			"../agents/session-digest-agent"
+		);
+		const { LootRewardAgent } = await import("../agents/loot-reward-agent");
+		const { RulesReferenceAgent } = await import(
+			"../agents/rules-reference-agent"
+		);
+		const { EncounterBuilderAgent } = await import(
+			"../agents/encounter-builder-agent"
+		);
+		const { AgentRouter } = await import("./agent-router");
 
-		console.log("[AgentRegistryService] Initializing agent registry...");
+		// Register Campaign Agent
+		AgentRouter.registerAgent(
+			CampaignAgent.agentMetadata.type as AgentType,
+			CampaignAgent,
+			CampaignAgent.agentMetadata.tools,
+			CampaignAgent.agentMetadata.systemPrompt,
+			CampaignAgent.agentMetadata.description
+		);
 
-		try {
-			// Lazy load agents to avoid module loading issues
-			const { CampaignAgent } = await import("../agents/campaign-agent");
-			const { RecapAgent } = await import("../agents/recap-agent");
-			const { CampaignContextAgent } = await import(
-				"../agents/campaign-context-agent"
-			);
-			const { CampaignAnalysisAgent } = await import(
-				"../agents/campaign-analysis-agent"
-			);
-			const { CharacterAgent } = await import("../agents/character-agent");
-			const { CharacterSheetAgent } = await import(
-				"../agents/character-sheet-agent"
-			);
-			const { EntityGraphAgent } = await import("../agents/entity-graph-agent");
-			const { CampaignHelpAgent } = await import(
-				"../agents/campaign-help-agent"
-			);
-			const { ResourceAgent } = await import("../agents/resource-agent");
-			const { SessionDigestAgent } = await import(
-				"../agents/session-digest-agent"
-			);
-			const { LootRewardAgent } = await import("../agents/loot-reward-agent");
-			const { RulesReferenceAgent } = await import(
-				"../agents/rules-reference-agent"
-			);
-			const { EncounterBuilderAgent } = await import(
-				"../agents/encounter-builder-agent"
-			);
-			const { AgentRouter } = await import("./agent-router");
+		// Register Recap Agent (context recap + next steps)
+		AgentRouter.registerAgent(
+			RecapAgent.agentMetadata.type as AgentType,
+			RecapAgent,
+			RecapAgent.agentMetadata.tools,
+			RecapAgent.agentMetadata.systemPrompt,
+			RecapAgent.agentMetadata.description
+		);
 
-			// Register Campaign Agent
-			AgentRouter.registerAgent(
-				CampaignAgent.agentMetadata.type as AgentType,
-				CampaignAgent,
-				CampaignAgent.agentMetadata.tools,
-				CampaignAgent.agentMetadata.systemPrompt,
-				CampaignAgent.agentMetadata.description
-			);
+		// Register Campaign Context Agent (entity questions, search, world state)
+		AgentRouter.registerAgent(
+			CampaignContextAgent.agentMetadata.type as AgentType,
+			CampaignContextAgent,
+			CampaignContextAgent.agentMetadata.tools,
+			CampaignContextAgent.agentMetadata.systemPrompt,
+			CampaignContextAgent.agentMetadata.description
+		);
 
-			// Register Recap Agent (context recap + next steps)
-			AgentRouter.registerAgent(
-				RecapAgent.agentMetadata.type as AgentType,
-				RecapAgent,
-				RecapAgent.agentMetadata.tools,
-				RecapAgent.agentMetadata.systemPrompt,
-				RecapAgent.agentMetadata.description
-			);
+		// Register Campaign Analysis Agent
+		AgentRouter.registerAgent(
+			CampaignAnalysisAgent.agentMetadata.type as AgentType,
+			CampaignAnalysisAgent,
+			CampaignAnalysisAgent.agentMetadata.tools,
+			CampaignAnalysisAgent.agentMetadata.systemPrompt,
+			CampaignAnalysisAgent.agentMetadata.description
+		);
 
-			// Register Campaign Context Agent (entity questions, search, world state)
-			AgentRouter.registerAgent(
-				CampaignContextAgent.agentMetadata.type as AgentType,
-				CampaignContextAgent,
-				CampaignContextAgent.agentMetadata.tools,
-				CampaignContextAgent.agentMetadata.systemPrompt,
-				CampaignContextAgent.agentMetadata.description
-			);
+		// Register Character Agent
+		AgentRouter.registerAgent(
+			CharacterAgent.agentMetadata.type as AgentType,
+			CharacterAgent,
+			CharacterAgent.agentMetadata.tools,
+			CharacterAgent.agentMetadata.systemPrompt,
+			CharacterAgent.agentMetadata.description
+		);
 
-			// Register Campaign Analysis Agent
-			AgentRouter.registerAgent(
-				CampaignAnalysisAgent.agentMetadata.type as AgentType,
-				CampaignAnalysisAgent,
-				CampaignAnalysisAgent.agentMetadata.tools,
-				CampaignAnalysisAgent.agentMetadata.systemPrompt,
-				CampaignAnalysisAgent.agentMetadata.description
-			);
+		// Register Entity Graph Agent
+		AgentRouter.registerAgent(
+			EntityGraphAgent.agentMetadata.type as AgentType,
+			EntityGraphAgent,
+			EntityGraphAgent.agentMetadata.tools,
+			EntityGraphAgent.agentMetadata.systemPrompt,
+			EntityGraphAgent.agentMetadata.description
+		);
 
-			// Register Character Agent
-			AgentRouter.registerAgent(
-				CharacterAgent.agentMetadata.type as AgentType,
-				CharacterAgent,
-				CharacterAgent.agentMetadata.tools,
-				CharacterAgent.agentMetadata.systemPrompt,
-				CharacterAgent.agentMetadata.description
-			);
+		// Register Character Sheet Agent
+		AgentRouter.registerAgent(
+			CharacterSheetAgent.agentMetadata.type as AgentType,
+			CharacterSheetAgent,
+			CharacterSheetAgent.agentMetadata.tools,
+			CharacterSheetAgent.agentMetadata.systemPrompt,
+			CharacterSheetAgent.agentMetadata.description
+		);
 
-			// Register Entity Graph Agent
-			AgentRouter.registerAgent(
-				EntityGraphAgent.agentMetadata.type as AgentType,
-				EntityGraphAgent,
-				EntityGraphAgent.agentMetadata.tools,
-				EntityGraphAgent.agentMetadata.systemPrompt,
-				EntityGraphAgent.agentMetadata.description
-			);
+		// Register Campaign Help Agent
+		AgentRouter.registerAgent(
+			CampaignHelpAgent.agentMetadata.type as AgentType,
+			CampaignHelpAgent,
+			CampaignHelpAgent.agentMetadata.tools,
+			CampaignHelpAgent.agentMetadata.systemPrompt,
+			CampaignHelpAgent.agentMetadata.description
+		);
 
-			// Register Character Sheet Agent
-			AgentRouter.registerAgent(
-				CharacterSheetAgent.agentMetadata.type as AgentType,
-				CharacterSheetAgent,
-				CharacterSheetAgent.agentMetadata.tools,
-				CharacterSheetAgent.agentMetadata.systemPrompt,
-				CharacterSheetAgent.agentMetadata.description
-			);
+		// Register Resource Agent
+		AgentRouter.registerAgent(
+			ResourceAgent.agentMetadata.type as AgentType,
+			ResourceAgent,
+			ResourceAgent.agentMetadata.tools,
+			ResourceAgent.agentMetadata.systemPrompt,
+			ResourceAgent.agentMetadata.description
+		);
 
-			// Register Campaign Help Agent
-			AgentRouter.registerAgent(
-				CampaignHelpAgent.agentMetadata.type as AgentType,
-				CampaignHelpAgent,
-				CampaignHelpAgent.agentMetadata.tools,
-				CampaignHelpAgent.agentMetadata.systemPrompt,
-				CampaignHelpAgent.agentMetadata.description
-			);
+		// Register Session Digest Agent
+		AgentRouter.registerAgent(
+			SessionDigestAgent.agentMetadata.type as AgentType,
+			SessionDigestAgent,
+			SessionDigestAgent.agentMetadata.tools,
+			SessionDigestAgent.agentMetadata.systemPrompt,
+			SessionDigestAgent.agentMetadata.description
+		);
 
-			// Register Resource Agent
-			AgentRouter.registerAgent(
-				ResourceAgent.agentMetadata.type as AgentType,
-				ResourceAgent,
-				ResourceAgent.agentMetadata.tools,
-				ResourceAgent.agentMetadata.systemPrompt,
-				ResourceAgent.agentMetadata.description
-			);
+		// Register Loot & Reward Agent
+		AgentRouter.registerAgent(
+			LootRewardAgent.agentMetadata.type as AgentType,
+			LootRewardAgent,
+			LootRewardAgent.agentMetadata.tools,
+			LootRewardAgent.agentMetadata.systemPrompt,
+			LootRewardAgent.agentMetadata.description
+		);
 
-			// Register Session Digest Agent
-			AgentRouter.registerAgent(
-				SessionDigestAgent.agentMetadata.type as AgentType,
-				SessionDigestAgent,
-				SessionDigestAgent.agentMetadata.tools,
-				SessionDigestAgent.agentMetadata.systemPrompt,
-				SessionDigestAgent.agentMetadata.description
-			);
+		// Register Rules Reference Agent
+		AgentRouter.registerAgent(
+			RulesReferenceAgent.agentMetadata.type as AgentType,
+			RulesReferenceAgent,
+			RulesReferenceAgent.agentMetadata.tools,
+			RulesReferenceAgent.agentMetadata.systemPrompt,
+			RulesReferenceAgent.agentMetadata.description
+		);
 
-			// Register Loot & Reward Agent
-			AgentRouter.registerAgent(
-				LootRewardAgent.agentMetadata.type as AgentType,
-				LootRewardAgent,
-				LootRewardAgent.agentMetadata.tools,
-				LootRewardAgent.agentMetadata.systemPrompt,
-				LootRewardAgent.agentMetadata.description
-			);
+		// Register Encounter Builder Agent
+		AgentRouter.registerAgent(
+			EncounterBuilderAgent.agentMetadata.type as AgentType,
+			EncounterBuilderAgent,
+			EncounterBuilderAgent.agentMetadata.tools,
+			EncounterBuilderAgent.agentMetadata.systemPrompt,
+			EncounterBuilderAgent.agentMetadata.description
+		);
 
-			// Register Rules Reference Agent
-			AgentRouter.registerAgent(
-				RulesReferenceAgent.agentMetadata.type as AgentType,
-				RulesReferenceAgent,
-				RulesReferenceAgent.agentMetadata.tools,
-				RulesReferenceAgent.agentMetadata.systemPrompt,
-				RulesReferenceAgent.agentMetadata.description
-			);
-
-			// Register Encounter Builder Agent
-			AgentRouter.registerAgent(
-				EncounterBuilderAgent.agentMetadata.type as AgentType,
-				EncounterBuilderAgent,
-				EncounterBuilderAgent.agentMetadata.tools,
-				EncounterBuilderAgent.agentMetadata.systemPrompt,
-				EncounterBuilderAgent.agentMetadata.description
-			);
-
-			AgentRegistryService.initialized = true;
-			console.log(
-				"[AgentRegistryService] Agent registry initialized successfully"
-			);
-		} catch (error) {
-			console.error(
-				"[AgentRegistryService] Error initializing agent registry:",
-				error
-			);
-			throw error;
-		}
+		AgentRegistryService.initialized = true;
 	}
 
 	/**

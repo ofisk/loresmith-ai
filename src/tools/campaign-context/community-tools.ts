@@ -205,7 +205,6 @@ export const detectCommunitiesTool = tool({
 				},
 			});
 		} catch (error) {
-			console.error("[detectCommunitiesTool] Error:", error);
 			return createToolError(
 				"Failed to detect communities",
 				error instanceof Error ? error.message : "Unknown error",
@@ -327,7 +326,6 @@ export const getCommunitiesTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getCommunitiesTool] Error:", error);
 			return createToolError(
 				"Failed to get communities",
 				error instanceof Error ? error.message : "Unknown error",
@@ -436,7 +434,6 @@ export const getCommunityHierarchyTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getCommunityHierarchyTool] Error:", error);
 			return createToolError(
 				"Failed to get community hierarchy",
 				error instanceof Error ? error.message : "Unknown error",

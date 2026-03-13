@@ -74,12 +74,7 @@ export class RebuildPipelineService {
 		this.graphRebuildDirtyDAO = graphRebuildDirtyDAO;
 		try {
 			this.telemetryService = new TelemetryService(new TelemetryDAO(db));
-		} catch (error) {
-			console.warn(
-				"[RebuildPipeline] Failed to initialize telemetry service:",
-				error
-			);
-		}
+		} catch (_error) {}
 	}
 
 	/**
@@ -126,16 +121,7 @@ export class RebuildPipelineService {
 					rebuildType,
 					metadata: { affectedEntityCount: affectedEntityIds?.length || 0 },
 				})
-				.catch((error) => {
-					console.error(
-						"[RebuildPipeline] Failed to record rebuild status:",
-						error
-					);
-				});
-
-			console.log(
-				`[RebuildPipeline] Starting ${rebuildType} rebuild for campaign ${campaignId} (rebuildId: ${rebuildId})`
-			);
+				.catch((_error) => {});
 
 			// Get unapplied changelog entries before rebuild
 			const unappliedEntries =
@@ -195,11 +181,7 @@ export class RebuildPipelineService {
 						rebuildId,
 						campaignId
 					);
-				} catch (error) {
-					console.error(
-						"[RebuildPipeline] Failed to archive changelog entries:",
-						error
-					);
+				} catch (_error) {
 					// Continue even if archival fails - entries are still marked as applied
 				}
 			} else if (unappliedEntryIds.length > 0) {
@@ -244,12 +226,7 @@ export class RebuildPipelineService {
 						affectedEntityCount: affectedEntityIds?.length || 0,
 						metadata: { communitiesCount: communities.length },
 					})
-					.catch((error) => {
-						console.error(
-							"[RebuildPipeline] Failed to record rebuild duration:",
-							error
-						);
-					})
+					.catch((_error) => {})
 			);
 
 			// Record rebuild frequency
@@ -260,12 +237,7 @@ export class RebuildPipelineService {
 							campaignId,
 							rebuildType,
 						})
-						.catch((error) => {
-							console.error(
-								"[RebuildPipeline] Failed to record rebuild frequency:",
-								error
-							);
-						})
+						.catch((_error) => {})
 				);
 			}
 
@@ -282,12 +254,7 @@ export class RebuildPipelineService {
 							affectedEntityCount: affectedEntityIds?.length || 0,
 						},
 					})
-					.catch((error) => {
-						console.error(
-							"[RebuildPipeline] Failed to record rebuild status:",
-							error
-						);
-					})
+					.catch((_error) => {})
 			);
 
 			await Promise.allSettled(telemetryPromises);
@@ -317,10 +284,6 @@ export class RebuildPipelineService {
 			// Reset impact score after successful rebuild
 			await this.rebuildTriggerService.resetImpact(campaignId);
 
-			console.log(
-				`[RebuildPipeline] Rebuild completed successfully in ${duration}ms: ${communities.length} communities`
-			);
-
 			return {
 				rebuildId,
 				success: true,
@@ -332,11 +295,6 @@ export class RebuildPipelineService {
 			const duration = Date.now() - startTime;
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
-
-			console.error(
-				`[RebuildPipeline] Rebuild failed after ${duration}ms:`,
-				error
-			);
 
 			// Update status to failed
 			await this.rebuildStatusDAO.updateRebuildStatus(rebuildId, {
@@ -357,12 +315,7 @@ export class RebuildPipelineService {
 						affectedEntityCount: affectedEntityIds?.length || 0,
 					},
 				})
-				.catch((error) => {
-					console.error(
-						"[RebuildPipeline] Failed to record rebuild status:",
-						error
-					);
-				});
+				.catch((_error) => {});
 			if (this.graphRebuildDirtyDAO && executionContext.idempotencyToken) {
 				await this.graphRebuildDirtyDAO.upsertDedupeJob({
 					campaignId,
@@ -392,10 +345,6 @@ export class RebuildPipelineService {
 		openaiApiKey?: string,
 		regenerateSummaries = true
 	): Promise<any[]> {
-		console.log(
-			`[RebuildPipeline] Executing full rebuild for campaign ${campaignId}`
-		);
-
 		// Delete existing communities and detect new ones
 		const communities = await this.communityDetectionService.rebuildCommunities(
 			campaignId,
@@ -417,10 +366,6 @@ export class RebuildPipelineService {
 		openaiApiKey?: string,
 		regenerateSummaries = true
 	): Promise<any[]> {
-		console.log(
-			`[RebuildPipeline] Executing partial rebuild for campaign ${campaignId}, affected entities: ${affectedEntityIds.length}`
-		);
-
 		// Incremental update for affected communities
 		const communities = await this.communityDetectionService.incrementalUpdate(
 			campaignId,
@@ -438,10 +383,6 @@ export class RebuildPipelineService {
 	 * Update entity importance scores for campaign
 	 */
 	private async updateEntityImportance(campaignId: string): Promise<void> {
-		console.log(
-			`[RebuildPipeline] Recalculating entity importance for campaign ${campaignId}`
-		);
-
 		await this.entityImportanceService.recalculateImportanceForCampaign(
 			campaignId
 		);
@@ -452,9 +393,6 @@ export class RebuildPipelineService {
 		affectedEntityIds: string[],
 		radius: number
 	): Promise<void> {
-		console.log(
-			`[RebuildPipeline] Recalculating incremental entity importance for campaign ${campaignId} (seeds: ${affectedEntityIds.length}, radius: ${radius})`
-		);
 		await this.entityImportanceService.recalculateImportanceIncremental(
 			campaignId,
 			affectedEntityIds,

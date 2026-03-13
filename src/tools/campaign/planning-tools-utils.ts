@@ -303,11 +303,7 @@ export async function analyzePlayerCharacterCompleteness(
 				campaignId,
 				character.id
 			);
-		} catch (error) {
-			console.warn(
-				`[analyzePlayerCharacterCompleteness] Failed to get importance for ${character.id}:`,
-				error
-			);
+		} catch (_error) {
 			importanceScore = 100;
 		}
 	}
@@ -421,12 +417,7 @@ export async function analyzePlayerCharacterCompleteness(
 				});
 			}
 		}
-	} catch (error) {
-		console.warn(
-			`[analyzePlayerCharacterCompleteness] Failed to check relationships for ${character.id}:`,
-			error
-		);
-	}
+	} catch (_error) {}
 
 	const hasSpotlightMoments = !!(
 		content.spotlightMoments ||

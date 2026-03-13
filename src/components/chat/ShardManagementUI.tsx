@@ -36,27 +36,15 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 	campaignName,
 	shards,
 	total: _total,
-	action = "show_staged",
+	action: _action = "show_staged",
 	resourceId: _resourceId,
 	resourceName,
-	shardType,
+	shardType: _shardType,
 	reason: _reason,
 	shardIds: _shardIds,
 	onShardsUpdated,
 	onShardsProcessed,
 }) => {
-	console.log("[ShardManagementUI] Component props:", {
-		campaignId,
-		shards,
-		total: _total,
-		action,
-		resourceId: _resourceId,
-		resourceName,
-		shardType,
-		reason: _reason,
-		shardIds: _shardIds,
-	});
-
 	const [processing, setProcessing] = useState<string | null>(null);
 	const [processedShards, setProcessedShards] = useState<Set<string>>(
 		new Set()
@@ -96,8 +84,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 			: undefined);
 
 	const handleShardEdit = async (shardId: string, updates: Partial<Shard>) => {
-		console.log(`[ShardManagementUI] Editing shard ${shardId}:`, updates);
-
 		// Immediately apply the edit locally for instant UI feedback
 		setLocalEdits((prev) => ({
 			...prev,
@@ -110,7 +96,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 			// Find the original shard to get the source data
 			const originalShard = convertedShards.find((s) => s.id === shardId);
 			if (!originalShard) {
-				console.error(`[ShardManagementUI] Could not find shard ${shardId}`);
 				return;
 			}
 
@@ -136,9 +121,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 			}
 
 			if (!originalCandidate) {
-				console.error(
-					`[ShardManagementUI] Could not find original candidate for shard ${shardId}`
-				);
 				return;
 			}
 
@@ -177,8 +159,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 				throw new Error(`Failed to update shard: ${errorText}`);
 			}
 
-			const result = await response.json();
-			console.log(`[ShardManagementUI] Shard update result:`, result);
+			await response.json();
 
 			// Clear the local edit since the server now has the updated data
 			setLocalEdits((prev) => {
@@ -190,19 +171,13 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 			if (onShardsUpdated) {
 				await onShardsUpdated();
 			}
-		} catch (error) {
-			console.error(
-				`[ShardManagementUI] Error editing shard ${shardId}:`,
-				error
-			);
+		} catch (_error) {
 		} finally {
 			setProcessing(null);
 		}
 	};
 
 	const handleShardDelete = async (shardId: string) => {
-		console.log(`[ShardManagementUI] Deleting shard ${shardId}`);
-
 		try {
 			setProcessing("deleting");
 
@@ -235,29 +210,19 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 				throw new Error(`Failed to delete shard: ${errorText}`);
 			}
 
-			const result = await response.json();
-			console.log(`[ShardManagementUI] Shard delete result:`, result);
+			await response.json();
 
 			onShardsProcessed?.([shardId]);
 			if (onShardsUpdated) {
 				await onShardsUpdated();
 			}
-		} catch (error) {
-			console.error(
-				`[ShardManagementUI] Error deleting shard ${shardId}:`,
-				error
-			);
+		} catch (_error) {
 		} finally {
 			setProcessing(null);
 		}
 	};
 
 	const handleBulkAction = async (action: string, shardIds: string[]) => {
-		console.log(
-			`[ShardManagementUI] Bulk action ${action} on shards:`,
-			shardIds
-		);
-
 		try {
 			setProcessing(action);
 
@@ -289,8 +254,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 				}
 			}
 
-			console.log(`[ShardManagementUI] Found staging keys:`, stagingKeys);
-
 			const endpoint =
 				action === "approve"
 					? API_CONFIG.ENDPOINTS.CAMPAIGNS.CAMPAIGN_GRAPHRAG.APPROVE_SHARDS(
@@ -321,9 +284,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 
 				// Handle specific error cases
 				if (errorText.includes("Staging file not found")) {
-					console.warn(
-						`[ShardManagementUI] Staging files already processed for ${action}`
-					);
 					// This is actually a success case - the files were already moved
 					// Refresh the UI so shards disappear
 					onShardsProcessed?.(shardIds);
@@ -335,8 +295,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 					throw new Error(`Failed to ${action} shards: ${errorText}`);
 				}
 			} else {
-				const result = await response.json();
-				console.log(`[ShardManagementUI] Bulk ${action} result:`, result);
+				await response.json();
 				onShardsProcessed?.(shardIds);
 				// Trigger refresh of shard data from parent component
 				if (onShardsUpdated) {
@@ -344,12 +303,7 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 					await onShardsUpdated();
 				}
 			}
-		} catch (error) {
-			console.error(
-				`[ShardManagementUI] Error with bulk action ${action}:`,
-				error
-			);
-
+		} catch (_error) {
 			// Revert optimistic update on error
 			setProcessedShards((prev) => {
 				const newSet = new Set(prev);
@@ -364,8 +318,6 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 	};
 
 	const handleRefresh = async () => {
-		console.log("[ShardManagementUI] Refreshing shards...");
-
 		try {
 			setProcessing("refreshing");
 
@@ -396,15 +348,13 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 				throw new Error(`Failed to refresh shards: ${errorText}`);
 			}
 
-			const result = (await response.json()) as { shards: StagedShardGroup[] };
-			console.log(`[ShardManagementUI] Shard refresh result:`, result);
+			(await response.json()) as { shards: StagedShardGroup[] };
 
 			// Use callback to refresh shard data from parent component
 			if (onShardsUpdated) {
 				await onShardsUpdated();
 			}
-		} catch (error) {
-			console.error("[ShardManagementUI] Error refreshing shards:", error);
+		} catch (_error) {
 		} finally {
 			setProcessing(null);
 		}

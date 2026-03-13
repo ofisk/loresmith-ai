@@ -49,13 +49,7 @@ export class FileQueueUtils {
 						buffer,
 						fileSizeMB
 					);
-				} catch (error) {
-					// If we can't check page count, still queue based on file size
-					console.warn(
-						`[FileQueueUtils] Could not check PDF page count, queueing based on file size:`,
-						error
-					);
-				}
+				} catch (_error) {}
 			}
 
 			// Queue any large file (>100MB) regardless of type

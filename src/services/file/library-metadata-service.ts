@@ -35,22 +35,12 @@ export class LibraryMetadataService {
 		fileContent: string
 	): Promise<SemanticMetadataResult | undefined> {
 		try {
-			console.log(
-				`[LibraryMetadataService] Starting semantic metadata generation for ${fileName}`
-			);
-
 			if (!this.env.AI) {
-				console.warn(
-					"[LibraryMetadataService] AI binding not available for semantic metadata generation"
-				);
 				return undefined;
 			}
 
 			// If no file content provided, analyze filename only
 			if (!fileContent || fileContent.trim().length === 0) {
-				console.warn(
-					`[LibraryMetadataService] No file content provided for ${fileName}, analyzing filename only`
-				);
 				fileContent = "";
 			}
 
@@ -59,10 +49,6 @@ export class LibraryMetadataService {
 				fileContent.length > MAX_CHUNK_SIZE
 					? chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
 					: [fileContent];
-
-			console.log(
-				`[LibraryMetadataService] Processing ${chunks.length} chunk(s) for metadata generation (max chunk size: ${MAX_CHUNK_SIZE} chars)`
-			);
 
 			// Process all chunks in parallel
 			const allTags: Set<string> = new Set();
@@ -80,9 +66,6 @@ export class LibraryMetadataService {
 					chunks.length,
 					i
 				);
-				console.log(
-					`[LibraryMetadataService] Processing chunk ${i + 1}/${chunks.length} for metadata generation`
-				);
 				return this.env
 					.AI!.run(LLM_MODEL, {
 						messages: [{ role: "user", content: semanticPrompt }],
@@ -96,10 +79,6 @@ export class LibraryMetadataService {
 			for (let i = 0; i < settled.length; i++) {
 				const result = settled[i];
 				if (result.status === "rejected") {
-					console.error(
-						`[LibraryMetadataService] Error processing chunk ${i + 1}:`,
-						result.reason
-					);
 					continue;
 				}
 				const { response } = result.value;
@@ -116,12 +95,7 @@ export class LibraryMetadataService {
 								allTags.add(tag);
 							}
 						}
-					} catch (parseError) {
-						console.warn(
-							`[LibraryMetadataService] Failed to parse JSON from chunk ${i + 1}:`,
-							parseError
-						);
-					}
+					} catch (_parseError) {}
 				}
 			}
 
@@ -145,11 +119,7 @@ export class LibraryMetadataService {
 			}
 
 			return undefined;
-		} catch (error) {
-			console.error(
-				`[LibraryMetadataService] Error in generateSemanticMetadata:`,
-				error
-			);
+		} catch (_error) {
 			return undefined;
 		}
 	}

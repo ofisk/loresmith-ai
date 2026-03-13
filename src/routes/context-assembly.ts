@@ -11,19 +11,12 @@ import type { ContextAssemblyOptions } from "@/types/context-assembly";
 
 export async function handleAssembleContext(c: ContextWithAuth) {
 	try {
-		console.log("[ContextAssembly] Assemble context endpoint called");
 		const auth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
-		console.log(
-			`[ContextAssembly] Assembling context for campaign: ${campaignId}`
-		);
 
 		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
 		if (!hasAccess) {
-			console.log(
-				`[ContextAssembly] Access denied for campaign: ${campaignId}`
-			);
 			return c.json({ error: "Campaign not found" }, 404);
 		}
 		await requireCanSeeSpoilers(c, campaignId);
@@ -34,13 +27,8 @@ export async function handleAssembleContext(c: ContextWithAuth) {
 		};
 
 		if (!body.query || typeof body.query !== "string") {
-			console.log("[ContextAssembly] Invalid query parameter");
 			return c.json({ error: "query is required and must be a string" }, 400);
 		}
-
-		console.log(
-			`[ContextAssembly] Starting context assembly with query: "${body.query.substring(0, 100)}"`
-		);
 		const service = await getContextAssemblyService(c);
 		const options: ContextAssemblyOptions = body.options || {};
 
@@ -48,10 +36,6 @@ export async function handleAssembleContext(c: ContextWithAuth) {
 			body.query,
 			campaignId,
 			options
-		);
-
-		console.log(
-			`[ContextAssembly] Context assembly completed in ${context.metadata.totalAssemblyTime}ms (cached: ${context.metadata.cached})`
 		);
 
 		return c.json({
@@ -65,7 +49,6 @@ export async function handleAssembleContext(c: ContextWithAuth) {
 			},
 		});
 	} catch (error) {
-		console.error("[ContextAssembly] Failed to assemble context:", error);
 		if (error instanceof CampaignAccessDeniedError) {
 			return c.json({ error: "Access denied" }, 403);
 		}

@@ -172,20 +172,9 @@ export function FileStatusIndicator({
 		: config.title;
 
 	const handleRetry = useCallback(() => {
-		console.log(
-			`[FileStatusIndicator] Retry button clicked for: ${fileName} (${fileKey})`
-		);
 		if (fileKey && fileName && onRetry) {
-			console.log(
-				`[FileStatusIndicator] Calling onRetry handler for: ${fileName}`
-			);
 			onRetry(fileKey, fileName);
 		} else {
-			console.warn(`[FileStatusIndicator] Cannot retry - missing data:`, {
-				fileKey,
-				fileName,
-				hasOnRetry: !!onRetry,
-			});
 		}
 	}, [fileKey, fileName, onRetry]);
 

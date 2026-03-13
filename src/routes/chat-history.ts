@@ -62,14 +62,6 @@ export async function handleGetChatHistory(
 			};
 		});
 
-		console.log("[ChatHistory] Returning messages", {
-			sessionId,
-			username: auth.username,
-			count: mapped.length,
-			limit,
-			offset,
-		});
-
 		return c.json({
 			messages: mapped,
 			pagination: {
@@ -80,8 +72,7 @@ export async function handleGetChatHistory(
 				nextOffset: offset + mapped.length,
 			},
 		});
-	} catch (error) {
-		console.error("[ChatHistory] Failed to fetch history:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to load chat history" }, 500);
 	}
 }

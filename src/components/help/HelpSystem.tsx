@@ -13,7 +13,6 @@ export function useHelpSystem({
 }: HelpSystemProps) {
 	const handleHelpAction = (action: string) => {
 		const jwt = getStoredJwt();
-		console.log("[Help] handleHelpAction:", action);
 
 		let response = "";
 		switch (action) {

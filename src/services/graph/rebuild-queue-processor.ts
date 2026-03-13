@@ -11,7 +11,6 @@ export class RebuildQueueProcessor {
 	 * Process a rebuild queue message
 	 */
 	async processRebuild(message: RebuildQueueMessage): Promise<void> {
-		const startTime = Date.now();
 		const {
 			rebuildId,
 			campaignId,
@@ -24,10 +23,6 @@ export class RebuildQueueProcessor {
 			dirtyEntitySeedIds,
 		} = message;
 
-		console.log(
-			`[RebuildQueueProcessor] Starting rebuild ${rebuildId} for campaign ${campaignId} (type: ${rebuildType})`
-		);
-
 		try {
 			const daoFactory = getDAOFactory(this.env);
 			const pipelineService = await getRebuildPipelineService(this.env);
@@ -37,12 +32,7 @@ export class RebuildQueueProcessor {
 			const initialStatus = await rebuildStatusDAO.getRebuildById(rebuildId);
 			if (initialStatus) {
 				await notifyRebuildStatus(this.env, campaignId, initialStatus).catch(
-					(error) => {
-						console.error(
-							`[RebuildQueueProcessor] Failed to send started notification:`,
-							error
-						);
-					}
+					(_error) => {}
 				);
 			}
 
@@ -61,38 +51,19 @@ export class RebuildQueueProcessor {
 				}
 			);
 
-			const processingTime = Date.now() - startTime;
-
 			// Fetch final status for notification
 			const finalStatus = await rebuildStatusDAO.getRebuildById(rebuildId);
 			if (finalStatus) {
 				await notifyRebuildStatus(this.env, campaignId, finalStatus).catch(
-					(error) => {
-						console.error(
-							`[RebuildQueueProcessor] Failed to send completion notification:`,
-							error
-						);
-					}
+					(_error) => {}
 				);
 			}
 
 			if (result.success) {
-				console.log(
-					`[RebuildQueueProcessor] Rebuild ${rebuildId} completed successfully in ${processingTime}ms: ${result.communitiesCount} communities`
-				);
 			} else {
-				console.error(
-					`[RebuildQueueProcessor] Rebuild ${rebuildId} failed after ${processingTime}ms: ${result.error}`
-				);
 				throw new Error(result.error || "Rebuild failed");
 			}
 		} catch (error) {
-			const processingTime = Date.now() - startTime;
-			console.error(
-				`[RebuildQueueProcessor] Error processing rebuild ${rebuildId} after ${processingTime}ms:`,
-				error
-			);
-
 			// Send failure notification if status was updated
 			try {
 				const daoFactory = getDAOFactory(this.env);
@@ -100,21 +71,10 @@ export class RebuildQueueProcessor {
 					await daoFactory.rebuildStatusDAO.getRebuildById(rebuildId);
 				if (failedStatus && failedStatus.status === "failed") {
 					await notifyRebuildStatus(this.env, campaignId, failedStatus).catch(
-						(notifyError) => {
-							console.error(
-								`[RebuildQueueProcessor] Failed to send failure notification:`,
-								notifyError
-							);
-						}
+						(_notifyError) => {}
 					);
 				}
-			} catch (notifyError) {
-				// Ignore notification errors - don't mask the original error
-				console.error(
-					`[RebuildQueueProcessor] Error sending failure notification:`,
-					notifyError
-				);
-			}
+			} catch (_notifyError) {}
 
 			throw error;
 		}
@@ -133,15 +93,8 @@ export class RebuildQueueProcessor {
 				return; // Success, exit retry loop
 			} catch (error) {
 				retryCount++;
-				console.error(
-					`[RebuildQueueProcessor] Attempt ${retryCount}/${maxRetries} failed:`,
-					error
-				);
 
 				if (retryCount >= maxRetries) {
-					console.error(
-						`[RebuildQueueProcessor] Max retries exceeded for rebuild ${message.rebuildId}`
-					);
 					throw error;
 				}
 

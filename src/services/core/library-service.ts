@@ -84,11 +84,7 @@ export class LibraryService {
 				remainingBytes,
 				usagePercentage,
 			};
-		} catch (error) {
-			console.error(
-				"[LibraryService] Error getting user storage usage:",
-				error
-			);
+		} catch (_error) {
 			throw new StorageUsageError();
 		}
 	}
@@ -214,11 +210,7 @@ export class LibraryService {
 				})
 			);
 			return results;
-		} catch (error) {
-			console.error(
-				"[LibraryService] Error getting all users storage usage:",
-				error
-			);
+		} catch (_error) {
 			throw new StorageUsageError();
 		}
 	}
@@ -228,22 +220,15 @@ export class LibraryService {
 	 */
 	async deleteFile(
 		fileKey: string,
-		username: string
+		_username: string
 	): Promise<{ success: boolean; error?: string }> {
 		try {
-			console.log(
-				`[LibraryService] Deleting file: ${fileKey} for user: ${username}`
-			);
-
 			const fileDAO = getDAOFactory(this.env).fileDAO;
 
 			// Delete the file using the DAO (this handles database, R2, and vector cleanup)
 			await fileDAO.deleteFile(fileKey, this.env.FILE_BUCKET as any);
-
-			console.log(`[LibraryService] Successfully deleted file: ${fileKey}`);
 			return { success: true };
 		} catch (error) {
-			console.error(`[LibraryService] Error deleting file ${fileKey}:`, error);
 			return {
 				success: false,
 				error: error instanceof Error ? error.message : "Unknown error",
@@ -272,9 +257,6 @@ export class LibraryService {
 			if (!fileMetadata) {
 				throw new FileNotFoundError();
 			}
-
-			// File processing is handled by the queue consumer
-			console.log(`[LibraryService] File will be processed: ${fileKey}`);
 
 			// Update status to processed
 			if (updateStatus) {
@@ -312,13 +294,7 @@ export class LibraryService {
 		try {
 			const fileDAO = getDAOFactory(this.env).fileDAO;
 			await fileDAO.updateFileRecord(fileKey, status);
-
-			console.log(
-				`[LibraryService] Updated file status: ${fileKey} -> ${status}`
-			);
-		} catch (error) {
-			console.error(`[LibraryService] Error updating status:`, error);
-		}
+		} catch (_error) {}
 	}
 
 	/**
@@ -349,8 +325,7 @@ export class LibraryService {
 				createdAt: result.created_at as string,
 				updatedAt: result.updated_at as string,
 			};
-		} catch (error) {
-			console.error(`[LibraryService] Error getting file metadata:`, error);
+		} catch (_error) {
 			return null;
 		}
 	}

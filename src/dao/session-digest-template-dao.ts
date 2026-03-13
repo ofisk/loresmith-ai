@@ -20,10 +20,6 @@ export class SessionDigestTemplateDAO extends BaseDAOClass {
 		try {
 			templateDataJson = JSON.stringify(input.templateData);
 		} catch (error) {
-			console.error(
-				"[SessionDigestTemplateDAO] JSON serialization error:",
-				error
-			);
 			throw new Error(
 				`Failed to serialize template data: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
@@ -40,24 +36,13 @@ export class SessionDigestTemplateDAO extends BaseDAOClass {
         updated_at
       ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
-
-		try {
-			await this.execute(sql, [
-				id,
-				input.campaignId,
-				input.name,
-				input.description || null,
-				templateDataJson,
-			]);
-		} catch (error) {
-			console.error("[SessionDigestTemplateDAO] Insert error:", {
-				id,
-				campaignId: input.campaignId,
-				name: input.name,
-				error: error instanceof Error ? error.message : String(error),
-			});
-			throw error;
-		}
+		await this.execute(sql, [
+			id,
+			input.campaignId,
+			input.name,
+			input.description || null,
+			templateDataJson,
+		]);
 	}
 
 	/**
@@ -163,12 +148,7 @@ export class SessionDigestTemplateDAO extends BaseDAOClass {
 				throw new Error("Invalid template data structure");
 			}
 			templateData = parsed;
-		} catch (error) {
-			console.error(
-				"[SessionDigestTemplateDAO] Failed to parse template_data:",
-				error,
-				record
-			);
+		} catch (_error) {
 			// Return empty structure if parsing fails
 			templateData = {
 				last_session_recap: {

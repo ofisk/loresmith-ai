@@ -15,11 +15,7 @@ async function getCampaignUsername(
 		const daoFactory = getDAOFactory(env);
 		const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
 		return campaign?.username || null;
-	} catch (error) {
-		console.error(
-			`[notifyRebuildStatus] Failed to get username for campaign ${campaignId}:`,
-			error
-		);
+	} catch (_error) {
 		return null;
 	}
 }
@@ -35,11 +31,7 @@ async function getCampaignName(
 		const daoFactory = getDAOFactory(env);
 		const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
 		return campaign?.name || null;
-	} catch (error) {
-		console.error(
-			`[notifyRebuildStatus] Failed to get campaign name for ${campaignId}:`,
-			error
-		);
+	} catch (_error) {
 		return null;
 	}
 }
@@ -55,9 +47,6 @@ export async function notifyRebuildStatus(
 ): Promise<void> {
 	const username = await getCampaignUsername(env, campaignId);
 	if (!username) {
-		console.warn(
-			`[notifyRebuildStatus] Cannot send notification - no username found for campaign ${campaignId}`
-		);
 		return;
 	}
 
@@ -109,9 +98,6 @@ export async function notifyRebuildStatus(
 				`🚫 ${rebuildTypeText} graph rebuild cancelled for "${campaignName || campaignId}"`;
 			break;
 		default:
-			console.warn(
-				`[notifyRebuildStatus] Unknown rebuild status: ${rebuildStatus.status}`
-			);
 			return;
 	}
 
@@ -132,8 +118,7 @@ export async function notifyRebuildStatus(
 				...(rebuildStatus.metadata && { metadata: rebuildStatus.metadata }),
 			},
 		});
-	} catch (error) {
-		console.error(`[notifyRebuildStatus] Failed to send notification:`, error);
+	} catch (_error) {
 		// Don't throw - notifications are non-critical
 	}
 }
@@ -172,10 +157,5 @@ export async function notifyRebuildProgress(
 				...(step && { step }),
 			},
 		});
-	} catch (error) {
-		console.error(
-			`[notifyRebuildProgress] Failed to send notification:`,
-			error
-		);
-	}
+	} catch (_error) {}
 }

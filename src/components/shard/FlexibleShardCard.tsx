@@ -77,9 +77,6 @@ export function FlexibleShardCard({
 
 	const handleImportanceChange = async (newLevel: ImportanceLevel) => {
 		if (!campaignId) {
-			console.warn(
-				"[FlexibleShardCard] Cannot update importance: campaignId not provided"
-			);
 			return;
 		}
 
@@ -145,7 +142,6 @@ export function FlexibleShardCard({
 				}
 			}
 		} catch (error) {
-			console.error("[FlexibleShardCard] Failed to update importance:", error);
 			alert(
 				error instanceof Error ? error.message : "Failed to update importance"
 			);

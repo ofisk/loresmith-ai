@@ -49,15 +49,8 @@ export class FileEmbeddingService {
 					? chunkTextByCharacterCount(text, EMBEDDING_CHUNK_SIZE)
 					: [text];
 
-			console.log(
-				`[FileEmbeddingService] Storing embeddings for ${textChunks.length} chunk(s) (total text length: ${text.length} chars)`
-			);
-
 			// Warn if we have too many chunks
 			if (textChunks.length > WARNING_CHUNK_THRESHOLD) {
-				console.warn(
-					`[FileEmbeddingService] WARNING: Large number of chunks (${textChunks.length}) may cause timeout. Consider processing in background queue.`
-				);
 			}
 
 			// Generate and store embeddings for each chunk
@@ -81,11 +74,6 @@ export class FileEmbeddingService {
 						`Invalid embedding: expected array, got ${typeof embeddings}`
 					);
 				}
-
-				// Log embedding dimensions for debugging
-				console.log(
-					`[FileEmbeddingService] Generated embedding for chunk ${i + 1}/${textChunks.length} with ${embeddings.length} dimensions`
-				);
 
 				// Validate embedding has correct dimensions
 				if (embeddings.length !== OpenAIEmbeddingService.EXPECTED_DIMENSIONS) {
@@ -146,17 +134,12 @@ export class FileEmbeddingService {
 			// Store all embeddings in Vectorize
 			await this.insertVectorsInBatches(vectorsToInsert);
 
-			console.log(
-				`[FileEmbeddingService] Successfully stored ${vectorsToInsert.length} embedding(s) for ${metadataId}`
-			);
-
 			if (!primaryVectorId) {
 				throw new Error("Failed to generate primary vector ID");
 			}
 
 			return primaryVectorId;
 		} catch (error) {
-			console.error(`[FileEmbeddingService] Error storing embeddings:`, error);
 			throw new Error(
 				`Failed to store embeddings: ${error instanceof Error ? error.message : String(error)}. File may be too large or processing timed out.`
 			);
@@ -212,108 +195,13 @@ export class FileEmbeddingService {
 			};
 		});
 
-		try {
-			if (sanitizedVectors.length > BATCH_SIZE) {
-				console.log(
-					`[FileEmbeddingService] Batch inserting ${sanitizedVectors.length} vectors in batches of ${BATCH_SIZE}`
-				);
-				for (let i = 0; i < sanitizedVectors.length; i += BATCH_SIZE) {
-					const batch = sanitizedVectors.slice(i, i + BATCH_SIZE);
-					try {
-						await this.vectorize.insert(batch);
-						console.log(
-							`[FileEmbeddingService] Stored batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(sanitizedVectors.length / BATCH_SIZE)} (${batch.length} vectors)`
-						);
-					} catch (batchError) {
-						const errorDetails =
-							batchError instanceof Error
-								? { message: batchError.message, stack: batchError.stack }
-								: { error: String(batchError) };
-						console.error(
-							`[FileEmbeddingService] Failed to insert batch ${Math.floor(i / BATCH_SIZE) + 1}:`,
-							errorDetails
-						);
-						// Log batch details for debugging
-						try {
-							const batchSizeBytes = JSON.stringify(batch).length;
-							console.error(
-								`[FileEmbeddingService] Batch details: ${batch.length} vectors, ~${(batchSizeBytes / 1024).toFixed(2)}KB JSON size`
-							);
-							// Log first vector structure for debugging
-							if (batch.length > 0) {
-								console.error(
-									`[FileEmbeddingService] First vector sample:`,
-									JSON.stringify(
-										{
-											id: batch[0].id,
-											valuesLength: batch[0].values.length,
-											metadata: batch[0].metadata,
-										},
-										null,
-										2
-									)
-								);
-							}
-						} catch (jsonError) {
-							console.error(
-								`[FileEmbeddingService] Failed to serialize batch for logging:`,
-								jsonError
-							);
-						}
-						throw batchError;
-					}
-				}
-			} else {
-				await this.vectorize.insert(sanitizedVectors);
+		if (sanitizedVectors.length > BATCH_SIZE) {
+			for (let i = 0; i < sanitizedVectors.length; i += BATCH_SIZE) {
+				const batch = sanitizedVectors.slice(i, i + BATCH_SIZE);
+				await this.vectorize.insert(batch);
 			}
-		} catch (error) {
-			// Log detailed error information
-			const errorDetails =
-				error instanceof Error
-					? {
-							message: error.message,
-							stack: error.stack,
-							name: error.name,
-						}
-					: { error: String(error) };
-			console.error(
-				`[FileEmbeddingService] Vectorize insert error:`,
-				errorDetails
-			);
-
-			// Log vector details for debugging
-			try {
-				const totalSizeBytes = JSON.stringify(sanitizedVectors).length;
-				const avgMetadataSize =
-					sanitizedVectors.length > 0
-						? JSON.stringify(sanitizedVectors[0].metadata).length
-						: 0;
-				console.error(
-					`[FileEmbeddingService] Vector details: ${sanitizedVectors.length} vectors, ~${(totalSizeBytes / 1024).toFixed(2)}KB total JSON size, ~${(avgMetadataSize / 1024).toFixed(2)}KB avg metadata per vector`
-				);
-				// Log first vector structure for debugging
-				if (sanitizedVectors.length > 0) {
-					console.error(
-						`[FileEmbeddingService] First vector sample:`,
-						JSON.stringify(
-							{
-								id: sanitizedVectors[0].id,
-								valuesLength: sanitizedVectors[0].values.length,
-								metadata: sanitizedVectors[0].metadata,
-							},
-							null,
-							2
-						)
-					);
-				}
-			} catch (jsonError) {
-				console.error(
-					`[FileEmbeddingService] Failed to serialize vectors for logging:`,
-					jsonError
-				);
-			}
-
-			throw error;
+		} else {
+			await this.vectorize.insert(sanitizedVectors);
 		}
 	}
 
@@ -358,10 +246,6 @@ export class FileEmbeddingService {
 
 			return embedding;
 		} catch (error) {
-			console.error(
-				"[FileEmbeddingService] Error generating embedding:",
-				error
-			);
 			if (
 				error instanceof EmbeddingGenerationError ||
 				error instanceof LLMProviderAPIKeyError

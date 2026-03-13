@@ -115,9 +115,7 @@ export function useResourceFileEvents(
 				await response.json();
 				// File statuses updated successfully
 			}
-		} catch (error) {
-			console.error("[ResourceList] Error refreshing file statuses:", error);
-		}
+		} catch (_error) {}
 	}, []);
 
 	// Handle file status updates from SSE notifications
@@ -203,25 +201,15 @@ export function useResourceFileEvents(
 	const handleFileChange = useCallback(
 		(event: CustomEvent) => {
 			const { completeFileData } = event.detail;
-			console.log("[ResourceList] Received file-changed event:", {
-				completeFileData,
-			});
 
 			// If we have complete file data, add the new file to the list in-place
 			if (completeFileData) {
-				console.log(
-					"[ResourceList] Adding new file with complete data:",
-					completeFileData
-				);
 				setFiles((prevFiles) => {
 					// Check if file already exists (avoid duplicates)
 					const exists = prevFiles.some(
 						(f) => f.file_key === completeFileData.file_key
 					);
 					if (exists) {
-						console.log(
-							"[ResourceList] File already exists, skipping duplicate"
-						);
 						return prevFiles;
 					}
 
@@ -233,8 +221,6 @@ export function useResourceFileEvents(
 					return [parsedFileData, ...prevFiles];
 				});
 			} else {
-				// Fallback to refresh if we don't have complete file data
-				console.log("[ResourceList] No complete file data, refreshing list");
 				fetchResources();
 			}
 
@@ -248,20 +234,12 @@ export function useResourceFileEvents(
 	useEventBus<FileUploadEvent>(
 		EVENT_TYPES.FILE_UPLOAD.COMPLETED,
 		(event) => {
-			console.log(
-				"[ResourceList] Received FILE_UPLOAD.COMPLETED event:",
-				event
-			);
 			const key = event.fileKey;
 			if (key) {
 				// Update the file status from "uploading" to "processing"
 				setFiles((prevFiles) => {
 					return prevFiles.map((file) => {
 						if (file.file_key === key) {
-							console.log(
-								"[ResourceList] Updating file status from uploading to processing:",
-								file.file_name
-							);
 							return {
 								...file,
 								status: "processing",
@@ -278,9 +256,6 @@ export function useResourceFileEvents(
 					clearProgress(key);
 				}, 1200);
 			}
-			console.log(
-				"[ResourceList] Upload completed, file status updated to processing"
-			);
 		},
 		[setFiles, updateProgress, clearProgress]
 	);
@@ -294,18 +269,11 @@ export function useResourceFileEvents(
 			const fileSize = event.fileSize;
 			if (!key || !filename) return;
 
-			console.log("[ResourceList] Received FILE_UPLOAD.STARTED event:", {
-				key,
-				filename,
-				fileSize,
-			});
-
 			// Add the uploading file to the files list immediately
 			setFiles((prevFiles) => {
 				// Check if file already exists (avoid duplicates)
 				const exists = prevFiles.some((f) => f.file_key === key);
 				if (exists) {
-					console.log("[ResourceList] File already exists, skipping duplicate");
 					return prevFiles;
 				}
 
@@ -320,11 +288,6 @@ export function useResourceFileEvents(
 					updated_at: new Date().toISOString(),
 					campaigns: [],
 				};
-
-				console.log(
-					"[ResourceList] Adding uploading file to list:",
-					uploadingFile
-				);
 				// Add new file to the beginning of the list
 				return [uploadingFile, ...prevFiles];
 			});
@@ -353,16 +316,10 @@ export function useResourceFileEvents(
 			const key = event.fileKey;
 			if (!key) return;
 
-			console.log("[ResourceList] Received FILE_UPLOAD.FAILED event:", event);
-
 			// Update the file status to "failed"
 			setFiles((prevFiles) => {
 				return prevFiles.map((file) => {
 					if (file.file_key === key) {
-						console.log(
-							"[ResourceList] Updating file status to failed:",
-							file.file_name
-						);
 						return {
 							...file,
 							status: FileDAO.STATUS.ERROR, // Use standard ERROR status constant
@@ -388,8 +345,6 @@ export function useResourceFileEvents(
 		(event) => {
 			const key = event.fileKey;
 			if (!key) return;
-
-			console.log("[ResourceList] Received FILE_UPLOAD.QUEUED event:", event);
 
 			// Update status to "queued_for_upload" so file stays visible with distinct label
 			setFiles((prevFiles) =>

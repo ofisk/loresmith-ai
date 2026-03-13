@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
 	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
 	"files": {
 		"ignoreUnknown": false,
@@ -16,6 +16,8 @@
 			"!!node_modules",
 			"!!.wrangler",
 			"!!build",
+			"!!skills-lock.json",
+			"!!.agents",
 			"!!.claude",
 			"!!.vscode",
 			"!!**/worker-configuration.d.ts"
@@ -75,6 +77,42 @@
 				"rules": {
 					"suspicious": {
 						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/agents/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"src/lib/zod-utils.ts",
+				"src/lib/notifications.ts",
+				"src/lib/shard-generation-utils.ts",
+				"src/dao/file/file-dao.ts",
+				"src/dao/dao-factory.ts"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/components/shard/PropertyField.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noArrayIndexKey": "off"
 					}
 				}
 			}

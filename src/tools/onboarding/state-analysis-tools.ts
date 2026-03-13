@@ -83,7 +83,6 @@ export const analyzeUserStateTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to analyze user state:", error);
 			return createToolError(
 				"Failed to analyze user state",
 				error instanceof Error ? error.message : "Unknown error",
@@ -142,7 +141,6 @@ export const getCampaignReadinessTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to get campaign readiness:", error);
 			return createToolError(
 				"Failed to analyze campaign readiness",
 				error instanceof Error ? error.message : "Unknown error",
@@ -209,7 +207,6 @@ export const getUserActivityTool = tool({
 				options?.toolCallId ?? "unknown"
 			);
 		} catch (error) {
-			console.error("Failed to get user activity:", error);
 			return createToolError(
 				"Failed to retrieve user activity",
 				error instanceof Error ? error.message : "Unknown error",

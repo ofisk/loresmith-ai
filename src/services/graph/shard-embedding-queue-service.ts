@@ -7,17 +7,6 @@ export class ShardEmbeddingQueueService {
 	async enqueueShardEmbedding(
 		message: ShardEmbeddingQueueMessage
 	): Promise<void> {
-		try {
-			await this.queue.send(message);
-			console.log(
-				`[ShardEmbeddingQueueService] Enqueued embedding for ${message.entityIds.length} entities in campaign ${message.campaignId}`
-			);
-		} catch (error) {
-			console.error(
-				`[ShardEmbeddingQueueService] Failed to enqueue shard embedding:`,
-				error
-			);
-			throw error;
-		}
+		await this.queue.send(message);
 	}
 }

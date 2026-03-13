@@ -76,12 +76,7 @@ export function useGlobalShardManager(getJwt: () => string | null) {
 							shards: enrichedShards,
 						} as CampaignShardData;
 					}
-				} catch (error) {
-					console.error(
-						`Failed to fetch shards for campaign ${campaign.campaignId}:`,
-						error
-					);
-				}
+				} catch (_error) {}
 				return null;
 			});
 
@@ -98,8 +93,7 @@ export function useGlobalShardManager(getJwt: () => string | null) {
 				isLoading: false,
 				lastUpdated: Date.now(),
 			});
-		} catch (error) {
-			console.error("Failed to fetch staged shards:", error);
+		} catch (_error) {
 			setState((prev) => ({ ...prev, isLoading: false }));
 		}
 	}, [getJwt]);
@@ -111,13 +105,6 @@ export function useGlobalShardManager(getJwt: () => string | null) {
 			campaignName: string,
 			newShards: StagedShardGroup[]
 		) => {
-			console.log("addShardsFromCampaign called:", {
-				campaignId,
-				campaignName,
-				newShardsCount: newShards.length,
-				newShards,
-			});
-
 			setState((prev) => {
 				// Remove any existing shards from this campaign to avoid duplicates
 				const filteredShards = prev.shards.filter(
@@ -136,12 +123,6 @@ export function useGlobalShardManager(getJwt: () => string | null) {
 					shards: [...filteredShards, ...enrichedShards],
 					lastUpdated: Date.now(),
 				};
-
-				console.log("Global shard state updated:", {
-					previousCount: prev.shards.length,
-					newCount: newState.shards.length,
-					newState,
-				});
 
 				return newState;
 			});

@@ -291,7 +291,7 @@ export class HistoricalContextService {
 
 		// Load entries from R2 using archive keys
 		const allEntries: WorldStateChangelogEntry[] = [];
-		for (const archiveKey of archiveKeys) {
+		for (const _archiveKey of archiveKeys) {
 			try {
 				// We need to extract entries from the archive - use the archive service
 				// For now, get all entries and filter by relevance
@@ -304,12 +304,7 @@ export class HistoricalContextService {
 					}
 				);
 				allEntries.push(...entries);
-			} catch (error) {
-				console.error(
-					`[HistoricalContext] Failed to load archive ${archiveKey}:`,
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		// Remove duplicates by ID

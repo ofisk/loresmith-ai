@@ -56,12 +56,7 @@ export class WorldStateChangelogService {
 			this.telemetryService = new TelemetryService(
 				new TelemetryDAO(options.db)
 			);
-		} catch (error) {
-			console.warn(
-				"[WorldStateChangelog] Failed to initialize telemetry service:",
-				error
-			);
-		}
+		} catch (_error) {}
 	}
 
 	/**
@@ -162,12 +157,7 @@ export class WorldStateChangelogService {
 						sessionId: normalizedPayload.campaign_session_id,
 					},
 				})
-				.catch((error) => {
-					console.error(
-						"[WorldStateChangelog] Failed to record entry count:",
-						error
-					);
-				}),
+				.catch((_error) => {}),
 
 			// Record changelog size
 			this.telemetryService
@@ -178,9 +168,7 @@ export class WorldStateChangelogService {
 						impactScore,
 					},
 				})
-				.catch((error) => {
-					console.error("[WorldStateChangelog] Failed to record size:", error);
-				}),
+				.catch((_error) => {}),
 		];
 
 		await Promise.allSettled(telemetryPromises);

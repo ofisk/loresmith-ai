@@ -37,11 +37,7 @@ export class LibraryFileMetadataService {
 				updatedAt: result.updated_at as string,
 				vectorId: undefined, // Column doesn't exist
 			};
-		} catch (error) {
-			console.error(
-				`[LibraryFileMetadataService] Error getting file metadata:`,
-				error
-			);
+		} catch (_error) {
 			return null;
 		}
 	}
@@ -60,13 +56,6 @@ export class LibraryFileMetadataService {
 			// Get the file to find the file_key
 			const file = await fileDAO.getFileForRag(fileId, userId);
 			if (!file) {
-				console.error(
-					`[LibraryFileMetadataService] File not found for update:`,
-					{
-						fileId,
-						userId,
-					}
-				);
 				return false;
 			}
 
@@ -84,17 +73,8 @@ export class LibraryFileMetadataService {
 			if (updates.status !== undefined) {
 				await fileDAO.updateFileRecord(file.file_key, updates.status);
 			}
-
-			console.log(`[LibraryFileMetadataService] Updated file metadata:`, {
-				fileId,
-				updates,
-			});
 			return true;
-		} catch (error) {
-			console.error(
-				`[LibraryFileMetadataService] Error updating file metadata:`,
-				error
-			);
+		} catch (_error) {
 			return false;
 		}
 	}
@@ -106,11 +86,7 @@ export class LibraryFileMetadataService {
 		try {
 			const fileDAO = getDAOFactory(this.env).fileDAO;
 			return await fileDAO.getFilesForRag(username);
-		} catch (error) {
-			console.error(
-				`[LibraryFileMetadataService] Error getting user files:`,
-				error
-			);
+		} catch (_error) {
 			return [];
 		}
 	}

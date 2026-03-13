@@ -115,10 +115,6 @@ export class ChunkedProcessingService {
 				Math.ceil((fileSizeMB * 1024) / ESTIMATED_PAGE_SIZE_KB)
 			);
 
-			console.log(
-				`[ChunkedProcessingService] Estimated ${totalPages} pages for ${fileKey} based on file size (${fileSizeMB.toFixed(2)}MB)`
-			);
-
 			chunks = this.pdfChunkingService.calculatePageRanges(
 				totalPages,
 				fileSizeMB
@@ -156,10 +152,6 @@ export class ChunkedProcessingService {
 				byteRangeEnd: chunk.byteRangeEnd,
 			});
 		}
-
-		console.log(
-			`[ChunkedProcessingService] Created ${chunks.length} processing chunks for file ${fileKey}`
-		);
 
 		return chunks;
 	}
@@ -245,10 +237,6 @@ export class ChunkedProcessingService {
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
-			console.error(
-				`[ChunkedProcessingService] Failed to process chunk ${chunkId}:`,
-				errorMessage
-			);
 
 			// Update chunk status to failed
 			await this.fileDAO.updateFileProcessingChunk(chunkId, {

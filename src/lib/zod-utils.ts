@@ -21,8 +21,8 @@ export function parseOrThrow<T extends z.ZodType>(
 	const parsed = schema.safeParse(data);
 	if (parsed.success) return parsed.data as z.infer<T>;
 
-	const prefix = options.logPrefix ?? "[Schema]";
-	console.warn(`${prefix} Schema validation failed:`, parsed.error.flatten());
+	const logPrefix = options.logPrefix ?? "[Schema]";
+	console.warn(`${logPrefix} Schema validation failed:`, parsed.error);
 
 	const message = options.messagePrefix
 		? `${options.messagePrefix}: ${parsed.error.issues.map((e: z.ZodIssue) => e.message).join(", ")}`

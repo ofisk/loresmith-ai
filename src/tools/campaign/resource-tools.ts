@@ -24,12 +24,8 @@ export const listCampaignResources = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] listCampaignResources received JWT:", jwt);
-		console.log("[Tool] listCampaignResources context:", options);
-		console.log("[listCampaignResources] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[listCampaignResources] Making API request");
 			const response = await authenticatedFetch(
 				API_CONFIG.buildUrl(
 					API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)
@@ -61,7 +57,6 @@ export const listCampaignResources = tool({
 			const result = (await response.json()) as {
 				resources: Array<{ type: string; id: string; name?: string }>;
 			};
-			console.log("[listCampaignResources] API data:", result);
 
 			return createToolSuccess(
 				`${USER_MESSAGES.CAMPAIGN_RESOURCES_FOUND} ${campaignId}: ${result.resources.length} resource(s)`,
@@ -69,7 +64,6 @@ export const listCampaignResources = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error listing campaign resources:", error);
 			return createToolError(
 				"Failed to list campaign resources",
 				error,
@@ -98,12 +92,8 @@ export const addResourceToCampaign = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, resourceId, resourceType, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] addResourceToCampaign received JWT:", jwt);
-		console.log("[Tool] addResourceToCampaign context:", options);
-		console.log("[addResourceToCampaign] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[addResourceToCampaign] Making API request");
 			const response = await authenticatedFetch(
 				API_CONFIG.buildUrl(
 					API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCE(campaignId)
@@ -136,15 +126,12 @@ export const addResourceToCampaign = tool({
 					toolCallId
 				);
 			}
-
-			console.log("[addResourceToCampaign] Resource added successfully");
 			return createToolSuccess(
 				`Resource "${resourceId}" has been added to campaign "${campaignId}" successfully.`,
 				{ campaignId, resourceId, resourceType },
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error adding resource to campaign:", error);
 			return createToolError(
 				"Failed to add resource to campaign",
 				error,
@@ -222,7 +209,6 @@ export const proposeResourceToCampaign = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error proposing resource to campaign:", error);
 			return createToolError(
 				"Failed to propose resource to campaign",
 				error,
@@ -248,12 +234,8 @@ export const removeResourceFromCampaign = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, resourceId, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] removeResourceFromCampaign received JWT:", jwt);
-		console.log("[Tool] removeResourceFromCampaign context:", options);
-		console.log("[removeResourceFromCampaign] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[removeResourceFromCampaign] Making API request");
 			const response = await authenticatedFetch(
 				API_CONFIG.buildUrl(
 					`${API_CONFIG.ENDPOINTS.CAMPAIGNS.RESOURCES(campaignId)}/${resourceId}`
@@ -281,15 +263,12 @@ export const removeResourceFromCampaign = tool({
 					toolCallId
 				);
 			}
-
-			console.log("[removeResourceFromCampaign] Resource removed successfully");
 			return createToolSuccess(
 				`Resource "${resourceId}" has been removed from campaign "${campaignId}" successfully.`,
 				{ campaignId, resourceId },
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error removing resource from campaign:", error);
 			return createToolError(
 				"Failed to remove resource from campaign",
 				error,

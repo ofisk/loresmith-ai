@@ -34,8 +34,7 @@ export async function handleGetExternalResourceRecommendations(
 		];
 
 		return c.json({ recommendations });
-	} catch (error) {
-		console.error("Error getting external resource recommendations:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -68,8 +67,7 @@ export async function handleGetExternalResourceSearch(c: ContextWithAuth) {
 		];
 
 		return c.json({ searchResults });
-	} catch (error) {
-		console.error("Error searching external resources:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -104,8 +102,7 @@ export async function handleGetGmResources(c: ContextWithAuth) {
 		];
 
 		return c.json({ gmResources });
-	} catch (error) {
-		console.error("Error getting GM resources:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

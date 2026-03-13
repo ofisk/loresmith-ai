@@ -142,13 +142,6 @@ export const createSessionDigestTool = tool({
 					}
 				}
 
-				console.error("[createSessionDigestTool] Validation failed:", {
-					validationErrors,
-					digestDataKeys: digestData
-						? Object.keys(digestData as Record<string, unknown>)
-						: [],
-				});
-
 				return createToolError(
 					"Invalid digest data structure",
 					`The digest data does not match the required schema. Issues: ${validationErrors.join("; ")}`,
@@ -250,18 +243,6 @@ export const createSessionDigestTool = tool({
 				campaign.name
 			);
 		} catch (error) {
-			const errorDetails: Record<string, unknown> = {
-				error: error instanceof Error ? error.message : String(error),
-				errorName: error instanceof Error ? error.name : typeof error,
-				errorStack: error instanceof Error ? error.stack : undefined,
-				campaignId,
-				sessionNumber: input.sessionNumber ?? "(auto)",
-				sessionDate,
-				hasDigestData: !!digestData,
-			};
-
-			console.error("[createSessionDigestTool] Error:", errorDetails);
-
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
 
@@ -348,7 +329,6 @@ export const getSessionDigestTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getSessionDigestTool] Error:", error);
 			return createToolError(
 				"Failed to get session digest",
 				error instanceof Error ? error.message : "Unknown error",
@@ -421,7 +401,6 @@ export const listSessionDigestsTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[listSessionDigestsTool] Error:", error);
 			return createToolError(
 				"Failed to list session digests",
 				error instanceof Error ? error.message : "Unknown error",
@@ -575,15 +554,6 @@ export const updateSessionDigestTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[updateSessionDigestTool] Error:", error);
-			console.error("[updateSessionDigestTool] Error details:", {
-				campaignId,
-				sessionNumber,
-				hasSessionDate: sessionDate !== undefined,
-				hasDigestData: digestData !== undefined,
-				errorMessage: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack : undefined,
-			});
 			return createToolError(
 				"Failed to update session digest",
 				error instanceof Error ? error.message : "Unknown error",

@@ -181,7 +181,6 @@ export const generateHandoutTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[generateHandoutTool] Error:", error);
 			return createToolError(
 				"Failed to generate handout",
 				error instanceof Error ? error.message : "Unknown error",
@@ -300,7 +299,6 @@ export const exportHandoutTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[exportHandoutTool] Error:", error);
 			return createToolError(
 				"Failed to export handout",
 				error instanceof Error ? error.message : "Unknown error",

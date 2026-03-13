@@ -131,14 +131,12 @@ export function useTelemetryDashboard() {
 			try {
 				const jwt = AuthService.getStoredJwt();
 				if (!jwt) {
-					console.error("[useTelemetryDashboard] No JWT token found");
 					throw new Error("Authentication required");
 				}
 
 				const url = API_CONFIG.buildUrl(
 					API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.DASHBOARD
 				);
-				console.log("[useTelemetryDashboard] Fetching dashboard from:", url);
 
 				const response = await fetch(url, {
 					headers: {
@@ -147,15 +145,8 @@ export function useTelemetryDashboard() {
 					},
 				});
 
-				console.log(
-					"[useTelemetryDashboard] Response status:",
-					response.status,
-					response.statusText
-				);
-
 				if (!response.ok) {
 					const errorText = await response.text();
-					console.error("[useTelemetryDashboard] Error response:", errorText);
 					try {
 						const errorData = JSON.parse(errorText);
 						throw new Error(
@@ -170,10 +161,8 @@ export function useTelemetryDashboard() {
 				}
 
 				const data = (await response.json()) as DashboardSummary;
-				console.log("[useTelemetryDashboard] Dashboard data received:", data);
 				setDashboard(data);
 			} catch (err) {
-				console.error("[useTelemetryDashboard] Error:", err);
 				setError(err instanceof Error ? err : new Error("Unknown error"));
 			} finally {
 				setLoading(false);

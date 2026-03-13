@@ -128,7 +128,7 @@ describe("getSessionReadoutContext", () => {
 	});
 
 	it("uses batch community lookup instead of per-entity loop", async () => {
-		const result = await getSessionReadoutContext.execute?.(
+		const _result = await getSessionReadoutContext.execute?.(
 			{ campaignId, jwt, forceRegenerate: true },
 			options
 		);

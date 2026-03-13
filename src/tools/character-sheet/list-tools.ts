@@ -32,22 +32,11 @@ export const listCharacterSheets = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] listCharacterSheets received JWT:", jwt);
-		console.log("[Tool] listCharacterSheets context:", options);
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[listCharacterSheets] Environment from context:", !!env);
-			console.log(
-				"[listCharacterSheets] DB binding exists:",
-				env?.DB !== undefined
-			);
 
 			if (env?.DB) {
-				console.log(
-					"[listCharacterSheets] Running in Durable Object context, calling database directly"
-				);
-
 				const daoFactory = getDAOFactory(env);
 				const access = await requireCampaignAccessForTool({
 					env,
@@ -72,12 +61,6 @@ export const listCharacterSheets = tool({
 
 				const characterSheets =
 					await daoFactory.characterSheetDAO.listByCampaign(campaignId);
-				console.log(
-					"[listCharacterSheets] Listing character sheets for campaign:",
-					campaignId,
-					"count:",
-					characterSheets.length
-				);
 
 				const result = characterSheets.map((cs) => ({
 					id: cs.id,
@@ -97,10 +80,6 @@ export const listCharacterSheets = tool({
 					toolCallId
 				);
 			} else {
-				// Fall back to HTTP API
-				console.log(
-					"[listCharacterSheets] Running in HTTP context, making API request"
-				);
 				const response = await authenticatedFetch(
 					API_CONFIG.buildUrl(
 						API_CONFIG.ENDPOINTS.CHARACTER_SHEETS.LIST(campaignId)
@@ -149,7 +128,6 @@ export const listCharacterSheets = tool({
 				);
 			}
 		} catch (error) {
-			console.error("Error listing character sheets:", error);
 			return createToolError(
 				`Failed to list character sheets: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },

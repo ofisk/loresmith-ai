@@ -384,9 +384,6 @@ export class PlanningContextService extends BaseRAGService {
 			const apiKey =
 				typeof this.openaiApiKey === "string" ? this.openaiApiKey : "";
 			if (!apiKey) {
-				console.log(
-					"[PlanningContext] No OpenAI API key available, skipping LLM extraction"
-				);
 				return [];
 			}
 
@@ -420,10 +417,6 @@ export class PlanningContextService extends BaseRAGService {
 
 			const parsed = extractionSchema.safeParse(result);
 			if (!parsed.success) {
-				console.warn(
-					"[PlanningContext] LLM result failed schema validation:",
-					parsed.error.flatten()
-				);
 				return [];
 			}
 			const entityNames = parsed.data.entityNames.filter(
@@ -431,9 +424,6 @@ export class PlanningContextService extends BaseRAGService {
 			);
 
 			if (entityNames.length > 0) {
-				console.log(
-					`[PlanningContext] LLM extracted ${entityNames.length} entity names: ${entityNames.join(", ")}`
-				);
 			}
 
 			PlanningContextService.entityNamesCache.set(cacheKey, {
@@ -441,11 +431,7 @@ export class PlanningContextService extends BaseRAGService {
 				expiresAt: Date.now() + this.entityNamesCacheTTL,
 			});
 			return entityNames;
-		} catch (error) {
-			console.warn(
-				"[PlanningContext] LLM entity extraction failed, will use fallback:",
-				error instanceof Error ? error.message : String(error)
-			);
+		} catch (_error) {
 			// Return empty array - fallback to keyword search
 			return [];
 		}
@@ -495,9 +481,6 @@ export class PlanningContextService extends BaseRAGService {
 
 			// Method 1: Try semantic similarity search (if entity embeddings exist)
 			try {
-				console.log(
-					"[PlanningContext] Attempting semantic similarity search for entities"
-				);
 				const similarEntities =
 					await entityEmbeddingService.findSimilarByEmbedding(queryEmbedding, {
 						campaignId,
@@ -505,10 +488,6 @@ export class PlanningContextService extends BaseRAGService {
 					});
 
 				if (similarEntities.length > 0) {
-					console.log(
-						`[PlanningContext] Found ${similarEntities.length} entities via semantic similarity`
-					);
-
 					for (const similar of similarEntities) {
 						// Only include if similarity score is reasonable (above 0.3)
 						if (similar.score >= 0.3) {
@@ -525,11 +504,7 @@ export class PlanningContextService extends BaseRAGService {
 						}
 					}
 				}
-			} catch (error) {
-				console.log(
-					"[PlanningContext] Semantic similarity search unavailable or failed (this is okay):",
-					error instanceof Error ? error.message : String(error)
-				);
+			} catch (_error) {
 				// Continue to fallback method
 			}
 
@@ -542,10 +517,6 @@ export class PlanningContextService extends BaseRAGService {
 				);
 
 				if (llmExtractedNames.length > 0) {
-					console.log(
-						`[PlanningContext] Using LLM-extracted entity names for search: ${llmExtractedNames.join(", ")}`
-					);
-
 					try {
 						const keywordEntities =
 							await daoFactory.entityDAO.searchEntitiesByName(
@@ -575,30 +546,15 @@ export class PlanningContextService extends BaseRAGService {
 						}
 
 						if (keywordEntities.length > 0) {
-							console.log(
-								`[PlanningContext] Found ${keywordEntities.length} entities via LLM-extracted name matching`
-							);
 						}
-					} catch (error) {
-						console.warn(
-							"[PlanningContext] LLM-extracted name search failed:",
-							error
-						);
+					} catch (_error) {
 						// Continue with whatever we have
 					}
 				} else if (llmExtractedNames.length === 0 && this.openaiApiKey) {
-					// LLM returned empty array - this means no entities were found in query
-					// This is fine, just log it
-					console.log(
-						"[PlanningContext] LLM extraction found no entity names in query"
-					);
 				}
 			}
 
 			if (foundEntities.size === 0) {
-				console.log(
-					"[PlanningContext] No entities found via semantic or keyword search"
-				);
 				return [];
 			}
 
@@ -609,10 +565,6 @@ export class PlanningContextService extends BaseRAGService {
 
 			// Take top entities
 			const topEntities = sortedEntities.slice(0, maxEntities);
-
-			console.log(
-				`[PlanningContext] Processing ${topEntities.length} entities for graph context`
-			);
 
 			// Get graph neighbors for each matching entity
 			const entityContexts: EntityGraphContext[] = [];
@@ -634,25 +586,13 @@ export class PlanningContextService extends BaseRAGService {
 						neighbors: neighbors.slice(0, maxNeighborsPerEntity),
 						matchedKeywords,
 					});
-
-					console.log(
-						`[PlanningContext] Found ${neighbors.length} neighbors for entity: ${entity.name}`
-					);
-				} catch (error) {
-					console.warn(
-						`[PlanningContext] Failed to get neighbors for entity ${entity.id}:`,
-						error
-					);
+				} catch (_error) {
 					// Continue with other entities even if one fails
 				}
 			}
 
 			return entityContexts;
-		} catch (error) {
-			console.warn(
-				"[PlanningContext] Failed to find entity graph context:",
-				error
-			);
+		} catch (_error) {
 			// Return empty array on error - don't fail the entire search
 			return [];
 		}
@@ -666,12 +606,6 @@ export class PlanningContextService extends BaseRAGService {
 	): Promise<PlanningContextSearchResult[]> {
 		const searchStartTime = Date.now();
 		try {
-			console.log("[PlanningContext] Starting search operation", {
-				campaignId: options.campaignId,
-				queryLength: options.query.length,
-				limit: options.limit,
-			});
-
 			this.validateDependencies();
 
 			const {
@@ -689,26 +623,11 @@ export class PlanningContextService extends BaseRAGService {
 				forPlayer && (!sectionTypesOpt || sectionTypesOpt.length === 0)
 					? Array.from(PLAYER_SAFE_PLANNING_SECTION_TYPES)
 					: sectionTypesOpt;
-
-			console.log("[PlanningContext] Generating query embedding");
 			const [queryEmbedding] = await this.generateEmbeddings([query]);
 
 			const daoFactory = getDAOFactory(this.env);
-
-			// Get the current max session number for the campaign to calculate recency
-			console.log(
-				"[PlanningContext] Fetching max session number for recency calculation"
-			);
 			const currentMaxSessionNumber =
 				await daoFactory.sessionDigestDAO.getMaxSessionNumber(campaignId);
-			console.log(
-				`[PlanningContext] Current max session number: ${currentMaxSessionNumber}`
-			);
-
-			console.log("[PlanningContext] Querying Vectorize index", {
-				topK: limit * 2,
-				campaignId,
-			});
 			const vectorResults = await this.vectorize.query(queryEmbedding, {
 				topK: limit * 2,
 				returnMetadata: true,
@@ -719,14 +638,6 @@ export class PlanningContextService extends BaseRAGService {
 			});
 
 			const matches = vectorResults.matches || [];
-			console.log(
-				`[PlanningContext] Vectorize returned ${matches.length} matches`
-			);
-
-			// Find entity graph context for augmentation
-			console.log(
-				"[PlanningContext] Finding entity graph context for augmentation"
-			);
 			const entityGraphContext = await this.findEntityGraphContext(
 				campaignId,
 				query,
@@ -736,9 +647,6 @@ export class PlanningContextService extends BaseRAGService {
 			);
 
 			if (entityGraphContext.length > 0) {
-				console.log(
-					`[PlanningContext] Found ${entityGraphContext.length} entities with graph context for augmentation`
-				);
 			}
 
 			const results: PlanningContextSearchResult[] = [];
@@ -838,21 +746,9 @@ export class PlanningContextService extends BaseRAGService {
 				finalResults.forEach((result) => {
 					result.relatedEntities = entityGraphContext;
 				});
-				console.log(
-					`[PlanningContext] Augmented ${finalResults.length} results with ${entityGraphContext.length} entity graph contexts`
-				);
 			}
 
 			const searchDuration = Date.now() - searchStartTime;
-
-			console.log("[PlanningContext] Planning context search completed", {
-				campaignId,
-				query: query.substring(0, 100),
-				resultsCount: finalResults.length,
-				totalMatches: matches.length,
-				graphEntities: entityGraphContext.length,
-				duration: searchDuration,
-			});
 
 			this.logOperation("Planning context search completed", {
 				campaignId,
@@ -873,9 +769,7 @@ export class PlanningContextService extends BaseRAGService {
 						graphEntities: entityGraphContext.length,
 					},
 				})
-				.catch((error) => {
-					console.error("[PlanningContext] Failed to record telemetry:", error);
-				});
+				.catch((_error) => {});
 
 			return finalResults;
 		} catch (error) {

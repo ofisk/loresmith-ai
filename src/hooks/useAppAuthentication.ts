@@ -109,10 +109,7 @@ export function useAppAuthentication() {
 			} else {
 				throw new Error("Logout failed");
 			}
-		} catch (error) {
-			console.error("Logout error:", error);
-			console.error("Logout failed. Please try again.");
-
+		} catch (_error) {
 			// Force clear local state even if server call failed
 			AuthService.clearJwt();
 			setIsAuthenticated(false);

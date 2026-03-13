@@ -102,7 +102,6 @@ Only retrieve message history when you actually need it - don't fetch it preempt
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[getMessageHistory] Using toolCallId:", toolCallId);
 
 		try {
 			const env = getEnvFromContext(options);
@@ -199,12 +198,7 @@ Only retrieve message history when you actually need it - don't fetch it preempt
 				if (msg.messageData) {
 					try {
 						parsedData = JSON.parse(msg.messageData) as Record<string, unknown>;
-					} catch (error) {
-						console.warn(
-							"[getMessageHistory] Failed to parse message data:",
-							error
-						);
-					}
+					} catch (_error) {}
 				}
 
 				return {
@@ -222,7 +216,6 @@ Only retrieve message history when you actually need it - don't fetch it preempt
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getMessageHistory] Error:", error);
 			return createToolError(
 				`Failed to retrieve message history: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },

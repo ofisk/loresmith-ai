@@ -47,51 +47,45 @@ export class CampaignService {
 		characterCount: number;
 		resourceCount: number;
 	}> {
-		try {
-			// Get campaign data if not provided
-			const contextData =
-				context || (await this.campaignDAO.getCampaignContext(campaignId));
-			const charactersData =
-				characters ||
-				(await this.campaignDAO.getCampaignCharacters(campaignId));
-			const resourcesData =
-				resources || (await this.campaignDAO.getCampaignResources(campaignId));
+		// Get campaign data if not provided
+		const contextData =
+			context || (await this.campaignDAO.getCampaignContext(campaignId));
+		const charactersData =
+			characters || (await this.campaignDAO.getCampaignCharacters(campaignId));
+		const resourcesData =
+			resources || (await this.campaignDAO.getCampaignResources(campaignId));
 
-			// Generate base suggestions
-			const baseSuggestions = this.generateBaseSuggestions(
-				suggestionType,
-				specificFocus
+		// Generate base suggestions
+		const baseSuggestions = this.generateBaseSuggestions(
+			suggestionType,
+			specificFocus
+		);
+
+		// Enhance suggestions with context
+		const enhancedSuggestions = baseSuggestions.map((suggestion, index) => {
+			const relatedContext = this.findRelatedContext(
+				suggestion.suggestion,
+				contextData as CampaignContext[],
+				charactersData as CampaignCharacter[]
 			);
 
-			// Enhance suggestions with context
-			const enhancedSuggestions = baseSuggestions.map((suggestion, index) => {
-				const relatedContext = this.findRelatedContext(
-					suggestion.suggestion,
-					contextData as CampaignContext[],
-					charactersData as CampaignCharacter[]
-				);
-
-				return {
-					...suggestion,
-					id: index + 1,
-					relatedContext,
-					contextRelevance:
-						relatedContext.length > 0
-							? `Based on ${relatedContext.length} relevant context entries`
-							: "General suggestion based on campaign planning best practices",
-				};
-			});
-
 			return {
-				suggestions: enhancedSuggestions,
-				contextCount: contextData.length,
-				characterCount: charactersData.length,
-				resourceCount: resourcesData.length,
+				...suggestion,
+				id: index + 1,
+				relatedContext,
+				contextRelevance:
+					relatedContext.length > 0
+						? `Based on ${relatedContext.length} relevant context entries`
+						: "General suggestion based on campaign planning best practices",
 			};
-		} catch (error) {
-			console.error("Error getting intelligent suggestions:", error);
-			throw error;
-		}
+		});
+
+		return {
+			suggestions: enhancedSuggestions,
+			contextCount: contextData.length,
+			characterCount: charactersData.length,
+			resourceCount: resourcesData.length,
+		};
 	}
 
 	/**

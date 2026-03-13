@@ -38,15 +38,8 @@ export class EntityImportanceService {
 		const scores = new Map<string, number>();
 
 		if (graph.nodes.size === 0) {
-			console.log(
-				`[EntityImportance] PageRank: Empty graph for campaign ${campaignId}, skipping`
-			);
 			return scores;
 		}
-
-		console.log(
-			`[EntityImportance] PageRank: Calculating for ${graph.nodes.size} nodes, ${graph.edges.length} edges`
-		);
 
 		const dampingFactor = 0.85;
 		const maxIterations = 100;
@@ -103,17 +96,11 @@ export class EntityImportanceService {
 
 			// Stop early if scores have converged (changes are below tolerance)
 			if (maxDiff < tolerance) {
-				console.log(
-					`[EntityImportance] PageRank: Converged after ${iteration + 1} iterations (maxDiff: ${maxDiff.toFixed(6)})`
-				);
 				break;
 			}
 		}
 
 		const normalized = this.normalizeScores(scores);
-		console.log(
-			`[EntityImportance] PageRank: Completed ${maxIterations} iterations, normalized ${normalized.size} scores`
-		);
 		return normalized;
 	}
 
@@ -131,16 +118,10 @@ export class EntityImportanceService {
 		const scores = new Map<string, number>();
 
 		if (graph.nodes.size === 0) {
-			console.log(
-				`[EntityImportance] Betweenness: Empty graph for campaign ${campaignId}, skipping`
-			);
 			return scores;
 		}
 
 		const nodeIds = Array.from(graph.nodes.keys());
-		console.log(
-			`[EntityImportance] Betweenness: Calculating for ${nodeIds.length} nodes`
-		);
 
 		// Initialize all nodes with zero betweenness score
 		for (const id of nodeIds) {
@@ -239,9 +220,6 @@ export class EntityImportanceService {
 		}
 
 		const normalized = this.normalizeScores(scores);
-		console.log(
-			`[EntityImportance] Betweenness: Completed for ${normalized.size} nodes`
-		);
 		return normalized;
 	}
 
@@ -321,7 +299,6 @@ export class EntityImportanceService {
 		entityId: string,
 		includeStaging = true
 	): Promise<number> {
-		const readStart = Date.now();
 		const entity = await this.entityDAO.getEntityById(entityId);
 		if (!entity || entity.campaignId !== campaignId) {
 			return 50;
@@ -335,16 +312,9 @@ export class EntityImportanceService {
 
 		// Try to read from table first (if DAO is available)
 		if (this.importanceDAO) {
-			const tableReadStart = Date.now();
 			const importance = await this.importanceDAO.getImportance(entityId);
-			const tableReadTime = Date.now() - tableReadStart;
 
 			if (importance) {
-				const tableReadTotal = Date.now() - readStart;
-				console.log(
-					`[EntityImportance] Read from table in ${tableReadTime}ms (total: ${tableReadTotal}ms)`
-				);
-
 				if (override) {
 					return mapOverrideToScore(override, importance.importanceScore);
 				}
@@ -354,7 +324,6 @@ export class EntityImportanceService {
 
 		// Fallback to metadata for backward compatibility
 		if (override) {
-			const metadataReadStart = Date.now();
 			const currentScore =
 				(metadata.importanceScore as number) ??
 				(await this.calculateCombinedImportance(
@@ -362,18 +331,10 @@ export class EntityImportanceService {
 					entityId,
 					includeStaging
 				));
-			const metadataReadTime = Date.now() - metadataReadStart;
-			console.log(
-				`[EntityImportance] Read from metadata in ${metadataReadTime}ms (fallback)`
-			);
 			return mapOverrideToScore(override, currentScore);
 		}
 
 		if (typeof metadata.importanceScore === "number") {
-			const metadataReadTime = Date.now() - readStart;
-			console.log(
-				`[EntityImportance] Read from metadata in ${metadataReadTime}ms (fallback)`
-			);
 			return metadata.importanceScore;
 		}
 
@@ -385,7 +346,6 @@ export class EntityImportanceService {
 		);
 
 		if (this.importanceDAO) {
-			const writeStart = Date.now();
 			// Need to calculate individual components for table storage
 			const [pagerank, betweenness, hierarchy] = await Promise.all([
 				this.calculatePageRank(campaignId, includeStaging),
@@ -401,8 +361,6 @@ export class EntityImportanceService {
 				hierarchyLevel: Math.round(hierarchy),
 				importanceScore: calculated,
 			});
-			const writeTime = Date.now() - writeStart;
-			console.log(`[EntityImportance] Wrote to table in ${writeTime}ms`);
 		} else {
 			// Fallback to metadata
 			await this.entityDAO.updateEntity(entityId, {
@@ -420,7 +378,6 @@ export class EntityImportanceService {
 		campaignId: string,
 		entityId: string
 	): Promise<number> {
-		const startTime = Date.now();
 		const [pagerank, betweenness, hierarchy] = await Promise.all([
 			this.calculatePageRank(campaignId, true),
 			this.calculateBetweennessCentrality(campaignId, true),
@@ -452,7 +409,6 @@ export class EntityImportanceService {
 
 		// Store in table if available, otherwise fallback to metadata
 		if (this.importanceDAO) {
-			const writeStart = Date.now();
 			await this.importanceDAO.upsertImportance({
 				entityId,
 				campaignId,
@@ -461,11 +417,6 @@ export class EntityImportanceService {
 				hierarchyLevel: Math.round(hierarchyScore),
 				importanceScore: finalCalculated,
 			});
-			const writeTime = Date.now() - writeStart;
-			const totalTime = Date.now() - startTime;
-			console.log(
-				`[EntityImportance] Recalculated for entity ${entityId}: ${totalTime}ms (write: ${writeTime}ms)`
-			);
 		} else {
 			// Fallback to metadata
 			await this.entityDAO.updateEntity(entityId, {
@@ -482,27 +433,15 @@ export class EntityImportanceService {
 	async recalculateImportanceForCampaign(
 		campaignId: string
 	): Promise<Map<string, number>> {
-		const startTime = Date.now();
-		console.log(
-			`[EntityImportance] Starting batch importance calculation for campaign: ${campaignId}`
-		);
-
-		const graphCalcStart = Date.now();
 		const [pagerank, betweenness] = await Promise.all([
 			this.calculatePageRank(campaignId, true),
 			this.calculateBetweennessCentrality(campaignId, true),
 		]);
 
-		const graphCalcTime = Date.now() - graphCalcStart;
-		console.log(
-			`[EntityImportance] PageRank and Betweenness calculated in ${graphCalcTime}ms (${pagerank.size} entities)`
-		);
-
 		const entities = await this.entityDAO.listEntitiesByCampaign(campaignId);
 		const results = new Map<string, number>();
 
 		// Load all communities once and build an in-memory map to avoid N database queries
-		const hierarchyCalcStart = Date.now();
 		let communitiesMap: Map<string, Community[]> | undefined;
 		if (this.communityDAO) {
 			const allCommunities =
@@ -516,20 +455,11 @@ export class EntityImportanceService {
 					communitiesMap.get(entityId)!.push(community);
 				}
 			}
-			console.log(
-				`[EntityImportance] Loaded ${allCommunities.length} communities into memory map`
-			);
 		}
 		const hierarchyPromises = entities.map((entity) =>
 			this.calculateHierarchyLevel(campaignId, entity.id, communitiesMap)
 		);
 		const hierarchyScores = await Promise.all(hierarchyPromises);
-		const hierarchyCalcTime = Date.now() - hierarchyCalcStart;
-		console.log(
-			`[EntityImportance] Hierarchy levels calculated in ${hierarchyCalcTime}ms (${hierarchyScores.length} entities)`
-		);
-
-		const writeStart = Date.now();
 
 		// Prepare batch data
 		const importanceInputs: Array<{
@@ -604,11 +534,6 @@ export class EntityImportanceService {
 				)
 			);
 		}
-		const writeTime = Date.now() - writeStart;
-		const totalTime = Date.now() - startTime;
-		console.log(
-			`[EntityImportance] Batch importance calculation completed for campaign ${campaignId}: ${results.size} entities processed in ${totalTime}ms (graph: ${graphCalcTime}ms, hierarchy: ${hierarchyCalcTime}ms, write: ${writeTime}ms)`
-		);
 
 		return results;
 	}
@@ -647,9 +572,6 @@ export class EntityImportanceService {
 		}
 
 		if (affected.size > maxIncrementalNodes) {
-			console.warn(
-				`[EntityImportance] Incremental set too large (${affected.size}), falling back to full campaign recalculation`
-			);
 			return this.recalculateImportanceForCampaign(campaignId);
 		}
 
@@ -758,11 +680,7 @@ export class EntityImportanceService {
 				) {
 					rejectedEntityIds.add(record.id);
 				}
-			} catch (_error) {
-				console.warn(
-					`[EntityImportance] Failed to parse entity metadata, including it`
-				);
-			}
+			} catch (_error) {}
 		}
 
 		for (const rel of relationshipRecords) {
@@ -787,11 +705,7 @@ export class EntityImportanceService {
 					rejectedRelationshipKeys.add(`${rel.fromEntityId}-${rel.toEntityId}`);
 					continue;
 				}
-			} catch (_error) {
-				console.warn(
-					`[EntityImportance] Failed to parse relationship metadata, including it`
-				);
-			}
+			} catch (_error) {}
 
 			edges.push({
 				from: rel.fromEntityId,

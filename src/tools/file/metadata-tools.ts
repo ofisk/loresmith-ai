@@ -37,26 +37,15 @@ export const updateFileMetadata = tool({
 	): Promise<ToolResult> => {
 		const { fileKey, description, tags, fileSize, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] updateFileMetadata received JWT:", jwt);
-		console.log("[Tool] updateFileMetadata context:", options);
-		console.log("[updateFileMetadata] Using toolCallId:", toolCallId);
 
 		try {
-			console.log("[updateFileMetadata] Using JWT:", jwt);
-
 			// Extract username from JWT
 			let username = "default";
 			if (jwt) {
 				try {
 					const payload = JSON.parse(atob(jwt.split(".")[1]));
 					username = payload.username || "default";
-					console.log(
-						"[updateFileMetadata] Extracted username from JWT:",
-						username
-					);
-				} catch (error) {
-					console.error("Error parsing JWT:", error);
-				}
+				} catch (_error) {}
 			}
 
 			// Verify the fileKey belongs to the authenticated user
@@ -75,11 +64,6 @@ export const updateFileMetadata = tool({
 				);
 			}
 
-			console.log(
-				"[updateFileMetadata] Updating metadata for fileKey:",
-				fileKey
-			);
-
 			// Make API request to update metadata
 			const response = await fetch(
 				API_CONFIG.buildUrl(
@@ -97,7 +81,6 @@ export const updateFileMetadata = tool({
 					}),
 				}
 			);
-			console.log("[updateFileMetadata] Response status:", response.status);
 			if (!response.ok) {
 				return createToolError(
 					`Failed to update metadata: ${response.status}`,
@@ -112,7 +95,6 @@ export const updateFileMetadata = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error updating metadata:", error);
 			return createToolError(
 				`Error updating metadata: ${error instanceof Error ? error.message : String(error)}`,
 				{ error: error instanceof Error ? error.message : String(error) },
@@ -144,12 +126,8 @@ export const autoGenerateFileMetadata = tool({
 	): Promise<ToolResult> => {
 		const { fileKey, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[Tool] autoGeneratePdfMetadata received:", { fileKey, jwt });
-		console.log("[Tool] autoGeneratePdfMetadata context:", options);
 
 		try {
-			console.log("[autoGeneratePdfMetadata] Using JWT:", jwt);
-
 			if (!jwt) {
 				return createToolError(
 					"JWT token is required",
@@ -158,8 +136,6 @@ export const autoGenerateFileMetadata = tool({
 					toolCallId
 				);
 			}
-
-			console.log("[autoGeneratePdfMetadata] Triggering background processing");
 
 			const env = options?.env;
 			if (env) {
@@ -170,10 +146,6 @@ export const autoGenerateFileMetadata = tool({
 
 					// Create a background processing request
 					const processingUrl = `${(env as { VITE_API_URL?: string }).VITE_API_URL}/pdf/process-metadata-background`;
-					console.log(
-						"[autoGeneratePdfMetadata] Making background processing request to:",
-						processingUrl
-					);
 
 					const response = await fetch(processingUrl, {
 						method: "POST",
@@ -198,22 +170,9 @@ export const autoGenerateFileMetadata = tool({
 							toolCallId
 						);
 					} else {
-						console.log(
-							"[autoGeneratePdfMetadata] Background processing failed, falling back to lightweight response"
-						);
 					}
-				} catch (error) {
-					console.error(
-						"[autoGeneratePdfMetadata] Background processing error:",
-						error
-					);
-				}
+				} catch (_error) {}
 			}
-
-			// Fallback to lightweight response if background processing fails
-			console.log(
-				"[autoGeneratePdfMetadata] Returning lightweight response to avoid memory issues"
-			);
 
 			return createToolSuccess(
 				"PDF metadata generation initiated. The system will process your PDF and generate improved description and tags automatically. This may take a few moments to complete.",
@@ -225,7 +184,6 @@ export const autoGenerateFileMetadata = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[autoGeneratePdfMetadata] Error:", error);
 			return createToolError(
 				`Failed to auto-generate metadata: ${error}`,
 				error,

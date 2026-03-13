@@ -189,10 +189,6 @@ export class CommunitySummaryService {
 			name = result.name.trim();
 			summaryText = result.summary.trim();
 		} catch (error) {
-			console.error(
-				`[CommunitySummaryService] Error generating summary for community ${community.id}:`,
-				error
-			);
 			throw new Error(
 				`${SUMMARY_CONFIG.ERRORS.GENERATION_FAILED}: ${error instanceof Error ? error.message : SUMMARY_CONFIG.ERRORS.UNKNOWN_ERROR}`
 			);
@@ -438,11 +434,7 @@ export class CommunitySummaryService {
 					try {
 						const result = await this.generateOrGetSummary(community, options);
 						results.push(result);
-					} catch (error) {
-						console.error(
-							`[CommunitySummaryService] Failed to generate summary for community ${community.id}:`,
-							error
-						);
+					} catch (_error) {
 						// Continue with remaining communities even if one fails
 					}
 				}

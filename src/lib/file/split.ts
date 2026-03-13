@@ -80,10 +80,6 @@ export class FileSplitter {
 		) {
 			return this.splitHTML(content, options);
 		} else {
-			// For unknown types, split by bytes
-			console.warn(
-				`[FileSplitter] Unknown content type: ${contentType}, splitting by bytes`
-			);
 			return this.splitByBytes(content, options);
 		}
 	}
@@ -105,10 +101,6 @@ export class FileSplitter {
 			const pdfDoc = await PDFDocument.load(content);
 			const pageCount = pdfDoc.getPageCount();
 
-			console.log(
-				`[FileSplitter] PDF has ${pageCount} pages, splitting by pages`
-			);
-
 			const shards: Array<{
 				key: string;
 				content: ArrayBuffer;
@@ -127,10 +119,6 @@ export class FileSplitter {
 			const pagesPerShard = Math.max(
 				1,
 				Math.floor(maxShardSize / estimatedPageSize)
-			);
-
-			console.log(
-				`[FileSplitter] Estimated ${pagesPerShard} pages per shard (max ${maxShardSize} bytes)`
 			);
 
 			let currentPage = 0;
@@ -167,10 +155,6 @@ export class FileSplitter {
 
 				// Check if shard is too large and split further if needed
 				if (shardBuffer.byteLength > maxShardSize && pagesInThisShard > 1) {
-					console.log(
-						`[FileSplitter] Shard ${shardNumber} too large (${shardBuffer.byteLength} bytes), splitting further`
-					);
-
 					// Split this shard into individual pages
 					for (let i = 0; i < pagesInThisShard; i++) {
 						const pageDoc = await PDFDocument.create();
@@ -234,8 +218,6 @@ export class FileSplitter {
 
 			const probeToken = this.generateProbeToken();
 
-			console.log(`[FileSplitter] Split PDF into ${shards.length} shards`);
-
 			return {
 				shards,
 				manifest: {
@@ -246,13 +228,7 @@ export class FileSplitter {
 					shards: manifestShards,
 				},
 			};
-		} catch (error) {
-			console.error("[FileSplitter] Error splitting PDF:", error);
-
-			// Fallback to byte-based splitting if PDF processing fails
-			console.warn(
-				"[FileSplitter] Falling back to byte-based splitting for PDF"
-			);
+		} catch (_error) {
 			return this.splitByBytes(content, options);
 		}
 	}

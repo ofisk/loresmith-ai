@@ -604,9 +604,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 					campaignId: selectedCampaignId,
 				},
 			});
-		} catch (error) {
-			console.error("Error requesting session recap:", error);
-		}
+		} catch (_error) {}
 	}, [append, authState.getStoredJwt, selectedCampaignId]);
 
 	const handleNextStepsRequest = useCallback(async () => {
@@ -632,9 +630,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 					campaignId: selectedCampaignId,
 				},
 			});
-		} catch (error) {
-			console.error("Error requesting next steps:", error);
-		}
+		} catch (_error) {}
 	}, [append, authState.getStoredJwt, selectedCampaignId, selectedCampaign]);
 
 	const pendingToolCallConfirmation = agentMessages.some((m: Message) =>

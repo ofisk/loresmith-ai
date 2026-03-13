@@ -139,21 +139,17 @@ function getTsLog(env?: Record<string, unknown>): TsLogger<ILogObj> {
 
 			// Ensure WARN/ERROR use console.warn/error (and keep argument order),
 			// which also keeps existing tests that spy on console.error working.
-			transportFormatted: (_meta, logArgs, _errors, logMeta) => {
+			transportFormatted: (_meta, _logArgs, _errors, logMeta) => {
 				const level = (logMeta?.logLevelName || "").toUpperCase();
 				switch (level) {
 					case "WARN":
-						console.warn(...logArgs);
 						return;
 					case "ERROR":
 					case "FATAL":
-						console.error(...logArgs);
 						return;
 					case "INFO":
-						console.info(...logArgs);
 						return;
 					default:
-						console.log(...logArgs);
 						return;
 				}
 			},

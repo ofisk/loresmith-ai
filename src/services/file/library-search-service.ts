@@ -63,20 +63,10 @@ export class LibrarySearchService {
 			// Implement semantic search using vector embeddings for better
 			// relevance matching, especially for similar content.
 			if (includeSemantic && searchQuery.trim()) {
-				console.log(
-					`[LibrarySearchService] Semantic search not yet implemented for query: ${searchQuery}`
-				);
 			}
 
-			console.log(`[LibrarySearchService] Search results:`, {
-				query: searchQuery,
-				userId,
-				resultsCount: searchResults.length,
-			});
-
 			return searchResults;
-		} catch (error) {
-			console.error(`[LibrarySearchService] Search error:`, error);
+		} catch (_error) {
 			return [];
 		}
 	}

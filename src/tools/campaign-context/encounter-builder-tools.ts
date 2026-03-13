@@ -492,7 +492,6 @@ export const generateEncounterTool = tool({
 				campaign.name
 			);
 		} catch (error) {
-			console.error("[generateEncounterTool] Error:", error);
 			return createToolError(
 				"Failed to generate encounter",
 				error instanceof Error ? error.message : "Unknown error",
@@ -631,7 +630,6 @@ export const scaleEncounterTool = tool({
 				campaign.name
 			);
 		} catch (error) {
-			console.error("[scaleEncounterTool] Error:", error);
 			return createToolError(
 				"Failed to scale encounter",
 				error instanceof Error ? error.message : "Unknown error",
@@ -736,7 +734,6 @@ export const getEncounterStatBlocksTool = tool({
 				campaign.name
 			);
 		} catch (error) {
-			console.error("[getEncounterStatBlocksTool] Error:", error);
 			return createToolError(
 				"Failed to lookup encounter stat blocks",
 				error instanceof Error ? error.message : "Unknown error",

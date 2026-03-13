@@ -64,10 +64,6 @@ export class ProviderEmbeddingService {
 				const embeddings = await cloudflare.generateEmbeddings(texts);
 				return embeddings.map(normalizeDimensions);
 			} catch (error) {
-				console.error(
-					"[ProviderEmbeddingService] Cloudflare embedding path failed:",
-					error
-				);
 				throw new EmbeddingGenerationError(
 					error instanceof Error ? error.message : "Embedding provider failed"
 				);

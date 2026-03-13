@@ -78,9 +78,7 @@ export function ResourceSidePanel({
 	const handleLogout = async () => {
 		try {
 			await onLogout?.();
-		} catch (error) {
-			console.error("Logout error:", error);
-		}
+		} catch (_error) {}
 	};
 
 	return (

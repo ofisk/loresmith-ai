@@ -51,9 +51,6 @@ export function useAppEventHandlers({
 		const handleUiHint = (e: CustomEvent<{ type: string; data?: unknown }>) => {
 			const { type } = e.detail || {};
 			if (type === "show_auth_modal") {
-				console.log(
-					"[App] Authentication required ui-hint received, showing auth modal"
-				);
 				modalState.setShowAuthModal(true);
 			}
 		};
@@ -73,9 +70,6 @@ export function useAppEventHandlers({
 	// Listen for campaign-created events to refresh campaigns list
 	useEffect(() => {
 		const handleCampaignCreated = () => {
-			console.log(
-				"[App] Campaign created event received, refreshing campaigns list"
-			);
 			refetchCampaigns();
 		};
 
@@ -94,9 +88,6 @@ export function useAppEventHandlers({
 	// Listen for campaign-deleted events to refresh campaigns list
 	useEffect(() => {
 		const handleCampaignDeleted = () => {
-			console.log(
-				"[App] Campaign deleted event received, refreshing campaigns list"
-			);
 			refetchCampaigns();
 		};
 
@@ -125,8 +116,6 @@ export function useAppEventHandlers({
 		if (shouldTrigger && !recapTriggeredRef.current.has(recapKey)) {
 			recapTriggeredRef.current.add(recapKey);
 			const jwt = authState.getStoredJwt();
-
-			console.log("[App] Triggering context recap after inactivity");
 
 			onContextRecapRequest?.();
 			append({
@@ -168,10 +157,6 @@ export function useAppEventHandlers({
 			recapTriggeredRef.current.add(recapKey);
 			const jwt = authState.getStoredJwt();
 
-			console.log(
-				`[App] Triggering context recap for campaign change: ${selectedCampaignId}`
-			);
-
 			onContextRecapRequest?.();
 			append({
 				role: "user",
@@ -198,24 +183,12 @@ export function useAppEventHandlers({
 
 	// Listen for shards-generated events to refresh shards overlay
 	useEffect(() => {
-		const handleShardsGenerated = (event: Event) => {
-			const customEvent = event as CustomEvent;
-			const detail = customEvent.detail;
-			console.log(
-				"[App] Shards generated event received, refreshing shards overlay",
-				{
-					campaignId: detail?.campaignId,
-					campaignName: detail?.campaignName,
-					shardCount: detail?.shardCount,
-				}
-			);
-
+		const handleShardsGenerated = (_event: Event) => {
 			if (shardsGeneratedTimeoutRef.current) {
 				clearTimeout(shardsGeneratedTimeoutRef.current);
 			}
 			shardsGeneratedTimeoutRef.current = setTimeout(() => {
 				shardsGeneratedTimeoutRef.current = null;
-				console.log("[App] Refreshing shards overlay");
 				fetchAllStagedShards();
 			}, 1500);
 		};

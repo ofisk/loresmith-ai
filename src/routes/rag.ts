@@ -45,8 +45,7 @@ export async function handleRagSearch(c: ContextWithAuth) {
 		return c.json({
 			results: Array.isArray(results) ? results : [],
 		});
-	} catch (error) {
-		console.error("Error searching RAG:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -67,17 +66,12 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 		// Get file size from R2
 		let fileSize = 0;
 		try {
-			console.log(`[RAG] Attempting to get file from R2: ${fileKey}`);
 			const file = await c.env.R2.get(fileKey);
 			if (file) {
 				fileSize = file.size;
-				console.log(`[RAG] File found in R2, size: ${fileSize} bytes`);
 			} else {
-				console.log(`[RAG] File not found in R2: ${fileKey}`);
 			}
-		} catch (error) {
-			console.warn("Could not get file size from R2:", error);
-		}
+		} catch (_error) {}
 
 		const fileDAO = getDAOFactory(c.env).fileDAO;
 		await fileDAO.createFileRecord(
@@ -105,11 +99,6 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 				if (!file) {
 					throw new FileNotFoundError(fileKey);
 				}
-
-				// Process with RAG service
-				console.log(
-					`[RAG] File ${filename} uploaded to R2, processing with LibraryRAGService`
-				);
 
 				// Update database status and file size - mark as uploaded
 				await fileDAO.updateFileRecord(fileKey, "uploaded", file.size);
@@ -141,21 +130,12 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 							fileRecord
 						);
 					} else {
-						console.error(
-							`[RAG] File record not found for upload completion notification: ${fileKey}`
-						);
 					}
 					await notifyIndexingCompleted(c.env, userAuth.username, filename);
-				} catch (error) {
-					console.error(
-						"[RAG] Failed to send file upload notification:",
-						error
-					);
-				}
+				} catch (_error) {}
 
 				completeProgress(fileKey, true);
 			} catch (error) {
-				console.error("Error processing file for RAG:", error);
 				completeProgress(fileKey, false, (error as Error).message);
 
 				// Update database status
@@ -165,10 +145,6 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 					// Log technical error for debugging
 					const technicalError = (error as Error)?.message;
 					if (technicalError) {
-						console.error(
-							`[handleProcessFileForRag] File processing failed for ${filename}:`,
-							technicalError
-						);
 					}
 					// Send user-friendly notification without technical details
 					await notifyIndexingFailed(c.env, userAuth.username, filename);
@@ -177,8 +153,7 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 		}, 100);
 
 		return c.json({ success: true, fileKey, fileId });
-	} catch (error) {
-		console.error("Error processing file for RAG:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -189,12 +164,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 		const userAuth = (c as any).userAuth;
 		const { fileKey } = await c.req.json();
 
-		console.log(
-			`[handleTriggerIndexing] Processing request for fileKey: ${fileKey}`
-		);
-
 		if (!fileKey) {
-			console.log("[RAG] No fileKey provided, cannot trigger indexing");
 			return c.json({
 				success: false,
 				message: "File key is required to trigger indexing",
@@ -206,18 +176,12 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 		const file = await fileDAO.getFileForRag(fileKey, userAuth.username);
 
 		if (!file) {
-			console.error(
-				`[handleTriggerIndexing] File not found in database: ${fileKey}`
-			);
 			return c.json({ error: "File not found" }, 404);
 		}
 
 		// Check if file exists in R2 storage
 		const r2File = await c.env.R2.head(fileKey);
 		if (!r2File) {
-			console.error(
-				`[handleTriggerIndexing] File not found in R2 storage: ${fileKey}`
-			);
 			return c.json({
 				success: false,
 				message: "File not found in storage. The file may have been deleted.",
@@ -275,9 +239,6 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 					429
 				);
 			}
-			console.log(
-				`[handleTriggerIndexing] Resetting file status from ${file.status} to UPLOADED for retry: ${file.file_name}`
-			);
 			// Clear processing error when retrying (if it was a retryable error)
 			if (
 				!processingError ||
@@ -296,19 +257,11 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 					FileDAO.STATUS.UPLOADED,
 					file.file_size || undefined
 				);
-			} catch (notifyError) {
-				console.error(
-					`[handleTriggerIndexing] Failed to send status update notification:`,
-					notifyError
-				);
-			}
+			} catch (_notifyError) {}
 		}
 
 		// Use sync queue service to handle indexing
 		try {
-			console.log(
-				`[handleTriggerIndexing] Processing file with LibraryRAGService: ${file.file_name}`
-			);
 			// Extract JWT token from Authorization header
 			const jwt = extractJwtFromContext(c);
 
@@ -326,12 +279,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 						fileSize: file.file_size || undefined,
 					}
 				);
-			} catch (notifyError) {
-				console.error(
-					`[handleTriggerIndexing] Failed to send status update:`,
-					notifyError
-				);
-			}
+			} catch (_notifyError) {}
 
 			const result = await SyncQueueService.processFileUpload(
 				c.env,
@@ -343,9 +291,6 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 
 			// Handle queued files - they're successfully queued, processing happens in background
 			if (result.queued) {
-				console.log(
-					`[handleTriggerIndexing] File ${file.file_name} queued for background processing`
-				);
 				return c.json({
 					success: true,
 					message: result.message,
@@ -356,14 +301,6 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 
 			// Send user-facing notification only after processing completes (success or failure)
 			if (!result.success) {
-				// Log technical error details for debugging
-				const technicalError =
-					result.error || result.message || "Processing failed";
-				console.error(
-					`[handleTriggerIndexing] File processing failed for ${file.file_name}:`,
-					technicalError
-				);
-
 				// Send user-facing error notification (without technical details)
 				try {
 					await notifyFileIndexingStatus(
@@ -378,12 +315,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 							// Don't pass reason to avoid showing technical errors to users
 						}
 					);
-				} catch (notifyError) {
-					console.error(
-						`[handleTriggerIndexing] Failed to send error notification:`,
-						notifyError
-					);
-				}
+				} catch (_notifyError) {}
 			} else {
 				// Processing succeeded - success notification will be sent by the processing pipeline
 				// Just send a status update to ensure UI is current
@@ -399,12 +331,7 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 							fileSize: file.file_size || undefined,
 						}
 					);
-				} catch (notifyError) {
-					console.error(
-						`[handleTriggerIndexing] Failed to send success status update:`,
-						notifyError
-					);
-				}
+				} catch (_notifyError) {}
 			}
 
 			return c.json({
@@ -414,10 +341,6 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 				isIndexed: result.success && !result.queued,
 			});
 		} catch (syncError) {
-			console.error(
-				`[handleTriggerIndexing] Failed to trigger indexing for ${fileKey}:`,
-				syncError
-			);
 			return c.json({
 				success: false,
 				message: `Failed to trigger indexing: ${syncError instanceof Error ? syncError.message : "Unknown error"}`,
@@ -425,7 +348,6 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 			});
 		}
 	} catch (error) {
-		console.error("Error triggering indexing:", error);
 		return c.json(
 			{
 				success: false,
@@ -448,8 +370,7 @@ export async function handleGetFilesForRag(c: ContextWithAuth) {
 		// Metadata updates are handled by LibraryRAGService
 
 		return c.json({ files });
-	} catch (error) {
-		console.error("Error fetching files for RAG:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -468,8 +389,7 @@ export async function handleGetFileChunksForRag(c: ContextWithAuth) {
 		);
 
 		return c.json({ chunks });
-	} catch (error) {
-		console.error("Error fetching file chunks for RAG:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -507,8 +427,7 @@ export async function handleCheckFileIndexingStatus(c: ContextWithAuth) {
 			error: error || null,
 			status: isIndexed ? FileDAO.STATUS.COMPLETED : FileDAO.STATUS.UNINDEXED,
 		});
-	} catch (error) {
-		console.error("Error checking file indexing status:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -556,7 +475,6 @@ export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
 					error: error || null,
 				});
 			} catch (error) {
-				console.error(`Error checking file ${file.file_key}:`, error);
 				results.push({
 					fileKey: file.file_key,
 					fileName: file.file_name,
@@ -572,22 +490,15 @@ export async function handleBulkCheckFileIndexingStatus(c: ContextWithAuth) {
 			unindexedCount,
 			results,
 		});
-	} catch (error) {
-		console.error("Error bulk checking file indexing status:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 export const handleDeleteFileForRag = async (c: any) => {
 	try {
-		const userAuth = (c as any).userAuth;
 		const fileKey = requireParam(c, "fileKey");
 		if (fileKey instanceof Response) return fileKey;
-		console.log("[handleDeleteFileForRag] Starting deletion process");
-		console.log("[handleDeleteFileForRag] Received fileKey:", fileKey);
-		console.log("[handleDeleteFileForRag] User:", userAuth.username);
-		console.log("[handleDeleteFileForRag] Request URL:", c.req.url);
-		console.log("[handleDeleteFileForRag] Request path:", c.req.path);
 
 		// Initialize DAO
 		const fileDAO = new FileDAO(c.env.DB);
@@ -595,73 +506,40 @@ export const handleDeleteFileForRag = async (c: any) => {
 		// Check if file exists before deletion
 		const existingFile = await fileDAO.getFileMetadata(fileKey);
 
-		console.log("[handleDeleteFileForRag] Existing file check:", existingFile);
-
 		// If file doesn't exist in database, try to clean up any remaining chunks
 		if (!existingFile) {
-			console.log(
-				"[handleDeleteFileForRag] File not found in database, cleaning up chunks"
-			);
-
 			// Delete any remaining chunks from database
 			try {
 				await fileDAO.deleteFile(fileKey, c.env.R2);
-				console.log("[handleDeleteFileForRag] Cleaned up chunks");
-			} catch (error) {
-				console.log("[handleDeleteFileForRag] Cleanup failed:", error);
-			}
+			} catch (_error) {}
 
 			// Try to delete from R2 anyway (in case it still exists)
 			try {
 				await c.env.R2.delete(fileKey);
-				console.log("[handleDeleteFileForRag] R2 cleanup completed");
-			} catch (error) {
-				console.log(
-					"[handleDeleteFileForRag] R2 cleanup failed (file may not exist):",
-					error
-				);
-			}
+			} catch (_error) {}
 
 			return c.json({
 				success: true,
 				message: "File was already deleted or cleaned up",
 			});
 		}
-
-		console.log("[handleDeleteFileForRag] Deleting from R2 bucket:", fileKey);
 		// Delete from R2 - handle failures gracefully
 		try {
 			await c.env.R2.delete(fileKey);
-			console.log("[handleDeleteFileForRag] R2 deletion completed");
-		} catch (error) {
-			console.log(
-				"[handleDeleteFileForRag] R2 deletion failed (file may not exist):",
-				error
-			);
+		} catch (_error) {
 			// Continue with database cleanup even if R2 deletion fails
 		}
-
-		console.log("[handleDeleteFileForRag] Deleting from database using DAO");
 		// Delete all related data using DAO
 		await fileDAO.deleteFile(fileKey, c.env.R2);
-		console.log("[handleDeleteFileForRag] Database deletion completed");
 
 		// Verify deletion
 		const verifyFile = await fileDAO.getFileMetadata(fileKey);
 
-		console.log("[handleDeleteFileForRag] Verification check:", verifyFile);
-
 		if (verifyFile) {
-			console.error(
-				"[handleDeleteFileForRag] File still exists after deletion!"
-			);
 			return c.json({ error: "File deletion failed" }, 500);
 		}
-
-		console.log("[handleDeleteFileForRag] Deletion successful");
 		return c.json({ success: true });
-	} catch (error) {
-		console.error("Error deleting file for RAG:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 };

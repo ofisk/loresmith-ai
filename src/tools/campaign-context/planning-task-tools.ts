@@ -133,7 +133,6 @@ export const recordPlanningTasks = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[recordPlanningTasks] Error:", error);
 			return createToolError(
 				"Failed to record planning tasks",
 				error,
@@ -246,7 +245,6 @@ export const getPlanningTaskProgress = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getPlanningTaskProgress] Error:", error);
 			return createToolError(
 				"Failed to get planning task progress",
 				error,
@@ -346,7 +344,6 @@ export const completePlanningTask = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[completePlanningTask] Error:", error);
 			return createToolError(
 				"Failed to complete planning task",
 				error,

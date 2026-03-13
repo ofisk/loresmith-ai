@@ -63,244 +63,189 @@ export class LibraryRAGService extends BaseRAGService {
 		vectorId?: string;
 		chunked?: boolean; // Explicit flag indicating file was split into chunks for processing
 	}> {
+		const file = await this.env.R2.get(metadata.fileKey);
+		if (!file) {
+			throw new FileNotFoundError(metadata.fileKey);
+		}
+
+		const fileSizeMB = (file.size || 0) / (1024 * 1024);
+		const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
+
+		// Check if file already has processing chunks (retry scenario)
+		if (
+			await this.chunkedProcessingService.hasExistingChunks(metadata.fileKey)
+		) {
+			// Return explicit result - chunks will be processed by queue
+			return {
+				displayName: undefined,
+				description: "",
+				tags: [],
+				chunked: true,
+				// No vectorId - chunks will be processed separately
+			};
+		}
+
+		// Proactively check if file exceeds memory limit before attempting to load
+		let buffer: ArrayBuffer | undefined;
+		if (fileSizeMB > MEMORY_LIMIT_MB) {
+			// Try to create chunks - may need buffer for page count, but can estimate from file size if buffer unavailable
+			let bufferForChunking: ArrayBuffer | undefined;
+			try {
+				// Try to load buffer for more accurate chunking (page count for PDFs)
+				bufferForChunking = await file.arrayBuffer();
+			} catch (_bufferError) {
+				// Continue without buffer - chunks will be estimated from file size
+			}
+
+			// Create chunks (will estimate from file size if buffer unavailable)
+			await this.chunkedProcessingService.createProcessingChunks(
+				metadata.fileKey,
+				metadata.userId,
+				metadata.filename,
+				metadata.contentType,
+				file.size || 0,
+				bufferForChunking
+			);
+
+			// Return explicit result indicating chunking started
+			return {
+				displayName: undefined,
+				description: "",
+				tags: [],
+				chunked: true,
+				// No vectorId - chunks will be processed separately
+			};
+		}
+
+		// Extract text based on file type
+		let extractionResult: any = null;
+
 		try {
-			const file = await this.env.R2.get(metadata.fileKey);
-			if (!file) {
-				throw new FileNotFoundError(metadata.fileKey);
+			// Load buffer if not already loaded (for files under memory limit)
+			if (!buffer) {
+				buffer = await file.arrayBuffer();
 			}
+			extractionResult = await this.extractionService.extractText(
+				buffer!,
+				metadata.contentType
+			);
+		} catch (memoryError) {
+			// Check if this is a memory limit error from Worker runtime
+			const memoryLimitError = MemoryLimitError.fromRuntimeError(
+				memoryError,
+				fileSizeMB,
+				MEMORY_LIMIT_MB,
+				metadata.fileKey,
+				metadata.filename
+			);
 
-			const fileSizeMB = (file.size || 0) / (1024 * 1024);
-			const MEMORY_LIMIT_MB = PROCESSING_LIMITS.MEMORY_LIMIT_MB;
-
-			// Check if file already has processing chunks (retry scenario)
-			if (
-				await this.chunkedProcessingService.hasExistingChunks(metadata.fileKey)
-			) {
-				console.log(
-					`[LibraryRAGService] File ${metadata.fileKey} already has processing chunks. Chunks will be processed separately.`
-				);
-				// Return explicit result - chunks will be processed by queue
-				return {
-					displayName: undefined,
-					description: "",
-					tags: [],
-					chunked: true,
-					// No vectorId - chunks will be processed separately
-				};
-			}
-
-			// Proactively check if file exceeds memory limit before attempting to load
-			let buffer: ArrayBuffer | undefined;
-			if (fileSizeMB > MEMORY_LIMIT_MB) {
-				console.log(
-					`[LibraryRAGService] File ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB) exceeds memory limit. Attempting chunked processing.`
-				);
-
-				// Try to create chunks - may need buffer for page count, but can estimate from file size if buffer unavailable
-				let bufferForChunking: ArrayBuffer | undefined;
+			if (memoryLimitError) {
+				// Try to create chunks (will use buffer if available, otherwise estimate from file size)
 				try {
-					// Try to load buffer for more accurate chunking (page count for PDFs)
-					bufferForChunking = await file.arrayBuffer();
-				} catch (bufferError) {
-					console.warn(
-						`[LibraryRAGService] Could not load buffer for chunking ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB), will estimate chunks from file size:`,
-						bufferError instanceof Error
-							? bufferError.message
-							: String(bufferError)
-					);
-					// Continue without buffer - chunks will be estimated from file size
-				}
-
-				// Create chunks (will estimate from file size if buffer unavailable)
-				await this.chunkedProcessingService.createProcessingChunks(
-					metadata.fileKey,
-					metadata.userId,
-					metadata.filename,
-					metadata.contentType,
-					file.size || 0,
-					bufferForChunking
-				);
-
-				// Return explicit result indicating chunking started
-				return {
-					displayName: undefined,
-					description: "",
-					tags: [],
-					chunked: true,
-					// No vectorId - chunks will be processed separately
-				};
-			}
-
-			// Extract text based on file type
-			let extractionResult: any = null;
-
-			try {
-				// Load buffer if not already loaded (for files under memory limit)
-				if (!buffer) {
-					buffer = await file.arrayBuffer();
-				}
-				extractionResult = await this.extractionService.extractText(
-					buffer!,
-					metadata.contentType
-				);
-			} catch (memoryError) {
-				// Check if this is a memory limit error from Worker runtime
-				const memoryLimitError = MemoryLimitError.fromRuntimeError(
-					memoryError,
-					fileSizeMB,
-					MEMORY_LIMIT_MB,
-					metadata.fileKey,
-					metadata.filename
-				);
-
-				if (memoryLimitError) {
-					// File exceeds memory limit during processing - try chunked processing
-					console.log(
-						`[LibraryRAGService] Memory limit error during processing for file ${metadata.fileKey} (${fileSizeMB.toFixed(2)}MB). Attempting chunked processing.`
-					);
-
-					// Try to create chunks (will use buffer if available, otherwise estimate from file size)
-					try {
-						await this.chunkedProcessingService.createProcessingChunks(
-							metadata.fileKey,
-							metadata.userId,
-							metadata.filename,
-							metadata.contentType,
-							file.size || 0,
-							buffer // May be undefined if loading failed
-						);
-
-						// Return explicit result indicating chunking started
-						return {
-							displayName: undefined,
-							description: "",
-							tags: [],
-							chunked: true,
-							// No vectorId - chunks will be processed separately
-						};
-					} catch (chunkError) {
-						console.error(
-							`[LibraryRAGService] Failed to create chunks for ${metadata.fileKey}:`,
-							chunkError
-						);
-						// If chunking failed, re-throw the memory limit error
-						throw memoryLimitError;
-					}
-				}
-
-				// Check for structured MemoryLimitError from extraction service
-				if (memoryError instanceof MemoryLimitError) {
-					// Re-throw with file metadata included
-					throw new MemoryLimitError(
-						memoryError.fileSizeMB,
-						memoryError.memoryLimitMB,
+					await this.chunkedProcessingService.createProcessingChunks(
 						metadata.fileKey,
+						metadata.userId,
 						metadata.filename,
-						memoryError.message
+						metadata.contentType,
+						file.size || 0,
+						buffer // May be undefined if loading failed
 					);
-				}
-				// For other errors during extraction, rethrow
-				throw memoryError;
-			}
 
-			if (
-				!extractionResult ||
-				!extractionResult.text ||
-				extractionResult.text.trim().length === 0
-			) {
-				console.error(
-					`[LibraryRAGService] No text extracted from file: ${metadata.fileKey}. File may be corrupted, encrypted, or too large.`
-				);
-				throw new Error(
-					`No text could be extracted from file "${metadata.filename}". The file may be corrupted, encrypted, image-based, or too large to process.`
-				);
-			}
-
-			const text = extractionResult.text;
-
-			// Log page limitation if applicable
-			if (extractionResult.pagesExtracted && extractionResult.totalPages) {
-				if (extractionResult.pagesExtracted < extractionResult.totalPages) {
-					console.warn(
-						`[LibraryRAGService] File ${metadata.fileKey} processed with partial content: ${extractionResult.pagesExtracted}/${extractionResult.totalPages} pages extracted`
-					);
+					// Return explicit result indicating chunking started
+					return {
+						displayName: undefined,
+						description: "",
+						tags: [],
+						chunked: true,
+						// No vectorId - chunks will be processed separately
+					};
+				} catch (_chunkError) {
+					// If chunking failed, re-throw the memory limit error
+					throw memoryLimitError;
 				}
 			}
 
-			// Use AI for enhanced metadata generation if available
-			let result: { displayName?: string; description: string; tags: string[] };
-			try {
-				if (this.env.AI) {
-					// Generate semantic metadata using AI with file content
-					const semanticResult =
-						await this.metadataService.generateSemanticMetadata(
-							metadata.filename,
-							metadata.fileKey,
-							metadata.userId,
-							text
-						);
+			// Check for structured MemoryLimitError from extraction service
+			if (memoryError instanceof MemoryLimitError) {
+				// Re-throw with file metadata included
+				throw new MemoryLimitError(
+					memoryError.fileSizeMB,
+					memoryError.memoryLimitMB,
+					metadata.fileKey,
+					metadata.filename,
+					memoryError.message
+				);
+			}
+			// For other errors during extraction, rethrow
+			throw memoryError;
+		}
 
-					if (semanticResult) {
-						result = semanticResult;
-					} else {
-						// No meaningful metadata generated - leave blank
-						result = {
-							displayName: undefined,
-							description: "",
-							tags: [],
-						};
-					}
+		if (
+			!extractionResult ||
+			!extractionResult.text ||
+			extractionResult.text.trim().length === 0
+		) {
+			throw new Error(
+				`No text could be extracted from file "${metadata.filename}". The file may be corrupted, encrypted, image-based, or too large to process.`
+			);
+		}
+
+		const text = extractionResult.text;
+
+		// Log page limitation if applicable
+		if (extractionResult.pagesExtracted && extractionResult.totalPages) {
+			if (extractionResult.pagesExtracted < extractionResult.totalPages) {
+			}
+		}
+
+		// Use AI for enhanced metadata generation if available
+		let result: { displayName?: string; description: string; tags: string[] };
+		try {
+			if (this.env.AI) {
+				// Generate semantic metadata using AI with file content
+				const semanticResult =
+					await this.metadataService.generateSemanticMetadata(
+						metadata.filename,
+						metadata.fileKey,
+						metadata.userId,
+						text
+					);
+
+				if (semanticResult) {
+					result = semanticResult;
 				} else {
+					// No meaningful metadata generated - leave blank
 					result = {
 						displayName: undefined,
 						description: "",
 						tags: [],
 					};
 				}
-			} catch (aiError) {
-				console.warn(
-					"AI processing failed, falling back to basic processing:",
-					aiError
-				);
+			} else {
 				result = {
 					displayName: undefined,
 					description: "",
 					tags: [],
 				};
 			}
-
-			// Store embeddings for search
-			const vectorId = await this.embeddingService.storeEmbeddings(
-				text,
-				metadata.id
-			);
-
-			console.log(`[LibraryRAGService] Processed file:`, {
-				fileKey: metadata.fileKey,
-				displayName: result.displayName,
-				description: result.description,
-				tags: result.tags,
-				vectorId,
-			});
-
-			return {
-				...result,
-				vectorId,
+		} catch (_aiError) {
+			result = {
+				displayName: undefined,
+				description: "",
+				tags: [],
 			};
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
-			const errorStack = error instanceof Error ? error.stack : undefined;
-			console.error(
-				`[LibraryRAGService] Error processing file ${metadata.fileKey}:`,
-				errorMessage
-			);
-			if (errorStack) {
-				console.error(`[LibraryRAGService] Error stack:`, errorStack);
-			}
-			// Rethrow error so it can be properly handled upstream
-			throw error;
 		}
+
+		// Store embeddings for search
+		const vectorId = await this.embeddingService.storeEmbeddings(
+			text,
+			metadata.id
+		);
+
+		return {
+			...result,
+			vectorId,
+		};
 	}
 
 	async searchFiles(query: SearchQuery): Promise<SearchResult[]> {
@@ -337,12 +282,7 @@ export class LibraryRAGService extends BaseRAGService {
 	/**
 	 * Sync - no external service to sync with
 	 */
-	async sync(): Promise<void> {
-		// LibraryRAGService handles everything internally - no sync needed
-		console.log(
-			`[LibraryRAGService] Sync not needed - all processing is internal`
-		);
-	}
+	async sync(): Promise<void> {}
 
 	async processFileFromR2(
 		fileKey: string,
@@ -377,9 +317,6 @@ export class LibraryRAGService extends BaseRAGService {
 			);
 
 			if (!extractionResult || !extractionResult.text) {
-				console.log(
-					`[LibraryRAGService] No text extracted from file: ${fileKey}`
-				);
 				return {};
 			}
 
@@ -402,15 +339,7 @@ export class LibraryRAGService extends BaseRAGService {
 						text,
 						metadata.id || fileKey
 					);
-					console.log(
-						`[LibraryRAGService] Stored embeddings for ${fileKey} with vector ID: ${vectorId}`
-					);
-				} catch (error) {
-					console.error(
-						`[LibraryRAGService] Failed to store embeddings for ${fileKey}:`,
-						error
-					);
-				}
+				} catch (_error) {}
 			}
 
 			if (semanticResult) {
@@ -425,11 +354,7 @@ export class LibraryRAGService extends BaseRAGService {
 			}
 
 			return { vectorId };
-		} catch (error) {
-			console.error(
-				`[LibraryRAGService] Error processing file from R2: ${fileKey}`,
-				error
-			);
+		} catch (_error) {
 			return {};
 		}
 	}
@@ -439,8 +364,7 @@ export class LibraryRAGService extends BaseRAGService {
 			// For now, return empty array as chunks are not yet implemented
 			// This can be enhanced when chunk storage is implemented
 			return [];
-		} catch (error) {
-			console.error(`[LibraryRAGService] Error getting chunks:`, error);
+		} catch (_error) {
 			return [];
 		}
 	}

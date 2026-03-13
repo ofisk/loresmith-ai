@@ -79,7 +79,6 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
 	): Promise<ToolResult> => {
 		const { campaignId, entityType, includeStubs, page, pageSize, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[listAllEntities] Using toolCallId:", toolCallId);
 
 		try {
 			const env = getEnvFromContext(options);
@@ -135,10 +134,6 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
 
 			const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 			const offset = (page - 1) * pageSize;
-
-			console.log(
-				`[Tool] listAllEntities - Page ${page}/${totalPages}, offset ${offset}, pageSize ${pageSize} (${totalCount} total)${targetEntityType ? ` of type ${targetEntityType}` : ""}`
-			);
 
 			const pageEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
 				campaignId,
@@ -250,7 +245,6 @@ Distinguish "npcs" (GM-controlled) from "pcs" (player-controlled). For "characte
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error listing all entities:", error);
 			return createToolError(
 				"Failed to list all entities",
 				error,

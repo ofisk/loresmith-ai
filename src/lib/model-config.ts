@@ -15,7 +15,6 @@ import { LLMProviderAPIKeyError } from "./errors";
  */
 function validateApiKey(apiKey?: string): string {
 	if (!apiKey) {
-		console.error("LLM API key not provided");
 		throw new LLMProviderAPIKeyError(
 			`${
 				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"

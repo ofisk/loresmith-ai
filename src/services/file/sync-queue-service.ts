@@ -24,13 +24,6 @@ export class SyncQueueService {
 		fileName: string,
 		_jwt?: string
 	): Promise<FileProcessingResult> {
-		const startTime = Date.now();
-		console.log(`[DEBUG] [SyncQueue] ===== PROCESSING FILE UPLOAD =====`);
-		console.log(`[DEBUG] [SyncQueue] File: ${fileName}`);
-		console.log(`[DEBUG] [SyncQueue] File Key: ${fileKey}`);
-		console.log(`[DEBUG] [SyncQueue] User: ${username}`);
-		console.log(`[DEBUG] [SyncQueue] Timestamp: ${new Date().toISOString()}`);
-
 		const fileDAO = new FileDAO(env.DB);
 
 		try {
@@ -54,10 +47,6 @@ export class SyncQueueService {
 			// Large files (>100MB) should be queued to avoid timeout during processing
 			const queueCheck = await ragService.shouldQueueFile(file, contentType);
 			if (queueCheck.shouldQueue) {
-				console.log(
-					`[DEBUG] [SyncQueue] File ${fileName} should be queued: ${queueCheck.reason}`
-				);
-
 				// Add file to sync queue for background processing
 				await fileDAO.addToSyncQueue(
 					username,
@@ -69,19 +58,11 @@ export class SyncQueueService {
 				// Update file status to SYNCING to indicate it's being processed
 				await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.SYNCING);
 
-				console.log(
-					`[DEBUG] [SyncQueue] File ${fileName} added to sync queue for background processing`
-				);
-
 				// Trigger queue processing in the background (non-blocking)
 				// This ensures the file starts processing immediately
 				// Note: Periodic queue processing (via scheduled cron) will also retry if this fails
 				SyncQueueService.processSyncQueue(env, username, _jwt).catch(
-					(error: unknown) => {
-						console.error(
-							`[SyncQueue] Failed to trigger queue processing for ${fileName}:`,
-							error
-						);
+					(_error: unknown) => {
 						// Don't mark file as ERROR here - periodic processing will retry
 						// If periodic processing also fails, cleanup will handle it
 					}
@@ -93,11 +74,6 @@ export class SyncQueueService {
 					message: `File ${fileName} has been queued for background processing due to its size. It will be processed shortly.`,
 				};
 			}
-
-			// Process file directly with LibraryRAGService
-			console.log(
-				`[DEBUG] [SyncQueue] Processing file with LibraryRAGService...`
-			);
 			const fileMetadata: FileMetadata = {
 				id: dbMetadata.file_key, // Use file_key as id since processFile expects id
 				fileKey: dbMetadata.file_key,
@@ -116,9 +92,6 @@ export class SyncQueueService {
 
 			// Check if file was chunked (explicit flag)
 			if (processResult.chunked) {
-				console.log(
-					`[SyncQueue] File ${fileName} was chunked. Chunks will be processed separately.`
-				);
 				// Return success - chunks will be processed in background
 				return {
 					success: true,
@@ -179,24 +152,11 @@ export class SyncQueueService {
 							? JSON.parse(metadataUpdates.tags)
 							: undefined,
 					});
-				} catch (notifError) {
-					console.error(
-						"[SyncQueue] Failed to send metadata generation notification:",
-						notifError
-					);
-				}
+				} catch (_notifError) {}
 			}
 
 			// Update file status to completed (fully indexed and searchable)
 			await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
-
-			const endTime = Date.now();
-			const duration = endTime - startTime;
-			console.log(
-				`[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING COMPLETED =====`
-			);
-			console.log(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
-			console.log(`[DEBUG] [SyncQueue] Status: INDEXED`);
 
 			return {
 				success: true,
@@ -204,17 +164,6 @@ export class SyncQueueService {
 				message: `File ${fileName} indexed successfully`,
 			};
 		} catch (error) {
-			const endTime = Date.now();
-			const duration = endTime - startTime;
-			console.error(
-				`[DEBUG] [SyncQueue] ===== FILE UPLOAD PROCESSING FAILED =====`
-			);
-			console.error(`[DEBUG] [SyncQueue] Duration: ${duration}ms`);
-			console.error(
-				`[DEBUG] [SyncQueue] Failed to process file ${fileName}:`,
-				error
-			);
-
 			// Check if this is a memory limit error
 			const isMemoryLimitError = MemoryLimitError.isMemoryLimitError(error);
 
@@ -245,12 +194,7 @@ export class SyncQueueService {
 							fileSize: error.fileSizeMB * 1024 * 1024,
 						}
 					);
-				} catch (notifyError) {
-					console.error(
-						`[SyncQueue] Failed to send memory limit notification for ${fileName}:`,
-						notifyError
-					);
-				}
+				} catch (_notifyError) {}
 
 				return {
 					success: false,
@@ -288,13 +232,8 @@ export class SyncQueueService {
 		const queueItems = await fileDAO.getSyncQueue(username);
 
 		if (queueItems.length === 0) {
-			console.log(`[SyncQueue] No items in queue for user ${username}`);
 			return { processed: 0 };
 		}
-
-		console.log(
-			`[SyncQueue] Processing ${queueItems.length} queued items for user ${username}`
-		);
 
 		let processed = 0;
 		const ragService = new LibraryRAGService(env);
@@ -305,7 +244,6 @@ export class SyncQueueService {
 				// Get file from R2
 				const file = await env.R2.get(item.file_key);
 				if (!file) {
-					console.error(`[SyncQueue] File not found: ${item.file_key}`);
 					await fileDAO.removeFromSyncQueue(item.file_key);
 					continue;
 				}
@@ -313,9 +251,6 @@ export class SyncQueueService {
 				// Get file metadata from database
 				const dbMetadata = await fileDAO.getFileForRag(item.file_key, username);
 				if (!dbMetadata) {
-					console.error(
-						`[SyncQueue] File metadata not found: ${item.file_key}`
-					);
 					await fileDAO.removeFromSyncQueue(item.file_key);
 					continue;
 				}
@@ -348,23 +283,10 @@ export class SyncQueueService {
 						);
 						await fileDAO.removeFromSyncQueue(item.file_key);
 						processed++;
-						console.log(
-							`[SyncQueue] All chunks processed successfully for ${item.file_name}`
-						);
 					} else if (mergeResult.allComplete && !mergeResult.allSuccessful) {
-						// All chunks processed but some failed - mark file as error
-						console.error(
-							`[SyncQueue] Some chunks failed for ${item.file_name}. Stats:`,
-							mergeResult.stats
-						);
 						await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
 						await fileDAO.removeFromSyncQueue(item.file_key);
 					} else {
-						// Chunks still processing - keep in queue
-						console.log(
-							`[SyncQueue] File ${item.file_name} has chunks still processing. Stats:`,
-							mergeResult.stats
-						);
 					}
 					continue;
 				}
@@ -388,9 +310,6 @@ export class SyncQueueService {
 
 				// Check if file was chunked (explicit flag)
 				if (processResult.chunked) {
-					console.log(
-						`[SyncQueue] File ${item.file_name} was chunked. Chunks will be processed separately.`
-					);
 					// Keep in queue for chunk processing
 					continue;
 				}
@@ -435,18 +354,11 @@ export class SyncQueueService {
 				await fileDAO.removeFromSyncQueue(item.file_key);
 
 				processed++;
-				console.log(`[SyncQueue] Processed queued file ${item.file_name}`);
 			} catch (error) {
 				const errorMessage =
 					error instanceof Error ? error.message : "Unknown error";
 				const errorStack = error instanceof Error ? error.stack : undefined;
-
-				console.error(
-					`[SyncQueue] Failed to process queued file ${item.file_name}:`,
-					errorMessage
-				);
 				if (errorStack) {
-					console.error(`[SyncQueue] Error stack:`, errorStack);
 				}
 
 				// Get current retry count
@@ -461,10 +373,6 @@ export class SyncQueueService {
 
 				// If we've exceeded max retries, mark as ERROR and remove from queue
 				if (currentRetryCount >= MAX_RETRIES) {
-					console.error(
-						`[SyncQueue] Max retries (${MAX_RETRIES}) exceeded for ${item.file_name}, marking as ERROR`
-					);
-
 					const fileSizeMB = (item.file_size || 0) / (1024 * 1024);
 
 					// Check if this is a memory limit error or network error on large file
@@ -516,12 +424,7 @@ export class SyncQueueService {
 									fileSize: item.file_size || 0,
 								}
 							);
-						} catch (notifyError) {
-							console.error(
-								`[SyncQueue] Failed to send memory limit notification for ${item.file_name}:`,
-								notifyError
-							);
-						}
+						} catch (_notifyError) {}
 					} else {
 						// For other errors, mark as error without error code (retryable)
 						await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
@@ -549,21 +452,12 @@ export class SyncQueueService {
 									reason: errorMessage,
 								}
 							);
-						} catch (notifyError) {
-							console.error(
-								`[SyncQueue] Failed to send error notification for ${item.file_name}:`,
-								notifyError
-							);
-						}
+						} catch (_notifyError) {}
 					}
 
 					// Remove from queue after max retries
 					await fileDAO.removeFromSyncQueue(item.file_key);
 				} else {
-					// Keep in queue for automatic retry
-					console.log(
-						`[SyncQueue] File ${item.file_name} will be retried automatically (attempt ${currentRetryCount}/${MAX_RETRIES}). Error: ${errorMessage}`
-					);
 					// Don't mark as ERROR yet - keep in queue for retry
 					// Status will remain as SYNCING until successful or max retries
 				}
@@ -580,7 +474,7 @@ export class SyncQueueService {
 		env: any,
 		fileKey: string,
 		_username: string,
-		fileName: string,
+		_fileName: string,
 		file: any,
 		dbMetadata: any
 	): Promise<void> {
@@ -592,13 +486,8 @@ export class SyncQueueService {
 		const pendingChunks = chunks.filter((chunk) => chunk.status === "pending");
 
 		if (pendingChunks.length === 0) {
-			console.log(`[SyncQueue] No pending chunks for file ${fileKey}`);
 			return;
 		}
-
-		console.log(
-			`[SyncQueue] Processing ${pendingChunks.length} pending chunk(s) for file ${fileName}`
-		);
 
 		const contentType =
 			dbMetadata.content_type || file.httpMetadata?.contentType || "";
@@ -622,19 +511,10 @@ export class SyncQueueService {
 			// Only try to load full buffer if file size is safe
 			try {
 				fileBuffer = await file.arrayBuffer();
-			} catch (bufferError) {
-				console.warn(
-					`[SyncQueue] Failed to load full file buffer for chunks ${fileKey}, will fetch per chunk:`,
-					bufferError instanceof Error
-						? bufferError.message
-						: String(bufferError)
-				);
+			} catch (_bufferError) {
 				usePerChunkFetch = true;
 			}
 		} else {
-			console.log(
-				`[SyncQueue] Skipping full buffer load for ${fileKey} (${fileSizeMB.toFixed(2)}MB) - file is too large, will fetch per chunk`
-			);
 		}
 
 		// Process each pending chunk
@@ -676,17 +556,9 @@ export class SyncQueueService {
 					contentType,
 					metadataId
 				);
-
-				console.log(
-					`[SyncQueue] Successfully processed chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} for file ${fileName}`
-				);
 			} catch (chunkError) {
 				const errorMessage =
 					chunkError instanceof Error ? chunkError.message : String(chunkError);
-				console.error(
-					`[SyncQueue] Failed to process chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} for file ${fileName}:`,
-					errorMessage
-				);
 
 				// Update chunk retry count
 				const currentRetryCount = chunk.retryCount;
@@ -698,9 +570,6 @@ export class SyncQueueService {
 						retryCount: currentRetryCount + 1,
 						status: "pending", // Reset to pending for retry
 					});
-					console.log(
-						`[SyncQueue] Chunk ${chunk.chunkIndex + 1} will be retried (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`
-					);
 				} else {
 					// Max retries exceeded - mark chunk as failed
 					await fileDAO.updateFileProcessingChunk(chunk.id, {
@@ -708,9 +577,6 @@ export class SyncQueueService {
 						errorMessage: errorMessage,
 						retryCount: currentRetryCount + 1,
 					});
-					console.error(
-						`[SyncQueue] Chunk ${chunk.chunkIndex + 1} failed after ${MAX_RETRIES} retries`
-					);
 				}
 			}
 		}

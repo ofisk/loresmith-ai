@@ -143,7 +143,6 @@ export const generateGMContextRecapTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[generateGMContextRecapTool] Error:", error);
 			return createToolError(
 				"Failed to generate context recap",
 				error instanceof Error ? error.message : String(error),
@@ -219,7 +218,6 @@ export const generatePlayerContextRecapTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[generatePlayerContextRecapTool] Error:", error);
 			return createToolError(
 				"Failed to generate player context recap",
 				error instanceof Error ? error.message : String(error),
@@ -600,17 +598,6 @@ export const getSessionReadoutContext = tool({
 					}
 				}
 
-				console.log("[getSessionReadoutContext] Step context summary", {
-					campaignId,
-					taskId: tr.task.id,
-					taskTitle: tr.task.title,
-					entityResults: tr.entityResults.map((e) => ({
-						entityId: e.entityId,
-						title: e.title,
-					})),
-					communitiesByEntity,
-				});
-
 				return {
 					task: tr.task,
 					instruction: tr.instruction,
@@ -658,10 +645,6 @@ export const getSessionReadoutContext = tool({
 					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 			});
-
-			console.log(
-				"[getSessionReadoutContext] Generating session plan with LLM..."
-			);
 			const transformedPlan = await llmProvider.generateSummary(prompt, {
 				model: getGenerationModelForProvider("SESSION_PLANNING"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
@@ -684,7 +667,6 @@ export const getSessionReadoutContext = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[getSessionReadoutContext] Error:", error);
 			return createToolError(
 				"Failed to get session readout context",
 				error instanceof Error ? error.message : String(error),

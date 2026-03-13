@@ -85,17 +85,11 @@ export function ResourceList({
 	const handleRetryFile = useCallback(
 		async (fileKey: string, fileName: string) => {
 			try {
-				console.log(`[ResourceList] ===== RETRY BUTTON CLICKED =====`);
-				console.log(`[ResourceList] File: ${fileName}`);
-				console.log(`[ResourceList] FileKey: ${fileKey}`);
-				console.log(`[ResourceList] Timestamp: ${new Date().toISOString()}`);
-
 				// Immediately update UI to show retry in progress
 				setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 0 }));
 
 				const jwt = getStoredJwt();
 				if (!jwt) {
-					console.error("[ResourceList] No JWT token available for retry");
 					return;
 				}
 
@@ -103,8 +97,6 @@ export function ResourceList({
 				const retryUrl = API_CONFIG.buildUrl(
 					API_CONFIG.ENDPOINTS.RAG.TRIGGER_INDEXING
 				);
-				console.log(`[ResourceList] Making retry request to: ${retryUrl}`);
-				console.log(`[ResourceList] Request body:`, { fileKey });
 
 				const response = await authenticatedFetchWithExpiration(retryUrl, {
 					method: "POST",
@@ -115,12 +107,6 @@ export function ResourceList({
 					},
 				});
 
-				console.log(
-					`[ResourceList] Retry response status:`,
-					response.response.status
-				);
-				console.log(`[ResourceList] Retry response ok:`, response.response.ok);
-
 				// Parse response (server always returns JSON, even for errors)
 				const result = (await response.response.json()) as {
 					success: boolean;
@@ -130,18 +116,12 @@ export function ResourceList({
 					isIndexed?: boolean;
 				};
 
-				console.log(`[ResourceList] Retry response for ${fileName}:`, result);
-
 				// Check for errors: either HTTP error status or success: false in response
 				if (!response.response.ok || !result.success) {
 					const errorMessage =
 						result.message ||
 						result.error ||
 						`Retry failed with status ${response.response.status}`;
-					console.error(
-						`[ResourceList] Retry failed for ${fileName}:`,
-						errorMessage
-					);
 
 					// Check if this is a memory limit error (non-retryable)
 					if (
@@ -160,9 +140,6 @@ export function ResourceList({
 				setFiles((prevFiles) => {
 					return prevFiles.map((file) => {
 						if (file.file_key === fileKey) {
-							console.log(
-								`[ResourceList] Updating file status to SYNCING after retry: ${file.file_name}`
-							);
 							return {
 								...file,
 								status: FileDAO.STATUS.SYNCING,
@@ -175,23 +152,15 @@ export function ResourceList({
 
 				// If queued, show immediate feedback
 				if (result.queued) {
-					console.log(`[ResourceList] File ${fileName} queued for retry`);
 					setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 10 }));
 				} else {
-					console.log(
-						`[ResourceList] File ${fileName} retry started immediately`
-					);
 					// Start progress animation for immediate retry
 					setProgressByFileKey((prev) => ({ ...prev, [fileKey]: 25 }));
 				}
 
 				// Refresh the file list to get updated status from server
 				fetchResources();
-			} catch (error) {
-				console.error(
-					`[ResourceList] Failed to retry file processing for ${fileName}:`,
-					error
-				);
+			} catch (_error) {
 				// Reset progress on error
 				setProgressByFileKey((prev) => {
 					const newProgress = { ...prev };
@@ -227,8 +196,7 @@ export function ResourceList({
 					// Refresh the file list to show updated status
 					await fetchResources();
 				}
-			} catch (error) {
-				console.error("Failed to retry indexing:", error);
+			} catch (_error) {
 				setError("Failed to retry indexing. Please try again.");
 			}
 		},

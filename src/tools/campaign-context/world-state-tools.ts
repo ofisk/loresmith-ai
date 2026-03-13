@@ -153,7 +153,6 @@ async function submitWorldStateChange(
 		const data = (await response.json()) as { entry: unknown };
 		return createToolSuccess(successMessage, data, toolCallId);
 	} catch (error) {
-		console.error("[WorldStateTool] Failed to submit changelog entry:", error);
 		return createToolError(
 			"Failed to update world state",
 			error instanceof Error ? error.message : String(error),

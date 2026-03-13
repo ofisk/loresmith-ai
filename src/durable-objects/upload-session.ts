@@ -52,8 +52,7 @@ export class UploadSessionDO {
 				default:
 					return new Response("Invalid action", { status: 400 });
 			}
-		} catch (error) {
-			console.error(`[UploadSessionDO] Error in action ${action}:`, error);
+		} catch (_error) {
 			return new Response(JSON.stringify({ error: "Internal server error" }), {
 				status: 500,
 				headers: { "Content-Type": "application/json" },
@@ -96,12 +95,6 @@ export class UploadSessionDO {
 		};
 
 		await this.state.storage.put("session", this.session);
-
-		console.log(`[UploadSessionDO] Created session:`, {
-			sessionId: this.session.id,
-			fileKey: this.session.fileKey,
-			uploadId: this.session.uploadId,
-		});
 
 		return new Response(
 			JSON.stringify({ success: true, session: this.session }),
@@ -180,12 +173,6 @@ export class UploadSessionDO {
 		this.session.updatedAt = new Date().toISOString();
 		await this.state.storage.put("session", this.session);
 
-		console.log(`[UploadSessionDO] Added part ${partNumber}:`, {
-			sessionId: this.session.id,
-			uploadedParts: this.session.uploadedParts,
-			totalParts: this.session.totalParts,
-		});
-
 		return new Response(
 			JSON.stringify({
 				success: true,
@@ -254,12 +241,6 @@ export class UploadSessionDO {
 		this.session.updatedAt = new Date().toISOString();
 		await this.state.storage.put("session", this.session);
 
-		console.log(`[UploadSessionDO] Completed upload:`, {
-			sessionId: this.session.id,
-			fileKey: this.session.fileKey,
-			partsCount: parts.length,
-		});
-
 		return new Response(
 			JSON.stringify({
 				success: true,
@@ -276,10 +257,6 @@ export class UploadSessionDO {
 		await this.state.storage.delete("session");
 		await this.state.storage.delete("parts");
 		this.session = null;
-
-		console.log(`[UploadSessionDO] Deleted session:`, {
-			sessionId: this.state.id.toString(),
-		});
 
 		return new Response(JSON.stringify({ success: true }), {
 			headers: { "Content-Type": "application/json" },

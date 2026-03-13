@@ -364,7 +364,6 @@ export const searchRulesTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[searchRulesTool] Error:", error);
 			return createToolError(
 				"Failed to search rules references",
 				error instanceof Error ? error.message : "Unknown error",
@@ -465,7 +464,6 @@ export const lookupStatBlockTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[lookupStatBlockTool] Error:", error);
 			return createToolError(
 				"Failed to lookup stat block",
 				error instanceof Error ? error.message : "Unknown error",
@@ -566,7 +564,6 @@ export const resolveRulesConflictTool = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[resolveRulesConflictTool] Error:", error);
 			return createToolError(
 				"Failed to resolve rules conflict",
 				error instanceof Error ? error.message : "Unknown error",

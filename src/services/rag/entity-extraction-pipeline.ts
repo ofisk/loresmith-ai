@@ -97,9 +97,6 @@ export class EntityExtractionPipeline {
 					openaiApiKey: openaiKey,
 				});
 				if (existing) {
-					console.log(
-						`[EntityExtractionPipeline] Found duplicate entity for "${extracted.name}" (existing: ${existing.id}, type: ${existing.entityType}). Using existing entity to avoid duplication.`
-					);
 				}
 			}
 
@@ -294,12 +291,7 @@ export class EntityExtractionPipeline {
 				embedding,
 				metadata: extracted.metadata,
 			});
-		} catch (error) {
-			console.warn(
-				`[EntityExtractionPipeline] Failed to upsert embedding for entity ${extracted.id}`,
-				error
-			);
-		}
+		} catch (_error) {}
 	}
 
 	private stringifyContent(content: unknown): string {
@@ -320,10 +312,6 @@ export class EntityExtractionPipeline {
 		try {
 			return await this.openaiEmbeddingService.generateEmbedding(text);
 		} catch (error) {
-			console.warn(
-				"[EntityExtractionPipeline] Failed to generate embedding, using fallback",
-				error
-			);
 			if (
 				error instanceof EmbeddingGenerationError ||
 				error instanceof LLMProviderAPIKeyError

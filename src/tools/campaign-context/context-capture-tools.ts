@@ -98,14 +98,6 @@ export const captureConversationalContext = tool({
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
 
-		console.log("[captureConversationalContext] Called with:", {
-			campaignId,
-			contextType,
-			title,
-			contentLength: content.length,
-			confidence,
-		});
-
 		try {
 			const env = getEnvFromContext(options);
 
@@ -184,25 +176,12 @@ export const captureConversationalContext = tool({
 
 			// If duplicate found, return success but indicate it was skipped
 			if (result.isDuplicate) {
-				console.log(
-					"[captureConversationalContext] Shard skipped (semantic duplicate):",
-					{
-						noteId,
-						title,
-					}
-				);
 				return createToolSuccess(
 					`Context "${title}" was not saved because it's very similar to existing content.`,
 					{ skipped: true, reason: "duplicate" },
 					toolCallId
 				);
 			}
-
-			console.log("[captureConversationalContext] Created staging shard:", {
-				stagingKey: result.stagingKey,
-				noteId,
-				title,
-			});
 
 			// Optionally link this captured context to a planning task
 			try {
@@ -257,19 +236,8 @@ export const captureConversationalContext = tool({
 					await daoFactory.sessionPlanReadoutDAO.invalidateForCampaign(
 						campaignId
 					);
-					console.log(
-						"[captureConversationalContext] Linked planning task to captured context",
-						{
-							planningTaskId: planningTaskIdToUpdate,
-							noteId,
-						}
-					);
 				}
-			} catch (planningTaskError) {
-				console.error(
-					"[captureConversationalContext] Failed to update planning task status:",
-					planningTaskError
-				);
+			} catch (_planningTaskError) {
 				// Do not fail the capture operation if planning task linkage fails
 			}
 
@@ -282,12 +250,7 @@ export const captureConversationalContext = tool({
 					`Conversation: ${title}`,
 					1 // One shard created
 				);
-				console.log("[captureConversationalContext] Sent notification to user");
-			} catch (notifyError) {
-				console.error(
-					"[captureConversationalContext] Failed to send notification:",
-					notifyError
-				);
+			} catch (_notifyError) {
 				// Don't fail the operation if notification fails
 			}
 
@@ -304,7 +267,6 @@ export const captureConversationalContext = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[captureConversationalContext] Error:", error);
 			return createToolError(
 				"Failed to capture campaign context",
 				error,
@@ -348,12 +310,6 @@ export const saveContextExplicitly = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, contextType, title, content, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-
-		console.log("[saveContextExplicitly] Called with:", {
-			campaignId,
-			contextType,
-			title,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
@@ -432,26 +388,12 @@ export const saveContextExplicitly = tool({
 
 			// If duplicate found, return success but indicate it was skipped
 			if (result.isDuplicate) {
-				console.log(
-					"[saveContextExplicitly] Shard skipped (semantic duplicate):",
-					{
-						noteId,
-						title,
-					}
-				);
 				return createToolSuccess(
 					`Context "${title}" was not saved because it's very similar to existing content.`,
 					{ skipped: true, reason: "duplicate" },
 					toolCallId
 				);
 			}
-
-			console.log("[saveContextExplicitly] Created staging shard:", {
-				stagingKey: result.stagingKey,
-				noteId,
-				title,
-				contextType,
-			});
 
 			// Send notification to user about new pending shard
 			try {
@@ -462,12 +404,7 @@ export const saveContextExplicitly = tool({
 					`Conversation: ${title}`,
 					1
 				);
-				console.log("[saveContextExplicitly] Sent notification to user");
-			} catch (notifyError) {
-				console.error(
-					"[saveContextExplicitly] Failed to send notification:",
-					notifyError
-				);
+			} catch (_notifyError) {
 				// Don't fail the operation if notification fails
 			}
 
@@ -484,7 +421,6 @@ export const saveContextExplicitly = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("[saveContextExplicitly] Error:", error);
 			return createToolError(
 				"Failed to save campaign context",
 				error,

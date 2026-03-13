@@ -131,7 +131,6 @@ export async function handleCreateShareLink(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error creating share link:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -173,7 +172,6 @@ export async function handleListShareLinks(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error listing share links:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -210,7 +208,6 @@ export async function handleRevokeShareLink(c: ContextWithAuth) {
 				403
 			);
 		}
-		console.error("Error revoking share link:", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -304,12 +301,7 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 					)
 				);
 			}
-		} catch (notificationError) {
-			console.warn(
-				"[CampaignJoin] Failed to notify campaign managers:",
-				notificationError
-			);
-		}
+		} catch (_notificationError) {}
 
 		const isPlayer = isPlayerRole(result.role);
 		const [claim, hasCampaignPcEntities] = isPlayer
@@ -336,8 +328,7 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 			playerCharacterClaim: claim,
 			url: `/campaigns/${result.campaignId}`,
 		});
-	} catch (error) {
-		console.error("Error redeeming campaign join link:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -392,8 +383,7 @@ export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
 				role === CAMPAIGN_ROLES.EDITOR_PLAYER &&
 				hasCampaignPcEntities,
 		});
-	} catch (error) {
-		console.error("Error getting player character options:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -437,7 +427,6 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 
 		return c.json({ success: true, claim });
 	} catch (error) {
-		console.error("Error creating player character claim:", error);
 		const message = error instanceof Error ? error.message : "Unknown error";
 		if (message.includes("UNIQUE constraint failed")) {
 			return c.json({ error: "That character is already claimed" }, 409);
@@ -483,8 +472,7 @@ export async function handleListPlayerCharacterClaims(c: ContextWithAuth) {
 			unclaimedOptions,
 			requestedBy: auth.username,
 		});
-	} catch (error) {
-		console.error("Error listing player character claims:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
@@ -529,7 +517,6 @@ export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
 		);
 		return c.json({ success: true, claim });
 	} catch (error) {
-		console.error("Error assigning player character claim:", error);
 		const message = error instanceof Error ? error.message : "Unknown error";
 		if (message.includes("UNIQUE constraint failed")) {
 			return c.json({ error: "That character is already claimed" }, 409);
@@ -570,8 +557,7 @@ export async function handleClearPlayerCharacterClaim(c: ContextWithAuth) {
 			targetUsername
 		);
 		return c.json({ success: true, username: targetUsername });
-	} catch (error) {
-		console.error("Error clearing player character claim:", error);
+	} catch (_error) {
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

@@ -37,18 +37,9 @@ export const searchExternalResources = tool({
 	): Promise<ToolResult> => {
 		const { campaignId, query, resourceType, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[searchExternalResources] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] searchExternalResources received:", {
-			campaignId,
-			query,
-			resourceType,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] searchExternalResources - Environment found:", !!env);
-			console.log("[Tool] searchExternalResources - JWT provided:", !!jwt);
 
 			if (env) {
 				const access = await requireCampaignAccessForTool({
@@ -79,11 +70,6 @@ export const searchExternalResources = tool({
 					}
 					return access;
 				}
-				const { userId } = access;
-				console.log(
-					"[Tool] searchExternalResources - User ID extracted:",
-					userId
-				);
 
 				// Pre-filled search links; not live results. Real search would require a search API (Serper, Tavily, etc.).
 				const suggestedSearchLinks = [
@@ -123,7 +109,6 @@ export const searchExternalResources = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error searching external resources:", error);
 			return createToolError(
 				"Failed to search external resources",
 				error,

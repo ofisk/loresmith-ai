@@ -33,9 +33,6 @@ export class MetadataService {
 
 		try {
 			if (!this.env.AI) {
-				console.warn(
-					"[MetadataService] AI binding not available for metadata generation"
-				);
 				return undefined;
 			}
 
@@ -47,10 +44,7 @@ export class MetadataService {
 				content,
 				{ includeContent, includeFilename, maxTags }
 			);
-
-			console.log(`[MetadataService] Generating metadata for: ${fileName}`);
 			const response = await (this.env.AI as any).run(semanticPrompt);
-			console.log(`[MetadataService] AI response received for: ${fileName}`);
 
 			// Extract response text - handle both string and object responses
 			const responseText =
@@ -67,11 +61,7 @@ export class MetadataService {
 			}
 
 			return undefined;
-		} catch (error) {
-			console.error(
-				`[MetadataService] Error generating metadata for ${fileName}:`,
-				error
-			);
+		} catch (_error) {
 			return undefined;
 		}
 	}

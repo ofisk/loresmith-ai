@@ -154,7 +154,6 @@ export function AppModals({
 				await refetchCampaigns();
 				modalState.handleCampaignDetailsClose();
 			} catch (error) {
-				console.error("Failed to delete campaign:", error);
 				addLocalNotification(
 					NOTIFICATION_TYPES.ERROR,
 					"Deletion Failed",
@@ -215,7 +214,6 @@ export function AppModals({
 				await refetchCampaigns();
 				modalState.handleCampaignDetailsClose();
 			} catch (error) {
-				console.error("Failed to update campaign:", error);
 				addLocalNotification(
 					NOTIFICATION_TYPES.ERROR,
 					"Update Failed",
@@ -289,9 +287,8 @@ export function AppModals({
 							await createCampaign(name, description);
 							await refetchCampaigns();
 							modalState.handleCreateCampaignClose();
-						} catch (error) {
+						} catch (_error) {
 							// Keep modal open on error so user can retry
-							console.error("Campaign creation failed:", error);
 						}
 					}}
 				/>
@@ -330,8 +327,6 @@ export function AppModals({
 			>
 				<ResourceUpload
 					onUpload={async (file, filename, description, tags, options) => {
-						console.log("Uploading file:", file);
-
 						// Only close modal when single file or user finished (keep open for multi-file so they can upload rest)
 						if (!options?.keepModalOpen) {
 							modalState.handleAddResourceClose();
@@ -353,7 +348,6 @@ export function AppModals({
 									`"${filename}" already exists in your library. Please rename the file and try again.`
 								);
 							} else if (!isLimit) {
-								console.error("Upload failed:", error);
 								addLocalNotification(
 									NOTIFICATION_TYPES.ERROR,
 									"Upload failed",
@@ -528,68 +522,27 @@ export function AppModals({
 						description: modalState.editingFile.description,
 						tags: (() => {
 							const tags = modalState.editingFile.tags;
-							console.log("[AppModals] Processing tags for EditFileModal:", {
-								tags,
-								type: typeof tags,
-								isArray: Array.isArray(tags),
-								file_key: modalState.editingFile.file_key,
-							});
-
 							if (Array.isArray(tags)) {
-								console.log(
-									"[AppModals] Tags is already array, returning as-is:",
-									tags
-								);
 								return tags;
 							}
 							if (typeof tags === "string") {
-								// Try to parse as JSON first (common case)
 								try {
-									console.log(
-										"[AppModals] Attempting to parse tags as JSON:",
-										tags
-									);
 									const parsed = JSON.parse(tags);
-									console.log(
-										"[AppModals] JSON.parse succeeded, parsed:",
-										parsed
-									);
 									if (Array.isArray(parsed)) {
-										console.log(
-											"[AppModals] Parsed result is array, returning:",
-											parsed
-										);
 										return parsed;
 									}
-									console.log(
-										"[AppModals] Parsed result is not array, falling back to comma-split"
-									);
-								} catch (err) {
-									console.log(
-										"[AppModals] JSON.parse failed, treating as comma-separated string. Error:",
-										err
-									);
+								} catch {
 									// Not JSON, treat as comma-separated string
 								}
-								// Fallback: treat as comma-separated string
-								const split = tags
+								return tags
 									.split(",")
 									.map((t) => t.trim())
 									.filter((t) => t.length > 0);
-								console.log("[AppModals] Split tags by comma:", split);
-								return split;
 							}
-							console.log(
-								"[AppModals] Tags is not array or string, returning empty array"
-							);
 							return [];
 						})(),
 					}}
 					onUpdate={(updatedFile) => {
-						console.log(
-							"[AppModals] EditFileModal onUpdate called with:",
-							updatedFile
-						);
 						handleFileUpdate(updatedFile as FileMetadata);
 					}}
 				/>

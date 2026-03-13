@@ -37,8 +37,6 @@ export class R2Helper {
 		await this.env.R2.put(key, content, {
 			httpMetadata: { contentType },
 		});
-
-		console.log(`[R2Helper] Put object: ${key} (${content.byteLength} bytes)`);
 	}
 
 	/**
@@ -64,7 +62,6 @@ export class R2Helper {
 	 */
 	async delete(key: string): Promise<void> {
 		await this.env.R2.delete(key);
-		console.log(`[R2Helper] Deleted object: ${key}`);
 	}
 
 	/**
@@ -86,8 +83,6 @@ export class R2Helper {
 
 		// Delete source
 		await this.delete(sourceKey);
-
-		console.log(`[R2Helper] Moved object: ${sourceKey} → ${destKey}`);
 	}
 
 	/**
@@ -104,8 +99,6 @@ export class R2Helper {
 			sourceObject.httpMetadata?.contentType || "application/octet-stream";
 
 		await this.put(destKey, content, contentType);
-
-		console.log(`[R2Helper] Copied object: ${sourceKey} → ${destKey}`);
 	}
 
 	/**
@@ -156,8 +149,6 @@ export class R2Helper {
 
 			cursor = listResult.truncated ? listResult.cursor : undefined;
 		} while (cursor);
-
-		console.log(`[R2Helper] Cleaned up ${deletedCount} old staging objects`);
 		return deletedCount;
 	}
 

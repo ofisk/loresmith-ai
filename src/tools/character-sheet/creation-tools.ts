@@ -40,20 +40,9 @@ export const createCharacterSheet = tool({
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[createCharacterSheet] Using toolCallId:", toolCallId);
-
-		console.log("[Tool] createCharacterSheet received:", {
-			campaignId,
-			characterName,
-			characterClass,
-			characterLevel,
-			characterRace,
-		});
 
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] createCharacterSheet - Environment found:", !!env);
-			console.log("[Tool] createCharacterSheet - JWT provided:", !!jwt);
 
 			// If we have environment, work directly with the database
 			if (env?.DB) {
@@ -77,8 +66,6 @@ export const createCharacterSheet = tool({
 					}
 					return access;
 				}
-				const { userId } = access;
-				console.log("[Tool] createCharacterSheet - User ID extracted:", userId);
 				const daoFactory = getDAOFactory(env);
 
 				const characterId = crypto.randomUUID();
@@ -96,8 +83,6 @@ export const createCharacterSheet = tool({
 				});
 				await daoFactory.campaignDAO.touchUpdatedAt(campaignId);
 
-				console.log("[Tool] Created character sheet:", characterId);
-
 				// Sync to RAG for searchability
 				try {
 					const syncService = new CampaignContextSyncService(env as Env);
@@ -112,9 +97,7 @@ export const createCharacterSheet = tool({
 						characterName,
 						characterData
 					);
-					console.log("[Tool] Synced character sheet:", characterId);
-				} catch (syncError) {
-					console.error("[Tool] Failed to sync character sheet:", syncError);
+				} catch (_syncError) {
 					// Don't fail the whole operation if sync fails
 				}
 
@@ -168,7 +151,6 @@ export const createCharacterSheet = tool({
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error creating character sheet:", error);
 			return createToolError(
 				"Failed to create character sheet",
 				error,

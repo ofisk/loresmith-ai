@@ -95,8 +95,7 @@ export class AssessmentService {
 			});
 
 			return userState;
-		} catch (error) {
-			console.error("Failed to analyze user state:", error);
+		} catch (_error) {
 			throw new UserStateAnalysisError();
 		}
 	}
@@ -126,11 +125,7 @@ export class AssessmentService {
 				);
 				const syncService = new CharacterEntitySyncService(this.env);
 				await syncService.syncAllCharacterBackstories(campaignId);
-			} catch (syncError) {
-				console.error(
-					"[AssessmentService] Failed to sync character_backstory entries:",
-					syncError
-				);
+			} catch (_syncError) {
 				// Don't fail assessment if sync fails
 			}
 
@@ -207,8 +202,7 @@ export class AssessmentService {
 				priorityAreas,
 				recommendations,
 			};
-		} catch (error) {
-			console.error("Failed to get campaign readiness:", error);
+		} catch (_error) {
 			throw new CampaignReadinessAnalysisError();
 		}
 	}
@@ -219,8 +213,7 @@ export class AssessmentService {
 	async getUserActivity(username: string): Promise<ActivityType[]> {
 		try {
 			return await this.assessmentDAO.getUserActivity(username);
-		} catch (error) {
-			console.error("Failed to get user activity:", error);
+		} catch (_error) {
 			throw new DataRetrievalError("Failed to retrieve user activity");
 		}
 	}
@@ -275,8 +268,7 @@ export class AssessmentService {
 			);
 
 			return true;
-		} catch (error) {
-			console.error("Failed to store module analysis:", error);
+		} catch (_error) {
 			return false;
 		}
 	}
@@ -291,8 +283,7 @@ export class AssessmentService {
 				campaignId,
 				daoFactory.entityDAO
 			);
-		} catch (error) {
-			console.error("Failed to get campaign context:", error);
+		} catch (_error) {
 			throw new DataRetrievalError("Failed to retrieve campaign context");
 		}
 	}
@@ -307,8 +298,7 @@ export class AssessmentService {
 				campaignId,
 				daoFactory.entityDAO
 			);
-		} catch (error) {
-			console.error("Failed to get campaign characters:", error);
+		} catch (_error) {
 			throw new DataRetrievalError("Failed to retrieve campaign characters");
 		}
 	}
@@ -319,8 +309,7 @@ export class AssessmentService {
 	async getCampaignResources(campaignId: string): Promise<any[]> {
 		try {
 			return await this.assessmentDAO.getCampaignResourcesOrdered(campaignId);
-		} catch (error) {
-			console.error("Failed to get campaign resources:", error);
+		} catch (_error) {
 			throw new DataRetrievalError("Failed to retrieve campaign resources");
 		}
 	}

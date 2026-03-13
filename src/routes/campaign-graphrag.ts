@@ -34,9 +34,6 @@ async function checkAndRunCommunityDetection(
 ): Promise<void> {
 	const rebuildTriggerService = daoFactory.rebuildTriggerService;
 	if (!daoFactory.graphRebuildDirtyDAO) {
-		console.warn(
-			`[Server] graphRebuildDirtyDAO unavailable, skipping async rebuild trigger for campaign ${campaignId}`
-		);
 		return;
 	}
 	await daoFactory.graphRebuildDirtyDAO.markEntitiesDirty(
@@ -53,9 +50,6 @@ async function checkAndRunCommunityDetection(
 	}
 
 	if (!(env as any).GRAPH_REBUILD_QUEUE) {
-		console.warn(
-			`[Server] GRAPH_REBUILD_QUEUE binding not configured, skipping async rebuild for campaign ${campaignId}`
-		);
 		return;
 	}
 
@@ -68,18 +62,7 @@ async function checkAndRunCommunityDetection(
 		queueService,
 	});
 	if (result.enqueued) {
-		console.log(
-			`[Server] Enqueued ${result.mode} rebuild ${result.rebuildId} for campaign ${campaignId}`,
-			{
-				dirtyEntityCount: result.dirtyEntityCount,
-				neighborhoodEntityCount: result.neighborhoodEntityCount,
-				fallbackReason: result.fallbackReason,
-			}
-		);
 	} else {
-		console.log(
-			`[Server] Rebuild not enqueued for campaign ${campaignId}: ${result.reason}`
-		);
 	}
 }
 
@@ -90,8 +73,6 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 		if (campaignId instanceof Response) return campaignId;
 		const userAuth = (c as any).userAuth;
 		const resourceId = c.req.query("resourceId");
-
-		console.log(`[Server] Getting staged entities for campaign: ${campaignId}`);
 
 		// Verify campaign belongs to user
 		const campaign = await verifyCampaignAccess(
@@ -114,10 +95,6 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 				shardStatus: "staging",
 				resourceId: resourceId || undefined,
 			}
-		);
-
-		console.log(
-			`[Server] Found ${stagedEntities.length} staged entities for campaign ${campaignId}`
 		);
 
 		// Group entities by resourceId to match StagedShardGroup interface (UI compatibility)
@@ -196,14 +173,9 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 
 		const stagedShardGroups = Array.from(groupedByResource.values());
 
-		console.log(
-			`[Server] Grouped ${stagedEntities.length} entities into ${stagedShardGroups.length} groups for UI`
-		);
-
 		// Return the grouped entities in shard format for UI compatibility
 		return c.json({ shards: stagedShardGroups });
-	} catch (error) {
-		console.error("[Server] Error getting staged entities:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to get staged entities" }, 500);
 	}
 }
@@ -220,10 +192,6 @@ export async function handleApproveShards(c: ContextWithAuth) {
 			return c.json({ error: "shardIds array is required" }, 400);
 		}
 
-		console.log(
-			`[Server] Approving ${shardIds.length} entities for campaign: ${campaignId}`
-		);
-
 		// Verify campaign belongs to user
 		const campaign = await verifyCampaignAccess(
 			c,
@@ -238,11 +206,6 @@ export async function handleApproveShards(c: ContextWithAuth) {
 		const daoFactory = getDAOFactory(c.env);
 		const graphService = daoFactory.entityGraphService;
 		const graphServices = getGraphServices(c.env as any);
-
-		// Diagnostic: report campaign entity count without materializing all rows.
-		const campaignEntityCount =
-			await daoFactory.entityDAO.getEntityCountByCampaign(campaignId);
-		console.log(`[Server] Campaign has ${campaignEntityCount} total entities.`);
 
 		// Fetch only entities that exist, belong to this campaign, and are in staging (filter in SQL)
 		const validEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
@@ -362,10 +325,6 @@ export async function handleApproveShards(c: ContextWithAuth) {
 		}
 		const relationshipCount = edgesToApprove.length;
 
-		console.log(
-			`[Server] Approved ${approvedCount} entities and created ${relationshipCount} relationships for campaign: ${campaignId}`
-		);
-
 		// Defer embedding generation to background queue for faster UI response
 		if (
 			approvedEntityIds.length > 0 &&
@@ -379,12 +338,7 @@ export async function handleApproveShards(c: ContextWithAuth) {
 					campaignId,
 					username: userAuth.username,
 				});
-			} catch (error) {
-				console.warn(
-					"[Server] Failed to enqueue shard embedding, embeddings will not be indexed:",
-					error
-				);
-			}
+			} catch (_error) {}
 		}
 
 		const approvedEntityIdsForRebuild = Array.from(touchedEntityIds);
@@ -413,20 +367,14 @@ export async function handleApproveShards(c: ContextWithAuth) {
 				}),
 				[]
 			);
-		} catch (error) {
-			console.error(
-				"[Server] Failed to send entity approval notification:",
-				error
-			);
-		}
+		} catch (_error) {}
 
 		return c.json({
 			success: true,
 			approvedCount,
 			relationshipCount,
 		});
-	} catch (error) {
-		console.error("[Server] Error approving entities:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to approve entities" }, 500);
 	}
 }
@@ -446,10 +394,6 @@ export async function handleRejectShards(c: ContextWithAuth) {
 		if (!reason) {
 			return c.json({ error: "reason is required" }, 400);
 		}
-
-		console.log(
-			`[Server] Rejecting ${shardIds.length} entities for campaign: ${campaignId}, reason: ${reason}`
-		);
 
 		// Verify campaign belongs to user
 		const campaign = await verifyCampaignAccess(
@@ -550,10 +494,6 @@ export async function handleRejectShards(c: ContextWithAuth) {
 		}
 		const relationshipCount = edgesToReject.length;
 
-		console.log(
-			`[Server] Rejected ${rejectedCount} entities and created ${relationshipCount} relationships (marked as ignored) for campaign: ${campaignId}`
-		);
-
 		const rejectedEntityIdsForRebuild = Array.from(touchedEntityIds);
 		if (rejectedEntityIdsForRebuild.length > 0) {
 			await checkAndRunCommunityDetection(
@@ -584,20 +524,14 @@ export async function handleRejectShards(c: ContextWithAuth) {
 				}),
 				[]
 			);
-		} catch (error) {
-			console.error(
-				"[Server] Failed to send entity rejection notification:",
-				error
-			);
-		}
+		} catch (_error) {}
 
 		return c.json({
 			success: true,
 			rejectedCount,
 			relationshipCount,
 		});
-	} catch (error) {
-		console.error("[Server] Error rejecting entities:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to reject entities" }, 500);
 	}
 }
@@ -615,10 +549,6 @@ export async function handleUpdateShard(c: ContextWithAuth) {
 		if (!text && !metadata) {
 			return c.json({ error: "Either text or metadata must be provided" }, 400);
 		}
-
-		console.log(
-			`[Server] Updating entity ${shardId} for campaign: ${campaignId}`
-		);
 
 		// Verify campaign belongs to user
 		const campaign = await verifyCampaignAccess(
@@ -644,11 +574,7 @@ export async function handleUpdateShard(c: ContextWithAuth) {
 		if (text) {
 			try {
 				updatedContent = JSON.parse(text);
-			} catch (parseErr) {
-				console.error(
-					"[Server] Failed to parse entity content as JSON:",
-					parseErr
-				);
+			} catch (_parseErr) {
 				return c.json({ error: "Invalid JSON in entity content" }, 400);
 			}
 		}
@@ -661,8 +587,6 @@ export async function handleUpdateShard(c: ContextWithAuth) {
 			metadata: updatedMetadata,
 		});
 
-		console.log(`[Server] Successfully updated entity ${shardId} in database`);
-
 		return c.json({
 			success: true,
 			message: "Entity updated successfully",
@@ -672,8 +596,7 @@ export async function handleUpdateShard(c: ContextWithAuth) {
 				metadata: updatedMetadata,
 			},
 		});
-	} catch (error) {
-		console.error("[Server] Error updating entity:", error);
+	} catch (_error) {
 		return c.json({ error: "Failed to update entity" }, 500);
 	}
 }
@@ -808,7 +731,6 @@ Rules:
 		const trimmed = value?.trim() ?? "";
 		return c.json({ value: trimmed });
 	} catch (error) {
-		console.error("[Server] Error generating field:", error);
 		return c.json(
 			{
 				error: "Failed to generate field",

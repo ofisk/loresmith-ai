@@ -215,32 +215,11 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 			jwt,
 		} = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
-		console.log("[searchCampaignContext] Using toolCallId:", toolCallId);
 
 		const queryIntent = parseQueryIntent(query);
 
-		console.log("[Tool] searchCampaignContext received:", {
-			campaignId,
-			query,
-			parsedIntent: {
-				entityType: queryIntent.entityType,
-				searchPlanningContext: queryIntent.searchPlanningContext,
-				isListAll: queryIntent.isListAll,
-				searchQuery: queryIntent.searchQuery,
-			},
-			traverseFromEntityIds,
-			traverseDepth,
-			traverseRelationshipTypes,
-			includeTraversedEntities,
-		});
-		console.log(
-			`[Tool] searchCampaignContext - Using campaignId: ${campaignId} (type: ${typeof campaignId})`
-		);
-
 		try {
 			const env = getEnvFromContext(options);
-			console.log("[Tool] searchCampaignContext - Environment found:", !!env);
-			console.log("[Tool] searchCampaignContext - JWT provided:", !!jwt);
 
 			// If we have environment, use semantic search
 			if (env) {
@@ -272,11 +251,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 					}
 					return access;
 				}
-				const { userId, campaign } = access;
-				console.log(
-					"[Tool] searchCampaignContext - User ID extracted:",
-					userId
-				);
+				const { userId } = access;
 
 				// Declare name similarity tracking variables at function scope
 				// so they're accessible when filtering results later
@@ -286,13 +261,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
 				// Verify campaign exists and belongs to user using DAO
 				const campaignDAO = getDAOFactory(env).campaignDAO;
-				console.log(
-					`[Tool] searchCampaignContext - Verifying campaign ${campaignId} for user ${userId}`
-				);
-
-				console.log(
-					`[Tool] searchCampaignContext - Verified campaign: ${campaign.name} (ID: ${campaign.campaignId})`
-				);
 
 				const role = await campaignDAO.getCampaignRole(campaignId, userId);
 				const shouldSanitizeForPlayer = role && PLAYER_ROLES.has(role);
@@ -344,13 +312,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 									}
 								}
 							}
-						} catch (error) {
-							// Skip entities with invalid metadata
-							console.warn(
-								`[Tool] searchCampaignContext - Failed to parse metadata for entity ${entity.id}:`,
-								error
-							);
-						}
+						} catch (_error) {}
 					}
 					return fileKeys;
 				};
@@ -387,10 +349,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 					planningService &&
 					queryIntent.searchQuery.length > 0
 				) {
-					console.log(
-						"[Tool] searchCampaignContext - Using PlanningContextService for semantic search"
-					);
-
 					const planningResults = await planningService.search({
 						campaignId,
 						query: queryIntent.searchQuery,
@@ -416,10 +374,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 							filename: `session-${result.sessionNumber}`,
 						});
 					}
-
-					console.log(
-						`[Tool] searchCampaignContext - Found ${planningResults.length} planning context results`
-					);
 				}
 
 				// Secondary search: Entity search (${ENTITY_TYPES_LIST})
@@ -499,22 +453,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 														: {}
 												);
 										}
-										console.log(
-											`[Tool] searchCampaignContext - Semantic search cache hit: ${entities.length} entities`
-										);
 									}
-								} catch (cacheErr) {
-									console.warn(
-										"[Tool] searchCampaignContext - Cache lookup failed, falling through to semantic search:",
-										cacheErr
-									);
-								}
+								} catch (_cacheErr) {}
 							}
 
 							if (!cacheHit) {
 								// Use semantic search (embedding + Vectorize)
 								try {
-									const semanticStart = Date.now();
 									const queryEmbeddings =
 										await planningService.generateEmbeddings([
 											queryIntent.searchQuery,
@@ -594,24 +539,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 															: {}
 													);
 											}
-
-											const semanticMs = Date.now() - semanticStart;
-											console.log(
-												`[Tool] searchCampaignContext - Semantic search found ${entities.length} entities via embeddings in ${semanticMs}ms${queryIntent.isListAll ? " (list-all mode)" : ""}`
-											);
 										} else {
 											throw new Error("No semantic matches found");
 										}
 									} else {
 										throw new Error("Failed to generate embedding");
 									}
-								} catch (searchError) {
-									console.log(
-										`[Tool] searchCampaignContext - Semantic search failed, falling back to database query:`,
-										searchError instanceof Error
-											? searchError.message
-											: String(searchError)
-									);
+								} catch (_searchError) {
 									// Fall through to database query below
 									entities = [];
 								}
@@ -643,17 +577,11 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 											offset,
 										}
 									);
-									console.log(
-										`[Tool] searchCampaignContext - Listing entities of type: ${targetEntityType} (offset: ${offset}, limit: ${effectiveLimit}, total: ${totalCount})`
-									);
 								} else {
 									// No entity type specified, list all entities
 									entities = await daoFactory.entityDAO.listEntitiesByCampaign(
 										campaignId,
 										{ limit: queryLimit, offset }
-									);
-									console.log(
-										`[Tool] searchCampaignContext - Listing all entities (offset: ${offset}, limit: ${effectiveLimit}, total: ${totalCount})`
 									);
 								}
 							} else if (
@@ -692,18 +620,10 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 															entityIds,
 														}
 													);
-												console.log(
-													`[Tool] searchCampaignContext - Found ${entities.length} entities via PlanningContextService fallback`
-												);
 											}
 										}
 									}
-								} catch (planningError) {
-									console.warn(
-										"[Tool] searchCampaignContext - PlanningContextService fallback failed:",
-										planningError
-									);
-								}
+								} catch (_planningError) {}
 
 								// Final fallback: keyword search if still no entities
 								if (!entities || entities.length === 0) {
@@ -715,10 +635,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 										...words.map((w) => w.toLowerCase()),
 									].slice(0, 10);
 
-									console.log(
-										`[Tool] searchCampaignContext - Falling back to keyword search: ${keywordNames.join(", ")}`
-									);
-
 									entities = await daoFactory.entityDAO.searchEntitiesByName(
 										campaignId,
 										keywordNames,
@@ -727,21 +643,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 											limit: targetEntityType ? 50 : 25,
 										}
 									);
-
-									console.log(
-										`[Tool] searchCampaignContext - Keyword search returned ${entities.length} entities`
-									);
 								}
 							}
 
 							// Filter by entityType if a specific entity type was detected
 							if (targetEntityType && entities.length > 0) {
-								const beforeFilter = entities.length;
 								entities = entities.filter(
 									(e) => e.entityType === targetEntityType
-								);
-								console.log(
-									`[Tool] searchCampaignContext - Filtered from ${beforeFilter} to ${entities.length} entities matching entityType: ${targetEntityType}`
 								);
 							}
 						}
@@ -772,16 +680,8 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 									}
 								}
 								if (added > 0) {
-									console.log(
-										`[Tool] searchCampaignContext - Lexical name match added ${added} entities for query "${searchQueryTrimmed.slice(0, 40)}${searchQueryTrimmed.length > 40 ? "…" : ""}"`
-									);
 								}
-							} catch (lexErr) {
-								console.warn(
-									"[Tool] searchCampaignContext - Lexical name merge failed (non-fatal):",
-									lexErr
-								);
-							}
+							} catch (_lexErr) {}
 						}
 
 						// Filter out rejected/ignored/stub entities
@@ -850,9 +750,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 							}
 
 							if (hasStrongNameMatches) {
-								console.log(
-									`[Tool] searchCampaignContext - Found ${entityNameSimilarityScores.size} entities with name matches (${Array.from(entityNameSimilarityScores.values()).filter((s) => s >= nameMatchThreshold).length} strong matches)`
-								);
 							}
 
 							// Sort so exact/strong name matches come first; then by semantic score
@@ -893,12 +790,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 										for (const community of communities) {
 											communityIdsSet.add(community.id);
 										}
-									} catch (error) {
-										console.warn(
-											`[Tool] searchCampaignContext - Failed to find communities for entity ${entity.id}:`,
-											error
-										);
-									}
+									} catch (_error) {}
 								}
 
 								// Get all entities from those communities
@@ -968,10 +860,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 									const expandedCount =
 										communityExpandedEntityIds.size - approvedEntities.length;
 									if (expandedCount > 0) {
-										console.log(
-											`[Tool] searchCampaignContext - Community expansion added ${expandedCount} entities from ${communityIdsSet.size} communities`
-										);
-
 										// Fetch the expanded entities and merge with existing results
 										const expandedEntities = Array.from(
 											communityExpandedEntityIds
@@ -1016,11 +904,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 								} else {
 									entities = approvedEntities;
 								}
-							} catch (error) {
-								console.warn(
-									`[Tool] searchCampaignContext - Community expansion failed (non-fatal):`,
-									error
-								);
+							} catch (_error) {
 								// Continue with original entities if community expansion fails
 								entities = approvedEntities;
 							}
@@ -1057,11 +941,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 												: rel.fromEntityId;
 										relatedEntityIds.add(otherId);
 									}
-								} catch (error) {
-									console.warn(
-										`[Tool] searchCampaignContext - Failed to fetch relationships for entity ${entity.id}:`,
-										error
-									);
+								} catch (_error) {
 									entityRelationshipsMap.set(entity.id, []);
 								}
 							})
@@ -1095,11 +975,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 								changelogOverlay =
 									await worldStateService.getOverlaySnapshot(campaignId);
 							}
-						} catch (error) {
-							console.warn(
-								"[Tool] searchCampaignContext - Failed to get changelog overlay:",
-								error
-							);
+						} catch (_error) {
 							// Continue without overlay if it fails
 						}
 
@@ -1244,17 +1120,10 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 							});
 						}
 
-						console.log(
-							`[Tool] searchCampaignContext - Found ${approvedEntities.length} entity results`
-						);
-
 						// If user requests original file search, search file chunks from entities' source files
 						// Only search files that are referenced by the found entities - if entity extraction
 						// didn't find the entity in a file, that file likely doesn't contain relevant information
 						if (searchOriginalFiles && query.trim().length > 0) {
-							console.log(
-								"[Tool] searchCampaignContext - Searching original file content from relevant entities"
-							);
 							try {
 								// Extract file keys from found entities - these are the files that contain
 								// information about the entities we found, so they're the most relevant to search
@@ -1316,35 +1185,15 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 												});
 												fileResultCount++;
 											}
-										} catch (error) {
-											console.warn(
-												`[Tool] searchCampaignContext - Failed to search chunks for file ${fileKey}:`,
-												error
-											);
-										}
+										} catch (_error) {}
 									}
-
-									console.log(
-										`[Tool] searchCampaignContext - Found ${fileResultCount} file content matches from ${relevantFileKeys.length} files`
-									);
 								} else {
-									console.log(
-										"[Tool] searchCampaignContext - No file keys found in entity metadata for file search"
-									);
 								}
-							} catch (error) {
-								console.error(
-									"[Tool] searchCampaignContext - Error searching file content:",
-									error
-								);
+							} catch (_error) {
 								// Don't fail the entire search if file search fails, just log and continue
 							}
 						}
-					} catch (error) {
-						console.warn(
-							"[Tool] searchCampaignContext - Entity search failed:",
-							error
-						);
+					} catch (_error) {
 						// Continue even if entity search fails
 					}
 				}
@@ -1352,10 +1201,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 				// Graph traversal: If traverseFromEntityIds is provided, traverse the graph from those entities
 				if (traverseFromEntityIds && traverseFromEntityIds.length > 0) {
 					try {
-						console.log(
-							`[Tool] searchCampaignContext - Starting graph traversal from ${traverseFromEntityIds.length} entity IDs with depth ${traverseDepth}`
-						);
-
 						const daoFactory = getDAOFactory(env);
 						const graphService = daoFactory.entityGraphService;
 
@@ -1383,21 +1228,13 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 										relationshipTypes: normalizedRelationshipTypes as any,
 									}
 								);
-								console.log(
-									`[Tool] searchCampaignContext - Found ${neighbors.length} neighbors for entity ${entityId}`
-								);
 								allTraversedNeighbors.push(
 									...neighbors.map((neighbor) => ({
 										neighbor,
 										sourceEntityId: entityId,
 									}))
 								);
-							} catch (error) {
-								console.warn(
-									`[Tool] searchCampaignContext - Failed to traverse from entity ${entityId}:`,
-									error
-								);
-							}
+							} catch (_error) {}
 						}
 
 						// Deduplicate by entity ID (keep first occurrence)
@@ -1418,10 +1255,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 
 						const uniqueTraversedEntityIds = Array.from(
 							traversedEntityIdsMap.keys()
-						);
-
-						console.log(
-							`[Tool] searchCampaignContext - Traversed ${uniqueTraversedEntityIds.length} unique entities from graph`
 						);
 
 						if (
@@ -1490,11 +1323,7 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 													: rel.fromEntityId;
 											traversedRelatedEntityIds.add(otherId);
 										}
-									} catch (error) {
-										console.warn(
-											`[Tool] searchCampaignContext - Failed to fetch relationships for traversed entity ${entity.id}:`,
-											error
-										);
+									} catch (_error) {
 										traversedEntityRelationshipsMap.set(entity.id, []);
 									}
 								})
@@ -1648,16 +1477,8 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 									traversedFrom: sourceEntityName,
 								} as any);
 							}
-
-							console.log(
-								`[Tool] searchCampaignContext - Added ${approvedTraversedEntities.length} traversed entities to results`
-							);
 						}
-					} catch (error) {
-						console.warn(
-							"[Tool] searchCampaignContext - Graph traversal failed:",
-							error
-						);
+					} catch (_error) {
 						// Continue even if traversal fails
 					}
 				}
@@ -1687,9 +1508,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 					});
 					if (nameMatchedResults.length > 0) {
 						finalResults = nameMatchedResults;
-						console.log(
-							`[Tool] searchCampaignContext - Filtered to ${nameMatchedResults.length} entities with strong name matches (query: "${queryIntent.searchQuery}")`
-						);
 					}
 				}
 
@@ -1797,7 +1615,6 @@ Use ONLY explicit relationships shown in results. Do NOT infer from content text
 				toolCallId
 			);
 		} catch (error) {
-			console.error("Error searching campaign context:", error);
 			return createToolError(
 				"Failed to search campaign context",
 				error,
