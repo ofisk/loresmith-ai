@@ -905,6 +905,12 @@ html {
 	animation: modal-enter 0.2s ease-out forwards;
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.animate-modal-enter {
+		animation: none;
+	}
+}
+
 /* Chrome autofill styling override */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,

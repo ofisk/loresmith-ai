@@ -33,6 +33,10 @@ type ModalProps = {
 	cardStyle?: React.CSSProperties;
 	/** Modal behavior options; defaults applied for omitted values */
 	options?: ModalOptions;
+	/** ID of element that labels the dialog (e.g. modal heading) */
+	ariaLabelledBy?: string;
+	/** ID of element that describes the dialog */
+	ariaDescribedBy?: string;
 };
 
 // Generate random particles
@@ -67,6 +71,8 @@ export const Modal = ({
 	onClose,
 	cardStyle,
 	options: optionsProp,
+	ariaLabelledBy,
+	ariaDescribedBy,
 }: ModalProps) => {
 	const options = { ...DEFAULT_OPTIONS, ...optionsProp };
 	const {
@@ -113,6 +119,7 @@ export const Modal = ({
 	}, [isOpen]);
 
 	// Tab focus
+	// biome-ignore lint/correctness/useExhaustiveDependencies: modalRef.current is intentionally excluded - ref identity is stable, including it would not help and can cause unnecessary effect runs
 	useEffect(() => {
 		if (!isOpen || !modalRef.current) return;
 
@@ -169,7 +176,7 @@ export const Modal = ({
 	return (
 		<div
 			className={cn(
-				"fixed top-0 left-0 flex h-dvh w-full justify-center bg-transparent overflow-y-auto",
+				"fixed top-0 left-0 flex h-dvh w-full justify-center bg-transparent overflow-y-auto overscroll-behavior-contain",
 				"[z-index:var(--z-modal)]",
 				fullScreenOnMobile
 					? "items-stretch md:items-center p-0 md:p-6"
@@ -187,7 +194,7 @@ export const Modal = ({
 					<div className="absolute inset-0 bg-black" />
 
 					{/* Animated gradient overlay */}
-					<div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-purple-800/20 animate-pulse" />
+					<div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-purple-800/20 animate-pulse motion-reduce:animate-none" />
 
 					{/* Floating particles */}
 					<div className="absolute inset-0">
@@ -195,7 +202,7 @@ export const Modal = ({
 						{particles.large.map((particle) => (
 							<div
 								key={`large-${particle.id}`}
-								className="absolute rounded-full bg-purple-500/30 blur-lg animate-float-slow"
+								className="absolute rounded-full bg-purple-500/30 blur-lg animate-float-slow motion-reduce:animate-none"
 								style={{
 									width: `${particle.size}px`,
 									height: `${particle.size}px`,
@@ -211,7 +218,7 @@ export const Modal = ({
 						{particles.medium.map((particle) => (
 							<div
 								key={`medium-${particle.id}`}
-								className="absolute rounded-full bg-purple-400/60 blur-sm animate-float-medium"
+								className="absolute rounded-full bg-purple-400/60 blur-sm animate-float-medium motion-reduce:animate-none"
 								style={{
 									width: `${particle.size}px`,
 									height: `${particle.size}px`,
@@ -227,7 +234,7 @@ export const Modal = ({
 						{particles.small.map((particle) => (
 							<div
 								key={`small-${particle.id}`}
-								className="absolute rounded-full bg-purple-300/70 animate-twinkle"
+								className="absolute rounded-full bg-purple-300/70 animate-twinkle motion-reduce:animate-none"
 								style={{
 									width: `${particle.size}px`,
 									height: `${particle.size}px`,
@@ -242,7 +249,7 @@ export const Modal = ({
 
 					{/* Subtle wave pattern */}
 					<div className="absolute inset-0 opacity-10">
-						<div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-purple-500/20 to-transparent animate-wave" />
+						<div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-purple-500/20 to-transparent animate-wave motion-reduce:animate-none" />
 					</div>
 				</div>
 			) : (
@@ -264,10 +271,16 @@ export const Modal = ({
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={(e) => e.stopPropagation()}
 				role="dialog"
+				aria-modal="true"
+				aria-labelledby={ariaLabelledBy}
+				aria-describedby={ariaDescribedBy}
 				tabIndex={-1}
 			>
 				<Card
-					className={cn("relative z-50 animate-modal-enter", className)}
+					className={cn(
+						"relative z-50 animate-modal-enter motion-reduce:animate-none",
+						className
+					)}
 					style={cardStyle}
 					ref={modalRef}
 					tabIndex={-1}
@@ -277,11 +290,11 @@ export const Modal = ({
 					{showCloseButton && (
 						<button
 							type="button"
-							aria-label="Close Modal"
-							className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-600 dark:text-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2"
+							aria-label="Close modal"
+							className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-600 dark:text-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-900"
 							onClick={onClose}
 						>
-							<X size={18} />
+							<X size={18} aria-hidden />
 						</button>
 					)}
 				</Card>
