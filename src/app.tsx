@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { AppModals } from "@/components/app/AppModals";
 import { AppShell } from "@/components/app/AppShell";
@@ -11,7 +11,6 @@ import { useAppOrchestration } from "@/hooks/useAppOrchestration";
 import { useChatSession } from "@/hooks/useChatSession";
 import { useTourState } from "@/hooks/useTourState";
 import { useUiHints } from "@/hooks/useUiHints";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { AuthService } from "@/services/core/auth-service";
 
 export default function Chat() {
@@ -70,20 +69,6 @@ export default function Chat() {
 		username !== null
 			? `${username}-campaign-${selectedCampaignId ?? "none"}`
 			: "auth-required";
-
-	// Feature flag example: when FEATURES.friends is true (set in GitHub), print a greeting
-	useEffect(() => {
-		if (isFeatureEnabled("friends")) {
-			console.log("hey we're happy you're here");
-		}
-	}, []);
-
-	// Console greeting only for specific users (aniham, ofisk)
-	useEffect(() => {
-		if (username === "aniham" || username === "ofisk") {
-			console.log("hi you");
-		}
-	}, [username]);
 
 	const chatSession = useChatSession({
 		conversationId,
