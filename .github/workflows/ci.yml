@@ -16,6 +16,7 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci
+      - run: npx biome format --write skills-lock.json
       - run: npm run validate
 
   e2e:
