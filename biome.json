@@ -16,6 +16,7 @@
 			"!!node_modules",
 			"!!.wrangler",
 			"!!build",
+			"!!.agents",
 			"!!.claude",
 			"!!.vscode",
 			"!!**/worker-configuration.d.ts"
