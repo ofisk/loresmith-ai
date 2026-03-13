@@ -133,6 +133,9 @@ export class R2Helper {
 		return object?.httpMetadata?.contentType || null;
 	}
 
+	/** Max keys per R2 batch delete call */
+	private static readonly BATCH_DELETE_LIMIT = 1000;
+
 	/**
 	 * Clean up old objects in staging (older than specified hours)
 	 */
@@ -140,23 +143,41 @@ export class R2Helper {
 		const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
 		let deletedCount = 0;
 		let cursor: string | undefined;
+		const keysToDelete: string[] = [];
 
-		do {
-			const listResult = await this.env.R2.list({
-				prefix: "staging/",
-				cursor,
-				limit: 1000,
-			});
+		const flushDeleteBatch = async () => {
+			if (keysToDelete.length === 0) return;
+			await this.env.R2.delete(keysToDelete);
+			deletedCount += keysToDelete.length;
+			keysToDelete.length = 0;
+		};
 
-			for (const object of listResult.objects) {
-				if (object.uploaded < cutoffTime) {
-					await this.delete(object.key);
-					deletedCount++;
+		try {
+			do {
+				const listResult = await this.env.R2.list({
+					prefix: "staging/",
+					cursor,
+					limit: 1000,
+				});
+
+				for (const object of listResult.objects) {
+					if (object.uploaded < cutoffTime) {
+						keysToDelete.push(object.key);
+						if (keysToDelete.length >= R2Helper.BATCH_DELETE_LIMIT) {
+							await flushDeleteBatch();
+						}
+					}
 				}
-			}
 
-			cursor = listResult.truncated ? listResult.cursor : undefined;
-		} while (cursor);
+				cursor = listResult.truncated ? listResult.cursor : undefined;
+			} while (cursor);
+
+			await flushDeleteBatch();
+		} catch (err) {
+			throw new Error(
+				`R2 cleanupOldStagingObjects failed: ${err instanceof Error ? err.message : String(err)}`
+			);
+		}
 		return deletedCount;
 	}
 
@@ -167,41 +188,51 @@ export class R2Helper {
 		staging: { objectCount: number; totalSize: number };
 		library: { objectCount: number; totalSize: number };
 	}> {
-		// Get staging stats
 		let stagingObjects = 0;
 		let stagingSize = 0;
-		let cursor: string | undefined;
-
-		do {
-			const listResult = await this.env.R2.list({
-				prefix: "staging/",
-				cursor,
-				limit: 1000,
-			});
-
-			stagingObjects += listResult.objects.length;
-			stagingSize += listResult.objects.reduce((sum, obj) => sum + obj.size, 0);
-
-			cursor = listResult.truncated ? listResult.cursor : undefined;
-		} while (cursor);
-
-		// Get library stats
 		let libraryObjects = 0;
 		let librarySize = 0;
-		cursor = undefined;
+		let cursor: string | undefined;
 
-		do {
-			const listResult = await this.env.R2.list({
-				prefix: "library/",
-				cursor,
-				limit: 1000,
-			});
+		try {
+			do {
+				const listResult = await this.env.R2.list({
+					prefix: "staging/",
+					cursor,
+					limit: 1000,
+				});
 
-			libraryObjects += listResult.objects.length;
-			librarySize += listResult.objects.reduce((sum, obj) => sum + obj.size, 0);
+				stagingObjects += listResult.objects.length;
+				stagingSize += listResult.objects.reduce(
+					(sum, obj) => sum + obj.size,
+					0
+				);
 
-			cursor = listResult.truncated ? listResult.cursor : undefined;
-		} while (cursor);
+				cursor = listResult.truncated ? listResult.cursor : undefined;
+			} while (cursor);
+
+			cursor = undefined;
+
+			do {
+				const listResult = await this.env.R2.list({
+					prefix: "library/",
+					cursor,
+					limit: 1000,
+				});
+
+				libraryObjects += listResult.objects.length;
+				librarySize += listResult.objects.reduce(
+					(sum, obj) => sum + obj.size,
+					0
+				);
+
+				cursor = listResult.truncated ? listResult.cursor : undefined;
+			} while (cursor);
+		} catch (err) {
+			throw new Error(
+				`R2 getBucketStats failed: ${err instanceof Error ? err.message : String(err)}`
+			);
+		}
 
 		return {
 			staging: { objectCount: stagingObjects, totalSize: stagingSize },
