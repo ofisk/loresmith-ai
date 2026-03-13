@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const TOUR_STEPS_COUNT = 12;
 const TOUR_STORAGE_KEYS = {
@@ -78,9 +78,14 @@ export function useTourState(options: UseTourStateOptions) {
 		[]
 	);
 
+	const runTourRef = useRef(runTour);
+	useEffect(() => {
+		runTourRef.current = runTour;
+	}, [runTour]);
+
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (!runTour) return;
+			if (!runTourRef.current) return;
 
 			if (e.key === "ArrowRight") {
 				e.preventDefault();
@@ -99,7 +104,7 @@ export function useTourState(options: UseTourStateOptions) {
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [runTour]);
+	}, []);
 
 	useEffect(() => {
 		if (authState.isAuthenticated && !tourCompleted) {

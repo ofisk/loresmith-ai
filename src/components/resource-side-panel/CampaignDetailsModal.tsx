@@ -88,7 +88,6 @@ export function CampaignDetailsModal({
 	const [bulkImportData, setBulkImportData] =
 		useState<SessionDigestData | null>(null);
 	const [resources, setResources] = useState<CampaignResource[]>([]);
-	const [resourcesLoading, setResourcesLoading] = useState(false);
 	const [resourcesError, setResourcesError] = useState<string | null>(null);
 	const [retryingResourceId, setRetryingResourceId] = useState<string | null>(
 		null
@@ -166,12 +165,6 @@ export function CampaignDetailsModal({
 				},
 				onError: (error: string) => {
 					setResourcesError(error);
-				},
-				onStart: () => {
-					setResourcesLoading(true);
-				},
-				onFinish: () => {
-					setResourcesLoading(false);
 				},
 			}),
 			[]
@@ -347,15 +340,23 @@ export function CampaignDetailsModal({
 	);
 
 	// Listen for entity extraction completion events from notifications
+	const campaignRef = useRef(campaign);
+	const checkQueueStatusRef = useRef(checkQueueStatus);
 	useEffect(() => {
-		if (!campaign) return;
+		campaignRef.current = campaign;
+		checkQueueStatusRef.current = checkQueueStatus;
+	}, [campaign, checkQueueStatus]);
 
+	useEffect(() => {
 		const handleEntityExtractionCompleted = (event: Event) => {
+			const currentCampaign = campaignRef.current;
+			if (!currentCampaign) return;
+
 			const customEvent = event as CustomEvent;
 			const { campaignId, resourceId } = customEvent.detail;
 
 			// Only handle events for this campaign
-			if (campaignId !== campaign.campaignId) return;
+			if (campaignId !== currentCampaign.campaignId) return;
 
 			// Remove from processing set
 			if (resourceId) {
@@ -368,7 +369,10 @@ export function CampaignDetailsModal({
 
 			// Refresh the queue status for this resource
 			if (resourceId) {
-				checkQueueStatus.execute(campaign.campaignId, resourceId);
+				checkQueueStatusRef.current.execute(
+					currentCampaign.campaignId,
+					resourceId
+				);
 			}
 		};
 
@@ -383,7 +387,7 @@ export function CampaignDetailsModal({
 				handleEntityExtractionCompleted
 			);
 		};
-	}, [campaign, checkQueueStatus]);
+	}, []);
 
 	// Update ref when processing resources change
 	useEffect(() => {
@@ -679,7 +683,7 @@ export function CampaignDetailsModal({
 								)}
 								<CampaignResourcesTab
 									resources={resources}
-									loading={resourcesLoading}
+									loading={fetchCampaignResources.loading}
 									error={resourcesError}
 									expandedResources={expandedResources}
 									onExpandedChange={setExpandedResources}
@@ -790,7 +794,6 @@ export function CampaignDetailsModal({
 						isOpen={isBulkImportOpen}
 						onClose={() => setIsBulkImportOpen(false)}
 						cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-						showCloseButton={true}
 					>
 						<div className="p-6">
 							<SessionDigestBulkImport
@@ -810,7 +813,6 @@ export function CampaignDetailsModal({
 					setSelectedResourceKeys(new Set());
 				}}
 				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-				showCloseButton={true}
 			>
 				<div className="p-4 md:p-6 flex flex-col h-full">
 					<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 md:mb-4">

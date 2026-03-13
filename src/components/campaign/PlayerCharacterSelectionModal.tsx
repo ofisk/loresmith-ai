@@ -144,10 +144,12 @@ export function PlayerCharacterSelectionModal({
 		<Modal
 			isOpen={isOpen}
 			onClose={() => onSkip?.()}
-			showCloseButton={allowSkip}
-			clickOutsideToClose={allowSkip}
-			allowEscape={allowSkip}
 			className="w-[96vw] max-w-[520px]"
+			options={{
+				showCloseButton: allowSkip,
+				clickOutsideToClose: allowSkip,
+				allowEscape: allowSkip,
+			}}
 		>
 			<div className="p-6">
 				<PlayerCharacterSelectionPanel

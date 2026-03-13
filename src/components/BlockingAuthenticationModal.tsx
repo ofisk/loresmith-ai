@@ -255,12 +255,14 @@ export function BlockingAuthenticationModal({
 		<Modal
 			isOpen={isOpen}
 			onClose={() => {}}
-			clickOutsideToClose={false}
-			showCloseButton={false}
-			allowEscape={false}
-			animatedBackground={true}
-			fullScreenOnMobile={true}
 			className={modalClassName}
+			options={{
+				clickOutsideToClose: false,
+				showCloseButton: false,
+				allowEscape: false,
+				animatedBackground: true,
+				fullScreenOnMobile: true,
+			}}
 		>
 			<div className="p-4 md:p-6 max-w-md w-full mx-auto h-full overflow-y-auto flex flex-col md:justify-center">
 				{view === "google_username" && googlePendingToken && (
