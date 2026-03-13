@@ -273,7 +273,6 @@ export function AppModals({
 				isOpen={modalState.isCreateCampaignModalOpen}
 				onClose={modalState.handleCreateCampaignClose}
 				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-				showCloseButton={true}
 			>
 				<CreateCampaignModal
 					isOpen={modalState.isCreateCampaignModalOpen}
@@ -323,7 +322,6 @@ export function AppModals({
 				}
 				onClose={modalState.handleAddResourceClose}
 				className="w-[96vw] max-w-[960px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-				showCloseButton={true}
 			>
 				<ResourceUpload
 					onUpload={async (file, filename, description, tags, options) => {
@@ -396,7 +394,6 @@ export function AppModals({
 				isOpen={modalState.isAddToCampaignModalOpen}
 				onClose={modalState.handleAddToCampaignClose}
 				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-				showCloseButton={true}
 			>
 				<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 					<h3 className="text-lg font-semibold mb-4">
@@ -553,7 +550,6 @@ export function AppModals({
 				isOpen={modalState.isProposalConfirmModalOpen}
 				onClose={onProposalCancel}
 				cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-				showCloseButton={true}
 			>
 				<div className="p-6">
 					<h3 className="text-lg font-semibold mb-4">
@@ -578,7 +574,6 @@ export function AppModals({
 				isOpen={modalState.isAdminDashboardModalOpen}
 				onClose={modalState.handleAdminDashboardClose}
 				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-				showCloseButton={true}
 			>
 				<TelemetryDashboard />
 			</Modal>

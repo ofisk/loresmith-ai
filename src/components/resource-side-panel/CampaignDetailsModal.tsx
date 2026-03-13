@@ -801,7 +801,6 @@ export function CampaignDetailsModal({
 						isOpen={isBulkImportOpen}
 						onClose={() => setIsBulkImportOpen(false)}
 						cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-						showCloseButton={true}
 					>
 						<div className="p-6">
 							<SessionDigestBulkImport
@@ -821,7 +820,6 @@ export function CampaignDetailsModal({
 					setSelectedResourceKeys(new Set());
 				}}
 				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-				showCloseButton={true}
 			>
 				<div className="p-4 md:p-6 flex flex-col h-full">
 					<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 md:mb-4">

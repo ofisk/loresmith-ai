@@ -1,5 +1,6 @@
 import { CaretDown, CreditCard, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { useAppShellContextOptional } from "@/contexts/AppShellContext";
 import { useCampaignManagement } from "@/hooks/useCampaignManagement";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { AuthService } from "@/services/core/auth-service";
@@ -9,8 +10,9 @@ import { LibrarySection } from "./LibrarySection";
 
 interface ResourceSidePanelProps {
 	className?: string;
+	/** Used when rendered outside AppShellProvider (e.g. tests) */
 	isAuthenticated?: boolean;
-	campaigns?: Campaign[]; // Accept campaigns from parent
+	campaigns?: Campaign[];
 	selectedCampaignId?: string;
 	onLogout?: () => Promise<void>;
 	showUserMenu?: boolean;
@@ -28,26 +30,55 @@ interface ResourceSidePanelProps {
 	onShowUsageLimits?: () => void;
 }
 
-export function ResourceSidePanel({
-	className = "",
-	isAuthenticated = false,
-	campaigns = [],
-	selectedCampaignId: _selectedCampaignId,
-	onLogout,
-	showUserMenu = false,
-	setShowUserMenu,
-	triggerFileUpload = false,
-	onFileUploadTriggered,
-	onCreateCampaign,
-	onCampaignClick,
-	onAddResource,
-	onAddToCampaign,
-	onEditFile,
-	campaignAdditionProgress = {},
-	isAddingToCampaigns = false,
-	addLocalNotification,
-	onShowUsageLimits,
-}: ResourceSidePanelProps) {
+export function ResourceSidePanel(props: ResourceSidePanelProps) {
+	const ctx = useAppShellContextOptional();
+
+	const {
+		className = "",
+		isAuthenticated: isAuthenticatedProp,
+		campaigns: campaignsProp,
+		selectedCampaignId: _selectedCampaignId,
+		onLogout: onLogoutProp,
+		showUserMenu: showUserMenuProp,
+		setShowUserMenu: setShowUserMenuProp,
+		triggerFileUpload: triggerFileUploadProp,
+		onFileUploadTriggered: onFileUploadTriggeredProp,
+		onCreateCampaign: onCreateCampaignProp,
+		onCampaignClick: onCampaignClickProp,
+		onAddResource: onAddResourceProp,
+		onAddToCampaign: onAddToCampaignProp,
+		onEditFile: onEditFileProp,
+		campaignAdditionProgress: campaignAdditionProgressProp = {},
+		isAddingToCampaigns: isAddingToCampaignsProp = false,
+		addLocalNotification: addLocalNotificationProp,
+		onShowUsageLimits: onShowUsageLimitsProp,
+	} = props;
+
+	// Prefer context when inside AppShellProvider; fall back to props
+	const isAuthenticated =
+		ctx?.authState.isAuthenticated ?? isAuthenticatedProp ?? false;
+	const campaigns = ctx?.campaigns ?? campaignsProp ?? [];
+	const onLogout = ctx?.handleLogout ?? onLogoutProp;
+	const showUserMenu = ctx?.authState.showUserMenu ?? showUserMenuProp ?? false;
+	const setShowUserMenu = ctx?.authState.setShowUserMenu ?? setShowUserMenuProp;
+	const triggerFileUpload =
+		ctx?.triggerFileUpload ?? triggerFileUploadProp ?? false;
+	const onFileUploadTriggered =
+		ctx?.handleFileUploadTriggered ?? onFileUploadTriggeredProp;
+	const onCreateCampaign =
+		ctx?.modalState.handleCreateCampaign ?? onCreateCampaignProp;
+	const onCampaignClick =
+		ctx?.modalState.handleCampaignClick ?? onCampaignClickProp;
+	const onAddResource = ctx?.onAddResource ?? onAddResourceProp;
+	const onAddToCampaign = ctx?.onAddToCampaign ?? onAddToCampaignProp;
+	const onEditFile = ctx?.onEditFile ?? onEditFileProp;
+	const campaignAdditionProgress =
+		ctx?.campaignAdditionProgress ?? campaignAdditionProgressProp;
+	const isAddingToCampaigns =
+		ctx?.isAddingToCampaigns ?? isAddingToCampaignsProp;
+	const addLocalNotification =
+		ctx?.addLocalNotification ?? addLocalNotificationProp;
+	const onShowUsageLimits = ctx?.onShowUsageLimits ?? onShowUsageLimitsProp;
 	const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 	const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
 

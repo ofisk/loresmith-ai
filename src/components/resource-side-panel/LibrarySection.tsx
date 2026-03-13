@@ -1,7 +1,7 @@
-import { CaretDown, CaretRight, Plus } from "@phosphor-icons/react";
+import { Plus } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef } from "react";
 import libraryIcon from "@/assets/library.png";
-import { Card } from "@/components/card/Card";
+import { CollapsibleCard } from "@/components/collapsible/CollapsibleCard";
 import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
 import { RateLimitIndicator } from "@/components/rate-limit";
 import { StorageTracker } from "@/components/storage-tracker";
@@ -167,76 +167,75 @@ export function LibrarySection({
 	}, [files, uploadQueue?.queue]);
 
 	return (
-		<Card className="tour-library-section p-0 border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
-			<button
-				type="button"
-				onClick={onToggle}
-				className="w-full p-2 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-			>
-				<div className="flex items-center gap-2">
+		<CollapsibleCard
+			header={
+				<>
 					<img src={libraryIcon} alt="Library" className="w-8 h-8" />
 					<span className="font-medium text-sm">Your resource library</span>
-					{processingCount > 0 && (
-						<span
-							className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-							title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
-						>
-							{processingCount} preparing
-						</span>
-					)}
+				</>
+			}
+			headerSupplement={
+				processingCount > 0 ? (
+					<span
+						className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+						title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
+					>
+						{processingCount} preparing
+					</span>
+				) : undefined
+			}
+			isOpen={isOpen}
+			onToggle={onToggle}
+			tourClassName="tour-library-section"
+			className="border-t border-neutral-200 dark:border-neutral-700"
+		>
+			<div className="flex flex-col">
+				<div className="flex-shrink-0 p-2">
+					<button
+						type="button"
+						onClick={onAddToLibrary}
+						className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+					>
+						<Plus size={14} />
+						Add to library
+					</button>
 				</div>
-				{isOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
-			</button>
-
-			{isOpen && (
 				<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
-					<div className="flex-shrink-0 p-2">
-						<button
-							type="button"
-							onClick={onAddToLibrary}
-							className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
-						>
-							<Plus size={14} />
-							Add to library
-						</button>
+					<div className="max-h-64 overflow-y-auto">
+						<ResourceList
+							files={displayFiles}
+							setFiles={setFiles}
+							loading={loading}
+							error={error}
+							setError={setError}
+							setLoading={setLoading}
+							fetchResources={fetchResources}
+							onAddToCampaign={onAddToCampaign}
+							onEditFile={onEditFile}
+							campaigns={campaigns}
+							campaignAdditionProgress={campaignAdditionProgress}
+							_isAddingToCampaigns={isAddingToCampaigns}
+						/>
 					</div>
-					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
-						<div className="max-h-64 overflow-y-auto">
-							<ResourceList
-								files={displayFiles}
-								setFiles={setFiles}
-								loading={loading}
-								error={error}
-								setError={setError}
-								setLoading={setLoading}
-								fetchResources={fetchResources}
-								onAddToCampaign={onAddToCampaign}
-								onEditFile={onEditFile}
-								campaigns={campaigns}
-								campaignAdditionProgress={campaignAdditionProgress}
-								_isAddingToCampaigns={isAddingToCampaigns}
+					<div className="flex-shrink-0">
+						<StorageTracker />
+						{uploadQueue && uploadQueue.queuedCount > 0 && (
+							<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
+								{uploadQueue.queuedCount} file
+								{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
+								when capacity is available
+							</div>
+						)}
+						<ActionQueueUI />
+						{addLocalNotification && onShowUsageLimits && (
+							<RateLimitIndicator
+								addLocalNotification={addLocalNotification}
+								onShowUsageLimits={onShowUsageLimits}
 							/>
-						</div>
-						<div className="flex-shrink-0">
-							<StorageTracker />
-							{uploadQueue && uploadQueue.queuedCount > 0 && (
-								<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
-									{uploadQueue.queuedCount} file
-									{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
-									when capacity is available
-								</div>
-							)}
-							<ActionQueueUI />
-							{addLocalNotification && onShowUsageLimits && (
-								<RateLimitIndicator
-									addLocalNotification={addLocalNotification}
-									onShowUsageLimits={onShowUsageLimits}
-								/>
-							)}
-						</div>
+						)}
 					</div>
 				</div>
-			)}
-		</Card>
+			</div>
+		</CollapsibleCard>
 	);
 }

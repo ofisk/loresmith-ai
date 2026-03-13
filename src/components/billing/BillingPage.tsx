@@ -494,7 +494,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 			<Modal
 				isOpen={confirmPlanChange !== null}
 				onClose={() => setConfirmPlanChange(null)}
-				clickOutsideToClose={true}
+				options={{ clickOutsideToClose: true }}
 			>
 				<div className="p-4 sm:p-6 max-w-md">
 					<h3 className="text-lg font-semibold mb-3">

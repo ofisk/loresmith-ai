@@ -4,17 +4,35 @@ import { Card } from "@/components/card/Card";
 import useClickOutside from "@/hooks/useClickOutside";
 import { cn } from "@/lib/utils";
 
+export type ModalOptions = {
+	/** Close modal when clicking outside */
+	clickOutsideToClose?: boolean;
+	/** Show X button in top-right */
+	showCloseButton?: boolean;
+	/** Allow Escape key to close */
+	allowEscape?: boolean;
+	/** Use animated gradient/particle background */
+	animatedBackground?: boolean;
+	/** Use full-screen layout on mobile */
+	fullScreenOnMobile?: boolean;
+};
+
+const DEFAULT_OPTIONS: Required<ModalOptions> = {
+	clickOutsideToClose: false,
+	showCloseButton: true,
+	allowEscape: true,
+	animatedBackground: false,
+	fullScreenOnMobile: false,
+};
+
 type ModalProps = {
 	className?: string;
 	children: React.ReactNode;
-	clickOutsideToClose?: boolean;
 	isOpen: boolean;
 	onClose: () => void;
 	cardStyle?: React.CSSProperties;
-	showCloseButton?: boolean;
-	allowEscape?: boolean;
-	animatedBackground?: boolean; // New prop for animated background
-	fullScreenOnMobile?: boolean;
+	/** Modal behavior options; defaults applied for omitted values */
+	options?: ModalOptions;
 };
 
 // Generate random particles
@@ -45,15 +63,20 @@ const generateRandomParticles = (
 export const Modal = ({
 	className,
 	children,
-	clickOutsideToClose = false,
 	isOpen,
 	onClose,
 	cardStyle,
-	showCloseButton = true,
-	allowEscape = true,
-	animatedBackground = false,
-	fullScreenOnMobile = false,
+	options: optionsProp,
 }: ModalProps) => {
+	const options = { ...DEFAULT_OPTIONS, ...optionsProp };
+	const {
+		clickOutsideToClose,
+		showCloseButton,
+		allowEscape,
+		animatedBackground,
+		fullScreenOnMobile,
+	} = options;
+
 	const clickOutsideRef = useClickOutside(onClose);
 	const defaultRef = useRef<HTMLDivElement>(null);
 	const modalRef = clickOutsideToClose ? clickOutsideRef : defaultRef;

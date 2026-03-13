@@ -17,12 +17,7 @@ export function QuotaWarningModal({
 	monthlyLimit,
 }: QuotaWarningModalProps) {
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			showCloseButton={true}
-			className="w-[96vw] max-w-[480px]"
-		>
+		<Modal isOpen={isOpen} onClose={onClose} className="w-[96vw] max-w-[480px]">
 			<div className="p-6">
 				<h3 className="text-lg font-semibold mb-2">
 					Token quota limit reached

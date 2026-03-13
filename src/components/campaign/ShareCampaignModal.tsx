@@ -321,7 +321,6 @@ export function ShareCampaignModal({
 			isOpen={isOpen}
 			onClose={onClose}
 			cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-			showCloseButton={true}
 		>
 			<div className="p-6 space-y-4">
 				<h2 className="text-lg font-semibold text-neutral-100 mb-4">

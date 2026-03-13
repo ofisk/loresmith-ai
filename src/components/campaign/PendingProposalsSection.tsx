@@ -194,7 +194,6 @@ export function PendingProposalsSection({
 			<Modal
 				isOpen={downloadDisclaimerProposal !== null}
 				onClose={handleDownloadCancel}
-				showCloseButton={true}
 			>
 				<div className="p-6">
 					<h3 className="text-lg font-semibold mb-4">

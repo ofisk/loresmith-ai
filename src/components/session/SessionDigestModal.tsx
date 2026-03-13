@@ -35,7 +35,6 @@ export function SessionDigestModal({
 			isOpen={isOpen}
 			onClose={onClose}
 			cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-			showCloseButton={true}
 		>
 			<div className="p-6 overflow-y-auto max-h-[calc(90vh-3rem)]">
 				<div className="mb-6">

@@ -1,169 +1,25 @@
-import type React from "react";
 import Joyride from "react-joyride";
 import { AppHeader } from "@/components/app/AppHeader";
 import { ChatArea } from "@/components/app/ChatArea";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
-import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
-import type { Message } from "@/types/ai-message";
-import type { Campaign, CampaignRole } from "@/types/campaign";
-import type { StagedShardGroup } from "@/types/shard";
+import { useAppShellContext } from "@/contexts/AppShellContext";
 
-interface AppShellProps {
-	// Tour
-	runTour: boolean;
-	stepIndex: number;
-	tourSteps: Array<{
-		target: string;
-		content: React.ReactNode;
-		placement?: "center" | "top" | "bottom" | "left" | "right";
-		disableBeacon?: boolean;
-		locale?: { next?: string };
-	}>;
-	onJoyrideCallback: (data: {
-		action?: string;
-		index?: number;
-		status?: string;
-		type?: string;
-		lifecycle?: string;
-	}) => void;
+export function AppShell() {
+	const ctx = useAppShellContext();
 
-	// Layout
-	onToggleSidebar: () => void;
-	isSidebarOpen: boolean;
-
-	// Header
-	onHelpAction: (action: string) => void;
-	onSessionRecapRequest?: () => void;
-	onNextStepsRequest: () => void;
-	notifications: Array<{
-		timestamp: number;
-		type: string;
-		title: string;
-		message?: string;
-		data?: Record<string, unknown>;
-	}>;
-	onDismissNotification: (timestamp: number) => void;
-	onClearAllNotifications: () => void;
-	selectedCampaignId: string | null;
-	onAdminDashboardOpen: () => void;
-	selectedCampaignRole: CampaignRole | null;
-	billingTier?: "free" | "basic" | "pro" | null;
-
-	// Auth & campaigns
-	authState: {
-		isAuthenticated: boolean;
-		showUserMenu: boolean;
-		setShowUserMenu: (show: boolean) => void;
-		getStoredJwt: () => string | null;
-	};
-	campaigns: Campaign[];
-	onLogout: () => Promise<void>;
-	triggerFileUpload: boolean;
-	onFileUploadTriggered: () => void;
-	onCreateCampaign: () => void;
-	onCampaignClick: (campaign: Campaign) => void;
-	onAddResource: () => void;
-	onAddToCampaign: (file: ResourceFileWithCampaigns) => void;
-	onEditFile: (file: ResourceFileWithCampaigns) => void;
-	campaignAdditionProgress: Record<string, number>;
-	isAddingToCampaigns: boolean;
-	addLocalNotification: (type: string, title: string, message: string) => void;
-	onShowUsageLimits: () => void;
-
-	// Chat
-	chatContainerId: string;
-	messages: Message[];
-	chatHistoryLoading: boolean;
-	input: string;
-	onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-	onFormSubmit: (e: React.FormEvent) => void;
-	onKeyDown: (e: React.KeyboardEvent) => void;
-	isLoading: boolean;
-	onStop: () => void;
-	formatTime: (date: Date) => string;
-	agentStatus: string | null;
-	onSuggestionSubmit: (suggestion: string) => void;
-	onUploadFiles: () => void;
-	textareaHeight: string;
-	pendingToolCallConfirmation: boolean;
-	onSelectedCampaignChange: (campaignId: string | null) => void;
-	invisibleUserContents: Set<string>;
-
-	// Shard overlay
-	canReviewShards: boolean;
-	visibleShardGroups: StagedShardGroup[];
-	shardsLoading: boolean;
-	onShardsProcessed: (shardIds: string[]) => void;
-	onShardRefresh: () => void;
-}
-
-export function AppShell({
-	runTour,
-	stepIndex,
-	tourSteps,
-	onJoyrideCallback,
-	onToggleSidebar,
-	isSidebarOpen,
-	onHelpAction,
-	onSessionRecapRequest,
-	onNextStepsRequest,
-	notifications,
-	onDismissNotification,
-	onClearAllNotifications,
-	selectedCampaignId,
-	onAdminDashboardOpen,
-	selectedCampaignRole,
-	billingTier,
-	authState,
-	campaigns,
-	onLogout,
-	triggerFileUpload,
-	onFileUploadTriggered,
-	onCreateCampaign,
-	onCampaignClick,
-	onAddResource,
-	onAddToCampaign,
-	onEditFile,
-	campaignAdditionProgress,
-	isAddingToCampaigns,
-	addLocalNotification,
-	onShowUsageLimits,
-	chatContainerId,
-	messages,
-	chatHistoryLoading,
-	input,
-	onInputChange,
-	onFormSubmit,
-	onKeyDown,
-	isLoading,
-	onStop,
-	formatTime,
-	agentStatus,
-	onSuggestionSubmit,
-	onUploadFiles,
-	textareaHeight,
-	pendingToolCallConfirmation,
-	onSelectedCampaignChange,
-	invisibleUserContents,
-	canReviewShards,
-	visibleShardGroups,
-	shardsLoading,
-	onShardsProcessed,
-	onShardRefresh,
-}: AppShellProps) {
 	return (
 		<>
 			<Joyride
-				stepIndex={stepIndex}
-				steps={tourSteps}
-				run={runTour}
+				stepIndex={ctx.stepIndex}
+				steps={ctx.tourSteps}
+				run={ctx.runTour}
 				continuous
 				showSkipButton
 				disableCloseOnEsc={false}
 				disableScrolling={false}
 				spotlightClicks={false}
-				callback={onJoyrideCallback}
+				callback={ctx.onJoyrideCallback}
 				locale={{
 					next: "Next",
 					last: "Done",
@@ -225,110 +81,72 @@ export function AppShell({
 			<div className="h-dvh w-full p-0 sm:p-4 md:p-6 flex justify-center items-center bg-fixed">
 				<div className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden">
 					<AppHeader
-						onToggleSidebar={onToggleSidebar}
-						isSidebarOpen={isSidebarOpen}
-						onHelpAction={onHelpAction}
-						onSessionRecapRequest={onSessionRecapRequest}
-						onNextStepsRequest={onNextStepsRequest}
-						notifications={notifications.map((n) => ({
+						onToggleSidebar={ctx.onToggleSidebar}
+						isSidebarOpen={ctx.isSidebarOpen}
+						onHelpAction={ctx.handleHelpAction}
+						onSessionRecapRequest={ctx.handleSessionRecapRequest}
+						onNextStepsRequest={ctx.handleNextStepsRequest}
+						notifications={ctx.allNotifications.map((n) => ({
 							...n,
 							message: n.message ?? "",
 						}))}
-						onDismissNotification={onDismissNotification}
-						onClearAllNotifications={onClearAllNotifications}
-						selectedCampaignId={selectedCampaignId}
-						onAdminDashboardOpen={onAdminDashboardOpen}
-						selectedCampaignRole={selectedCampaignRole}
-						billingTier={billingTier}
+						onDismissNotification={ctx.dismissNotification}
+						onClearAllNotifications={ctx.clearAllNotifications}
+						selectedCampaignId={ctx.selectedCampaignId}
+						onAdminDashboardOpen={ctx.modalState.handleAdminDashboardOpen}
+						selectedCampaignRole={ctx.selectedCampaign?.role ?? null}
+						billingTier={ctx.billingStatus?.tier}
 					/>
 
 					<div className="flex-1 flex min-h-0 overflow-hidden rounded-bl-2xl rounded-br-2xl relative">
-						<ResourceSidePanel
-							className="hidden md:flex"
-							isAuthenticated={authState.isAuthenticated}
-							campaigns={campaigns}
-							selectedCampaignId={selectedCampaignId ?? undefined}
-							onLogout={onLogout}
-							showUserMenu={authState.showUserMenu}
-							setShowUserMenu={authState.setShowUserMenu}
-							triggerFileUpload={triggerFileUpload}
-							onFileUploadTriggered={onFileUploadTriggered}
-							onCreateCampaign={onCreateCampaign}
-							onCampaignClick={onCampaignClick}
-							onAddResource={onAddResource}
-							onAddToCampaign={onAddToCampaign}
-							onEditFile={onEditFile}
-							campaignAdditionProgress={campaignAdditionProgress}
-							isAddingToCampaigns={isAddingToCampaigns}
-							addLocalNotification={addLocalNotification}
-							onShowUsageLimits={onShowUsageLimits}
-						/>
+						<ResourceSidePanel className="hidden md:flex" />
 
-						{isSidebarOpen && (
+						{ctx.isSidebarOpen && (
 							<>
 								<div
 									className="absolute inset-0 z-30 md:hidden bg-black/40"
-									onClick={onToggleSidebar}
+									onClick={ctx.onToggleSidebar}
 									aria-hidden="true"
 								/>
-								<ResourceSidePanel
-									className="absolute inset-0 z-40 md:hidden w-full max-w-none shadow-2xl"
-									isAuthenticated={authState.isAuthenticated}
-									campaigns={campaigns}
-									selectedCampaignId={selectedCampaignId ?? undefined}
-									onLogout={onLogout}
-									showUserMenu={authState.showUserMenu}
-									setShowUserMenu={authState.setShowUserMenu}
-									triggerFileUpload={triggerFileUpload}
-									onFileUploadTriggered={onFileUploadTriggered}
-									onCreateCampaign={onCreateCampaign}
-									onCampaignClick={onCampaignClick}
-									onAddResource={onAddResource}
-									onAddToCampaign={onAddToCampaign}
-									onEditFile={onEditFile}
-									campaignAdditionProgress={campaignAdditionProgress}
-									isAddingToCampaigns={isAddingToCampaigns}
-									addLocalNotification={addLocalNotification}
-									onShowUsageLimits={onShowUsageLimits}
-								/>
+								<ResourceSidePanel className="absolute inset-0 z-40 md:hidden w-full max-w-none shadow-2xl" />
 							</>
 						)}
 
 						<div className="flex-1 flex flex-col min-h-0 min-w-0">
 							<ChatArea
-								chatContainerId={chatContainerId}
-								messages={messages}
-								chatHistoryLoading={chatHistoryLoading}
-								input={input}
-								onInputChange={onInputChange}
-								onFormSubmit={onFormSubmit}
-								onKeyDown={onKeyDown}
-								isLoading={isLoading}
-								onStop={onStop}
-								formatTime={formatTime}
-								onSuggestionSubmit={onSuggestionSubmit}
-								onUploadFiles={onUploadFiles}
-								textareaHeight={textareaHeight}
-								pendingToolCallConfirmation={pendingToolCallConfirmation}
-								campaigns={campaigns}
-								selectedCampaignId={selectedCampaignId}
-								onSelectedCampaignChange={onSelectedCampaignChange}
-								onCreateCampaign={onCreateCampaign}
-								invisibleUserContents={invisibleUserContents}
-								agentStatus={agentStatus}
+								chatContainerId={ctx.chatContainerId}
+								messages={ctx.messages}
+								chatHistoryLoading={!ctx.chatHistoryLoaded}
+								input={ctx.input}
+								onInputChange={ctx.onInputChange}
+								onFormSubmit={ctx.onFormSubmit}
+								onKeyDown={ctx.onKeyDown}
+								isLoading={ctx.isLoading}
+								onStop={ctx.onStop}
+								formatTime={ctx.formatTime}
+								onSuggestionSubmit={ctx.onSuggestionSubmit}
+								onUploadFiles={ctx.onUploadFiles}
+								textareaHeight={ctx.textareaHeight}
+								pendingToolCallConfirmation={ctx.pendingToolCallConfirmation}
+								campaigns={ctx.campaigns}
+								selectedCampaignId={ctx.selectedCampaignId}
+								onSelectedCampaignChange={ctx.onSelectedCampaignChange}
+								onCreateCampaign={ctx.modalState.handleCreateCampaign}
+								invisibleUserContents={ctx.invisibleUserContents}
+								agentStatus={ctx.agentStatus}
 							/>
 						</div>
 					</div>
 				</div>
 
-				{canReviewShards && (
+				{ctx.canReviewShards && (
 					<ShardOverlay
-						shards={visibleShardGroups}
-						isLoading={shardsLoading}
-						onShardsProcessed={onShardsProcessed}
-						getJwt={authState.getStoredJwt}
+						shards={ctx.visibleShardGroups}
+						isLoading={ctx.shardsLoading}
+						onShardsProcessed={ctx.onShardsProcessed}
+						getJwt={ctx.authState.getStoredJwt}
 						onAutoExpand={() => {}}
-						onRefresh={onShardRefresh}
+						onRefresh={ctx.onShardRefresh}
 					/>
 				)}
 			</div>
