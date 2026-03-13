@@ -11,7 +11,7 @@ Reference for Cloudflare D1 (SQLite) tables, indexes, and hot query paths. See [
 ## Schema sources
 
 - Base: [scripts/d1-bootstrap.sql](../scripts/d1-bootstrap.sql)
-- Migrations: [migrations/](../migrations/) (0001–0013, plus 0014 for performance indexes)
+- Migrations: [migrations/](../migrations/) (0001–0015; 0014–0015 for performance indexes)
 
 ---
 
@@ -369,11 +369,15 @@ No additional indexes. Filtered by `campaign_id` or `context_id`; consider compo
 
 ### graph_dirty_entities, graph_dirty_relationships, graph_rebuild_job_dedupe
 
-| Table | Index |
-|-------|-------|
-| graph_dirty_entities | idx_graph_dirty_entities_campaign_marked |
-| graph_dirty_relationships | idx_graph_dirty_relationships_campaign_marked |
-| graph_rebuild_job_dedupe | idx_graph_rebuild_job_dedupe_campaign_status |
+| Table | Index | Source |
+|-------|-------|--------|
+| graph_dirty_entities | idx_graph_dirty_entities_campaign_marked | 0005 |
+| graph_dirty_relationships | idx_graph_dirty_relationships_campaign_marked | 0005 |
+| graph_dirty_relationships | idx_graph_dirty_relationships_campaign_from | 0015 |
+| graph_dirty_relationships | idx_graph_dirty_relationships_campaign_to | 0015 |
+| graph_rebuild_job_dedupe | idx_graph_rebuild_job_dedupe_campaign_status | 0005 |
+
+**Hot paths**: `clearDirtyForEntities` uses two DELETEs (campaign_id + from_entity_id IN, campaign_id + to_entity_id IN) instead of OR for index use.
 
 ---
 
@@ -412,6 +416,30 @@ Each branch can use `idx_entity_relationships_from` or `idx_entity_relationships
 
 ---
 
+## graph_dirty_relationships: OR vs two DELETEs
+
+`clearDirtyForEntities` in [graph-rebuild-dirty-dao.ts](../src/dao/graph-rebuild-dirty-dao.ts) previously used:
+
+```sql
+WHERE campaign_id = ? AND (from_entity_id IN (...) OR to_entity_id IN (...))
+```
+
+Same OR pitfall. Refactored to two DELETEs in a batch, each using `idx_graph_dirty_relationships_campaign_from` or `idx_graph_dirty_relationships_campaign_to`.
+
+---
+
+## entity_dao listEntities: json_each for entity ID filtering
+
+`listEntitiesByCampaign` with `options.entityIds` uses:
+
+```sql
+id IN (SELECT value FROM json_each(?))
+```
+
+with `JSON.stringify(options.entityIds)` bound. This avoids the 100-param limit when filtering by many IDs. Trade-off: verify with `EXPLAIN QUERY PLAN`; if the plan shows full scan on `entities`, consider switching to batched `IN (...)` (max ~49 IDs per batch) like `getEntitiesByIds`. Run the [EXPLAIN audit](../../scripts/d1-explain-audit.sh) to check.
+
+---
+
 ## Verifying index usage
 
 Run the [EXPLAIN audit script](../../scripts/d1-explain-audit.sh) to verify query plans:
@@ -422,4 +450,4 @@ npm run d1:explain-audit           # defaults to dev (remote)
 ./scripts/d1-explain-audit.sh dev
 ```
 
-Output is written to `docs/database/explain-results.md`. Run `npm run migrate:dev` (or `migrate:bootstrap:dev` + `migrate:dev`) before the audit so migration 0014 indexes are present.
+Output is written to `docs/database/explain-results.md`. Run `npm run migrate:dev` (or `migrate:bootstrap:dev` + `migrate:dev`) before the audit so migrations 0014 and 0015 indexes are present.

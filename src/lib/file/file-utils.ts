@@ -165,28 +165,46 @@ export async function getUniqueDisplayName(
 }
 
 /**
+ * Sanitize filename for R2 key: basename only, no path traversal.
+ * Prevents keys like "staging/user/../../../etc/passwd".
+ * Rejects any filename containing ".." as defense-in-depth.
+ * @throws Error if filename is invalid for storage
+ */
+function sanitizeFilenameForKey(filename: string): string {
+	if (filename.includes("..")) {
+		throw new Error("Invalid filename for storage");
+	}
+	const basename = filename.replace(/^.*[/\\]/, "").trim();
+	if (!basename) {
+		throw new Error("Invalid filename for storage");
+	}
+	return basename;
+}
+
+/**
  * Constructs a staging file key for temporary uploads
  * @param tenant - The tenant/username
- * @param filename - The filename
+ * @param filename - The filename (sanitized to prevent path traversal)
  * @returns The staging file key in format: staging/{tenant}/{filename}
  */
 export function buildStagingFileKey(tenant: string, filename: string): string {
-	return `staging/${tenant}/${filename}`;
+	return `staging/${tenant}/${sanitizeFilenameForKey(filename)}`;
 }
 
 /**
  * Constructs a library file key for permanent storage using hash-based paths
  * @param tenant - The tenant/username
- * @param filename - The filename
+ * @param filename - The filename (sanitized to prevent path traversal)
  * @returns The library file key in format: library/{tenant}/{hash}/{filename}
  */
 export async function buildLibraryFileKey(
 	tenant: string,
 	filename: string
 ): Promise<string> {
+	const safeFilename = sanitizeFilenameForKey(filename);
 	// Create a hash of the filename to avoid special character issues
 	const filenameHash = await crypto.subtle
-		.digest("SHA-256", new TextEncoder().encode(filename))
+		.digest("SHA-256", new TextEncoder().encode(safeFilename))
 		.then((hashBuffer) =>
 			Array.from(new Uint8Array(hashBuffer))
 				.map((b) => b.toString(16).padStart(2, "0"))
@@ -195,7 +213,7 @@ export async function buildLibraryFileKey(
 		); // Use first 16 chars of hash
 
 	// Use hash-based path structure: library/username/hash/filename
-	return `${LIBRARY_CONFIG.getBasePath()}/${tenant}/${filenameHash}/${filename}`;
+	return `${LIBRARY_CONFIG.getBasePath()}/${tenant}/${filenameHash}/${safeFilename}`;
 }
 
 /**

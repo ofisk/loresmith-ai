@@ -109,6 +109,18 @@ else
     print_warning "Queue might already exist or creation failed"
 fi
 
+if wrangler queues create graph-rebuild-dlq-dev --config wrangler.dev.jsonc; then
+    print_success "Queue 'graph-rebuild-dlq-dev' created"
+else
+    print_warning "Queue might already exist or creation failed"
+fi
+
+if wrangler queues create shard-embedding-dlq-dev --config wrangler.dev.jsonc; then
+    print_success "Queue 'shard-embedding-dlq-dev' created"
+else
+    print_warning "Queue might already exist or creation failed"
+fi
+
 # Run database migrations
 print_status "Running database migrations..."
 if wrangler d1 migrations apply loresmith-db-dev --config wrangler.dev.jsonc; then

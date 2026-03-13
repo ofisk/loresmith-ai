@@ -2,7 +2,7 @@
 # Run EXPLAIN QUERY PLAN on hot D1 query paths (issue #490).
 # Usage: ./scripts/d1-explain-audit.sh [dev|local|prod]
 # Output: docs/database/explain-results.md
-# Requires: migration 0014 applied (for new indexes). Run npm run migrate:dev first.
+# Requires: migrations 0014 and 0015 applied (for performance indexes). Run npm run migrate:dev first.
 
 set -e
 
@@ -72,6 +72,19 @@ mkdir -p "$DOCS_DIR"
 	run_explain "campaign_resources by campaign" "SELECT * FROM campaign_resources WHERE campaign_id = 'c1' ORDER BY created_at DESC"
 	run_explain "campaign_resources by campaign and file_key" "SELECT * FROM campaign_resources WHERE campaign_id = 'c1' AND file_key = 'fk1'"
 	run_explain "shard_registry by campaign" "SELECT * FROM shard_registry WHERE campaign_id = 'c1' AND deleted_at IS NULL"
+
+	# graph_dirty_relationships two-DELETE pattern (post-refactor)
+	run_explain "graph_dirty_relationships delete by from_entity_id" "DELETE FROM graph_dirty_relationships WHERE campaign_id = 'c1' AND from_entity_id IN ('e1', 'e2')"
+	run_explain "graph_dirty_relationships delete by to_entity_id" "DELETE FROM graph_dirty_relationships WHERE campaign_id = 'c1' AND to_entity_id IN ('e1', 'e2')"
+
+	# entity_extraction_queue getPendingQueueItems
+	run_explain "entity_extraction_queue pending items" "SELECT * FROM entity_extraction_queue WHERE status = 'pending' OR (status = 'rate_limited' AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))) ORDER BY created_at ASC LIMIT 10"
+
+	# entity_dao listEntities with json_each filter
+	run_explain "entities listEntities with json_each" "SELECT * FROM entities WHERE campaign_id = 'c1' AND id IN (SELECT value FROM json_each('[\"e1\",\"e2\"]')) ORDER BY updated_at DESC"
+
+	# getTwoHopNeighborhood full fetch
+	run_explain "entity_relationships two-hop neighborhood" "SELECT from_entity_id, to_entity_id, metadata FROM entity_relationships WHERE campaign_id = 'c1' LIMIT 50000"
 
 } > "$OUTPUT"
 

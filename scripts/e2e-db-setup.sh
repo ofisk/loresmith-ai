@@ -6,7 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
-DB_NAME="loresmith-db"
+# wrangler.local.jsonc uses loresmith-db-dev, not loresmith-db
+DB_NAME="loresmith-db-dev"
 CONFIG="wrangler.local.jsonc"
 
 echo "[e2e-db] Running D1 bootstrap (local)..."

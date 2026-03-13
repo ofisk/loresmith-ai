@@ -205,14 +205,20 @@ export async function getPlanningContextService(
 
 /**
  * Get ContextAssemblyService instance
+ * Throws error if DB or VECTORIZE binding is not configured
  */
 export async function getContextAssemblyService(
 	c: ContextWithAuth
 ): Promise<ContextAssemblyService> {
+	if (!c.env.DB || !c.env.VECTORIZE) {
+		throw new Error(
+			"Context assembly dependencies not configured (DB or VECTORIZE missing)"
+		);
+	}
 	const openaiApiKey = await getEnvVar(c.env, "OPENAI_API_KEY", false);
 	return new ContextAssemblyService(
-		c.env.DB!,
-		c.env.VECTORIZE!,
+		c.env.DB,
+		c.env.VECTORIZE,
 		openaiApiKey,
 		c.env
 	);

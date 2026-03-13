@@ -3,6 +3,7 @@
  * Extracted from upload.ts to reduce complexity and improve maintainability
  */
 
+import type { ExecutionContext } from "@cloudflare/workers-types";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -19,7 +20,8 @@ export async function processFile(
 	userId: string,
 	filename: string,
 	logPrefix: string,
-	jwt?: string
+	jwt?: string,
+	executionCtx?: ExecutionContext
 ): Promise<void> {
 	const scopedLog = logger.scope(logPrefix);
 
@@ -39,11 +41,20 @@ export async function processFile(
 		// Check file existence (non-blocking)
 		await checkFileExistence(env, fileKey, scopedLog);
 
-		// Send indexing started notification
+		// Send indexing started notification (fire-and-forget, use waitUntil when available)
 		const { notifyIndexingStarted } = await import("../lib/notifications");
-		notifyIndexingStarted(env, userId, filename).catch((error) => {
+		const notifyStartedPromise = notifyIndexingStarted(
+			env,
+			userId,
+			filename
+		).catch((error) => {
 			scopedLog.error("Indexing started notification failed", error);
 		});
+		if (executionCtx) {
+			executionCtx.waitUntil(notifyStartedPromise);
+		} else {
+			void notifyStartedPromise;
+		}
 
 		// Update database status to UPLOADED
 		await updateFileStatusToUploaded(env, fileKey, fileDAO, scopedLog);
@@ -77,11 +88,23 @@ export async function processFile(
 		// Force SYNCING state for UI responsiveness
 		await markFileAsSyncing(env, fileKey, userId, filename, fileDAO, scopedLog);
 
-		// Send completion notifications (imported function only takes 4 params)
+		// Send completion notifications (fire-and-forget, use waitUntil when available)
 		const { sendUploadCompleteNotifications: sendNotifications } = await import(
 			"./upload-notifications"
 		);
-		await sendNotifications(env, userId, fileKey, filename);
+		const notificationsPromise = sendNotifications(
+			env,
+			userId,
+			fileKey,
+			filename
+		).catch((error) => {
+			scopedLog.error("Upload complete notifications failed", error);
+		});
+		if (executionCtx) {
+			executionCtx.waitUntil(notificationsPromise);
+		} else {
+			await notificationsPromise;
+		}
 	});
 }
 
@@ -169,13 +192,22 @@ export async function startFileProcessing(
 	userId: string,
 	filename: string,
 	logPrefix: string,
-	jwt?: string
+	jwt?: string,
+	executionCtx?: ExecutionContext
 ): Promise<void> {
 	const scopedLog = logger.scope(logPrefix);
 	scopedLog.debug("Starting file processing in background", { filename });
 
 	try {
-		await processFile(env, fileKey, userId, filename, logPrefix, jwt);
+		await processFile(
+			env,
+			fileKey,
+			userId,
+			filename,
+			logPrefix,
+			jwt,
+			executionCtx
+		);
 	} catch (error) {
 		scopedLog.error("File processing failed", error);
 		await handleProcessingError(
@@ -184,7 +216,8 @@ export async function startFileProcessing(
 			userId,
 			filename,
 			error,
-			scopedLog
+			scopedLog,
+			executionCtx
 		);
 		throw error;
 	}
@@ -199,7 +232,8 @@ async function handleProcessingError(
 	userId: string,
 	filename: string,
 	error: unknown,
-	scopedLog: ScopedLogger
+	scopedLog: ScopedLogger,
+	executionCtx?: ExecutionContext
 ): Promise<void> {
 	const fileDAO = getDAOFactory(env).fileDAO;
 	const { MemoryLimitError } = await import("@/lib/errors");
@@ -242,12 +276,12 @@ async function handleProcessingError(
 	await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
 	scopedLog.debug("File status updated to ERROR");
 
-	// Send error notifications (fire-and-forget)
+	// Send error notifications (fire-and-forget, use waitUntil when available)
 	const { notifyFileStatusUpdated, notifyIndexingFailed } = await import(
 		"@/lib/notifications"
 	);
 
-	notifyFileStatusUpdated(
+	const statusPromise = notifyFileStatusUpdated(
 		env,
 		userId,
 		fileKey,
@@ -256,13 +290,19 @@ async function handleProcessingError(
 	).catch((notifyError) => {
 		scopedLog.error("Error status notification failed", notifyError);
 	});
+	const failedPromise = notifyIndexingFailed(env, userId, filename).catch(
+		(notifyError) => {
+			scopedLog.error("Indexing failed notification failed", notifyError);
+		}
+	);
+
+	if (executionCtx) {
+		executionCtx.waitUntil(Promise.all([statusPromise, failedPromise]));
+	} else {
+		await Promise.all([statusPromise, failedPromise]);
+	}
 
 	// Log technical error for debugging
 	const technicalError = error instanceof Error ? error.message : String(error);
 	scopedLog.error("File processing technical error", { error: technicalError });
-
-	// Send user-friendly notification without technical details
-	notifyIndexingFailed(env, userId, filename).catch((notifyError) => {
-		scopedLog.error("Indexing failed notification failed", notifyError);
-	});
 }

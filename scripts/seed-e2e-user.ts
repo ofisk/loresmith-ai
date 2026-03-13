@@ -41,7 +41,7 @@ VALUES (
 	fs.writeFileSync(tmpFile, sql.trim());
 	try {
 		execSync(
-			`wrangler d1 execute loresmith-db --config wrangler.local.jsonc --local --file=${tmpFile}`,
+			`wrangler d1 execute loresmith-db-dev --config wrangler.local.jsonc --local --file=${tmpFile}`,
 			{ cwd: path.join(__dirname, ".."), stdio: "inherit" }
 		);
 		console.log("[seed-e2e] User seeded:", E2E_USERNAME);

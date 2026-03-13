@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	appendNumberToDisplayName,
 	appendNumberToFilename,
+	buildLibraryFileKey,
+	buildStagingFileKey,
 	getFileTypeFromName,
 	getUniqueFilename,
 } from "@/lib/file/file-utils";
@@ -72,6 +74,62 @@ describe("file-utils", () => {
 			const checkExists = async (_: string, name: string) => existing.has(name);
 			const result = await getUniqueFilename(checkExists, "doc.pdf", "user1");
 			expect(result).toBe("doc (2).pdf");
+		});
+	});
+
+	describe("buildStagingFileKey", () => {
+		it("builds key with normal filename", () => {
+			expect(buildStagingFileKey("user1", "doc.pdf")).toBe(
+				"staging/user1/doc.pdf"
+			);
+		});
+
+		it("strips path to basename", () => {
+			expect(buildStagingFileKey("user1", "folder/doc.pdf")).toBe(
+				"staging/user1/doc.pdf"
+			);
+			expect(buildStagingFileKey("user1", "a\\b\\file.pdf")).toBe(
+				"staging/user1/file.pdf"
+			);
+		});
+
+		it("throws on path traversal", () => {
+			expect(() => buildStagingFileKey("user1", "../../../etc/passwd")).toThrow(
+				"Invalid filename for storage"
+			);
+			expect(() => buildStagingFileKey("user1", "folder/../evil.pdf")).toThrow(
+				"Invalid filename for storage"
+			);
+		});
+
+		it("throws on empty filename", () => {
+			expect(() => buildStagingFileKey("user1", "")).toThrow(
+				"Invalid filename for storage"
+			);
+		});
+	});
+
+	describe("buildLibraryFileKey", () => {
+		it("builds key with normal filename", async () => {
+			const key = await buildLibraryFileKey("user1", "doc.pdf");
+			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\/doc\.pdf$/);
+		});
+
+		it("strips path to basename", async () => {
+			const key = await buildLibraryFileKey("user1", "folder/doc.pdf");
+			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\/doc\.pdf$/);
+		});
+
+		it("throws on path traversal", async () => {
+			await expect(
+				buildLibraryFileKey("user1", "../../../etc/passwd")
+			).rejects.toThrow("Invalid filename for storage");
+		});
+
+		it("throws on empty filename", async () => {
+			await expect(buildLibraryFileKey("user1", "")).rejects.toThrow(
+				"Invalid filename for storage"
+			);
 		});
 	});
 });
