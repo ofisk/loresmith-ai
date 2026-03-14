@@ -37,7 +37,7 @@ export function RateLimitReachedModal({
 	const formattedReset = nextResetAt ? formatResetTime(nextResetAt) : null;
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} className="w-[96vw] max-w-[480px]">
+		<Modal isOpen={isOpen} onClose={onClose} className="modal-size-sm">
 			<div className="p-6">
 				<h3 className="text-lg font-semibold mb-2">Rate limit reached</h3>
 				<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">

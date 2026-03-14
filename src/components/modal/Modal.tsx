@@ -169,7 +169,8 @@ export const Modal = ({
 	return (
 		<div
 			className={cn(
-				"fixed top-0 left-0 z-50 flex h-dvh w-full justify-center bg-transparent overflow-y-auto",
+				"fixed top-0 left-0 flex h-dvh w-full justify-center bg-transparent overflow-y-auto",
+				"[z-index:var(--z-modal)]",
 				fullScreenOnMobile
 					? "items-stretch md:items-center p-0 md:p-6"
 					: "items-start md:items-center p-2 md:p-6"
@@ -257,8 +258,8 @@ export const Modal = ({
 				className={cn(
 					"relative z-10 bg-white dark:bg-neutral-900 shadow-lg overflow-y-auto",
 					fullScreenOnMobile
-						? "w-full h-dvh max-h-dvh rounded-none md:w-auto md:h-auto md:max-h-[90vh] md:rounded-lg"
-						: "rounded-lg max-h-[calc(100dvh-1rem)] md:max-h-[90vh]"
+						? "w-full h-dvh max-h-dvh rounded-none md:w-auto md:h-auto md:max-h-[var(--height-modal-max-desktop)] md:rounded-lg"
+						: "rounded-lg max-h-[var(--height-modal-max)] md:max-h-[var(--height-modal-max-desktop)]"
 				)}
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={(e) => e.stopPropagation()}
@@ -266,7 +267,11 @@ export const Modal = ({
 				tabIndex={-1}
 			>
 				<Card
-					className={cn("reveal reveal-sm relative z-50", className)}
+					className={cn(
+						"reveal reveal-sm relative",
+						"[z-index:var(--z-modal)]",
+						className
+					)}
 					style={cardStyle}
 					ref={modalRef}
 					tabIndex={-1}
@@ -277,7 +282,7 @@ export const Modal = ({
 						<button
 							type="button"
 							aria-label="Close Modal"
-							className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition"
+							className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-600 dark:text-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2"
 							onClick={onClose}
 						>
 							<X size={18} />

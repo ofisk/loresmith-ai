@@ -156,8 +156,8 @@ export function SessionDigestForm({
 			)}
 
 			{/* Session Metadata */}
-			<div className="space-y-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+			<div className="space-y-4 border-b border-neutral-200 dark:border-neutral-700 pb-4">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					Session Information
 				</h3>
 				<div className="grid grid-cols-2 gap-4">
@@ -187,8 +187,8 @@ export function SessionDigestForm({
 			</div>
 
 			{/* Last Session Recap */}
-			<div className="space-y-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+			<div className="space-y-4 border-b border-neutral-200 dark:border-neutral-700 pb-4">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					Last Session Recap
 				</h3>
 				<ArrayInput
@@ -206,7 +206,7 @@ export function SessionDigestForm({
 					placeholder="Add key event..."
 				/>
 				<div className="space-y-3">
-					<h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+					<h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
 						State Changes
 					</h4>
 					<ArrayInput
@@ -245,8 +245,8 @@ export function SessionDigestForm({
 			</div>
 
 			{/* Next Session Plan */}
-			<div className="space-y-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+			<div className="space-y-4 border-b border-neutral-200 dark:border-neutral-700 pb-4">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					Next Session Plan
 				</h3>
 				<ArrayInput
@@ -309,18 +309,18 @@ export function SessionDigestForm({
 
 			{/* Existing planning tasks (for bulk completion when creating a new digest) */}
 			{!digest && (
-				<div className="space-y-3 border-b border-gray-200 dark:border-gray-700 pb-4">
-					<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+				<div className="space-y-3 border-b border-neutral-200 dark:border-neutral-700 pb-4">
+					<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 						Existing planning tasks
 					</h3>
 					{planningTasks.length === 0 ? (
-						<p className="text-sm text-gray-600 dark:text-gray-300">
+						<p className="text-sm text-neutral-600 dark:text-neutral-300">
 							There are no open planning tasks for this campaign. You can still
 							use the checklist below to note what you want to do next.
 						</p>
 					) : (
 						<>
-							<p className="text-sm text-gray-600 dark:text-gray-300">
+							<p className="text-sm text-neutral-600 dark:text-neutral-300">
 								Select any completed tasks to mark them done along with this
 								session digest.
 							</p>
@@ -334,7 +334,7 @@ export function SessionDigestForm({
 										>
 											<input
 												type="checkbox"
-												className="mt-0.5 h-3.5 w-3.5 rounded border-neutral-300 text-purple-600 focus:ring-purple-500 dark:border-neutral-600"
+												className="mt-0.5 h-3.5 w-3.5 rounded border-neutral-300 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] dark:border-neutral-600"
 												checked={checked}
 												onChange={(e) => {
 													setSelectedTaskIds((prev) =>
@@ -364,8 +364,8 @@ export function SessionDigestForm({
 			)}
 
 			{/* Additional Planning */}
-			<div className="space-y-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+			<div className="space-y-4 border-b border-neutral-200 dark:border-neutral-700 pb-4">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					Additional Planning
 				</h3>
 				<ArrayInput

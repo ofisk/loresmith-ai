@@ -13,10 +13,10 @@ export const ShardApprovalHeader: React.FC<ShardApprovalHeaderProps> = ({
 }) => {
 	return (
 		<div className="text-center">
-			<h3 className="text-lg font-semibold text-gray-900">
+			<h3 className="text-lg font-semibold text-neutral-900">
 				Shard Approval Interface
 			</h3>
-			<p className="text-sm text-gray-600">
+			<p className="text-sm text-neutral-600">
 				Ready to process {total} shards for campaign {campaignId}
 			</p>
 			{reason && (

@@ -368,7 +368,7 @@ export function StructuredShardCard({
 
 	return (
 		<div
-			className={`bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-3 ${className}`}
+			className={`bg-neutral-800 border border-neutral-700 rounded-lg p-4 space-y-3 ${className}`}
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between">
@@ -378,7 +378,7 @@ export function StructuredShardCard({
 							type="checkbox"
 							checked={selected}
 							onChange={(e) => onSelect(shard.id, e.target.checked)}
-							className="w-4 h-4 flex-shrink-0 bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500"
+							className="w-4 h-4 flex-shrink-0 bg-neutral-700 border-neutral-600 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 					)}
 					<div className="min-w-0 flex-1">
@@ -389,15 +389,15 @@ export function StructuredShardCard({
 									const nameField = displayMetadata.display_name || "name";
 									onEdit(shard.id, { [nameField]: e.target.value });
 								}}
-								className="font-semibold text-lg text-white bg-transparent focus:border-purple-500 focus:outline-none w-full"
+								className="font-semibold text-lg text-white bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] w-full"
 							/>
 						) : (
 							<h3 className="font-semibold text-lg text-white truncate">
 								{displayName}
 							</h3>
 						)}
-						<hr className="border-0 border-t border-gray-700 my-2" />
-						<div className="flex items-center gap-2 text-sm text-gray-300 flex-wrap">
+						<hr className="border-0 border-t border-neutral-700 my-2" />
+						<div className="flex items-center gap-2 text-sm text-neutral-300 flex-wrap">
 							<span className="capitalize">{typeDisplayName}</span>
 							{subtitleInfo.map((info: string) => (
 								<span
@@ -423,7 +423,7 @@ export function StructuredShardCard({
 					<button
 						type="button"
 						onClick={() => setIsExpanded(!isExpanded)}
-						className="text-gray-400 hover:text-gray-200 transition-colors"
+						className="text-neutral-400 hover:text-neutral-200 transition-colors"
 						title={isExpanded ? "Collapse" : "Expand"}
 					>
 						{isExpanded ? (
@@ -436,7 +436,7 @@ export function StructuredShardCard({
 						<button
 							type="button"
 							onClick={() => setIsEditing(!isEditing)}
-							className="text-gray-400 hover:text-gray-200 transition-colors"
+							className="text-neutral-400 hover:text-neutral-200 transition-colors"
 							title={isEditing ? "Stop editing" : "Edit"}
 						>
 							<Edit2 size={16} />
@@ -457,11 +457,11 @@ export function StructuredShardCard({
 
 						return (
 							<div key={key} className="flex flex-col">
-								<span className="text-gray-400 text-xs font-medium capitalize">
+								<span className="text-neutral-400 text-xs font-medium capitalize">
 									{key.replace(/_/g, " ")}:
 								</span>
 								<span
-									className="font-medium text-gray-200 truncate"
+									className="font-medium text-neutral-200 truncate"
 									title={displayValue}
 								>
 									{displayValue || "N/A"}
@@ -474,7 +474,7 @@ export function StructuredShardCard({
 
 			{/* Expanded Details */}
 			{isExpanded && (
-				<div className="border-t border-gray-700 pt-3 space-y-3">
+				<div className="border-t border-neutral-700 pt-3 space-y-3">
 					{/* Stub: required fields with Generate */}
 					{isStub && requiredFields.length > 0 && (
 						<div className="space-y-3">
@@ -496,7 +496,7 @@ export function StructuredShardCard({
 												type="string"
 												onChange={handlePropertyChange}
 											/>
-											<span className="text-xs text-gray-400 mt-0.5 block">
+											<span className="text-xs text-neutral-400 mt-0.5 block">
 												Required – fill before approving
 											</span>
 										</div>
@@ -504,7 +504,7 @@ export function StructuredShardCard({
 											type="button"
 											onClick={() => handleGenerateField(fieldKey)}
 											disabled={generatingField !== null}
-											className="flex items-center gap-1.5 px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-gray-200 hover:bg-gray-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+											className="flex items-center gap-1.5 px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-neutral-200 hover:bg-neutral-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
 											title="Generate with AI"
 										>
 											{generatingField === fieldKey ? (
@@ -527,7 +527,7 @@ export function StructuredShardCard({
 						<div>
 							<label
 								htmlFor={`structured-description-${shard.id}`}
-								className="text-sm font-medium text-gray-300"
+								className="text-sm font-medium text-neutral-300"
 							>
 								Description:
 							</label>
@@ -541,11 +541,11 @@ export function StructuredShardCard({
 											[fieldName]: e.target.value,
 										} as Partial<StructuredShard>);
 									}}
-									className="w-full mt-1 px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+									className="w-full mt-1 px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 									rows={4}
 								/>
 							) : (
-								<p className="text-sm text-gray-200 mt-1 whitespace-pre-wrap">
+								<p className="text-sm text-neutral-200 mt-1 whitespace-pre-wrap">
 									{mainText}
 								</p>
 							)}
@@ -557,12 +557,12 @@ export function StructuredShardCard({
 						<div>
 							<label
 								htmlFor={`shard-importance-${shard.id}`}
-								className="text-sm font-medium text-gray-300 flex items-center gap-2 mb-2"
+								className="text-sm font-medium text-neutral-300 flex items-center gap-2 mb-2"
 							>
 								<Star size={14} />
 								Importance
 								{importanceScore !== undefined && (
-									<span className="text-xs text-gray-400">
+									<span className="text-xs text-neutral-400">
 										(Score: {Math.round(importanceScore)})
 									</span>
 								)}
@@ -577,7 +577,7 @@ export function StructuredShardCard({
 									);
 								}}
 								disabled={importanceLoading}
-								className="w-full px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								<option value="">Auto (calculated)</option>
 								<option value="high">High</option>
@@ -585,14 +585,14 @@ export function StructuredShardCard({
 								<option value="low">Low</option>
 							</select>
 							{importanceLoading && (
-								<p className="text-xs text-gray-400 mt-1">Updating...</p>
+								<p className="text-xs text-neutral-400 mt-1">Updating...</p>
 							)}
 						</div>
 					)}
 
 					{/* Editable Fields */}
 					{isEditing && onEdit && (
-						<div className="border-t border-gray-700 pt-3 space-y-3">
+						<div className="border-t border-neutral-700 pt-3 space-y-3">
 							<h4 className="font-medium text-white">Edit properties</h4>
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 								{detailedProperties.map(({ key, value, type }) => (

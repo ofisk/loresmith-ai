@@ -38,11 +38,13 @@ export function CampaignDetailsTab({
 				/>
 			) : (
 				<div>
-					<div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+					<div className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 						Campaign name
 					</div>
-					<div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-						<p className="text-gray-900 dark:text-gray-100">{campaign.name}</p>
+					<div className="p-3 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+						<p className="text-neutral-900 dark:text-neutral-100">
+							{campaign.name}
+						</p>
 					</div>
 				</div>
 			)}
@@ -59,18 +61,18 @@ export function CampaignDetailsTab({
 				/>
 			) : (
 				<div>
-					<div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+					<div className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 						Description
 					</div>
-					<div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg min-h-[100px]">
-						<p className="text-gray-900 dark:text-gray-100">
+					<div className="p-3 bg-neutral-50 dark:bg-neutral-800 rounded-lg min-h-[var(--height-editor-min)]">
+						<p className="text-neutral-900 dark:text-neutral-100">
 							{campaign.description || "No description provided"}
 						</p>
 					</div>
 				</div>
 			)}
 
-			<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+			<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm text-muted-foreground">
 				<div className="min-w-0">
 					<span className="font-medium">Created:</span>{" "}
 					{new Date(campaign.createdAt).toLocaleDateString()}

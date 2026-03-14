@@ -125,24 +125,24 @@ export function ShardTemplateBuilder({
 
 		return (
 			<div className="space-y-2">
-				<h4 className="font-medium text-gray-900 flex items-center gap-2">
+				<h4 className="font-medium text-neutral-900 flex items-center gap-2">
 					Fields
-					<span className="text-xs text-gray-500">({fields.length})</span>
+					<span className="text-xs text-neutral-500">({fields.length})</span>
 				</h4>
 				{fields.length === 0 ? (
-					<p className="text-sm text-gray-500 italic">No fields added yet</p>
+					<p className="text-sm text-neutral-500 italic">No fields added yet</p>
 				) : (
 					<div className="space-y-1">
 						{fields.map((field) => (
 							<div
 								key={field}
-								className="flex items-center justify-between p-2 bg-gray-50 rounded"
+								className="flex items-center justify-between p-2 bg-neutral-50 rounded"
 							>
 								<div className="flex items-center gap-2">
-									<span className="text-sm font-medium text-gray-700">
+									<span className="text-sm font-medium text-neutral-700">
 										{field}
 									</span>
-									<span className="text-xs text-gray-500">
+									<span className="text-xs text-neutral-500">
 										({template.fieldTypes?.[field] || "string"})
 									</span>
 								</div>
@@ -163,8 +163,8 @@ export function ShardTemplateBuilder({
 
 	const renderSampleForm = () => (
 		<div className="space-y-4">
-			<h4 className="font-medium text-gray-900">Sample form preview</h4>
-			<div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+			<h4 className="font-medium text-neutral-900">Sample form preview</h4>
+			<div className="border border-neutral-200 rounded-lg p-4 bg-neutral-50">
 				<div className="space-y-3">
 					{(template.fields || []).map((field) => {
 						const fieldType = template.fieldTypes?.[field] || "string";
@@ -176,7 +176,7 @@ export function ShardTemplateBuilder({
 							<div key={field}>
 								<label
 									htmlFor={fieldId}
-									className="block text-sm font-medium text-gray-700 mb-1"
+									className="block text-sm font-medium text-neutral-700 mb-1"
 								>
 									{field}
 								</label>
@@ -184,7 +184,7 @@ export function ShardTemplateBuilder({
 									<input
 										id={fieldId}
 										type="text"
-										className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+										className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
 										placeholder={`Enter ${field}...`}
 										disabled
 									/>
@@ -193,7 +193,7 @@ export function ShardTemplateBuilder({
 									<input
 										id={fieldId}
 										type="number"
-										className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+										className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
 										placeholder="Enter number..."
 										disabled
 									/>
@@ -208,7 +208,7 @@ export function ShardTemplateBuilder({
 										<input
 											id={fieldId}
 											type="text"
-											className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+											className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
 											placeholder="Add new item..."
 											disabled
 										/>
@@ -217,7 +217,7 @@ export function ShardTemplateBuilder({
 								{fieldType === "object" && (
 									<textarea
 										id={fieldId}
-										className="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono"
+										className="w-full px-3 py-2 border border-neutral-300 rounded text-sm font-mono"
 										rows={3}
 										placeholder='{"key": "value"}'
 										disabled
@@ -232,11 +232,13 @@ export function ShardTemplateBuilder({
 	);
 
 	return (
-		<div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
+		<div
+			className={`bg-white border border-neutral-200 rounded-lg ${className}`}
+		>
 			{/* Header */}
-			<div className="p-4 border-b border-gray-100">
+			<div className="p-4 border-b border-neutral-100">
 				<div className="flex items-center justify-between">
-					<h3 className="text-lg font-semibold text-gray-900">
+					<h3 className="text-lg font-semibold text-neutral-900">
 						Create Shard Template
 					</h3>
 					<div className="flex items-center gap-2">
@@ -245,7 +247,7 @@ export function ShardTemplateBuilder({
 							onClick={() =>
 								setPreviewMode(previewMode === "form" ? "json" : "form")
 							}
-							className="flex items-center gap-1 px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
+							className="flex items-center gap-1 px-3 py-1 border border-neutral-300 rounded text-sm hover:bg-neutral-50"
 						>
 							{previewMode === "form" ? <Code size={14} /> : <Eye size={14} />}
 							{previewMode === "form" ? "JSON" : "Form"}
@@ -254,7 +256,7 @@ export function ShardTemplateBuilder({
 							<button
 								type="button"
 								onClick={onClose}
-								className="text-gray-400 hover:text-gray-600"
+								className="text-neutral-400 hover:text-neutral-600"
 							>
 								<X size={20} />
 							</button>
@@ -266,12 +268,12 @@ export function ShardTemplateBuilder({
 			<div className="p-4 space-y-6">
 				{/* Basic Info */}
 				<div className="space-y-3">
-					<h4 className="font-medium text-gray-900">Template information</h4>
+					<h4 className="font-medium text-neutral-900">Template information</h4>
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 						<div>
 							<label
 								htmlFor="template-name"
-								className="block text-sm font-medium text-gray-700 mb-1"
+								className="block text-sm font-medium text-neutral-700 mb-1"
 							>
 								Template Name *
 							</label>
@@ -282,14 +284,14 @@ export function ShardTemplateBuilder({
 								onChange={(e) =>
 									setTemplate((prev) => ({ ...prev, name: e.target.value }))
 								}
-								className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+								className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
 								placeholder="e.g., custom_spell_template"
 							/>
 						</div>
 						<div>
 							<label
 								htmlFor="template-type"
-								className="block text-sm font-medium text-gray-700 mb-1"
+								className="block text-sm font-medium text-neutral-700 mb-1"
 							>
 								Shard Type *
 							</label>
@@ -300,7 +302,7 @@ export function ShardTemplateBuilder({
 								onChange={(e) =>
 									setTemplate((prev) => ({ ...prev, type: e.target.value }))
 								}
-								className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+								className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
 								placeholder="e.g., custom_spell"
 							/>
 						</div>
@@ -308,7 +310,7 @@ export function ShardTemplateBuilder({
 					<div>
 						<label
 							htmlFor="template-description"
-							className="block text-sm font-medium text-gray-700 mb-1"
+							className="block text-sm font-medium text-neutral-700 mb-1"
 						>
 							Description
 						</label>
@@ -321,7 +323,7 @@ export function ShardTemplateBuilder({
 									description: e.target.value,
 								}))
 							}
-							className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+							className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
 							rows={2}
 							placeholder="Describe this template..."
 						/>
@@ -330,19 +332,19 @@ export function ShardTemplateBuilder({
 
 				{/* Add New Field */}
 				<div className="space-y-3">
-					<h4 className="font-medium text-gray-900">Add field</h4>
+					<h4 className="font-medium text-neutral-900">Add field</h4>
 					<div className="flex gap-2">
 						<input
 							type="text"
 							placeholder="Field name"
 							value={newFieldName}
 							onChange={(e) => setNewFieldName(e.target.value)}
-							className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+							className="flex-1 px-3 py-2 border border-neutral-300 rounded text-sm"
 						/>
 						<select
 							value={newFieldType}
 							onChange={(e) => setNewFieldType(e.target.value as any)}
-							className="px-3 py-2 border border-gray-300 rounded text-sm"
+							className="px-3 py-2 border border-neutral-300 rounded text-sm"
 						>
 							<option value="string">String</option>
 							<option value="number">Number</option>
@@ -353,7 +355,7 @@ export function ShardTemplateBuilder({
 							type="button"
 							onClick={handleAddField}
 							disabled={!newFieldName.trim()}
-							className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-gray-300"
+							className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-neutral-300"
 						>
 							<Plus size={14} />
 						</button>
@@ -368,8 +370,8 @@ export function ShardTemplateBuilder({
 					renderSampleForm()
 				) : (
 					<div className="space-y-2">
-						<h4 className="font-medium text-gray-900">JSON Preview</h4>
-						<pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">
+						<h4 className="font-medium text-neutral-900">JSON Preview</h4>
+						<pre className="bg-neutral-100 p-4 rounded text-sm overflow-x-auto">
 							{JSON.stringify(
 								{
 									id: "sample_id",
@@ -395,8 +397,8 @@ export function ShardTemplateBuilder({
 				)}
 
 				{/* Actions */}
-				<div className="flex items-center justify-between pt-4 border-t border-gray-100">
-					<div className="text-sm text-gray-500">
+				<div className="flex items-center justify-between pt-4 border-t border-neutral-100">
+					<div className="text-sm text-neutral-500">
 						Template will be saved for future use with {template.type} shards
 					</div>
 					<div className="flex items-center gap-2">

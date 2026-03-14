@@ -363,9 +363,9 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 	// Show loading state
 	if (processing && convertedShards.length === 0) {
 		return (
-			<div className="space-y-4 border border-gray-700 rounded-lg p-4 bg-gray-800">
+			<div className="space-y-4 border border-neutral-700 rounded-lg p-4 bg-neutral-800">
 				<div className="text-center py-8">
-					<div className="text-gray-300">Loading shards...</div>
+					<div className="text-neutral-300">Loading shards...</div>
 				</div>
 			</div>
 		);
@@ -380,9 +380,9 @@ export const ShardManagementUI: React.FC<ShardManagementUIProps> = ({
 	// Show empty state
 	if (convertedShards.length === 0) {
 		return (
-			<div className="space-y-4 border border-gray-700 rounded-lg p-4 bg-gray-800">
+			<div className="space-y-4 border border-neutral-700 rounded-lg p-4 bg-neutral-800">
 				<div className="text-center py-8">
-					<div className="text-gray-300">No shards found.</div>
+					<div className="text-neutral-300">No shards found.</div>
 				</div>
 			</div>
 		);

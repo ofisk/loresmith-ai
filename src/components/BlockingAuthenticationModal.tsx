@@ -247,15 +247,11 @@ export function BlockingAuthenticationModal({
 		}
 	};
 
-	// Mobile is full-screen; keep a fixed desktop size.
-	const modalClassName =
-		"w-full h-dvh rounded-none md:rounded-lg md:w-[600px] md:h-[600px]";
-
 	return (
 		<Modal
 			isOpen={isOpen}
 			onClose={() => {}}
-			className={modalClassName}
+			className="modal-size-auth"
 			options={{
 				clickOutsideToClose: false,
 				showCloseButton: false,
@@ -267,7 +263,7 @@ export function BlockingAuthenticationModal({
 			<div className="p-4 md:p-6 max-w-md w-full mx-auto h-full overflow-y-auto flex flex-col md:justify-center">
 				{view === "google_username" && googlePendingToken && (
 					<>
-						<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 							You signed in with Google. Choose a username to finish.
 						</p>
 						<div className="space-y-4">
@@ -319,32 +315,32 @@ export function BlockingAuthenticationModal({
 									Welcome to LoreSmith
 								</h3>
 							</div>
-							<p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">
+							<p className="text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
 								Create rich campaign worlds, collaborate with AI, and bring your
 								stories to life
 							</p>
 						</div>
-						<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 							Sign in with Google or use a username and password.
 						</p>
 						<div className="space-y-3">
 							<a
 								href={googleAuthUrl}
-								className="flex items-center justify-center w-full py-2.5 px-4 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								className="flex items-center justify-center w-full py-2.5 px-4 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
 							>
 								Sign in with Google
 							</a>
 							<button
 								type="button"
 								onClick={() => setView("create")}
-								className="flex items-center justify-center w-full py-2.5 px-4 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								className="flex items-center justify-center w-full py-2.5 px-4 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
 							>
 								Create account
 							</button>
 							<button
 								type="button"
 								onClick={() => setView("signin")}
-								className="flex items-center justify-center w-full py-2.5 px-4 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								className="flex items-center justify-center w-full py-2.5 px-4 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
 							>
 								Sign in
 							</button>
@@ -354,7 +350,7 @@ export function BlockingAuthenticationModal({
 
 				{view === "create" && (
 					<>
-						<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 							Create an account with username and email. We’ll send a
 							verification link.
 						</p>
@@ -378,7 +374,7 @@ export function BlockingAuthenticationModal({
 										setRegisterSuccess(false);
 										setRegisterSuccessMessage(null);
 									}}
-									className="block text-sm text-gray-500 hover:underline"
+									className="block text-sm text-neutral-500 hover:underline"
 								>
 									Back
 								</button>
@@ -440,7 +436,7 @@ export function BlockingAuthenticationModal({
 									<button
 										type="button"
 										onClick={() => setView("choice")}
-										className="py-2 px-4 text-sm text-gray-600 dark:text-gray-400 hover:underline"
+										className="py-2 px-4 text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
 									>
 										Back
 									</button>
@@ -452,7 +448,7 @@ export function BlockingAuthenticationModal({
 
 				{view === "signin" && (
 					<>
-						<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+						<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 							Sign in with your username and password.
 						</p>
 						<form onSubmit={handleLogin} noValidate className="space-y-4">
@@ -512,7 +508,7 @@ export function BlockingAuthenticationModal({
 								<button
 									type="button"
 									onClick={() => setView("choice")}
-									className="py-2 px-4 text-sm text-gray-600 dark:text-gray-400 hover:underline"
+									className="py-2 px-4 text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
 								>
 									Back
 								</button>

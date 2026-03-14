@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { PrimaryActionButton } from "@/components/button";
 import { Modal } from "@/components/modal/Modal";
 import { CAMPAIGN_ROLES, SHARE_ROLE_OPTIONS } from "@/constants/campaign-roles";
-import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { API_CONFIG } from "@/shared-config";
 import type { Campaign } from "@/types/campaign";
@@ -317,11 +316,7 @@ export function ShareCampaignModal({
 		isPlayerShareRole && hasAnyPcEntities === false && !claimsListing;
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-		>
+		<Modal isOpen={isOpen} onClose={onClose} className="modal-size-standard">
 			<div className="p-6 space-y-4">
 				<h2 className="text-lg font-semibold text-neutral-100 mb-4">
 					Share campaign

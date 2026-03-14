@@ -72,7 +72,7 @@ export function NotificationBell({
 			case "error":
 				return "bg-red-900/20 border-red-700/30 text-red-300";
 			default:
-				return "bg-gray-800/20 border-gray-700/30 text-gray-300";
+				return "bg-neutral-800/20 border-neutral-700/30 text-neutral-300";
 		}
 	};
 
@@ -81,7 +81,7 @@ export function NotificationBell({
 			<button
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
-				className="relative p-2 text-gray-400 hover:text-gray-200 transition-colors"
+				className="relative p-2 text-neutral-400 hover:text-neutral-200 transition-colors"
 				aria-label="Notifications"
 			>
 				<svg
@@ -107,15 +107,15 @@ export function NotificationBell({
 			</button>
 
 			{isOpen && (
-				<div className="fixed top-16 right-4 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-[99999] max-h-96 overflow-hidden">
-					<div className="p-3 border-b border-gray-700 bg-gray-800">
+				<div className="fixed top-16 right-4 w-80 bg-neutral-900 border border-neutral-700 rounded-lg shadow-lg [z-index:var(--z-toast)] max-h-96 overflow-hidden">
+					<div className="p-3 border-b border-neutral-700 bg-neutral-800">
 						<div className="flex justify-between items-center">
-							<h3 className="font-medium text-gray-100">Notifications</h3>
+							<h3 className="font-medium text-neutral-100">Notifications</h3>
 							{notifications.length > 0 && onDismissAll && (
 								<button
 									type="button"
 									onClick={onDismissAll}
-									className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+									className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
 								>
 									Clear all
 								</button>
@@ -125,15 +125,15 @@ export function NotificationBell({
 
 					<div className="max-h-80 overflow-y-auto">
 						{notifications.length === 0 ? (
-							<div className="p-4 text-center text-gray-400">
+							<div className="p-4 text-center text-neutral-400">
 								<p className="text-sm">No notifications</p>
 							</div>
 						) : (
-							<div className="divide-y divide-gray-700">
+							<div className="divide-y divide-neutral-700">
 								{notifications.map((notification) => (
 									<div
 										key={`${notification.timestamp}-${notification.title}-${notification.message}`}
-										className={`p-3 hover:bg-gray-800 transition-colors ${getTypeStyles(notification.type)}`}
+										className={`p-3 hover:bg-neutral-800 transition-colors ${getTypeStyles(notification.type)}`}
 									>
 										<div className="flex items-start space-x-3">
 											<div className="flex-shrink-0 text-lg">
@@ -141,13 +141,13 @@ export function NotificationBell({
 											</div>
 
 											<div className="flex-1 min-w-0">
-												<h4 className="text-sm font-medium mb-1 text-gray-100">
+												<h4 className="text-sm font-medium mb-1 text-neutral-100">
 													{notification.title}
 												</h4>
-												<p className="text-sm opacity-90 text-gray-300">
+												<p className="text-sm opacity-90 text-neutral-300">
 													{notification.message}
 												</p>
-												<p className="text-xs opacity-70 mt-1 text-gray-400">
+												<p className="text-xs opacity-70 mt-1 text-neutral-400">
 													{new Date(
 														notification.timestamp
 													).toLocaleTimeString()}
@@ -161,7 +161,7 @@ export function NotificationBell({
 														`${notification.timestamp}-${notification.title}-${notification.message}`
 													)
 												}
-												className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
+												className="flex-shrink-0 text-neutral-500 hover:text-neutral-300 transition-colors"
 												aria-label="Dismiss notification"
 											>
 												<svg

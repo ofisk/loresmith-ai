@@ -64,10 +64,10 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 
 	if (isLoading) {
 		return (
-			<div className="space-y-4 border border-gray-700 rounded-lg p-4 bg-gray-800">
+			<div className="space-y-4 border border-neutral-700 rounded-lg p-4 bg-neutral-800">
 				<div className="animate-pulse">
-					<div className="h-4 bg-gray-700 rounded w-1/4 mb-2"></div>
-					<div className="h-3 bg-gray-700 rounded w-1/2"></div>
+					<div className="h-4 bg-neutral-700 rounded w-1/4 mb-2"></div>
+					<div className="h-3 bg-neutral-700 rounded w-1/2"></div>
 				</div>
 			</div>
 		);
@@ -75,12 +75,12 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 
 	if (totalShards === 0) {
 		return (
-			<div className="border border-gray-700 rounded-lg bg-gray-800">
+			<div className="border border-neutral-700 rounded-lg bg-neutral-800">
 				<div className="flex items-center justify-center p-8">
 					<div className="text-center py-8">
-						<div className="text-gray-400 mb-2">
+						<div className="text-neutral-400 mb-2">
 							<svg
-								className="mx-auto h-12 w-12 text-gray-500"
+								className="mx-auto h-12 w-12 text-neutral-500"
 								fill="none"
 								viewBox="0 0 24 24"
 								stroke="currentColor"
@@ -98,7 +98,7 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 						<h3 className="text-lg font-medium text-white mb-2">
 							No pending shards
 						</h3>
-						<p className="text-sm text-gray-400">
+						<p className="text-sm text-neutral-400">
 							All your knowledge fragments have been processed. New shards will
 							appear here as they're generated.
 						</p>
@@ -117,7 +117,7 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 		<div className="space-y-4 pt-4 pl-4">
 			{/* Campaign Tabs */}
 			{campaignEntries.length > 1 && (
-				<div className="border-b border-gray-200 dark:border-gray-700">
+				<div className="border-b border-neutral-200 dark:border-neutral-700">
 					<div className="flex gap-4 overflow-x-auto">
 						{campaignEntries.map(([campaignId, campaignData]) => {
 							const shardCount = campaignData.shards.reduce(
@@ -132,7 +132,7 @@ export const UnifiedShardManager: React.FC<UnifiedShardManagerProps> = ({
 									className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
 										activeCampaignId === campaignId
 											? "border-blue-500 text-blue-600 dark:text-blue-400"
-											: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+											: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 									}`}
 								>
 									{campaignData.campaignName} ({shardCount})

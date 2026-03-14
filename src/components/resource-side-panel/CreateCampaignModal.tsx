@@ -97,10 +97,10 @@ export function CreateCampaignModal({
 		<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 			{/* Header */}
 			<div className="mb-4 md:mb-6">
-				<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+				<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
 					Create new campaign
 				</h2>
-				<p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+				<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 					Forge a new adventure and gather your party
 				</p>
 			</div>
@@ -126,7 +126,7 @@ export function CreateCampaignModal({
 			</div>
 
 			{/* Actions */}
-			<div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
+			<div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
 				<div className="flex items-center gap-2">
 					<FormButton
 						variant="primary"

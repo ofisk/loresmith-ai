@@ -163,7 +163,7 @@ export function PropertyField({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 							id={fieldId}
-							className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 					);
 
@@ -198,7 +198,7 @@ export function PropertyField({
 								onChange={(e) => setNewArrayItem(e.target.value)}
 								onKeyDown={(e) => e.key === "Enter" && addArrayItem()}
 								placeholder="Add tag"
-								className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
+								className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white placeholder-neutral-400 focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							/>
 						</div>
 					);
@@ -219,7 +219,7 @@ export function PropertyField({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 							id={fieldId}
-							className="w-full px-2 py-1 border border-gray-600 rounded text-sm font-mono bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm font-mono bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							rows={4}
 						/>
 					);
@@ -239,13 +239,13 @@ export function PropertyField({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 							id={fieldId}
-							className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 					);
 			}
 		} else {
 			return (
-				<span className="text-sm text-gray-200">{formatValue(value)}</span>
+				<span className="text-sm text-neutral-200">{formatValue(value)}</span>
 			);
 		}
 	};
@@ -256,7 +256,7 @@ export function PropertyField({
 				<div className="flex items-center gap-2 mb-1">
 					<label
 						htmlFor={isFieldEditable && type !== "array" ? fieldId : undefined}
-						className="text-xs font-medium text-gray-400 min-w-0 flex-shrink-0"
+						className="text-xs font-medium text-neutral-400 min-w-0 flex-shrink-0"
 					>
 						{name}
 					</label>
@@ -264,14 +264,14 @@ export function PropertyField({
 						<button
 							type="button"
 							onClick={() => onDelete(name)}
-							className="text-gray-400 hover:text-red-400 transition-colors"
+							className="text-neutral-400 hover:text-red-400 transition-colors"
 							title="Delete field"
 						>
 							<Trash2 size={12} />
 						</button>
 					)}
 				</div>
-				<div className="min-h-[24px]">{renderValue()}</div>
+				<div className="min-h-6">{renderValue()}</div>
 			</div>
 		</div>
 	);

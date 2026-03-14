@@ -184,13 +184,13 @@ export function ShardGrid({
 	return (
 		<div className={`space-y-4 pl-4 ${className}`}>
 			{/* Header */}
-			<div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+			<div className="bg-neutral-800 border border-neutral-700 rounded-lg p-4">
 				<div className="flex items-center justify-between mb-4">
 					<div>
 						<h2 className="text-xl font-semibold text-white">
 							Your verdict awaits
 						</h2>
-						<p className="text-sm text-gray-300 mt-1">
+						<p className="text-sm text-neutral-300 mt-1">
 							{filteredShards.length} shard
 							{filteredShards.length !== 1 ? "s" : ""} ready for a thumbs up or
 							pass • {campaignName || campaignId}
@@ -201,7 +201,7 @@ export function ShardGrid({
 						<button
 							type="button"
 							onClick={onRefresh}
-							className="p-2 text-gray-400 hover:text-gray-200 transition-colors"
+							className="p-2 text-neutral-400 hover:text-neutral-200 transition-colors"
 							title="Refresh shards"
 						>
 							<RefreshCw size={20} />
@@ -209,7 +209,7 @@ export function ShardGrid({
 						<button
 							type="button"
 							onClick={() => setShowFilters(!showFilters)}
-							className="flex items-center gap-2 px-3 py-2 border border-gray-600 rounded text-sm hover:bg-gray-700 text-gray-300 transition-colors"
+							className="flex items-center gap-2 px-3 py-2 border border-neutral-600 rounded text-sm hover:bg-neutral-700 text-neutral-300 transition-colors"
 						>
 							<Filter size={16} />
 							Filters
@@ -224,12 +224,12 @@ export function ShardGrid({
 
 				{/* Filters */}
 				{showFilters && (
-					<div className="border-t border-gray-700 pt-4 space-y-3">
+					<div className="border-t border-neutral-700 pt-4 space-y-3">
 						<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
 							<div className="relative">
 								<Search
 									size={16}
-									className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+									className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400"
 								/>
 								<input
 									type="text"
@@ -238,7 +238,7 @@ export function ShardGrid({
 									onChange={(e) =>
 										setFilters((prev) => ({ ...prev, search: e.target.value }))
 									}
-									className="w-full pl-10 pr-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+									className="w-full pl-10 pr-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white placeholder-neutral-400 focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 								/>
 							</div>
 
@@ -247,7 +247,7 @@ export function ShardGrid({
 								onChange={(e) =>
 									setFilters((prev) => ({ ...prev, type: e.target.value }))
 								}
-								className="px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+								className="px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							>
 								<option value="">All types</option>
 								{shardTypes.map((type) => (
@@ -265,7 +265,7 @@ export function ShardGrid({
 										confidence: e.target.value,
 									}))
 								}
-								className="px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+								className="px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							>
 								<option value="">All confidence</option>
 								<option value="high">High (90%+)</option>
@@ -295,7 +295,7 @@ export function ShardGrid({
 				{selectedShards.size > 0 && (
 					<div className="border-t pt-4 mt-4">
 						<div className="flex items-center justify-between">
-							<span className="text-sm text-gray-600">
+							<span className="text-sm text-neutral-600">
 								{selectedShards.size} shard
 								{selectedShards.size !== 1 ? "s" : ""} selected
 							</span>
@@ -325,7 +325,7 @@ export function ShardGrid({
 								<button
 									type="button"
 									onClick={() => handleBulkAction("edit")}
-									className="flex items-center gap-2 font-semibold text-sm transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+									className="flex items-center gap-2 font-semibold text-sm transition-colors text-neutral-600 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
 								>
 									<Edit3 size={16} />
 									Bulk edit
@@ -337,8 +337,8 @@ export function ShardGrid({
 
 				{/* Select All Checkbox */}
 				{filteredShards.length > 0 && (
-					<div className="border-t border-gray-700 pt-4 mt-4">
-						<label className="flex items-center gap-2 text-sm text-gray-300">
+					<div className="border-t border-neutral-700 pt-4 mt-4">
+						<label className="flex items-center gap-2 text-sm text-neutral-300">
 							<input
 								type="checkbox"
 								checked={allSelected}
@@ -346,7 +346,7 @@ export function ShardGrid({
 									if (input) input.indeterminate = someSelected;
 								}}
 								onChange={handleSelectAll}
-								className="w-4 h-4 bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500"
+								className="w-4 h-4 bg-neutral-700 border-neutral-600 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							/>
 							Select all
 						</label>
@@ -356,8 +356,8 @@ export function ShardGrid({
 
 			{/* Shard Groups */}
 			{Object.keys(groupedShards).length === 0 ? (
-				<div className="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
-					<p className="text-gray-500">
+				<div className="bg-neutral-800 border border-neutral-700 rounded-lg p-8 text-center">
+					<p className="text-muted-foreground">
 						No shards found matching your filters.
 					</p>
 				</div>
@@ -369,7 +369,7 @@ export function ShardGrid({
 								<h3 className="text-lg font-medium text-white">
 									{getShardTypeDisplayName(type)}
 								</h3>
-								<span className="text-sm text-gray-400">
+								<span className="text-sm text-neutral-400">
 									({typeShards.length} shard{typeShards.length !== 1 ? "s" : ""}
 									)
 								</span>

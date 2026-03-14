@@ -61,7 +61,7 @@ export function ToolInvocationCard({
 
 	return (
 		<Card
-			className={`p-4 my-3 w-full max-w-[500px] rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+			className={`p-4 my-3 w-full max-w-[var(--width-tool-card)] rounded-md bg-neutral-100 dark:bg-neutral-900 ${
 				needsConfirmation ? "" : "border-[#F48120]/30"
 			} overflow-hidden`}
 		>
@@ -100,7 +100,7 @@ export function ToolInvocationCard({
 							<h5 className="text-xs font-medium mb-1 text-muted-foreground">
 								Arguments:
 							</h5>
-							<pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
+							<pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[var(--width-tool-card)]">
 								{JSON.stringify(toolInvocation.args, null, 2)}
 							</pre>
 						</div>

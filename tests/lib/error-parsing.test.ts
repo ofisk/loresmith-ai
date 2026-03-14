@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatErrorForNotification,
+	formatErrorMessage,
 	type ParsedError,
 	parseErrorResponse,
 } from "@/lib/error-parsing";
@@ -21,6 +22,15 @@ describe("error-parsing", () => {
 			);
 			expect(result.message).toBe("Server error");
 			expect(result.isActionable).toBe(true);
+		});
+
+		it("extracts string from JSON error when error field is object", () => {
+			const result = parseErrorResponse(
+				JSON.stringify({
+					error: { code: "ERR", message: "File indexing in progress" },
+				})
+			);
+			expect(result.message).toBe("File indexing in progress");
 		});
 
 		it("parses HTML memory limit error", () => {
@@ -88,6 +98,19 @@ describe("error-parsing", () => {
 				isActionable: false,
 			};
 			expect(formatErrorForNotification(parsed)).toBe("Upload failed");
+		});
+	});
+
+	describe("formatErrorMessage", () => {
+		it("extracts message from Error instance", () => {
+			expect(formatErrorMessage(new Error("Something failed"))).toBe(
+				"Something failed"
+			);
+		});
+
+		it("avoids [object Object] for plain objects", () => {
+			expect(formatErrorMessage({ code: "ERR" })).not.toBe("[object Object]");
+			expect(formatErrorMessage({ code: "ERR" })).toBe('{"code":"ERR"}');
 		});
 	});
 });

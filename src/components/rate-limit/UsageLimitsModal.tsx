@@ -33,7 +33,7 @@ export function UsageLimitsModal({
 		RATE_LIMITS.RESOURCES_PER_CAMPAIGN_PER_HOUR;
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} className="w-[96vw] max-w-[480px]">
+		<Modal isOpen={isOpen} onClose={onClose} className="modal-size-sm">
 			<div className="p-6">
 				<h3 className="text-lg font-semibold mb-2">Usage limits</h3>
 				<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">

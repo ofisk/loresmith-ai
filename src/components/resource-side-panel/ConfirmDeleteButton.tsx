@@ -100,7 +100,7 @@ export function ConfirmDeleteButton({
 				className="relative flex items-center gap-2 overflow-hidden"
 			>
 				<div
-					className="absolute inset-0 bg-gray-400/30 transition-all duration-75 ease-linear"
+					className="absolute inset-0 bg-neutral-400/30 transition-all duration-75 ease-linear"
 					style={{ width: `${progress}%` }}
 				/>
 				<div className="relative z-10 flex items-center gap-2">

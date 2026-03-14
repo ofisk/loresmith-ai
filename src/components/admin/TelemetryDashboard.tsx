@@ -55,14 +55,14 @@ export function TelemetryDashboard() {
 			</div>
 
 			{/* Query Latency Section */}
-			<div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
+			<div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
 				<h2 className="text-lg md:text-xl font-semibold mb-4">
 					Query latency (last 7 days)
 				</h2>
 				{queryLatencyMetrics && queryLatencyMetrics.length > 0 ? (
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 						<div>
-							<div className="text-sm text-gray-600 dark:text-gray-400">
+							<div className="text-sm text-neutral-600 dark:text-neutral-400">
 								P50
 							</div>
 							<div className="text-2xl font-bold">
@@ -70,7 +70,7 @@ export function TelemetryDashboard() {
 							</div>
 						</div>
 						<div>
-							<div className="text-sm text-gray-600 dark:text-gray-400">
+							<div className="text-sm text-neutral-600 dark:text-neutral-400">
 								P95
 							</div>
 							<div className="text-2xl font-bold">
@@ -78,7 +78,7 @@ export function TelemetryDashboard() {
 							</div>
 						</div>
 						<div>
-							<div className="text-sm text-gray-600 dark:text-gray-400">
+							<div className="text-sm text-neutral-600 dark:text-neutral-400">
 								P99
 							</div>
 							<div className="text-2xl font-bold">
@@ -86,7 +86,7 @@ export function TelemetryDashboard() {
 							</div>
 						</div>
 						<div>
-							<div className="text-sm text-gray-600 dark:text-gray-400">
+							<div className="text-sm text-neutral-600 dark:text-neutral-400">
 								Average
 							</div>
 							<div className="text-2xl font-bold">
@@ -95,20 +95,22 @@ export function TelemetryDashboard() {
 						</div>
 					</div>
 				) : (
-					<div className="text-gray-500">No query latency data available</div>
+					<div className="text-neutral-500">
+						No query latency data available
+					</div>
 				)}
 			</div>
 
 			{/* Dashboard summary */}
 			{dashboard && (
-				<div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
+				<div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
 					<h2 className="text-lg md:text-xl font-semibold mb-4">
 						Dashboard summary
 					</h2>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{dashboard.summary.queryLatency && (
 							<div>
-								<div className="text-sm text-gray-600 dark:text-gray-400">
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
 									Query Latency (P95)
 								</div>
 								<div className="text-xl font-bold">
@@ -118,7 +120,7 @@ export function TelemetryDashboard() {
 						)}
 						{dashboard.summary.rebuildDuration && (
 							<div>
-								<div className="text-sm text-gray-600 dark:text-gray-400">
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
 									Rebuild Duration (Avg)
 								</div>
 								<div className="text-xl font-bold">
@@ -128,7 +130,7 @@ export function TelemetryDashboard() {
 						)}
 						{dashboard.summary.dmSatisfaction && (
 							<div>
-								<div className="text-sm text-gray-600 dark:text-gray-400">
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
 									DM Satisfaction (Avg)
 								</div>
 								<div className="text-xl font-bold">
@@ -138,7 +140,7 @@ export function TelemetryDashboard() {
 						)}
 						{dashboard.summary.changelogGrowth.length > 0 && (
 							<div>
-								<div className="text-sm text-gray-600 dark:text-gray-400">
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
 									Changelog Entries (Last 7 Days)
 								</div>
 								<div className="text-xl font-bold">
@@ -150,13 +152,13 @@ export function TelemetryDashboard() {
 							</div>
 						)}
 					</div>
-					<div className="mt-4 text-sm text-gray-500">
+					<div className="mt-4 text-sm text-neutral-500">
 						Last updated: {new Date(dashboard.lastUpdated).toLocaleString()}
 					</div>
 				</div>
 			)}
 
-			<div className="text-sm text-gray-500 flex-shrink-0">
+			<div className="text-sm text-neutral-500 flex-shrink-0">
 				Note: This dashboard requires admin access. Metrics are updated in
 				real-time.
 			</div>

@@ -1,5 +1,4 @@
 import { Modal } from "@/components/modal/Modal";
-import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import type {
 	SessionDigestData,
 	SessionDigestWithData,
@@ -31,17 +30,13 @@ export function SessionDigestModal({
 	};
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			cardStyle={STANDARD_MODAL_SIZE_OBJECT}
-		>
-			<div className="p-6 overflow-y-auto max-h-[calc(90vh-3rem)]">
+		<Modal isOpen={isOpen} onClose={onClose} className="modal-size-standard">
+			<div className="p-6 overflow-y-auto max-h-[var(--height-scrollable-modal)]">
 				<div className="mb-6">
-					<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+					<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
 						{digest ? "Edit session digest" : "Create session digest"}
 					</h2>
-					<p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+					<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 						{digest
 							? "Update your session recap and planning information"
 							: "Document your session and plan for the next one"}

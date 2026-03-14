@@ -217,7 +217,7 @@ export function GraphVisualizationModal({
 								onChange={(e) => setSearchQuery(e.target.value)}
 								onKeyDown={(e) => e.key === "Enter" && handleSearch()}
 								placeholder="Search by name or topic..."
-								className="flex flex-1 min-w-0 rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400"
+								className="flex flex-1 min-w-0 rounded-md border border-neutral-300 dark:border-neutral-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400"
 								aria-label="Search entities"
 							/>
 							<button
@@ -243,9 +243,9 @@ export function GraphVisualizationModal({
 					)}
 				</div>
 
-				<div className="flex flex-1 min-h-0">
-					{/* Controls sidebar */}
-					<div className="w-64 flex-shrink-0 overflow-y-auto">
+				<div className="flex flex-col md:flex-row flex-1 min-h-0">
+					{/* Controls sidebar - stacks above graph on mobile */}
+					<div className="w-full md:w-64 flex-shrink-0 overflow-y-auto">
 						<GraphControls
 							filters={filters}
 							onFiltersChange={setFilters}
@@ -261,7 +261,7 @@ export function GraphVisualizationModal({
 					</div>
 
 					{/* Graph view */}
-					<div className="flex-1 min-w-0 flex flex-col">
+					<div className="flex-1 min-w-0 min-h-[300px] md:min-h-0 flex flex-col">
 						{viewMode === "community" ? (
 							loadingCommunityGraph ? (
 								<div className="flex items-center justify-center h-full">

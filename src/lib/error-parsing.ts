@@ -4,6 +4,28 @@
  */
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 
+function ensureString(value: unknown): string {
+	if (typeof value === "string") return value;
+	if (value && typeof value === "object" && "message" in value) {
+		const msg = (value as { message?: unknown }).message;
+		if (typeof msg === "string") return msg;
+	}
+	if (value !== null && value !== undefined) {
+		try {
+			return JSON.stringify(value);
+		} catch {
+			return String(value);
+		}
+	}
+	return "";
+}
+
+/** Safely format an unknown error for user display; never returns "[object Object]" */
+export function formatErrorMessage(error: unknown): string {
+	if (error instanceof Error) return error.message;
+	return ensureString(error) || "An unexpected error occurred";
+}
+
 export interface ParsedError {
 	message: string;
 	isActionable: boolean;
@@ -25,19 +47,23 @@ export function parseErrorResponse(
 
 	// Try to parse as JSON
 	try {
-		const jsonError = JSON.parse(errorText);
-		if (jsonError.error) {
+		const jsonError = JSON.parse(errorText) as Record<string, unknown>;
+		if (jsonError.error !== undefined) {
+			const errorMsg = ensureString(jsonError.error);
+			const suggestion = ensureString(
+				jsonError.message || jsonError.suggestion
+			);
 			return {
-				message: jsonError.error,
+				message: errorMsg,
 				isActionable: true,
-				suggestion: jsonError.message || jsonError.suggestion,
+				...(suggestion && { suggestion }),
 			};
 		}
-		if (jsonError.message) {
+		if (jsonError.message !== undefined) {
 			return {
-				message: jsonError.message,
+				message: ensureString(jsonError.message),
 				isActionable: true,
-				suggestion: jsonError.suggestion,
+				suggestion: ensureString(jsonError.suggestion),
 			};
 		}
 	} catch {

@@ -17,7 +17,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ action }) => {
 	};
 
 	return (
-		<div className="p-4 text-center text-gray-500 border border-gray-200 rounded-lg">
+		<div className="p-4 text-center text-neutral-500 border border-neutral-200 rounded-lg">
 			<p>No shards found for the specified criteria.</p>
 			<p className="text-sm mt-1">{getMessage()}</p>
 		</div>
