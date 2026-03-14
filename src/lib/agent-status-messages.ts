@@ -16,6 +16,8 @@ const TOOL_STATUS_MESSAGES: Record<string, string> = {
 	generatePlayerContextRecapTool: "Generating campaign recap...",
 	generateContextRecapTool: "Generating campaign recap...",
 	getSessionReadoutContext: "Building session plan readout...",
+	getSessionReadoutChunk: "Processing readout chunk...",
+	stitchSessionReadout: "Combining readout into final plan...",
 	analyzeUserStateTool: "Analyzing your setup...",
 	getCampaignReadinessTool: "Checking campaign readiness...",
 	getUserActivityTool: "Reviewing your activity...",
