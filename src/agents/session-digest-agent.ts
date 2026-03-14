@@ -1,6 +1,7 @@
 import { isGMRole } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { CAMPAIGN_PLANNING_CHECKLIST } from "@/lib/campaign-planning-checklist";
+import { createLogger } from "@/lib/logger";
 import {
 	getPlanningTaskProgress,
 	recordPlanningTasks,
@@ -225,10 +226,10 @@ export class SessionDigestAgent extends BaseAgent {
 					}
 				}
 			} catch (error) {
-				console.error(
-					"[SessionDigestAgent] Failed to fetch campaign context:",
-					error
-				);
+				createLogger(
+					this.env as Record<string, unknown>,
+					"[SessionDigestAgent]"
+				).error("Failed to fetch campaign context:", error);
 				// Continue anyway - the campaignId will still be available in tool context
 			}
 		}

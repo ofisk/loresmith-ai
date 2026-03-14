@@ -114,6 +114,24 @@ async function getTierFromPriceId(
 	return proPrices.includes(priceId) ? "pro" : "basic";
 }
 
+/** Get period end from subscription. Stripe v20+ (Basil) uses item-level period; legacy uses subscription-level. */
+function getSubscriptionPeriodEnd(
+	sub:
+		| Stripe.Subscription
+		| {
+				items: { data: Array<{ current_period_end?: number }> };
+				current_period_end?: number;
+		  }
+): string | undefined {
+	const firstItem = sub.items?.data?.[0] as
+		| { current_period_end?: number }
+		| undefined;
+	const fromItem = firstItem?.current_period_end;
+	const fromSub = (sub as { current_period_end?: number }).current_period_end;
+	const unix = fromItem ?? fromSub;
+	return unix ? new Date(unix * 1000).toISOString() : undefined;
+}
+
 /** Sync subscription from Stripe when local DB is missing or stale (e.g. webhook was missed). */
 async function syncSubscriptionFromStripe(
 	env: Env,
@@ -151,9 +169,7 @@ async function syncSubscriptionFromStripe(
 
 	const tier = await getTierFromPriceId(env, priceId);
 
-	const periodEnd = sub.current_period_end
-		? new Date(sub.current_period_end * 1000).toISOString()
-		: undefined;
+	const periodEnd = getSubscriptionPeriodEnd(sub);
 
 	const dao = getDAOFactory(env);
 	await dao.subscriptionDAO.upsertFromStripe({
@@ -694,9 +710,7 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 			if (subId) {
 				const stripe = await getStripe(c.env);
 				const sub = await stripe.subscriptions.retrieve(subId);
-				periodEnd = sub.current_period_end
-					? new Date(sub.current_period_end * 1000).toISOString()
-					: undefined;
+				periodEnd = getSubscriptionPeriodEnd(sub);
 			}
 
 			await dao.subscriptionDAO.upsertFromStripe({
@@ -717,9 +731,7 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 				| "canceled"
 				| "past_due"
 				| "trialing";
-			const periodEnd = sub.current_period_end
-				? new Date(sub.current_period_end * 1000).toISOString()
-				: undefined;
+			const periodEnd = getSubscriptionPeriodEnd(sub);
 			if (
 				(status === "active" || status === "trialing") &&
 				sub.items?.data?.[0]
@@ -748,9 +760,7 @@ export async function handleBillingWebhook(c: Context<{ Bindings: Env }>) {
 				| "canceled"
 				| "past_due"
 				| "trialing";
-			const periodEnd = sub.current_period_end
-				? new Date(sub.current_period_end * 1000).toISOString()
-				: undefined;
+			const periodEnd = getSubscriptionPeriodEnd(sub);
 
 			const resolvedStatus: SubscriptionStatus =
 				event.type === "customer.subscription.deleted" ? "canceled" : status;

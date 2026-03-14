@@ -1,4 +1,5 @@
 import { CAMPAIGN_PLANNING_CHECKLIST } from "@/lib/campaign-planning-checklist";
+import { createLogger } from "@/lib/logger";
 import { onboardingTools } from "@/tools/onboarding";
 import { BaseAgent } from "./base-agent";
 import {
@@ -195,9 +196,11 @@ export class CampaignHelpAgent extends BaseAgent {
 		// If we have a JWT, automatically call analyzeUserState first
 		if (clientJwt) {
 			try {
-				console.log(
-					"[CampaignHelpAgent] Automatically calling analyzeUserState"
+				const log = createLogger(
+					this.env as Record<string, unknown>,
+					"[CampaignHelpAgent]"
 				);
+				log.debug("Automatically calling analyzeUserState");
 				const enhancedTools = this.createEnhancedTools(clientJwt, null);
 				const analyzeUserStateTool = enhancedTools.analyzeUserState;
 
@@ -207,10 +210,7 @@ export class CampaignHelpAgent extends BaseAgent {
 						{ env: this.env, toolCallId: "auto-analysis" }
 					);
 
-					console.log(
-						"[CampaignHelpAgent] User state analysis result:",
-						userStateResult
-					);
+					log.debug("User state analysis result:", userStateResult);
 
 					// Add the user state analysis as a system message to provide context
 					if (
@@ -228,10 +228,10 @@ export class CampaignHelpAgent extends BaseAgent {
 					}
 				}
 			} catch (error) {
-				console.error(
-					"[CampaignHelpAgent] Failed to analyze user state:",
-					error
-				);
+				createLogger(
+					this.env as Record<string, unknown>,
+					"[CampaignHelpAgent]"
+				).error("Failed to analyze user state:", error);
 			}
 		}
 
