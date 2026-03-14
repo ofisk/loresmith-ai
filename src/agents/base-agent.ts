@@ -14,6 +14,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { createLogger } from "@/lib/logger";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
+import { createStatusInjectingTransform } from "@/lib/stream-status-injector";
 import {
 	estimateRequestTokens,
 	estimateTokenCount,
@@ -104,6 +105,36 @@ function isLowBalanceProviderError(message: string): boolean {
 		m.includes("insufficient_quota") ||
 		(m.includes("quota") && m.includes("billing"))
 	);
+}
+
+/** Map provider/LLM errors to user-facing messages for the stream. */
+function getUserFacingErrorMessage(error: unknown): string {
+	const err = error as Error & Record<string, unknown>;
+	const errorMessage = err?.message || String(error);
+	if (isLowBalanceProviderError(errorMessage)) {
+		return TEMPORARY_UNAVAILABLE_MESSAGE;
+	}
+	const isQuotaError =
+		errorMessage.includes("exceeded your current quota") ||
+		errorMessage.includes("quota") ||
+		errorMessage.includes("billing details") ||
+		errorMessage.includes("insufficient_quota");
+	const isRateLimitError =
+		errorMessage.includes("rate limit") ||
+		errorMessage.includes("429") ||
+		errorMessage.includes("too many requests");
+	if (isQuotaError || isRateLimitError) {
+		return RATE_LIMIT_UPSELL_MESSAGE;
+	}
+	const isContextLengthError =
+		errorMessage.includes("maximum context length") ||
+		errorMessage.includes("context length") ||
+		errorMessage.includes("too many tokens") ||
+		errorMessage.includes("reduce the length");
+	if (isContextLengthError) {
+		return "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results.";
+	}
+	return "I apologize, but I encountered an error while processing your request. Please try again.";
 }
 
 function createDataStreamResponse(options: {
@@ -389,90 +420,83 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		onFinish: (message: any) => void | Promise<void>,
 		_options?: { abortSignal?: AbortSignal }
 	): Promise<Response> {
-		const dataStreamResponse = createDataStreamResponse({
-			execute: async (dataStream) => {
-				const log = createLogger(
-					this.env as Record<string, unknown>,
-					`[${this.constructor.name}]`
-				);
-				const turnStartedAt = Date.now();
+		const log = createLogger(
+			this.env as Record<string, unknown>,
+			`[${this.constructor.name}]`
+		);
+		const turnStartedAt = Date.now();
 
-				// Extract JWT from the last user message if available
-				const lastUserMessage = this.messages
-					.slice()
-					.reverse()
-					.find((msg) => msg.role === "user");
+		// Extract JWT from the last user message if available
+		const lastUserMessage = this.messages
+			.slice()
+			.reverse()
+			.find((msg) => msg.role === "user");
 
-				let clientJwt: string | null = null;
-				let selectedCampaignId: string | null = null;
-				if (
-					lastUserMessage &&
-					"data" in lastUserMessage &&
-					lastUserMessage.data
-				) {
-					const messageData = lastUserMessage.data as MessageData & {
-						campaignId?: string;
-					};
-					clientJwt = messageData.jwt || null;
-					if (typeof messageData.campaignId === "string") {
-						selectedCampaignId = messageData.campaignId;
-					}
-				}
-				// Fallback: Chat DO stores JWT from Authorization header; use it when message lacks jwt
-				if (!clientJwt && this.ctx?.storage) {
-					clientJwt =
-						(await this.ctx.storage.get<string>(JWT_STORAGE_KEY)) || null;
-				}
-				if (!selectedCampaignId) {
-					// Fallback: use the most recent campaignId found in message metadata
-					// (including client marker system messages) so tools can use the
-					// active conversation campaign without asking the user for IDs.
-					const recentCampaignMessage = this.messages
-						.slice()
-						.reverse()
-						.find((msg) => {
-							const data = (msg as { data?: unknown }).data as
-								| { campaignId?: unknown }
-								| undefined;
-							return typeof data?.campaignId === "string";
-						});
-					if (recentCampaignMessage) {
-						const data = (recentCampaignMessage as { data?: unknown }).data as {
-							campaignId?: string;
-						};
-						selectedCampaignId = data.campaignId ?? null;
-					}
-				}
+		let clientJwt: string | null = null;
+		let selectedCampaignId: string | null = null;
+		if (lastUserMessage && "data" in lastUserMessage && lastUserMessage.data) {
+			const messageData = lastUserMessage.data as MessageData & {
+				campaignId?: string;
+			};
+			clientJwt = messageData.jwt || null;
+			if (typeof messageData.campaignId === "string") {
+				selectedCampaignId = messageData.campaignId;
+			}
+		}
+		// Fallback: Chat DO stores JWT from Authorization header; use it when message lacks jwt
+		if (!clientJwt && this.ctx?.storage) {
+			clientJwt = (await this.ctx.storage.get<string>(JWT_STORAGE_KEY)) || null;
+		}
+		if (!selectedCampaignId) {
+			// Fallback: use the most recent campaignId found in message metadata
+			// (including client marker system messages) so tools can use the
+			// active conversation campaign without asking the user for IDs.
+			const recentCampaignMessage = this.messages
+				.slice()
+				.reverse()
+				.find((msg) => {
+					const data = (msg as { data?: unknown }).data as
+						| { campaignId?: unknown }
+						| undefined;
+					return typeof data?.campaignId === "string";
+				});
+			if (recentCampaignMessage) {
+				const data = (recentCampaignMessage as { data?: unknown }).data as {
+					campaignId?: string;
+				};
+				selectedCampaignId = data.campaignId ?? null;
+			}
+		}
 
-				// Resolve campaign role and build role context for GM vs player tailoring
-				let claimedPlayerContext: Awaited<
-					ReturnType<typeof resolveClaimedPlayerContext>
-				> = null;
-				let campaignRole: CampaignRole | null = null;
-				if (selectedCampaignId && clientJwt) {
-					claimedPlayerContext = await resolveClaimedPlayerContext(
-						this.env,
-						selectedCampaignId,
-						clientJwt
-					);
-					campaignRole = claimedPlayerContext?.role ?? null;
-					log.debug("Resolved campaign role", { campaignRole });
-				}
-				const roleContextMessage = getAgentRoleContext(claimedPlayerContext);
+		// Resolve campaign role and build role context for GM vs player tailoring
+		let claimedPlayerContext: Awaited<
+			ReturnType<typeof resolveClaimedPlayerContext>
+		> = null;
+		let campaignRole: CampaignRole | null = null;
+		if (selectedCampaignId && clientJwt) {
+			claimedPlayerContext = await resolveClaimedPlayerContext(
+				this.env,
+				selectedCampaignId,
+				clientJwt
+			);
+			campaignRole = claimedPlayerContext?.role ?? null;
+			log.debug("Resolved campaign role", { campaignRole });
+		}
+		const roleContextMessage = getAgentRoleContext(claimedPlayerContext);
 
-				// Player users must select a claimed character before campaign-specific generation.
-				// Short-circuit this turn so we don't execute tools or call the LLM.
-				if (campaignRole && PLAYER_ROLES.has(campaignRole)) {
-					const hasClaimedEntity = !!claimedPlayerContext?.entity;
-					const hasAnyPcEntities =
-						claimedPlayerContext?.hasAnyPcEntities ?? false;
-					const shouldShortCircuit =
-						campaignRole === CAMPAIGN_ROLES.EDITOR_PLAYER &&
-						!hasClaimedEntity &&
-						hasAnyPcEntities;
-					if (shouldShortCircuit) {
+		// Player users must select a claimed character before campaign-specific generation.
+		// Short-circuit this turn so we don't execute tools or call the LLM.
+		if (campaignRole && PLAYER_ROLES.has(campaignRole)) {
+			const hasClaimedEntity = !!claimedPlayerContext?.entity;
+			const hasAnyPcEntities = claimedPlayerContext?.hasAnyPcEntities ?? false;
+			const shouldShortCircuit =
+				campaignRole === CAMPAIGN_ROLES.EDITOR_PLAYER &&
+				!hasClaimedEntity &&
+				hasAnyPcEntities;
+			if (shouldShortCircuit) {
+				return createDataStreamResponse({
+					execute: async (dataStream) => {
 						writeTextChunks(dataStream.write, MISSING_PLAYER_CHARACTER_MESSAGE);
-
 						try {
 							const assistantData: {
 								jwt?: string | null;
@@ -510,564 +534,418 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 								persistError
 							);
 						}
+					},
+				});
+			}
+		}
 
-						return;
-					}
-				}
+		// Build message context: include recent conversation history so agents can answer
+		// their own questions (e.g. campaign name/tone from prior messages) and understand
+		// references ("these", "that", "try again"). Conversation is keyed by userId+campaignId.
+		// Keep only user/assistant messages for Anthropic compatibility.
 
-				// Build message context: include recent conversation history so agents can answer
-				// their own questions (e.g. campaign name/tone from prior messages) and understand
-				// references ("these", "that", "try again"). Conversation is keyed by userId+campaignId.
-				// Keep only user/assistant messages for Anthropic compatibility.
+		const MAX_CONTEXT_MESSAGES = 20;
 
-				const MAX_CONTEXT_MESSAGES = 20;
+		const userAssistantMessages = this.messages.filter(
+			(msg) => msg.role === "user" || msg.role === "assistant"
+		);
+		const recentMessages = userAssistantMessages.slice(-MAX_CONTEXT_MESSAGES);
+		const processedMessages: typeof this.messages = [...recentMessages];
+		const supplementalSystemContext: string[] = [];
 
-				const userAssistantMessages = this.messages.filter(
-					(msg) => msg.role === "user" || msg.role === "assistant"
-				);
-				const recentMessages = userAssistantMessages.slice(
-					-MAX_CONTEXT_MESSAGES
-				);
-				const processedMessages: typeof this.messages = [...recentMessages];
-				const supplementalSystemContext: string[] = [];
+		// Include role context so agents tailor for GM vs player.
+		// Anthropic does not support interleaved system messages in history.
+		if (roleContextMessage) {
+			supplementalSystemContext.push(roleContextMessage);
+		}
 
-				// Include role context so agents tailor for GM vs player.
-				// Anthropic does not support interleaved system messages in history.
-				if (roleContextMessage) {
-					supplementalSystemContext.push(roleContextMessage);
-				}
-
-				// Include essential system messages (campaign context, user state) but exclude tool results
-				for (let i = 0; i < this.messages.length; i++) {
-					const message = this.messages[i];
-					if (message.role === "system") {
-						const content =
-							typeof message.content === "string" ? message.content : "";
-						// Only include essential system context, not tool results
-						if (
-							content.includes("Campaign Context:") ||
-							content.includes("User State Analysis:") ||
-							content.includes("User role in this campaign:")
-						) {
-							supplementalSystemContext.push(content);
-						}
-					}
-				}
-
-				// Inject resolved campaign rules context for targeted core agents.
-				const agentType = ((this.constructor as any).agentMetadata?.type ||
-					"") as string;
+		// Include essential system messages (campaign context, user state) but exclude tool results
+		for (let i = 0; i < this.messages.length; i++) {
+			const message = this.messages[i];
+			if (message.role === "system") {
+				const content =
+					typeof message.content === "string" ? message.content : "";
+				// Only include essential system context, not tool results
 				if (
-					selectedCampaignId &&
-					RULES_AWARE_AGENT_TYPES.has(agentType) &&
-					this.env &&
-					"DB" in this.env &&
-					this.env.DB
+					content.includes("Campaign Context:") ||
+					content.includes("User State Analysis:") ||
+					content.includes("User role in this campaign:")
 				) {
+					supplementalSystemContext.push(content);
+				}
+			}
+		}
+
+		// Inject resolved campaign rules context for targeted core agents.
+		const agentType = ((this.constructor as any).agentMetadata?.type ||
+			"") as string;
+		if (
+			selectedCampaignId &&
+			RULES_AWARE_AGENT_TYPES.has(agentType) &&
+			this.env &&
+			"DB" in this.env &&
+			this.env.DB
+		) {
+			try {
+				const resolvedRules = await RulesContextService.getResolvedRulesContext(
+					this.env,
+					selectedCampaignId
+				);
+				supplementalSystemContext.push(
+					RulesContextService.buildSystemContext(resolvedRules)
+				);
+			} catch (rulesError) {
+				log.warn("Failed to inject campaign rules context", rulesError);
+			}
+		}
+
+		// On-demand: inject getMessageHistory rule only when user message suggests ambiguous references
+		const getToolsForRoleForCheck = (
+			this as unknown as {
+				getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
+			}
+		).getToolsForRole;
+		const toolsForTurn =
+			typeof getToolsForRoleForCheck === "function"
+				? getToolsForRoleForCheck(campaignRole)
+				: this.tools;
+		const hasMessageHistory =
+			toolsForTurn && "getMessageHistory" in toolsForTurn;
+		const userContent =
+			typeof lastUserMessage?.content === "string"
+				? lastUserMessage.content
+				: "";
+		const hasAmbiguousRef = AMBIGUOUS_REFERENCE_PATTERN.test(userContent);
+		if (hasMessageHistory && hasAmbiguousRef) {
+			supplementalSystemContext.push(
+				`## On-demand rule (ambiguous reference detected):\n${MESSAGE_HISTORY_REFERENCE_RULE}`
+			);
+		}
+
+		log.debug("Built minimal message context", {
+			totalMessages: this.messages.length,
+			processedMessages: processedMessages.length,
+		});
+
+		// Determine whether the most recent user command is stale
+		let isStaleCommand = false;
+		try {
+			const createdAt = (lastUserMessage as any)?.createdAt as
+				| string
+				| number
+				| Date
+				| undefined;
+			if (createdAt) {
+				const ts = new Date(createdAt as any).getTime();
+				const ageMs = Date.now() - ts;
+				// Consider commands older than 30 seconds as stale (guard to avoid re-triggering actions)
+				isStaleCommand = Number.isFinite(ageMs) && ageMs > 30 * 1000;
+
+				// If any newer system message exists after the user message, mark as stale
+				try {
+					const userTs = ts;
+					const newerSystemExists = this.messages.some((m: any) => {
+						if (m?.role !== "system" || !m?.createdAt) return false;
+						const msTs = new Date(m.createdAt as any).getTime();
+						return Number.isFinite(msTs) && msTs > userTs;
+					});
+					if (newerSystemExists) {
+						isStaleCommand = true;
+					}
+				} catch (_e2) {}
+
+				// If a client marker exists indicating this user message was processed, treat as stale
+				try {
+					const markerFound = this.messages.some((m: any) => {
+						if (m?.role !== "system") return false;
+						const data = (m as any)?.data;
+						return (
+							data &&
+							data.type === "client_marker" &&
+							data.processedMessageId === (lastUserMessage as any)?.id
+						);
+					});
+					if (markerFound) {
+						isStaleCommand = true;
+					}
+				} catch (_e3) {}
+			}
+		} catch (_e) {}
+
+		// Resolve tool set: use role-filtered tools if agent defines getToolsForRole
+		const getToolsForRole = (
+			this as unknown as {
+				getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
+			}
+		).getToolsForRole;
+		const toolsToUse =
+			typeof getToolsForRole === "function"
+				? getToolsForRole(campaignRole)
+				: this.tools;
+
+		// Log when tools require campaignId but no explicit selection is available
+		// This is a valid use case (e.g., user asks to delete a campaign by name without selecting it)
+		const toolsRequiringCampaignId = Object.entries(toolsToUse).filter(
+			([_, t]) => {
+				const schema = (t as any).inputSchema ?? (t as any).parameters;
+				const shape =
+					schema &&
+					typeof schema === "object" &&
+					"shape" in schema &&
+					(schema as any).shape;
+				return !!shape && "campaignId" in shape;
+			}
+		);
+
+		if (toolsRequiringCampaignId.length > 0 && !selectedCampaignId) {
+			log.debug("No selected campaign ID, allowing inferred campaignId", {
+				toolCount: toolsRequiringCampaignId.length,
+			});
+		}
+
+		// Status updates for tool invocations are injected by createStatusInjectingTransform
+		const enhancedTools = this.createEnhancedTools(
+			clientJwt,
+			selectedCampaignId,
+			{ isStaleCommand },
+			toolsToUse,
+			{},
+			claimedPlayerContext
+		);
+
+		// Determine tool choice: use "auto" to allow the agent to call tools when needed
+		// and generate a final text response after tool calls
+		// The system prompt instructs the agent to use tools when appropriate
+		const toolChoice = Object.keys(enhancedTools).length > 0 ? "auto" : "none";
+
+		// Stream the AI response using the provided model
+
+		// Estimate tokens for logging (no truncation - we rely on targeted graph traversal via tools)
+		const systemPrompt = (this.constructor as any).agentMetadata.systemPrompt;
+		const modelId = this.model?.modelId || "unknown";
+		const contextLimit = getSafeContextLimit(modelId);
+		const systemPromptTokens = estimateTokenCount(systemPrompt);
+		const toolsTokens = estimateToolsTokens(enhancedTools);
+		const estimatedTokens = estimateRequestTokens(
+			systemPrompt,
+			processedMessages,
+			enhancedTools
+		);
+
+		log.debug("Token estimation", {
+			estimatedTokens,
+			contextLimit,
+			systemPromptTokens,
+			toolsTokens,
+		});
+
+		// If we're still over the limit with minimal context, log a warning
+		// The LLM should use tools to fetch targeted context rather than including everything
+		if (estimatedTokens > contextLimit) {
+			log.warn(
+				`Context still large (${estimatedTokens} > ${contextLimit}) even with minimal message history.`
+			);
+		}
+
+		// Log request details for debugging
+		const requestDetails = {
+			agent: this.constructor.name,
+			model: modelId,
+			messageCount: processedMessages.length,
+			toolCount: Object.keys(enhancedTools).length,
+			toolNames: Object.keys(enhancedTools),
+			toolChoice,
+			estimatedTokens,
+			contextLimit,
+			lastUserMessage: processedMessages
+				.slice()
+				.reverse()
+				.find((m: any) => m.role === "user")
+				?.content?.slice(0, 100),
+		};
+
+		// Keep one compact structured summary per turn for production observability.
+		log.info("Making LLM provider request", {
+			agent: requestDetails.agent,
+			model: requestDetails.model,
+			messageCount: requestDetails.messageCount,
+			toolCount: requestDetails.toolCount,
+			toolNames: requestDetails.toolNames,
+			toolChoice: requestDetails.toolChoice,
+			lastUserMessage: requestDetails.lastUserMessage,
+		});
+		let lowBalanceSupportIssueSubmitted = false;
+
+		const mergedSystemPrompt =
+			supplementalSystemContext.length > 0
+				? `${systemPrompt}\n\n${supplementalSystemContext.join("\n\n")}`
+				: systemPrompt;
+
+		const result = streamText({
+			model: this.model,
+			system: mergedSystemPrompt,
+			toolChoice,
+			messages: processedMessages,
+			tools: enhancedTools,
+			stopWhen: stepCountIs(MAX_AGENT_STEPS),
+			onFinish: async (args) => {
+				const steps = args?.steps ?? [];
+				const allToolCalls = steps.flatMap((step: any) => step.toolCalls || []);
+				log.info("LLM provider response complete", {
+					finishReason: args?.finishReason ?? "unknown",
+					stepCount: steps.length,
+					toolCallCount: allToolCalls.length,
+					toolNames: [
+						...new Set(
+							allToolCalls
+								.map((call: any) => call?.toolName)
+								.filter((name): name is string => !!name)
+						),
+					],
+					durationMs: Date.now() - turnStartedAt,
+				});
+				// Record LLM usage for rate limiting (chat consumes quota)
+				const lastUserData = lastUserMessage?.data as
+					| { isHelpRequest?: boolean }
+					| undefined;
+				const isHelpRequest = lastUserData?.isHelpRequest === true;
+				if (clientJwt && !isHelpRequest) {
 					try {
-						const resolvedRules =
-							await RulesContextService.getResolvedRulesContext(
-								this.env,
-								selectedCampaignId
-							);
-						supplementalSystemContext.push(
-							RulesContextService.buildSystemContext(resolvedRules)
-						);
-					} catch (rulesError) {
-						log.warn("Failed to inject campaign rules context", rulesError);
+						const part = clientJwt.split(".")[1] || "";
+						let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+						const pad = base64.length % 4;
+						if (pad) base64 += "=".repeat(4 - pad);
+						const jwtPayload = JSON.parse(atob(base64));
+						const username = jwtPayload.username;
+						const usage = (args?.totalUsage ?? args?.usage) as
+							| {
+									totalTokens?: number;
+									promptTokens?: number;
+									completionTokens?: number;
+							  }
+							| undefined;
+						if (username && usage) {
+							const tokens =
+								usage.totalTokens ??
+								(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
+							if (tokens > 0 && this.env?.DB) {
+								const rateLimitService = getLLMRateLimitService(
+									this.env as Parameters<typeof getLLMRateLimitService>[0]
+								);
+								await rateLimitService.recordUsage(username, tokens, 1);
+							}
+						}
+					} catch (err) {
+						log.warn("Failed to record LLM usage", err);
 					}
 				}
-
-				// On-demand: inject getMessageHistory rule only when user message suggests ambiguous references
-				const getToolsForRoleForCheck = (
-					this as unknown as {
-						getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
-					}
-				).getToolsForRole;
-				const toolsForTurn =
-					typeof getToolsForRoleForCheck === "function"
-						? getToolsForRoleForCheck(campaignRole)
-						: this.tools;
-				const hasMessageHistory =
-					toolsForTurn && "getMessageHistory" in toolsForTurn;
-				const userContent =
-					typeof lastUserMessage?.content === "string"
-						? lastUserMessage.content
-						: "";
-				const hasAmbiguousRef = AMBIGUOUS_REFERENCE_PATTERN.test(userContent);
-				if (hasMessageHistory && hasAmbiguousRef) {
-					supplementalSystemContext.push(
-						`## On-demand rule (ambiguous reference detected):\n${MESSAGE_HISTORY_REFERENCE_RULE}`
-					);
-				}
-
-				log.debug("Built minimal message context", {
-					totalMessages: this.messages.length,
-					processedMessages: processedMessages.length,
-				});
-
-				// Determine whether the most recent user command is stale
-				let isStaleCommand = false;
+				// Persist assistant message with explainability
 				try {
-					const createdAt = (lastUserMessage as any)?.createdAt as
-						| string
-						| number
-						| Date
-						| undefined;
-					if (createdAt) {
-						const ts = new Date(createdAt as any).getTime();
-						const ageMs = Date.now() - ts;
-						// Consider commands older than 30 seconds as stale (guard to avoid re-triggering actions)
-						isStaleCommand = Number.isFinite(ageMs) && ageMs > 30 * 1000;
-
-						// If any newer system message exists after the user message, mark as stale
-						try {
-							const userTs = ts;
-							const newerSystemExists = this.messages.some((m: any) => {
-								if (m?.role !== "system" || !m?.createdAt) return false;
-								const msTs = new Date(m.createdAt as any).getTime();
-								return Number.isFinite(msTs) && msTs > userTs;
-							});
-							if (newerSystemExists) {
-								isStaleCommand = true;
-							}
-						} catch (_e2) {}
-
-						// If a client marker exists indicating this user message was processed, treat as stale
-						try {
-							const markerFound = this.messages.some((m: any) => {
-								if (m?.role !== "system") return false;
-								const data = (m as any)?.data;
-								return (
-									data &&
-									data.type === "client_marker" &&
-									data.processedMessageId === (lastUserMessage as any)?.id
-								);
-							});
-							if (markerFound) {
-								isStaleCommand = true;
-							}
-						} catch (_e3) {}
+					const fullText = await result.text;
+					let explainability: Explainability | null = null;
+					try {
+						explainability = buildExplainabilityFromSteps(steps);
+					} catch (e) {
+						log.warn("Failed to build explainability", e);
 					}
-				} catch (_e) {}
-
-				// Resolve tool set: use role-filtered tools if agent defines getToolsForRole
-				const getToolsForRole = (
-					this as unknown as {
-						getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
-					}
-				).getToolsForRole;
-				const toolsToUse =
-					typeof getToolsForRole === "function"
-						? getToolsForRole(campaignRole)
-						: this.tools;
-
-				// Log when tools require campaignId but no explicit selection is available
-				// This is a valid use case (e.g., user asks to delete a campaign by name without selecting it)
-				const toolsRequiringCampaignId = Object.entries(toolsToUse).filter(
-					([_, t]) => {
-						const schema = (t as any).inputSchema ?? (t as any).parameters;
-						const shape =
-							schema &&
-							typeof schema === "object" &&
-							"shape" in schema &&
-							(schema as any).shape;
-						return !!shape && "campaignId" in shape;
-					}
-				);
-
-				if (toolsRequiringCampaignId.length > 0 && !selectedCampaignId) {
-					log.debug("No selected campaign ID, allowing inferred campaignId", {
-						toolCount: toolsRequiringCampaignId.length,
-					});
-				}
-
-				// Create enhanced tools with optional status callback for real-time "thinking" updates
-				const onToolStart = (toolName: string) => {
-					dataStream.write({
-						type: "status",
-						message: getStatusMessageForTool(toolName),
-					});
-				};
-				const enhancedTools = this.createEnhancedTools(
-					clientJwt,
-					selectedCampaignId,
-					{ isStaleCommand },
-					toolsToUse,
-					{ onToolStart },
-					claimedPlayerContext
-				);
-
-				// Determine tool choice: use "auto" to allow the agent to call tools when needed
-				// and generate a final text response after tool calls
-				// The system prompt instructs the agent to use tools when appropriate
-				const toolChoice =
-					Object.keys(enhancedTools).length > 0 ? "auto" : "none";
-
-				// Stream the AI response using the provided model
-
-				// Estimate tokens for logging (no truncation - we rely on targeted graph traversal via tools)
-				const systemPrompt = (this.constructor as any).agentMetadata
-					.systemPrompt;
-				const modelId = this.model?.modelId || "unknown";
-				const contextLimit = getSafeContextLimit(modelId);
-				const systemPromptTokens = estimateTokenCount(systemPrompt);
-				const toolsTokens = estimateToolsTokens(enhancedTools);
-				const estimatedTokens = estimateRequestTokens(
-					systemPrompt,
-					processedMessages,
-					enhancedTools
-				);
-
-				log.debug("Token estimation", {
-					estimatedTokens,
-					contextLimit,
-					systemPromptTokens,
-					toolsTokens,
-				});
-
-				// If we're still over the limit with minimal context, log a warning
-				// The LLM should use tools to fetch targeted context rather than including everything
-				if (estimatedTokens > contextLimit) {
-					log.warn(
-						`Context still large (${estimatedTokens} > ${contextLimit}) even with minimal message history.`
-					);
-				}
-
-				// Log request details for debugging
-				const requestDetails = {
-					agent: this.constructor.name,
-					model: modelId,
-					messageCount: processedMessages.length,
-					toolCount: Object.keys(enhancedTools).length,
-					toolNames: Object.keys(enhancedTools),
-					toolChoice,
-					estimatedTokens,
-					contextLimit,
-					lastUserMessage: processedMessages
-						.slice()
-						.reverse()
-						.find((m: any) => m.role === "user")
-						?.content?.slice(0, 100),
-				};
-
-				// Keep one compact structured summary per turn for production observability.
-				log.info("Making LLM provider request", {
-					agent: requestDetails.agent,
-					model: requestDetails.model,
-					messageCount: requestDetails.messageCount,
-					toolCount: requestDetails.toolCount,
-					toolNames: requestDetails.toolNames,
-					toolChoice: requestDetails.toolChoice,
-					lastUserMessage: requestDetails.lastUserMessage,
-				});
-				let lowBalanceSupportIssueSubmitted = false;
-
-				let stepsResolve: (steps: any) => void;
-				const stepsPromise = new Promise<any>((resolve) => {
-					stepsResolve = resolve;
-				});
-				const STEPS_TIMEOUT_MS = 15_000;
-				const stepsWithTimeout = Promise.race([
-					stepsPromise,
-					new Promise<any[]>((resolve) =>
-						setTimeout(() => resolve([]), STEPS_TIMEOUT_MS)
-					),
-				]);
-
-				try {
-					const systemPrompt = (this.constructor as any).agentMetadata
-						.systemPrompt;
-					const mergedSystemPrompt =
-						supplementalSystemContext.length > 0
-							? `${systemPrompt}\n\n${supplementalSystemContext.join("\n\n")}`
-							: systemPrompt;
-
-					const result = streamText({
-						model: this.model,
-						system: mergedSystemPrompt,
-						toolChoice, // Use the variable instead of hardcoded value
-						messages: processedMessages,
-						tools: enhancedTools,
-						stopWhen: stepCountIs(MAX_AGENT_STEPS), // Allow multiple tool-call rounds until final text response
-						onFinish: async (args) => {
-							stepsResolve(args?.steps ?? []);
-							const steps = args?.steps ?? [];
-							const allToolCalls = steps.flatMap(
-								(step: any) => step.toolCalls || []
-							);
-							log.info("LLM provider response complete", {
-								finishReason: args?.finishReason ?? "unknown",
-								stepCount: steps.length,
-								toolCallCount: allToolCalls.length,
-								toolNames: [
-									...new Set(
-										allToolCalls
-											.map((call: any) => call?.toolName)
-											.filter((name): name is string => !!name)
-									),
-								],
-								durationMs: Date.now() - turnStartedAt,
-							});
-							// Record LLM usage for rate limiting (chat consumes quota)
-							// Skip recording for help requests (exempt from limits)
-							const lastUserData = lastUserMessage?.data as
-								| { isHelpRequest?: boolean }
-								| undefined;
-							const isHelpRequest = lastUserData?.isHelpRequest === true;
-							if (clientJwt && !isHelpRequest) {
-								try {
-									const part = clientJwt.split(".")[1] || "";
-									let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
-									const pad = base64.length % 4;
-									if (pad) base64 += "=".repeat(4 - pad);
-									const jwtPayload = JSON.parse(atob(base64));
-									const username = jwtPayload.username;
-									const usage = (args?.totalUsage ?? args?.usage) as
-										| {
-												totalTokens?: number;
-												promptTokens?: number;
-												completionTokens?: number;
-										  }
-										| undefined;
-									if (username && usage) {
-										const tokens =
-											usage.totalTokens ??
-											(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
-										if (tokens > 0 && this.env?.DB) {
-											const rateLimitService = getLLMRateLimitService(
-												this.env as Parameters<typeof getLLMRateLimitService>[0]
-											);
-											await rateLimitService.recordUsage(username, tokens, 1);
-										}
-									}
-								} catch (err) {
-									log.warn("Failed to record LLM usage", err);
-								}
-							}
-							// Convert the finish args to ChatMessage format
-							await (onFinish ?? (() => {}))(args);
-						},
-						onError: (errorObj) => {
-							// Extract all error details
-							const error = errorObj.error as Error & Record<string, any>;
-							const errorMessage = error?.message || String(error);
-							const errorDetails = {
-								message: errorMessage,
-								name: error?.name || "Unknown",
-								// Provider error detail fields (vary by SDK/provider)
-								statusCode: error?.statusCode,
-								code: error?.code,
-								type: error?.type,
-								param: error?.param,
-							};
-
+					const assistantData: {
+						jwt?: string | null;
+						campaignId?: string | null;
+						sessionId?: string;
+						explainability?: Explainability | null;
+					} = {};
+					if (clientJwt) assistantData.jwt = clientJwt;
+					if (selectedCampaignId) assistantData.campaignId = selectedCampaignId;
+					const sessionIdFromUser = (lastUserMessage as any)?.data?.sessionId;
+					assistantData.sessionId =
+						(typeof sessionIdFromUser === "string" &&
+							sessionIdFromUser.length > 0 &&
+							sessionIdFromUser) ||
+						this.ctx?.id?.toString() ||
+						`session-${Date.now()}`;
+					if (explainability) assistantData.explainability = explainability;
+					const assistantMessage: ChatMessage = {
+						role: "assistant",
+						content: sanitizeGeneratedAssistantText(fullText),
+						data: assistantData,
+					};
+					if (this.env && "DB" in this.env && this.env.DB) {
+						this.storeMessageToDatabase(assistantMessage).catch((error) => {
 							console.error(
-								`[${this.constructor.name}] ❌ LLM provider call failed`
+								`[${this.constructor.name}] Failed to store assistant message to database:`,
+								error
 							);
-							// Log compact request summary instead of full details to avoid log size limits
-							console.error(
-								`Request Summary:`,
-								JSON.stringify({
-									agent: requestDetails.agent,
-									model: requestDetails.model,
-									messageCount: requestDetails.messageCount,
-									toolCount: requestDetails.toolCount,
-									toolNames: requestDetails.toolNames,
-								})
-							);
-							console.error(`Error:`, JSON.stringify(errorDetails));
-							// Only log stack trace if it's a small error (not a large request issue)
-							if (error?.stack && error.stack.length < 1000) {
-								console.error(`Stack:`, error.stack);
-							}
-
-							// Detect quota/rate limit errors and provide helpful messaging
-							const isQuotaError =
-								errorMessage.includes("exceeded your current quota") ||
-								errorMessage.includes("quota") ||
-								errorMessage.includes("billing details") ||
-								errorMessage.includes("insufficient_quota");
-							const isRateLimitError =
-								errorMessage.includes("rate limit") ||
-								errorMessage.includes("429") ||
-								errorMessage.includes("too many requests");
-							const isLowBalanceError = isLowBalanceProviderError(errorMessage);
-
-							// Detect context length errors
-							const isContextLengthError =
-								errorMessage.includes("maximum context length") ||
-								errorMessage.includes("context length") ||
-								errorMessage.includes("too many tokens") ||
-								errorMessage.includes("reduce the length");
-
-							// Send appropriate error message to user
-							if (isLowBalanceError) {
-								writeTextChunks(
-									dataStream.write,
-									TEMPORARY_UNAVAILABLE_MESSAGE
-								);
-								if (!lowBalanceSupportIssueSubmitted) {
-									lowBalanceSupportIssueSubmitted = true;
-									void this.submitLowBalanceSupportIssue({
-										clientJwt,
-										campaignId: selectedCampaignId,
-										lastUserMessage: requestDetails.lastUserMessage || "",
-										errorMessage,
-									});
-								}
-							} else if (isQuotaError || isRateLimitError) {
-								writeTextChunks(dataStream.write, RATE_LIMIT_UPSELL_MESSAGE);
-							} else if (isContextLengthError) {
-								writeTextChunks(
-									dataStream.write,
-									"I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
-								);
-							} else {
-								writeTextChunks(
-									dataStream.write,
-									"I apologize, but I encountered an error while processing your request. Please try again."
-								);
-							}
-						},
-					});
-
-					// Handle the result using textStream (emit SSE + UIMessageChunk format for useChat)
-					if (result?.textStream) {
-						dataStream.write({ type: "text-start", id: TEXT_PART_ID });
-						let fullText = "";
-						for await (const chunk of result.textStream) {
-							let sanitizedChunk = sanitizeGeneratedAssistantText(chunk);
-							// Repair sentence spacing across stream chunk boundaries:
-							// if previous chunk ended with punctuation and this one starts with
-							// an uppercase letter, insert a joining space.
-							if (
-								fullText.length > 0 &&
-								sanitizedChunk.length > 0 &&
-								/[.!?]$/.test(fullText) &&
-								/^[A-Z]/.test(sanitizedChunk)
-							) {
-								sanitizedChunk = ` ${sanitizedChunk}`;
-							}
-							fullText += sanitizedChunk;
-							dataStream.write({
-								type: "text-delta",
-								id: TEXT_PART_ID,
-								delta: sanitizedChunk,
-							});
-						}
-						dataStream.write({ type: "text-end", id: TEXT_PART_ID });
-
-						// Build explainability from tool steps and attach to message data
-						let explainability: Explainability | null = null;
-						try {
-							const steps = await stepsWithTimeout;
-							explainability = buildExplainabilityFromSteps(steps);
-						} catch (e) {
-							log.warn("Failed to build explainability", e);
-						}
-
-						// Persist the assistant's final message to message history.
-						try {
-							const assistantData: {
-								jwt?: string | null;
-								campaignId?: string | null;
-								sessionId?: string;
-								explainability?: Explainability | null;
-							} = {};
-							if (clientJwt) {
-								assistantData.jwt = clientJwt;
-							}
-							if (selectedCampaignId) {
-								assistantData.campaignId = selectedCampaignId;
-							}
-							// Prefer client-provided sessionId when available; fall back to DO id.
-							const sessionIdFromUser = (lastUserMessage as any)?.data
-								?.sessionId;
-							assistantData.sessionId =
-								(typeof sessionIdFromUser === "string" &&
-									sessionIdFromUser.length > 0 &&
-									sessionIdFromUser) ||
-								this.ctx?.id?.toString() ||
-								`session-${Date.now()}`;
-
-							if (explainability) {
-								assistantData.explainability = explainability;
-							}
-
-							const assistantMessage: ChatMessage = {
-								role: "assistant",
-								content: fullText,
-								data: assistantData,
-							};
-
-							// Fire-and-forget persistence; do not modify in-memory message array.
-							if (this.env && "DB" in this.env && this.env.DB) {
-								this.storeMessageToDatabase(assistantMessage).catch((error) => {
-									console.error(
-										`[${this.constructor.name}] Failed to store assistant message to database:`,
-										error
-									);
-								});
-							}
-						} catch (persistError) {
-							console.error(
-								`[${this.constructor.name}] Error while persisting assistant message:`,
-								persistError
-							);
-						}
-					} else {
-						log.warn("No textStream available, using fallback response");
-						writeTextChunks(
-							dataStream.write,
-							"I'm here to help! What would you like to know about LoreSmith AI?"
-						);
+						});
 					}
-				} catch (error) {
+				} catch (persistError) {
 					console.error(
-						`[${this.constructor.name}] Error in streamText:`,
-						error
+						`[${this.constructor.name}] Error while persisting assistant message:`,
+						persistError
 					);
-
-					// Check if it's a context length error
-					const errorMessage =
-						error instanceof Error ? error.message : String(error);
-					const isLowBalanceError = isLowBalanceProviderError(errorMessage);
-					const isContextLengthError =
-						errorMessage.includes("maximum context length") ||
-						errorMessage.includes("context length") ||
-						errorMessage.includes("too many tokens") ||
-						errorMessage.includes("reduce the length");
-
-					// Write appropriate error message to dataStream
-					if (isLowBalanceError) {
-						writeTextChunks(dataStream.write, TEMPORARY_UNAVAILABLE_MESSAGE);
-						if (!lowBalanceSupportIssueSubmitted) {
-							lowBalanceSupportIssueSubmitted = true;
-							await this.submitLowBalanceSupportIssue({
-								clientJwt,
-								campaignId: selectedCampaignId,
-								lastUserMessage: requestDetails.lastUserMessage || "",
-								errorMessage,
-							});
-						}
-					} else if (isContextLengthError) {
-						writeTextChunks(
-							dataStream.write,
-							"I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results."
-						);
-					} else {
-						writeTextChunks(
-							dataStream.write,
-							"I apologize, but I encountered an error while processing your request. Please try again."
-						);
-					}
-					throw error;
 				}
+				await (onFinish ?? (() => {}))(args);
+			},
+			onError: (errorObj) => {
+				const error = errorObj.error as Error & Record<string, any>;
+				const errorMessage = error?.message || String(error);
+				console.error(`[${this.constructor.name}] ❌ LLM provider call failed`);
+				console.error(
+					`Request Summary:`,
+					JSON.stringify({
+						agent: requestDetails.agent,
+						model: requestDetails.model,
+						messageCount: requestDetails.messageCount,
+						toolCount: requestDetails.toolCount,
+						toolNames: requestDetails.toolNames,
+					})
+				);
+				console.error(
+					`Error:`,
+					JSON.stringify({
+						message: errorMessage,
+						name: error?.name,
+						statusCode: error?.statusCode,
+						code: error?.code,
+					})
+				);
+				if (error?.stack && error.stack.length < 1000) {
+					console.error(`Stack:`, error.stack);
+				}
+				// User-facing error message is provided by toUIMessageStreamResponse onError
 			},
 		});
 
-		return dataStreamResponse;
+		const response = result.toUIMessageStreamResponse({
+			onError: (error) => {
+				const err = error as Error & Record<string, unknown>;
+				const errorMessage = err?.message || String(error);
+				if (
+					isLowBalanceProviderError(errorMessage) &&
+					!lowBalanceSupportIssueSubmitted
+				) {
+					lowBalanceSupportIssueSubmitted = true;
+					void this.submitLowBalanceSupportIssue({
+						clientJwt,
+						campaignId: selectedCampaignId,
+						lastUserMessage: requestDetails.lastUserMessage || "",
+						errorMessage,
+					});
+				}
+				return getUserFacingErrorMessage(error);
+			},
+		});
+
+		const body = response.body;
+		if (!body) {
+			throw new Error("Stream response has no body");
+		}
+		const transformedBody = body.pipeThrough(
+			createStatusInjectingTransform(getStatusMessageForTool)
+		);
+		return new Response(transformedBody, {
+			headers: response.headers,
+			status: response.status,
+		});
 	}
 
 	/**

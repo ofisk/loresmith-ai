@@ -96,6 +96,8 @@ export interface AppShellContextValue {
 	handleHelpAction: (action: string) => void;
 	handleSessionRecapRequest?: () => void;
 	handleNextStepsRequest: () => void;
+	chatError: Error | undefined;
+	onRegenerate: () => Promise<void>;
 
 	// Shard overlay
 	canReviewShards: boolean;
@@ -231,6 +233,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		invisibleUserContentsVersion,
 		addToInvisible,
 		append,
+		error: chatError,
+		regenerate,
 	} = chatSession;
 
 	useAppEventHandlers({
@@ -351,6 +355,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 					? handleSessionRecapRequest
 					: undefined,
 			handleNextStepsRequest,
+			chatError,
+			onRegenerate: () => regenerate(),
 			canReviewShards: canReviewShards ?? false,
 			visibleShardGroups,
 			shardsLoading,
@@ -417,6 +423,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			handleSessionRecapRequest,
 			selectedCampaign,
 			handleNextStepsRequest,
+			chatError,
+			regenerate,
 			canReviewShards,
 			visibleShardGroups,
 			shardsLoading,

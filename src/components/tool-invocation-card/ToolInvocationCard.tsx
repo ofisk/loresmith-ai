@@ -5,15 +5,22 @@ import { Card } from "@/components/card/Card";
 
 import { APPROVAL } from "@/shared-config";
 
+/** Supports both legacy (args/result, call/result) and new (input/output, input-available/output-available) formats. */
 interface ToolInvocation {
 	toolName: string;
 	toolCallId: string;
-	state: "call" | "result" | "partial-call";
+	state:
+		| "call"
+		| "result"
+		| "input-available"
+		| "output-available"
+		| "partial-call";
 	step?: number;
-	args: Record<string, unknown>;
-	result?: {
-		content?: Array<{ type: string; text: string }>;
-	};
+	/** Legacy: args. New: input. */
+	args?: Record<string, unknown>;
+	input?: unknown;
+	/** Legacy: result. New: output. */
+	result?: unknown;
 }
 
 interface ToolInvocationCardProps {
@@ -32,8 +39,16 @@ export function ToolInvocationCard({
 	const [isExpanded, setIsExpanded] = useState(false);
 
 	// Campaign UI components have been removed - show basic tool information instead
+	const isPending =
+		toolInvocation.state === "call" ||
+		toolInvocation.state === "input-available";
+	const isComplete =
+		toolInvocation.state === "result" ||
+		toolInvocation.state === "output-available";
+	const displayInput = toolInvocation.input ?? toolInvocation.args;
+
 	const renderCampaignUI = () => {
-		if (!needsConfirmation || toolInvocation.state !== "call") {
+		if (!needsConfirmation || !isPending) {
 			return null;
 		}
 
@@ -77,7 +92,7 @@ export function ToolInvocationCard({
 				</div>
 				<h4 className="font-medium flex items-center gap-2 flex-1 text-left">
 					{toolInvocation.toolName}
-					{!needsConfirmation && toolInvocation.state === "result" && (
+					{!needsConfirmation && isComplete && (
 						<span className="text-xs text-[#F48120]/70">✓ Completed</span>
 					)}
 				</h4>
@@ -101,42 +116,40 @@ export function ToolInvocationCard({
 								Arguments:
 							</h5>
 							<pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[var(--width-tool-card)]">
-								{JSON.stringify(toolInvocation.args, null, 2)}
+								{JSON.stringify(displayInput ?? {}, null, 2)}
 							</pre>
 						</div>
 					)}
 
-					{/* Show approval buttons for campaign tools */}
-					{needsConfirmation &&
-						toolInvocation.state === "call" &&
-						!renderCampaignUI() && (
-							<div className="flex gap-2 justify-end">
-								<Button
-									variant="primary"
-									size="sm"
-									onClick={() =>
-										addToolResult({
-											toolCallId,
-											result: APPROVAL.NO,
-										})
-									}
-								>
-									Reject
-								</Button>
-								<Button
-									variant="primary"
-									size="sm"
-									onClick={() =>
-										addToolResult({
-											toolCallId,
-											result: APPROVAL.YES,
-										})
-									}
-								>
-									Approve
-								</Button>
-							</div>
-						)}
+					{/* Show approval buttons for tools needing confirmation */}
+					{needsConfirmation && isPending && !renderCampaignUI() && (
+						<div className="flex gap-2 justify-end">
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() =>
+									addToolResult({
+										toolCallId,
+										result: APPROVAL.NO,
+									})
+								}
+							>
+								Reject
+							</Button>
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() =>
+									addToolResult({
+										toolCallId,
+										result: APPROVAL.YES,
+									})
+								}
+							>
+								Approve
+							</Button>
+						</div>
+					)}
 				</div>
 			</div>
 		</Card>

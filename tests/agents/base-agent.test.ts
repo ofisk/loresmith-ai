@@ -6,6 +6,28 @@ vi.mock("@/lib/agent-role-utils", () => ({
 	resolveClaimedPlayerContext: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("ai", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("ai")>();
+	return {
+		...actual,
+		streamText: vi.fn().mockReturnValue({
+			text: Promise.resolve("test response"),
+			toUIMessageStreamResponse: vi.fn().mockReturnValue(
+				new Response(
+					new ReadableStream({
+						start(controller) {
+							controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+							controller.close();
+						},
+					}),
+					{ headers: { "Content-Type": "text/event-stream" } }
+				)
+			),
+		}),
+		stepCountIs: vi.fn(() => () => false),
+	};
+});
+
 // Mock environment (DB undefined so addMessage does not attempt persistence; avoids DAO errors and log noise in tests)
 const mockEnv = {
 	DB: undefined as unknown as D1Database,
