@@ -2,6 +2,7 @@
 import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import {
+	completePlanningTask,
 	getPlanningTaskProgress,
 	recordPlanningTasks,
 } from "./planning-task-tools";
@@ -17,6 +18,7 @@ export const gmRecapToolsBundle = {
 	generateGMContextRecapTool,
 	getPlanningTaskProgress,
 	recordPlanningTasks,
+	completePlanningTask,
 	getChecklistStatusTool,
 	showCampaignDetails,
 	searchCampaignContext,
