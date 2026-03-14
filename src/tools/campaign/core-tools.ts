@@ -22,6 +22,7 @@ const listCampaignsSchema = z.object({
 export const listCampaigns = tool({
 	description: "List all campaigns for the current user",
 	inputSchema: listCampaignsSchema,
+	strict: true,
 	execute: async (
 		input: z.infer<typeof listCampaignsSchema>,
 		options: ToolExecuteOptions
@@ -106,6 +107,7 @@ export const createCampaign = tool({
 	description:
 		"Create a new campaign. The agent should ask the user for a description or help them create one through conversation.",
 	inputSchema: createCampaignSchema,
+	strict: true,
 	execute: async (
 		input: z.infer<typeof createCampaignSchema>,
 		options: ToolExecuteOptions

@@ -781,6 +781,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				? `${systemPrompt}\n\n${supplementalSystemContext.join("\n\n")}`
 				: systemPrompt;
 
+		const MESSAGE_COMPRESSION_THRESHOLD = 30;
+
 		const result = streamText({
 			model: this.model,
 			system: mergedSystemPrompt,
@@ -788,6 +790,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			messages: processedMessages,
 			tools: enhancedTools,
 			stopWhen: stepCountIs(MAX_AGENT_STEPS),
+			prepareStep: async ({ messages }) => {
+				if (messages.length > MESSAGE_COMPRESSION_THRESHOLD) {
+					log.debug("Compressing message history for long agent loop", {
+						before: messages.length,
+						after: Math.floor(MESSAGE_COMPRESSION_THRESHOLD / 2),
+					});
+					return {
+						messages: messages.slice(
+							-Math.floor(MESSAGE_COMPRESSION_THRESHOLD / 2)
+						),
+					};
+				}
+				return {};
+			},
 			onFinish: async (args) => {
 				const steps = args?.steps ?? [];
 				const allToolCalls = steps.flatMap((step: any) => step.toolCalls || []);

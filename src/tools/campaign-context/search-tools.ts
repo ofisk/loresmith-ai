@@ -109,25 +109,25 @@ export function calculateNameSimilarity(
 
 const searchCampaignContextSchema = z.object({
 	campaignId: commonSchemas.campaignId.describe(
-		"The campaign ID (UUID format). CRITICAL: This must be a UUID, never an entity name. The campaignId is automatically provided from the user's selected campaign - do NOT use entity names or location names as campaignId."
+		"Campaign ID (UUID). Auto-injected from user's selection. Never use entity/location names."
 	),
 	query: z
 		.string()
 		.describe(
-			`The search query - can include entity names, plot points, topics, or entity types. Available entity types: ${ENTITY_TYPES_LIST}. The tool automatically infers the entity type from your query. CRITICAL: When users specify entity types in their request (e.g., "monsters", "beasts", "creatures", "NPCs"), you MUST: (1) Map any synonyms to the correct entity type name (e.g., "beasts"/"creatures" → "monsters", "people"/"characters" → "npcs"), (2) Include that entity type keyword in this query parameter. Examples: "monsters" lists all monsters, "fire monsters" searches for monsters matching "fire", "all monsters" lists all monsters. Empty query lists all entities (only use when user doesn't specify entity types). Use "context:" prefix to search session digests (optional - note that session digests are temporary and get parsed into entities).`
+			`Search query: entity names, topics, entity types (${ENTITY_TYPES_LIST}). Map synonyms: beasts/creatures→monsters, people/characters→npcs. "fire monsters"=monsters matching fire. "context:" prefix searches session digests.`
 		),
 	searchOriginalFiles: z
 		.boolean()
 		.optional()
 		.default(false)
 		.describe(
-			"When true, searches the original source files (PDFs, text files) uploaded to the campaign for text content matching the query. Use this when users explicitly ask to 'search back through the original text', 'search the source files', 'find in the original documents', or similar phrases. This performs lexical (text) search through file chunks, not entity search."
+			"When true, search original uploaded files (PDFs, text) for matching content. Use when user asks to search source documents."
 		),
 	traverseFromEntityIds: z
 		.array(z.string())
 		.optional()
 		.describe(
-			"Entity IDs to start graph traversal from. When provided, the tool will traverse the entity graph starting from these entities, following relationships to find connected entities. Use this after an initial semantic search to explore entities connected to the found entities."
+			"Entity IDs to start graph traversal. Use after initial search to explore connected entities."
 		),
 	traverseDepth: z
 		.number()
@@ -136,30 +136,26 @@ const searchCampaignContextSchema = z.object({
 		.max(3)
 		.optional()
 		.describe(
-			"Maximum depth to traverse from starting entities (default: 1). Depth 1 returns direct neighbors, depth 2 returns neighbors of neighbors, etc. Use depth 1 first, then increase if more context is needed."
+			"Traversal depth (default 1). Use 1 first, increase only if needed."
 		),
 	traverseRelationshipTypes: z
 		.array(z.string())
 		.optional()
 		.describe(
-			"Optional filter for specific relationship types to traverse (e.g., ['resides_in', 'located_in']). If not provided, traverses all relationship types. Use this to focus traversal on specific relationship types relevant to the query."
+			"Filter relationship types to traverse (e.g. ['resides_in', 'located_in'])."
 		),
 	includeTraversedEntities: z
 		.boolean()
 		.optional()
 		.default(true)
-		.describe(
-			"Whether to include traversed entities in results (default: true). Set to false if you only want to see relationships without the full entity details."
-		),
+		.describe("Include traversed entities in results (default true)."),
 	offset: z
 		.number()
 		.int()
 		.min(0)
 		.optional()
 		.default(0)
-		.describe(
-			"Offset for pagination (default: 0). Use this to page through results. If the response indicates there are more results, increment the offset by the limit to get the next page."
-		),
+		.describe("Pagination offset (default 0)."),
 	limit: z
 		.number()
 		.int()
@@ -167,15 +163,13 @@ const searchCampaignContextSchema = z.object({
 		.max(50)
 		.optional()
 		.default(15)
-		.describe(
-			"Maximum number of results to return (default: 15, max: 50). Use pagination (offset) to retrieve additional results if needed. Start with the default limit to avoid token limit issues, then page through if more results are needed."
-		),
+		.describe("Max results to return (default 15, max 50)."),
 	forSessionReadout: z
 		.boolean()
 		.optional()
 		.default(false)
 		.describe(
-			"When true, used for session plan readout: return all relevant entities (do not filter to strong name matches only) and remind to include full entity text in the readout. Set to true when building the session plan readout."
+			"When true, for session plan readout: return all relevant entities, include full text."
 		),
 	jwt: commonSchemas.jwt,
 });
@@ -183,19 +177,7 @@ const searchCampaignContextSchema = z.object({
 export const searchCampaignContext = tool({
 	description: `Search campaign context via semantic search and graph traversal. Use FIRST for entities "from my campaign" or "in my world" - retrieves APPROVED entities. Never use searchExternalResources for campaign entities.
 
-Call ONCE: Map synonyms (e.g., "monsters or beasts") to correct entity type, call once with mapped type.
-
-Entity types: ${ENTITY_TYPES_LIST}. Map synonyms: "beasts"/"creatures" → "monsters", "people"/"characters" (NPCs) → "npcs", "places" → "locations".
-
-For "list all" requests, use listAllEntities instead.
-
-Query syntax: "fire monsters" searches monsters matching "fire". "context: session notes" searches session digests.
-
-Graph traversal: Start with traverseDepth=1, use traverseRelationshipTypes filter, increase depth only if needed.
-
-"X within Y" queries: Search for parent entity first to get ID, then use traverseFromEntityIds with appropriate relationship types.
-
-Use ONLY explicit relationships shown in results. Do NOT infer from content text.`,
+Call ONCE: Map synonyms (e.g., "monsters or beasts") to correct entity type. Entity types: ${ENTITY_TYPES_LIST}. Map: beasts/creatures→monsters, people/characters→npcs. For "list all", use listAllEntities. "fire monsters"=monsters matching fire. "context:" prefix searches session digests. Graph: start traverseDepth=1. "X within Y": search parent first, then use traverseFromEntityIds. Use ONLY explicit relationships in results.`,
 	inputSchema: searchCampaignContextSchema,
 	execute: async (
 		input: z.infer<typeof searchCampaignContextSchema>,
