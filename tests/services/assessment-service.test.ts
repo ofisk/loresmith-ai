@@ -147,24 +147,26 @@ describe("AssessmentService", () => {
 
 		it("refetches after TTL expires", async () => {
 			vi.useFakeTimers();
-			const username = "testuser";
+			try {
+				const username = "testuser";
 
-			mockDAO.getCampaignCount.mockResolvedValue(1);
-			mockDAO.getResourceCount.mockResolvedValue(0);
-			mockDAO.getRecentActivity.mockResolvedValue([]);
-			mockDAO.getLastActivity.mockResolvedValue("2024-01-01T00:00:00Z");
+				mockDAO.getCampaignCount.mockResolvedValue(1);
+				mockDAO.getResourceCount.mockResolvedValue(0);
+				mockDAO.getRecentActivity.mockResolvedValue([]);
+				mockDAO.getLastActivity.mockResolvedValue("2024-01-01T00:00:00Z");
 
-			const result1 = await assessmentService.analyzeUserState(username);
-			expect(result1.campaignCount).toBe(1);
-			expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(1);
+				const result1 = await assessmentService.analyzeUserState(username);
+				expect(result1.campaignCount).toBe(1);
+				expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(1);
 
-			vi.advanceTimersByTime(6 * 60 * 1000);
+				vi.advanceTimersByTime(6 * 60 * 1000);
 
-			const result2 = await assessmentService.analyzeUserState(username);
-			expect(result2.campaignCount).toBe(1);
-			expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(2);
-
-			vi.useRealTimers();
+				const result2 = await assessmentService.analyzeUserState(username);
+				expect(result2.campaignCount).toBe(1);
+				expect(mockDAO.getCampaignCount).toHaveBeenCalledTimes(2);
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 	});
 

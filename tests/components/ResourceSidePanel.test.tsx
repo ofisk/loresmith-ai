@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResourceSidePanel } from "@/components/resource-side-panel/ResourceSidePanel";
 import { makeCampaign } from "../factories";
 
@@ -47,6 +47,10 @@ describe("ResourceSidePanel", () => {
 		vi.clearAllMocks();
 	});
 
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("should render when authenticated", () => {
 		render(
 			<ResourceSidePanel
@@ -75,7 +79,7 @@ describe("ResourceSidePanel", () => {
 		expect(container).toBeInTheDocument();
 	});
 
-	it("should call onAddResource when triggerFileUpload is true", () => {
+	it("should call onAddResource when triggerFileUpload is true", async () => {
 		const { rerender } = render(
 			<ResourceSidePanel
 				isAuthenticated={true}
@@ -98,9 +102,9 @@ describe("ResourceSidePanel", () => {
 			/>
 		);
 
-		// The effect should trigger when triggerFileUpload changes to true
-		// Note: This test verifies the prop is passed correctly
-		// The actual effect behavior would be tested in integration tests
+		await waitFor(() => {
+			expect(mockOnAddResource).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	it("should show user menu when showUserMenu is true", () => {
@@ -136,8 +140,6 @@ describe("ResourceSidePanel", () => {
 		await waitFor(() => {
 			expect(mockOnLogout).toHaveBeenCalledTimes(1);
 		});
-
-		confirmSpy.mockRestore();
 	});
 
 	it("should not call onLogout when user cancels logout confirmation", async () => {
@@ -159,8 +161,6 @@ describe("ResourceSidePanel", () => {
 		await waitFor(() => {
 			expect(mockOnLogout).not.toHaveBeenCalled();
 		});
-
-		confirmSpy.mockRestore();
 	});
 
 	it("should toggle user menu when username button is clicked", () => {

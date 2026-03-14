@@ -29,6 +29,7 @@ describe("useBaseAsync", () => {
 	});
 
 	it("sets error on failure", async () => {
+		expect.hasAssertions();
 		const fn = vi.fn().mockRejectedValue(new Error("failed"));
 		const { result } = renderHook(() => useBaseAsync(fn));
 		await act(async () => {
@@ -53,6 +54,7 @@ describe("useBaseAsync", () => {
 	});
 
 	it("calls onError on failure", async () => {
+		expect.hasAssertions();
 		const onError = vi.fn();
 		const fn = vi.fn().mockRejectedValue(new Error("err"));
 		const { result } = renderHook(() => useBaseAsync(fn, { onError }));
@@ -87,6 +89,7 @@ describe("useBaseAsync", () => {
 	});
 
 	it("uses errorMessage when rejection is not an Error", async () => {
+		expect.hasAssertions();
 		const fn = vi.fn().mockRejectedValue("string error");
 		const { result } = renderHook(() =>
 			useBaseAsync(fn, { errorMessage: "Custom fallback" })
@@ -102,6 +105,7 @@ describe("useBaseAsync", () => {
 	});
 
 	it("uses Operation failed when rejection is not Error and no errorMessage", async () => {
+		expect.hasAssertions();
 		const fn = vi.fn().mockRejectedValue({ code: 500 });
 		const { result } = renderHook(() => useBaseAsync(fn));
 		await act(async () => {

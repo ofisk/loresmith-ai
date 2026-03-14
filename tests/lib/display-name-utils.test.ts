@@ -33,4 +33,74 @@ describe("getDisplayName", () => {
 			})
 		).toBe("First");
 	});
+
+	it("falls back when display_name is empty string", () => {
+		expect(
+			getDisplayName({
+				display_name: "",
+				file_name: "document.pdf",
+				name: "x",
+			})
+		).toBe("document.pdf");
+	});
+
+	it("falls back when file_name is empty string", () => {
+		expect(
+			getDisplayName({
+				file_name: "",
+				name: "Generic",
+			})
+		).toBe("Generic");
+	});
+
+	it("returns Unknown file when name is empty string", () => {
+		expect(
+			getDisplayName({
+				name: "",
+			})
+		).toBe("Unknown file");
+	});
+
+	it("returns Unknown file when all fields are empty strings", () => {
+		expect(
+			getDisplayName({
+				display_name: "",
+				file_name: "",
+				name: "",
+			})
+		).toBe("Unknown file");
+	});
+
+	it("returns whitespace-only display_name as-is (truthy)", () => {
+		expect(
+			getDisplayName({
+				display_name: "   ",
+				file_name: "document.pdf",
+				name: "x",
+			})
+		).toBe("   ");
+	});
+
+	it("falls back when display_name is undefined", () => {
+		expect(
+			getDisplayName({
+				display_name: undefined,
+				file_name: "document.pdf",
+				name: "x",
+			})
+		).toBe("document.pdf");
+	});
+
+	it("falls back when file_name is undefined", () => {
+		expect(
+			getDisplayName({
+				file_name: undefined,
+				name: "Generic",
+			})
+		).toBe("Generic");
+	});
+
+	it("returns Unknown file when name is undefined", () => {
+		expect(getDisplayName({ name: undefined })).toBe("Unknown file");
+	});
 });

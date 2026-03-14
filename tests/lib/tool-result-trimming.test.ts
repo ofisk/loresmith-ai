@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { estimateTokenCount } from "@/lib/token-utils";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 
-const mockGetImportanceByEntityIds = vi.fn();
+const mockGetImportanceByEntityIds = vi.hoisted(() => vi.fn());
 
 vi.mock("@/dao/dao-factory", () => ({
 	getDAOFactory: vi.fn(() => ({

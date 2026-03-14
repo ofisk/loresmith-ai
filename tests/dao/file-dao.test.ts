@@ -3,7 +3,7 @@ import type {
 	R2Bucket,
 	VectorizeIndex,
 } from "@cloudflare/workers-types";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileDAO } from "../../src/dao/file/file-dao";
 
 // Mock D1Database
@@ -26,6 +26,10 @@ describe("FileDAO", () => {
 	let fileDAO: FileDAO;
 	let mockPreparedStatement: any;
 
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	beforeEach(() => {
 		fileDAO = new FileDAO(mockDB);
 		mockPreparedStatement = {
@@ -39,10 +43,23 @@ describe("FileDAO", () => {
 	});
 
 	describe("deleteFile", () => {
-		it("should delete file from database only when no external services provided", async () => {
+		it("propagates error when metadata fetch rejects", async () => {
+			expect.hasAssertions();
+
+			mockPreparedStatement.first.mockRejectedValue(
+				new Error("D1 connection lost")
+			);
+
+			await expect(fileDAO.deleteFile("test-file-key")).rejects.toThrow(
+				/D1 connection lost|Database query failed/
+			);
+		});
+
+		it("deletes file from database only when no external services provided", async () => {
+			expect.hasAssertions();
+
 			const fileKey = "test-file-key";
 
-			// Mock getFileMetadata to return null (file doesn't exist)
 			mockPreparedStatement.first.mockResolvedValue(null);
 
 			// Mock transaction execution
@@ -66,7 +83,9 @@ describe("FileDAO", () => {
 			);
 		});
 
-		it("should delete file from database, R2, and vector index when all services provided", async () => {
+		it("deletes file from database, R2, and vector index when all services provided", async () => {
+			expect.hasAssertions();
+
 			const fileKey = "test-file-key";
 			const mockMetadata = {
 				id: "test-id",
@@ -114,7 +133,9 @@ describe("FileDAO", () => {
 			]);
 		});
 
-		it("should handle R2 deletion errors gracefully", async () => {
+		it("handles R2 deletion errors gracefully", async () => {
+			expect.hasAssertions();
+
 			const fileKey = "test-file-key";
 			const mockMetadata = {
 				id: "test-id",
@@ -153,11 +174,11 @@ describe("FileDAO", () => {
 				expect.stringContaining("Failed to delete file from R2"),
 				expect.any(Error)
 			);
-
-			consoleSpy.mockRestore();
 		});
 
-		it("should handle vector index deletion errors gracefully", async () => {
+		it("handles vector index deletion errors gracefully", async () => {
+			expect.hasAssertions();
+
 			const fileKey = "test-file-key";
 			const mockMetadata = {
 				id: "test-id",
@@ -203,11 +224,11 @@ describe("FileDAO", () => {
 				expect.stringContaining("Failed to delete vector embeddings"),
 				expect.any(Error)
 			);
-
-			consoleSpy.mockRestore();
 		});
 
-		it("should not attempt vector index deletion when no vector_id exists", async () => {
+		it("does not attempt vector index deletion when no vector_id exists", async () => {
+			expect.hasAssertions();
+
 			const fileKey = "test-file-key";
 			const mockMetadata = {
 				id: "test-id",

@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJwtExpiration } from "@/hooks/useJwtExpiration";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 
-const mockGetStoredJwt = vi.fn();
-const mockIsJwtExpired = vi.fn();
+const mockGetStoredJwt = vi.hoisted(() => vi.fn());
+const mockIsJwtExpired = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/core/auth-service", () => ({
 	getStoredJwt: () => mockGetStoredJwt(),
@@ -54,6 +54,7 @@ describe("useJwtExpiration", () => {
 	});
 
 	it("sets expired when JWT_EXPIRED event is dispatched", () => {
+		expect.hasAssertions();
 		mockGetStoredJwt.mockReturnValue(null);
 		mockIsJwtExpired.mockReturnValue(false);
 

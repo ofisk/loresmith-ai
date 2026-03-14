@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	appendNumberToDisplayName,
 	appendNumberToFilename,
 	buildLibraryFileKey,
 	buildStagingFileKey,
 	getFileTypeFromName,
+	getUniqueDisplayName,
 	getUniqueFilename,
 } from "@/lib/file/file-utils";
 
@@ -14,23 +15,23 @@ describe("file-utils", () => {
 			expect(getFileTypeFromName("")).toBe("file");
 		});
 
-		it("returns PDF for .pdf", () => {
-			expect(getFileTypeFromName("doc.pdf")).toBe("PDF");
-			expect(getFileTypeFromName("path/to/doc.PDF")).toBe("PDF");
-		});
-
-		it("returns Document for .doc and .docx", () => {
-			expect(getFileTypeFromName("file.doc")).toBe("Document");
-			expect(getFileTypeFromName("file.docx")).toBe("Document");
-		});
-
-		it("returns Image for image extensions", () => {
-			expect(getFileTypeFromName("photo.jpg")).toBe("Image");
-			expect(getFileTypeFromName("photo.png")).toBe("Image");
-		});
-
-		it("returns File for unknown extension", () => {
-			expect(getFileTypeFromName("file.xyz")).toBe("File");
+		it.each([
+			["doc.pdf", "PDF"],
+			["path/to/doc.PDF", "PDF"],
+			["file.doc", "Document"],
+			["file.docx", "Document"],
+			["note.txt", "Text"],
+			["readme.md", "Markdown"],
+			["data.json", "JSON"],
+			["photo.jpg", "Image"],
+			["photo.png", "Image"],
+			["photo.webp", "Image"],
+			["audio.mp3", "Audio"],
+			["audio.wav", "Audio"],
+			["video.mp4", "Video"],
+			["file.xyz", "File"],
+		])("returns %s for %s", (fileName, expected) => {
+			expect(getFileTypeFromName(fileName)).toBe(expected);
 		});
 	});
 
@@ -47,6 +48,19 @@ describe("file-utils", () => {
 			expect(appendNumberToFilename("file.name.pdf", 1)).toBe(
 				"file.name (1).pdf"
 			);
+		});
+
+		it("handles number 0", () => {
+			expect(appendNumberToFilename("file.pdf", 0)).toBe("file (0).pdf");
+		});
+
+		it("handles leading-dot filenames (treats leading dot as extension start)", () => {
+			// lastIndexOf(".") = 0, so name = "" and extension = ".gitignore"
+			expect(appendNumberToFilename(".gitignore", 1)).toBe(" (1).gitignore");
+		});
+
+		it("handles empty string filename", () => {
+			expect(appendNumberToFilename("", 1)).toBe(" (1)");
 		});
 	});
 
@@ -74,6 +88,66 @@ describe("file-utils", () => {
 			const checkExists = async (_: string, name: string) => existing.has(name);
 			const result = await getUniqueFilename(checkExists, "doc.pdf", "user1");
 			expect(result).toBe("doc (2).pdf");
+		});
+
+		it("falls back to timestamp when exceeding 1000 collisions", async () => {
+			const checkExists = vi.fn().mockResolvedValue(true);
+
+			const result = await getUniqueFilename(checkExists, "doc.pdf", "user1");
+
+			expect(result).toMatch(/^doc_\d+\.pdf$/);
+			expect(checkExists).toHaveBeenCalledTimes(1001);
+		});
+	});
+
+	describe("getUniqueDisplayName", () => {
+		it("returns original when not exists", async () => {
+			const checkExists = async () => false;
+			const result = await getUniqueDisplayName(
+				checkExists,
+				"My Document",
+				"user1"
+			);
+			expect(result).toBe("My Document");
+		});
+
+		it("appends number when exists", async () => {
+			const checkExists = async (_: string, name: string) =>
+				name === "My Document";
+			const result = await getUniqueDisplayName(
+				checkExists,
+				"My Document",
+				"user1"
+			);
+			expect(result).toBe("My Document (1)");
+		});
+
+		it("returns original when originalDisplayName is empty", async () => {
+			const checkExists = vi.fn();
+			const result = await getUniqueDisplayName(checkExists, "", "user1");
+			expect(result).toBe("");
+			expect(checkExists).not.toHaveBeenCalled();
+		});
+
+		it("uses excludeFileKey when provided", async () => {
+			const checkExists = vi
+				.fn()
+				.mockImplementation(
+					async (_: string, name: string, excludeFileKey?: string) => {
+						if (excludeFileKey === "file-123" && name === "My Doc") {
+							return false;
+						}
+						return name === "My Doc";
+					}
+				);
+			const result = await getUniqueDisplayName(
+				checkExists,
+				"My Doc",
+				"user1",
+				"file-123"
+			);
+			expect(result).toBe("My Doc");
+			expect(checkExists).toHaveBeenCalledWith("user1", "My Doc", "file-123");
 		});
 	});
 
@@ -107,6 +181,19 @@ describe("file-utils", () => {
 				"Invalid filename for storage"
 			);
 		});
+
+		it("handles Unicode filenames", () => {
+			expect(buildStagingFileKey("user1", "café.pdf")).toBe(
+				"staging/user1/café.pdf"
+			);
+		});
+
+		it("handles long filenames", () => {
+			const longName = "a".repeat(200) + ".pdf";
+			expect(buildStagingFileKey("user1", longName)).toBe(
+				`staging/user1/${longName}`
+			);
+		});
 	});
 
 	describe("buildLibraryFileKey", () => {
@@ -130,6 +217,18 @@ describe("file-utils", () => {
 			await expect(buildLibraryFileKey("user1", "")).rejects.toThrow(
 				"Invalid filename for storage"
 			);
+		});
+
+		it("handles Unicode filenames", async () => {
+			const key = await buildLibraryFileKey("user1", "café.pdf");
+			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\/café\.pdf$/);
+		});
+
+		it("handles long filenames", async () => {
+			const longName = "a".repeat(200) + ".pdf";
+			const key = await buildLibraryFileKey("user1", longName);
+			expect(key).toContain(longName);
+			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\//);
 		});
 	});
 });

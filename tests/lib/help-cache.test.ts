@@ -22,10 +22,13 @@ describe("help-cache", () => {
 
 	it("getCachedHelp returns null for expired cache", () => {
 		vi.useFakeTimers();
-		setCachedHelp("open_help", "Content");
-		vi.advanceTimersByTime(11 * 60 * 1000); // 11 minutes
-		expect(getCachedHelp("open_help")).toBeNull();
-		vi.useRealTimers();
+		try {
+			setCachedHelp("open_help", "Content");
+			vi.advanceTimersByTime(11 * 60 * 1000); // 11 minutes
+			expect(getCachedHelp("open_help")).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("getCachedHelp returns null for invalid JSON", () => {
