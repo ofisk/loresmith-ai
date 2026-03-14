@@ -146,6 +146,7 @@ export function GraphControls({
 						onSelectionChange={handleEntityTypeChange}
 						placeholder="All entity types"
 						size="sm"
+						ariaLabel="Entity types"
 					/>
 				</div>
 
@@ -160,6 +161,7 @@ export function GraphControls({
 						onSelectionChange={handleRelationshipTypeChange}
 						placeholder="All relationship types"
 						size="sm"
+						ariaLabel="Relationship types"
 					/>
 				</div>
 
@@ -179,6 +181,7 @@ export function GraphControls({
 							onSelectionChange={handleApprovalStatusChange}
 							placeholder="All statuses"
 							size="sm"
+							ariaLabel="Approval status"
 						/>
 					</div>
 				)}
@@ -197,6 +200,7 @@ export function GraphControls({
 							onSelectionChange={handleResourceChange}
 							placeholder="All resources"
 							size="sm"
+							ariaLabel="Resource"
 						/>
 					</div>
 				)}
@@ -215,6 +219,7 @@ export function GraphControls({
 			<div className="flex flex-col gap-2">
 				<h3 className="text-sm font-semibold">Layout</h3>
 				<select
+					aria-label="Graph layout"
 					value={layout}
 					onChange={(e) => onLayoutChange(e.target.value as CytoscapeLayout)}
 					className="flex w-full rounded-md border border-neutral-300 dark:border-neutral-600 bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"

@@ -38,7 +38,7 @@ describe("useLocalNotifications", () => {
 	});
 
 	it("addLocalNotification adds a notification", () => {
-		const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const _consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const { result } = renderHook(() => useLocalNotifications(), {
 			wrapper,
 		});
@@ -58,7 +58,7 @@ describe("useLocalNotifications", () => {
 	});
 
 	it("dismissNotification removes local notification by timestamp", () => {
-		const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const _consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const { result } = renderHook(() => useLocalNotifications(), {
 			wrapper,
 		});
@@ -76,7 +76,7 @@ describe("useLocalNotifications", () => {
 	});
 
 	it("clearAllNotifications clears local notifications", () => {
-		const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const _consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const { result } = renderHook(() => useLocalNotifications(), {
 			wrapper,
 		});

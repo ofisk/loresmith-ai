@@ -189,7 +189,7 @@ describe("file-utils", () => {
 		});
 
 		it("handles long filenames", () => {
-			const longName = "a".repeat(200) + ".pdf";
+			const longName = `${"a".repeat(200)}.pdf`;
 			expect(buildStagingFileKey("user1", longName)).toBe(
 				`staging/user1/${longName}`
 			);
@@ -225,7 +225,7 @@ describe("file-utils", () => {
 		});
 
 		it("handles long filenames", async () => {
-			const longName = "a".repeat(200) + ".pdf";
+			const longName = `${"a".repeat(200)}.pdf`;
 			const key = await buildLibraryFileKey("user1", longName);
 			expect(key).toContain(longName);
 			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\//);
