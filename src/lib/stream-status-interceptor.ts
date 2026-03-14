@@ -78,12 +78,14 @@ export interface RateLimitExceededParams {
  * Create a fetch wrapper that intercepts SSE status chunks from the response
  * and calls onStatus for each, while forwarding the transformed stream to the caller.
  * When response status is 429, parses the JSON body and calls onRateLimitExceeded.
+ * When response status is 401, calls onUnauthorized (e.g. to open auth modal).
  */
 export function createStatusInterceptingFetch(
 	originalFetch: typeof fetch,
 	onStatus: (message: string) => void,
 	options?: {
 		onRateLimitExceeded?: (params: RateLimitExceededParams) => void;
+		onUnauthorized?: () => void;
 	}
 ): typeof fetch {
 	return async (
@@ -91,6 +93,11 @@ export function createStatusInterceptingFetch(
 		init?: RequestInit
 	): Promise<Response> => {
 		const response = await originalFetch(input, init);
+
+		// Handle 401 - open auth modal
+		if (response.status === 401 && options?.onUnauthorized) {
+			options.onUnauthorized();
+		}
 
 		// Handle 429 rate limit - parse body and notify before returning
 		if (response.status === 429 && options?.onRateLimitExceeded) {

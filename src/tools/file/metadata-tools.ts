@@ -31,6 +31,7 @@ const updateFileMetadataSchema = z.object({
 export const updateFileMetadata = tool({
 	description: "Update metadata for an uploaded file",
 	inputSchema: updateFileMetadataSchema,
+	strict: true,
 	execute: async (
 		input: z.infer<typeof updateFileMetadataSchema>,
 		options?: ToolExecuteOptions

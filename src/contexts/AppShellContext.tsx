@@ -96,6 +96,8 @@ export interface AppShellContextValue {
 	handleHelpAction: (action: string) => void;
 	handleSessionRecapRequest?: () => void;
 	handleNextStepsRequest: () => void;
+	chatError: Error | undefined;
+	onRegenerate: () => Promise<void>;
 
 	// Shard overlay
 	canReviewShards: boolean;
@@ -231,6 +233,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		invisibleUserContentsVersion,
 		addToInvisible,
 		append,
+		error: chatError,
+		regenerate,
 	} = chatSession;
 
 	useAppEventHandlers({
@@ -288,13 +292,14 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 
 	const onToggleSidebar = useCallback(
 		() => setIsMobileSidebarOpen((p) => !p),
-		[]
+		[setIsMobileSidebarOpen]
 	);
 	const onUploadFiles = useCallback(
 		() => setTriggerFileUpload(true),
 		[setTriggerFileUpload]
 	);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: invisibleUserContentsRef.current intentionally excluded; invisibleUserContentsVersion triggers updates when ref changes
 	const value = useMemo<AppShellContextValue>(
 		() => ({
 			showBillingPage,
@@ -351,6 +356,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 					? handleSessionRecapRequest
 					: undefined,
 			handleNextStepsRequest,
+			chatError,
+			onRegenerate: () => regenerate(),
 			canReviewShards: canReviewShards ?? false,
 			visibleShardGroups,
 			shardsLoading,
@@ -415,8 +422,9 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			invisibleUserContentsVersion,
 			handleHelpAction,
 			handleSessionRecapRequest,
-			selectedCampaign,
 			handleNextStepsRequest,
+			chatError,
+			regenerate,
 			canReviewShards,
 			visibleShardGroups,
 			shardsLoading,

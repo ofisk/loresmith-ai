@@ -51,6 +51,10 @@ interface ChatAreaProps {
 	invisibleUserContents?: Set<string>;
 	/** Live status from agent (e.g. "Searching campaign...") for thinking spinner */
 	agentStatus?: string | null;
+	/** Error from chat request; when set, show error banner with retry */
+	chatError?: Error | undefined;
+	/** Retry failed request (e.g. after error) */
+	onRegenerate?: () => Promise<void>;
 }
 
 /**
@@ -77,6 +81,8 @@ export function ChatArea({
 	onCreateCampaign,
 	invisibleUserContents,
 	agentStatus,
+	chatError,
+	onRegenerate,
 }: ChatAreaProps) {
 	const [placeholder] = useState(() => getRandomPrompt());
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
@@ -279,6 +285,23 @@ export function ChatArea({
 				{messages.length === 0 && chatHistoryLoading && (
 					<div className="flex items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
 						Loading conversation…
+					</div>
+				)}
+
+				{chatError && (
+					<div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-4 py-3 flex items-center justify-between gap-3">
+						<span className="text-sm text-red-800 dark:text-red-200">
+							Something went wrong. Please try again.
+						</span>
+						{onRegenerate && (
+							<button
+								type="button"
+								onClick={() => void onRegenerate()}
+								className="shrink-0 text-sm font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 underline"
+							>
+								Try again
+							</button>
+						)}
 					</div>
 				)}
 

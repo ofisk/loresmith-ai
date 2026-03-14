@@ -1,4 +1,5 @@
 import { formatDataStreamPart } from "@ai-sdk/ui-utils";
+import { getToolPartInfo, isComplete, isToolPart } from "@/lib/tool-part-utils";
 import type { Message } from "@/types/ai-message";
 import { APPROVAL } from "./shared-config";
 
@@ -45,60 +46,57 @@ export async function processToolCalls({
 
 	const processedParts = await Promise.all(
 		parts.map(async (part) => {
-			// Only process tool invocations parts
-			if (part.type !== "tool-invocation" || !part.toolInvocation) return part;
+			if (!isToolPart(part)) return part;
 
-			const toolInvocation = part.toolInvocation;
-			const toolName = toolInvocation.toolName;
-
-			// Only continue if we have an execute function for the tool (meaning it requires confirmation) and it's in a 'result' state
-			if (!(toolName in executions) || toolInvocation.state !== "result")
+			const info = getToolPartInfo(part);
+			if (!info || !(info.toolName in executions) || !isComplete(info.state))
 				return part;
 
+			const approval = info.output;
 			let result: unknown;
 
-			if (toolInvocation.result === APPROVAL.YES) {
-				// Get the tool and check if the tool has an execute function.
-				if (
-					!isValidToolName(toolName, executions) ||
-					toolInvocation.state !== "result"
-				) {
-					return part;
-				}
+			if (approval === APPROVAL.YES) {
+				if (!isValidToolName(info.toolName, executions)) return part;
 
-				const toolInstance = executions[toolName as string];
+				const toolInstance = executions[info.toolName as string];
 				if (toolInstance) {
-					result = await toolInstance(toolInvocation.args, {
-						// For now pass raw messages; callers can adapt if needed.
+					result = await toolInstance(info.input, {
 						messages,
-						toolCallId: toolInvocation.toolCallId,
+						toolCallId: info.toolCallId,
 					});
 				} else {
 					result = "Error: No execute function found on tool";
 				}
-			} else if (toolInvocation.result === APPROVAL.NO) {
+			} else if (approval === APPROVAL.NO) {
 				result = "Error: User denied access to tool execution";
 			} else {
-				// For any unhandled responses, return the original part.
 				return part;
 			}
 
-			// Forward updated tool result to the client.
 			dataStream.write(
 				formatDataStreamPart("tool_result", {
-					toolCallId: toolInvocation.toolCallId,
+					toolCallId: info.toolCallId,
 					result,
 				})
 			);
 
-			// Return updated toolInvocation with the actual result.
-			return {
-				...part,
-				toolInvocation: {
-					...toolInvocation,
-					result,
-				},
+			const legacyPart = part as {
+				type: string;
+				toolInvocation?: {
+					state: string;
+					toolName: string;
+					toolCallId: string;
+					args?: unknown;
+					result?: unknown;
+				};
 			};
+			if (legacyPart.type === "tool-invocation" && legacyPart.toolInvocation) {
+				return {
+					...part,
+					toolInvocation: { ...legacyPart.toolInvocation, result },
+				};
+			}
+			return { ...part, output: result };
 		})
 	);
 

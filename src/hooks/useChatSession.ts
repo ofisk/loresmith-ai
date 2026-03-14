@@ -9,6 +9,12 @@ import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getCachedHelp, setCachedHelp } from "@/lib/help-cache";
 import { getHelpContent } from "@/lib/help-content";
 import { createStatusInterceptingFetch } from "@/lib/stream-status-interceptor";
+import {
+	getToolPartInfo,
+	isComplete,
+	isPendingConfirmation,
+	isToolPart,
+} from "@/lib/tool-part-utils";
 import { API_CONFIG } from "@/shared-config";
 import type { campaignTools } from "@/tools/campaign";
 import type { fileTools } from "@/tools/file";
@@ -122,6 +128,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 									: params.error
 							);
 						},
+						onUnauthorized: () => modalState.setShowAuthModal(true),
 					}
 				),
 				headers: () => ({
@@ -168,7 +175,12 @@ export function useChatSession(options: UseChatSessionOptions) {
 					};
 				},
 			}),
-		[conversationId, modalState.showRateLimitReachedModal, addLocalNotification]
+		[
+			conversationId,
+			modalState.showRateLimitReachedModal,
+			modalState.setShowAuthModal,
+			addLocalNotification,
+		]
 	);
 
 	const {
@@ -177,9 +189,14 @@ export function useChatSession(options: UseChatSessionOptions) {
 		setMessages: setChatMessages,
 		status: chatStatus,
 		stop,
+		error: chatError,
+		regenerate,
 	} = useChat({
 		id: conversationId,
 		transport: chatTransport,
+		onError: (_err) => {
+			// Error is surfaced via useChat's error and shown in UI; optionally log/analytics here
+		},
 	});
 
 	const agentMessages = chatMessages as Message[];
@@ -259,15 +276,16 @@ export function useChatSession(options: UseChatSessionOptions) {
 		for (const msg of agentMessages) {
 			if (msg.role !== "assistant" || !msg.parts) continue;
 			for (const part of msg.parts) {
+				if (!isToolPart(part)) continue;
+				const info = getToolPartInfo(part);
 				if (
-					part.type === "tool-invocation" &&
-					part.toolInvocation?.toolName === "createCampaign" &&
-					part.toolInvocation?.state === "result" &&
-					part.toolInvocation.toolCallId
+					info &&
+					info.toolName === "createCampaign" &&
+					isComplete(info.state) &&
+					info.toolCallId
 				) {
-					const id = part.toolInvocation.toolCallId;
-					if (!dispatchedCreateCampaignIdsRef.current.has(id)) {
-						dispatchedCreateCampaignIdsRef.current.add(id);
+					if (!dispatchedCreateCampaignIdsRef.current.has(info.toolCallId)) {
+						dispatchedCreateCampaignIdsRef.current.add(info.toolCallId);
 						window.dispatchEvent(
 							new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_CREATED, {
 								detail: {},
@@ -653,17 +671,20 @@ export function useChatSession(options: UseChatSessionOptions) {
 	]);
 
 	const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
-		m.parts?.some(
-			(part) =>
-				part.type === "tool-invocation" &&
-				part.toolInvocation?.state === "call" &&
+		m.parts?.some((part) => {
+			if (!isToolPart(part)) return false;
+			const info = getToolPartInfo(part);
+			return (
+				info &&
+				isPendingConfirmation(info.state) &&
 				toolsRequiringConfirmation.includes(
-					(part.toolInvocation?.toolName ?? "") as
+					info.toolName as
 						| keyof typeof generalTools
 						| keyof typeof campaignTools
 						| keyof typeof fileTools
 				)
-		)
+			);
+		})
 	);
 
 	const formatTime = useCallback((date: Date) => {
@@ -751,5 +772,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 		invisibleUserContentsVersion,
 		addToInvisible,
 		append,
+		error: chatError,
+		regenerate,
 	};
 }

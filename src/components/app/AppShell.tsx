@@ -134,6 +134,8 @@ export function AppShell() {
 								onCreateCampaign={ctx.modalState.handleCreateCampaign}
 								invisibleUserContents={ctx.invisibleUserContents}
 								agentStatus={ctx.agentStatus}
+								chatError={ctx.chatError}
+								onRegenerate={ctx.onRegenerate}
 							/>
 						</div>
 					</div>

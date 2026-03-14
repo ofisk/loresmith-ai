@@ -275,6 +275,7 @@ export const deleteFile = tool({
 	description:
 		"Delete a specific file for the current user. This action requires confirmation before execution.",
 	inputSchema: deleteFileSchema,
+	strict: true,
 	execute: deleteFileExecution,
 });
 

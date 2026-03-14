@@ -39,6 +39,7 @@ DO NOT use this tool if:
 
 When in doubt, use the appropriate tool rather than this no-op tool.`,
 	inputSchema: noOpToolSchema,
+	strict: true,
 	execute: async (
 		input: z.infer<typeof noOpToolSchema>,
 		_options: ToolExecutionOptions
