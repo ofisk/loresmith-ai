@@ -115,6 +115,7 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 	}, [triggerFileUpload, onAddResource, onFileUploadTriggered]);
 
 	const handleLogout = async () => {
+		if (!window.confirm("Are you sure you want to log out?")) return;
 		try {
 			await onLogout?.();
 		} catch (_error) {}
@@ -165,6 +166,8 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 						<button
 							type="button"
 							onClick={() => setShowUserMenu?.(!showUserMenu)}
+							aria-expanded={showUserMenu}
+							aria-haspopup="menu"
 							className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
 						>
 							<span className="w-2 h-2 bg-blue-500 rounded-full"></span>
@@ -174,6 +177,7 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							<CaretDown
 								size={16}
 								className="transition-transform duration-200 ml-auto"
+								aria-hidden="true"
 							/>
 						</button>
 

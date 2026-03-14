@@ -53,6 +53,7 @@ interface AppModalsProps {
 	addFileToCampaigns: ReturnType<
 		typeof useCampaignAddition
 	>["addFileToCampaigns"];
+	isAddingToCampaigns?: boolean;
 	addLocalNotification: ReturnType<
 		typeof useLocalNotifications
 	>["addLocalNotification"];
@@ -73,6 +74,7 @@ export function AppModals({
 	handleUpload,
 	handleFileUpdate,
 	addFileToCampaigns,
+	isAddingToCampaigns = false,
 	addLocalNotification,
 	onProposalConfirm,
 	onProposalCancel,
@@ -169,16 +171,20 @@ export function AppModals({
 	const handleAddToCampaignConfirm = useCallback(async () => {
 		const file = modalState.selectedFile;
 		const campaignIds = [...(modalState.selectedCampaigns ?? [])];
-		modalState.setSelectedCampaigns([]);
-		modalState.handleAddToCampaignClose();
 		if (!file || campaignIds.length === 0) return;
-		await addFileToCampaigns(
-			file,
-			campaignIds,
-			authState.getStoredJwt,
-			addLocalNotification,
-			() => {}
-		);
+		try {
+			await addFileToCampaigns(
+				file,
+				campaignIds,
+				authState.getStoredJwt,
+				addLocalNotification,
+				() => {}
+			);
+			modalState.setSelectedCampaigns([]);
+			modalState.handleAddToCampaignClose();
+		} catch {
+			// Keep modal open on error; addFileToCampaigns shows error notification
+		}
 	}, [
 		modalState,
 		authState.getStoredJwt,
@@ -304,13 +310,12 @@ export function AppModals({
 					campaignDescription={modalState.campaignDescription}
 					onCampaignDescriptionChange={modalState.setCampaignDescription}
 					onCreateCampaign={async (name, description) => {
-						try {
-							await createCampaign(name, description);
-							await refetchCampaigns();
-							modalState.handleCreateCampaignClose();
-						} catch (_error) {
-							// Keep modal open on error so user can retry
-						}
+						await createCampaign(name, description);
+						await refetchCampaigns();
+					}}
+					onSuggestAddResource={() => {
+						modalState.handleCreateCampaignClose();
+						modalState.handleAddResource();
 					}}
 				/>
 			</Modal>
@@ -324,6 +329,7 @@ export function AppModals({
 				onUpdate={handleCampaignUpdate}
 				checkQuotaBeforeAdd={async () => ({ allowed: true })}
 				onShowQuotaWarning={modalState.showQuotaWarningModalFn}
+				addLocalNotification={addLocalNotification}
 				onAddFileToCampaign={async (fileKey: string, fileName: string) => {
 					if (modalState.selectedCampaign) {
 						return await addFileToCampaigns(
@@ -346,6 +352,9 @@ export function AppModals({
 				className="modal-size-lg"
 			>
 				<ResourceUpload
+					onValidationError={(title, message) =>
+						addLocalNotification(NOTIFICATION_TYPES.ERROR, title, message)
+					}
 					onUpload={async (file, filename, description, tags, options) => {
 						// Only close modal when single file or user finished (keep open for multi-file so they can upload rest)
 						if (!options?.keepModalOpen) {
@@ -428,17 +437,27 @@ export function AppModals({
 					</p>
 					<div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
 						{availableCampaigns.length === 0 ? (
-							<div className="text-center py-6">
-								<div className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
+							<div className="text-center py-6 space-y-3">
+								<div className="text-sm text-neutral-500 dark:text-neutral-400">
 									This file has already been added to all available campaigns.
 								</div>
 								<div className="text-xs text-neutral-400 dark:text-neutral-500">
 									Create a new campaign to add this file to additional
 									adventures.
 								</div>
+								<button
+									type="button"
+									onClick={() => {
+										modalState.handleAddToCampaignClose();
+										modalState.setIsCreateCampaignModalOpen(true);
+									}}
+									className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+								>
+									Create new campaign
+								</button>
 							</div>
 						) : (
-							<div className="flex flex-wrap gap-2">
+							<div className="space-y-1 max-h-64 overflow-y-auto">
 								{availableCampaigns.map((campaign) => {
 									const isSelected = modalState.selectedCampaigns.includes(
 										campaign.campaignId
@@ -446,33 +465,16 @@ export function AppModals({
 									const canAddToCampaign =
 										!campaign.role || EDIT_ROLES.has(campaign.role);
 									return (
-										<button
+										<label
 											key={campaign.campaignId}
-											type="button"
-											onClick={() => {
-												if (!canAddToCampaign) return;
-												if (isSelected) {
-													modalState.setSelectedCampaigns(
-														modalState.selectedCampaigns.filter(
-															(id) => id !== campaign.campaignId
-														)
-													);
-												} else {
-													modalState.setSelectedCampaigns([
-														...modalState.selectedCampaigns,
-														campaign.campaignId,
-													]);
-												}
-											}}
-											disabled={!canAddToCampaign}
 											className={cn(
-												"px-3 py-1.5 text-sm transition-colors rounded border-2",
-												"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2",
+												"flex items-center gap-3 px-3 py-2 rounded border-2 cursor-pointer transition-colors",
+												"focus-within:ring-2 focus-within:ring-neutral-400 dark:focus-within:ring-neutral-500 focus-within:ring-offset-2 focus-within:ring-offset-white dark:focus-within:ring-offset-neutral-900",
 												!canAddToCampaign
-													? "font-normal bg-neutral-100 dark:bg-neutral-900 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-800 cursor-not-allowed opacity-70"
+													? "bg-neutral-100 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 opacity-70 cursor-not-allowed"
 													: isSelected
-														? "font-medium bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600"
-														: "font-normal bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+														? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700"
+														: "bg-transparent border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700"
 											)}
 											title={
 												canAddToCampaign
@@ -480,8 +482,56 @@ export function AppModals({
 													: "You do not have permission to add resources to this campaign"
 											}
 										>
-											{campaign.name}
-										</button>
+											<input
+												type="checkbox"
+												checked={isSelected}
+												disabled={!canAddToCampaign}
+												onChange={() => {
+													if (!canAddToCampaign) return;
+													if (isSelected) {
+														modalState.setSelectedCampaigns(
+															modalState.selectedCampaigns.filter(
+																(id) => id !== campaign.campaignId
+															)
+														);
+													} else {
+														modalState.setSelectedCampaigns([
+															...modalState.selectedCampaigns,
+															campaign.campaignId,
+														]);
+													}
+												}}
+												className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+												aria-label={`Add to ${campaign.name}`}
+											/>
+											<span
+												className={cn(
+													"text-sm truncate flex-1 min-w-0",
+													!canAddToCampaign
+														? "text-neutral-400 dark:text-neutral-500"
+														: "text-neutral-800 dark:text-neutral-200"
+												)}
+											>
+												{campaign.name}
+											</span>
+											{isSelected && (
+												<svg
+													className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+													aria-hidden
+												>
+													<title>Selected</title>
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														strokeWidth={2}
+														d="M5 13l4 4L19 7"
+													/>
+												</svg>
+											)}
+										</label>
 									);
 								})}
 							</div>
@@ -493,8 +543,10 @@ export function AppModals({
 									<FormButton
 										variant="primary"
 										onClick={handleAddToCampaignConfirm}
+										loading={isAddingToCampaigns}
+										disabled={isAddingToCampaigns}
 									>
-										{availableCampaigns.length === 0 ? "Close" : "Add"}
+										{isAddingToCampaigns ? "Adding…" : "Add"}
 									</FormButton>
 								)}
 								<FormButton

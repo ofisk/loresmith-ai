@@ -747,7 +747,7 @@ html {
 	transition-duration: 150ms;
 }
 
-.add-focus {
+.add-focus:focus-visible {
 	outline: none;
 }
 .add-focus:focus-visible {
@@ -886,6 +886,28 @@ html {
 @keyframes refresh {
 	to {
 		transform: rotate(360deg) scale(0.9);
+	}
+}
+
+/* Modal enter animation: subtle fade + translate */
+@keyframes modal-enter {
+	from {
+		opacity: 0;
+		transform: translateY(-8px) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.animate-modal-enter {
+	animation: modal-enter 0.2s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-modal-enter {
+		animation: none;
 	}
 }
 

@@ -31,6 +31,9 @@ export type OnUploadLimitReached = (
 	filesToQueue: Array<{ file: File; filename: string }>
 ) => void;
 
+/** Callback for validation errors (file size, unsupported type); use for toast/inline feedback */
+export type OnValidationError = (title: string, message: string) => void;
+
 interface ResourceUploadProps {
 	onUpload: (
 		file: File,
@@ -40,6 +43,7 @@ interface ResourceUploadProps {
 		options?: ResourceUploadOptions
 	) => void | Promise<void>;
 	onCancel?: () => void;
+	onValidationError?: OnValidationError;
 	loading?: boolean;
 	className?: string;
 	jwtUsername?: string | null;
@@ -58,6 +62,7 @@ interface ResourceUploadProps {
 export const ResourceUpload = ({
 	onUpload,
 	onCancel,
+	onValidationError,
 	loading = false,
 	className,
 	jwtUsername: _jwtUsername,
@@ -116,8 +121,9 @@ export const ResourceUpload = ({
 			if (file.size > MAX_FILE_SIZE) {
 				const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
 				const fileSizeMB = file.size / (1024 * 1024);
-				alert(
-					`File "${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB. Please split the file into smaller parts.`
+				onValidationError?.(
+					"File too large",
+					`"${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB. Please split the file into smaller parts.`
 				);
 				return false;
 			}
@@ -147,8 +153,9 @@ export const ResourceUpload = ({
 		const files = fileList && fileList.length > 0 ? Array.from(fileList) : [];
 		const validFiles = validateAndFilterFiles(files);
 		if (files.length > 0 && validFiles.length === 0) {
-			alert(
-				"Unsupported file type. Allowed: PDF, TXT, DOC, DOCX, MD, MDX, JSON, JPG, JPEG, PNG, WEBP."
+			onValidationError?.(
+				"Unsupported file type",
+				"Allowed: PDF, TXT, DOC, DOCX, MD, MDX, JSON, JPG, JPEG, PNG, WEBP."
 			);
 		}
 		setSelectedFilesState(validFiles);

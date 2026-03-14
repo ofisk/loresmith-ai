@@ -36,16 +36,16 @@ describe("BlockingAuthenticationModal", () => {
 		const submit = screen.getByRole("button", { name: /create account/i });
 		expect(submit).toBeDisabled();
 
-		fireEvent.change(screen.getByLabelText(/^username$/i), {
+		fireEvent.change(screen.getByLabelText(/username/i), {
 			target: { value: "testuser" },
 		});
-		fireEvent.change(screen.getByLabelText(/^email$/i), {
+		fireEvent.change(screen.getByLabelText(/email/i), {
 			target: { value: "test@example.com" },
 		});
-		fireEvent.change(screen.getByLabelText(/^password$/i), {
+		fireEvent.change(screen.getByPlaceholderText("At least 8 characters"), {
 			target: { value: "password123" },
 		});
-		fireEvent.change(screen.getByLabelText(/^confirm password$/i), {
+		fireEvent.change(screen.getByPlaceholderText("Same as above"), {
 			target: { value: "password123" },
 		});
 
@@ -60,10 +60,10 @@ describe("BlockingAuthenticationModal", () => {
 		const submit = screen.getByRole("button", { name: /^sign in$/i });
 		expect(submit).toBeDisabled();
 
-		fireEvent.change(screen.getByLabelText(/^username$/i), {
+		fireEvent.change(screen.getByLabelText(/username/i), {
 			target: { value: "testuser" },
 		});
-		fireEvent.change(screen.getByLabelText(/^password$/i), {
+		fireEvent.change(screen.getByLabelText(/password/i), {
 			target: { value: "password123" },
 		});
 

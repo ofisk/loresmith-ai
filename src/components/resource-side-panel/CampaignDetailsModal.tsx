@@ -10,6 +10,7 @@ import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkI
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
+import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
@@ -56,6 +57,7 @@ interface CampaignDetailsModalProps {
 		fileKey: string,
 		fileName: string
 	) => Promise<string | void>;
+	addLocalNotification?: (type: string, title: string, message: string) => void;
 }
 
 export function CampaignDetailsModal({
@@ -68,6 +70,7 @@ export function CampaignDetailsModal({
 	checkQuotaBeforeAdd,
 	onShowQuotaWarning,
 	onAddFileToCampaign,
+	addLocalNotification,
 }: CampaignDetailsModalProps) {
 	const nameId = useId();
 	const descriptionId = useId();
@@ -198,8 +201,11 @@ export function CampaignDetailsModal({
 					setRetryingResourceId(null);
 				},
 				onError: (error: string) => {
-					// Show user-friendly error message (error parsing already handled in useAuthenticatedRequest)
-					alert(`Failed to retry entity extraction: ${error}`);
+					addLocalNotification?.(
+						NOTIFICATION_TYPES.ERROR,
+						"Retry failed",
+						`Failed to retry entity extraction: ${error}`
+					) ?? alert(`Failed to retry entity extraction: ${error}`);
 					setRetryingResourceId(null);
 				},
 				onStart: () => {
@@ -209,7 +215,7 @@ export function CampaignDetailsModal({
 					// Retry finished
 				},
 			}),
-			[campaign, fetchCampaignResources]
+			[campaign, fetchCampaignResources, addLocalNotification]
 		)
 	);
 
@@ -249,10 +255,14 @@ export function CampaignDetailsModal({
 					}
 				},
 				onError: (error: string) => {
-					alert(`Failed to remove resource: ${error}`);
+					addLocalNotification?.(
+						NOTIFICATION_TYPES.ERROR,
+						"Remove failed",
+						`Failed to remove resource: ${error}`
+					) ?? alert(`Failed to remove resource: ${error}`);
 				},
 			}),
-			[campaign, fetchCampaignResources]
+			[campaign, fetchCampaignResources, addLocalNotification]
 		)
 	);
 
@@ -576,10 +586,18 @@ export function CampaignDetailsModal({
 					</div>
 
 					{/* Tabs */}
-					<div className="mb-4 md:mb-6 border-b border-neutral-200 dark:border-neutral-700 overflow-x-auto">
+					<div
+						className="mb-4 md:mb-6 border-b border-neutral-200 dark:border-neutral-700 overflow-x-auto"
+						role="tablist"
+						aria-label="Campaign details sections"
+					>
 						<div className="flex gap-4 min-w-max">
 							<button
 								type="button"
+								role="tab"
+								aria-selected={activeTab === "details"}
+								aria-controls="tabpanel-details"
+								id="tab-details"
 								onClick={() => setActiveTab("details")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "details"
@@ -591,6 +609,10 @@ export function CampaignDetailsModal({
 							</button>
 							<button
 								type="button"
+								role="tab"
+								aria-selected={activeTab === "digests"}
+								aria-controls="tabpanel-digests"
+								id="tab-digests"
 								onClick={() => setActiveTab("digests")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "digests"
@@ -602,6 +624,10 @@ export function CampaignDetailsModal({
 							</button>
 							<button
 								type="button"
+								role="tab"
+								aria-selected={activeTab === "nextSteps"}
+								aria-controls="tabpanel-nextSteps"
+								id="tab-nextSteps"
 								onClick={() => !isPlayerRole && setActiveTab("nextSteps")}
 								disabled={isPlayerRole}
 								title={
@@ -621,6 +647,10 @@ export function CampaignDetailsModal({
 							</button>
 							<button
 								type="button"
+								role="tab"
+								aria-selected={activeTab === "resources"}
+								aria-controls="tabpanel-resources"
+								id="tab-resources"
 								onClick={() => setActiveTab("resources")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "resources"
@@ -633,41 +663,63 @@ export function CampaignDetailsModal({
 						</div>
 					</div>
 
-					<div className="flex-1 min-h-0 overflow-y-auto pr-1">
+					<div className="flex-1 min-h-0 overflow-y-auto pr-1 overscroll-behavior-contain">
 						{activeTab === "details" && (
-							<CampaignDetailsTab
-								campaign={campaign}
-								isEditing={isEditing}
-								editedName={editedName}
-								editedDescription={editedDescription}
-								nameId={nameId}
-								descriptionId={descriptionId}
-								onNameChange={setEditedName}
-								onDescriptionChange={setEditedDescription}
-							/>
+							<div
+								role="tabpanel"
+								id="tabpanel-details"
+								aria-labelledby="tab-details"
+							>
+								<CampaignDetailsTab
+									campaign={campaign}
+									isEditing={isEditing}
+									editedName={editedName}
+									editedDescription={editedDescription}
+									nameId={nameId}
+									descriptionId={descriptionId}
+									onNameChange={setEditedName}
+									onDescriptionChange={setEditedDescription}
+								/>
+							</div>
 						)}
 
 						{activeTab === "digests" && (
-							<CampaignDigestsTab
-								digests={digests}
-								loading={digestsLoading}
-								error={digestsError}
-								canManageDigests={canShare}
-								onEdit={handleEditDigest}
-								onDelete={handleDeleteDigest}
-								onCreate={handleCreateDigest}
-								onBulkImport={() => setIsBulkImportOpen(true)}
-							/>
+							<div
+								role="tabpanel"
+								id="tabpanel-digests"
+								aria-labelledby="tab-digests"
+							>
+								<CampaignDigestsTab
+									digests={digests}
+									loading={digestsLoading}
+									error={digestsError}
+									canManageDigests={canShare}
+									onEdit={handleEditDigest}
+									onDelete={handleDeleteDigest}
+									onCreate={handleCreateDigest}
+									onBulkImport={() => setIsBulkImportOpen(true)}
+								/>
+							</div>
 						)}
 
 						{activeTab === "nextSteps" && !isPlayerRole && (
-							<div className="mt-2">
+							<div
+								role="tabpanel"
+								id="tabpanel-nextSteps"
+								aria-labelledby="tab-nextSteps"
+								className="mt-2"
+							>
 								<PlanningTasksPanel campaignId={campaign.campaignId} />
 							</div>
 						)}
 
 						{activeTab === "resources" && (
-							<div className="space-y-4">
+							<div
+								role="tabpanel"
+								id="tabpanel-resources"
+								aria-labelledby="tab-resources"
+								className="space-y-4"
+							>
 								{canApproveProposals && campaign && (
 									<PendingProposalsSection
 										campaignId={campaign.campaignId}
@@ -708,7 +760,7 @@ export function CampaignDetailsModal({
 											loading={isUpdating}
 											icon={<FloppyDisk size={16} />}
 										>
-											{isUpdating ? "Saving..." : "Save changes"}
+											{isUpdating ? "Saving…" : "Save changes"}
 										</FormButton>
 										<FormButton
 											onClick={handleCancel}
@@ -849,7 +901,7 @@ export function CampaignDetailsModal({
 														}
 														setSelectedResourceKeys(newSelected);
 													}}
-													className="mt-1 h-4 w-4 text-purple-600 border-neutral-300 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+													className="mt-1 h-4 w-4 text-purple-600 border-neutral-300 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500"
 												/>
 												<div className="flex-1">
 													<div className="font-medium text-neutral-900 dark:text-neutral-100">

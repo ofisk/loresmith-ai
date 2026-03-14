@@ -119,8 +119,8 @@ describe("ShardOverlay", () => {
 			/>
 		);
 
-		// Should show "..." when loading
-		expect(screen.getByText("...")).toBeInTheDocument();
+		// Should show "…" when loading
+		expect(screen.getByText("…")).toBeInTheDocument();
 	});
 
 	it("should expand when button is clicked", () => {

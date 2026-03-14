@@ -19,7 +19,7 @@ export const FormButton: React.FC<FormButtonProps> = ({
 	...props
 }) => {
 	const baseClasses =
-		"flex items-center gap-2 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+		"flex items-center gap-2 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-900 rounded";
 
 	const variantClasses = {
 		primary:

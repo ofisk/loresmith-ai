@@ -56,6 +56,7 @@ test.describe("campaign management", () => {
 			page.getByTestId("create-campaign-submit").click(),
 		]);
 
+		await page.getByRole("button", { name: "Done" }).click();
 		await expect(
 			page.getByRole("button", { name: /Original Name/ }).first()
 		).toBeVisible({ timeout: 10_000 });
@@ -95,6 +96,7 @@ test.describe("campaign management", () => {
 			page.getByTestId("create-campaign-submit").click(),
 		]);
 
+		await page.getByRole("button", { name: "Done" }).click();
 		await expect(
 			page.getByRole("button", { name: /To Delete/ }).first()
 		).toBeVisible({ timeout: 10_000 });

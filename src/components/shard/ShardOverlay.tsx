@@ -34,7 +34,7 @@ export const ShardOverlay = ({
 	useEffect(() => {}, []);
 
 	// Show loading state in button when fetching shards
-	const displayCount = isLoading ? "..." : totalShards;
+	const displayCount = isLoading ? "…" : totalShards;
 
 	// Track new shards but don't auto-expand
 	useEffect(() => {
@@ -81,14 +81,17 @@ export const ShardOverlay = ({
 					<button
 						type="button"
 						onClick={toggleExpanded}
+						aria-label={`Show ${displayCount} pending shard${displayCount !== "…" && displayCount !== 1 ? "s" : ""}`}
 						className={`
-              flex items-center justify-center px-1 py-2 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
+              flex items-center justify-center px-1 py-2 rounded-l-lg shadow-lg border border-r-0
+              transition-colors duration-300 ease-in-out transition-opacity duration-300 ease-in-out
               bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700
-              ${hasNewShards ? "animate-pulse" : ""}
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-2
+              ${hasNewShards ? "animate-pulse motion-reduce:animate-none" : ""}
             `}
-						title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}
+						title={`Show ${displayCount} pending shard${displayCount !== "…" && displayCount !== 1 ? "s" : ""}`}
 					>
-						<CaretLeft size={16} weight="bold" />
+						<CaretLeft size={16} weight="bold" aria-hidden />
 					</button>
 				</div>
 			)}
@@ -99,17 +102,20 @@ export const ShardOverlay = ({
 					<button
 						type="button"
 						onClick={toggleExpanded}
+						aria-label={`Show ${displayCount} pending shard${displayCount !== "…" && displayCount !== 1 ? "s" : ""}`}
 						className={`
-              tour-shard-review flex items-center justify-center px-8 py-1.5 rounded-l-lg shadow-lg border border-r-0 transition-all duration-300 ease-in-out
+              tour-shard-review flex items-center justify-center px-8 py-1.5 rounded-l-lg shadow-lg border border-r-0
+              transition-colors duration-300 ease-in-out transition-opacity duration-300 ease-in-out
               bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700
-              ${hasNewShards ? "animate-pulse" : ""}
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-2
+              ${hasNewShards ? "animate-pulse motion-reduce:animate-none" : ""}
             `}
-						title={`Show ${displayCount} pending shard${displayCount !== "..." && displayCount !== 1 ? "s" : ""}`}
+						title={`Show ${displayCount} pending shard${displayCount !== "…" && displayCount !== 1 ? "s" : ""}`}
 					>
 						<div className="flex items-center gap-1">
 							<span className="text-xs font-bold">{displayCount}</span>
 							<span className="text-xs">
-								shard{displayCount !== "..." && displayCount !== 1 ? "s" : ""}
+								shard{displayCount !== "…" && displayCount !== 1 ? "s" : ""}
 							</span>
 						</div>
 					</button>
@@ -121,7 +127,7 @@ export const ShardOverlay = ({
 				className={`
           bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl
           rounded-none md:rounded-bl-2xl md:rounded-tl-2xl
-          transition-all duration-300 ease-in-out
+          transition-[width,opacity] duration-300 ease-in-out
           h-dvh md:h-[var(--height-overlay)]
           ${isExpanded ? "w-screen md:w-[var(--width-overlay-expanded)] opacity-100 pointer-events-auto" : "w-0 opacity-0 overflow-hidden pointer-events-none"}
         `}
@@ -133,13 +139,15 @@ export const ShardOverlay = ({
 							<button
 								type="button"
 								onClick={handleClose}
-								className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors"
+								aria-label="Close panel"
+								className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-2"
 								title="Close panel"
 							>
 								<CaretRight
 									size={20}
 									weight="bold"
 									className="text-neutral-600 dark:text-neutral-400"
+									aria-hidden
 								/>
 							</button>
 							<h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
@@ -157,7 +165,8 @@ export const ShardOverlay = ({
 								<button
 									type="button"
 									onClick={onRefresh}
-									className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors"
+									aria-label="Refresh shards"
+									className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-2"
 									title="Refresh shards"
 								>
 									<svg
@@ -165,9 +174,9 @@ export const ShardOverlay = ({
 										fill="none"
 										stroke="currentColor"
 										viewBox="0 0 24 24"
-										role="img"
-										aria-label="Refresh icon"
+										aria-hidden
 									>
+										<title>Refresh</title>
 										<path
 											strokeLinecap="round"
 											strokeLinejoin="round"
@@ -181,7 +190,7 @@ export const ShardOverlay = ({
 					</div>
 
 					{/* Content - Scrollable */}
-					<div className="flex-1 overflow-y-auto min-h-0 pt-4 md:pt-3 pr-2">
+					<div className="flex-1 overflow-y-auto overscroll-behavior-contain min-h-0 pt-4 md:pt-3 pr-2">
 						<div className="h-full">
 							<UnifiedShardManager
 								shards={shards}

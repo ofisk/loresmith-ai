@@ -75,7 +75,11 @@ export function CampaignDetailsTab({
 			<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm text-muted-foreground">
 				<div className="min-w-0">
 					<span className="font-medium">Created:</span>{" "}
-					{new Date(campaign.createdAt).toLocaleDateString()}
+					{new Intl.DateTimeFormat(undefined, {
+						year: "numeric",
+						month: "short",
+						day: "numeric",
+					}).format(new Date(campaign.createdAt))}
 				</div>
 				<div className="sm:text-right break-all">
 					<span className="font-medium">ID:</span> {campaign.campaignId}

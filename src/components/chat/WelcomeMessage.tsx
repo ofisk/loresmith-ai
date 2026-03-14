@@ -31,7 +31,7 @@ export function WelcomeMessage({
 						<div className="space-y-3">
 							<div>
 								<div className="font-semibold text-base mb-2 flex items-center gap-2">
-									<span className="bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
+									<span className="bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm">
 										Build your campaign library
 									</span>
 								</div>
@@ -45,7 +45,7 @@ export function WelcomeMessage({
 
 							<div>
 								<div className="font-semibold text-base mb-2 flex items-center gap-2">
-									<span className="bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
+									<span className="bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm">
 										Organize your story
 									</span>
 								</div>
@@ -59,7 +59,7 @@ export function WelcomeMessage({
 
 							<div>
 								<div className="font-semibold text-base mb-2 flex items-center gap-2">
-									<span className="bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
+									<span className="bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm">
 										Start brainstorming
 									</span>
 								</div>
@@ -72,7 +72,7 @@ export function WelcomeMessage({
 							</div>
 						</div>
 
-						<p className="font-medium bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700">
+						<p className="font-medium bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700">
 							{hasNoCampaigns
 								? "Start by creating a campaign to organize your story."
 								: "Ready to dive in? Pick an option below to get started:"}
@@ -82,14 +82,17 @@ export function WelcomeMessage({
 						{hasNoCampaigns && onCreateCampaign && (
 							<button
 								type="button"
-								className="flex-1 min-w-[200px] bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border-2 border-neutral-300 dark:border-neutral-600 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+								aria-label="Create your first campaign"
+								className="flex-1 min-w-[200px] bg-white dark:bg-neutral-800 p-5 rounded-xl border-2 border-blue-500/50 dark:border-blue-400/50 backdrop-blur-sm shadow-lg hover:shadow-xl hover:scale-[1.02] hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-200 cursor-pointer text-left ring-2 ring-blue-500/20 dark:ring-blue-400/20"
 								onClick={onCreateCampaign}
 							>
-								<h4 className="font-medium text-base mb-2 flex items-center gap-2">
+								<h4 className="font-semibold text-base mb-2 flex items-center gap-2 text-blue-700 dark:text-blue-300">
 									<img
 										src={campaignIcon}
 										alt="Campaign"
 										className="w-12 h-12"
+										width={48}
+										height={48}
 									/>
 									Create your first campaign
 								</h4>
@@ -101,7 +104,8 @@ export function WelcomeMessage({
 						)}
 						<button
 							type="button"
-							className="flex-1 min-w-[200px] bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+							aria-label="Build your library"
+							className="flex-1 min-w-[200px] bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:scale-[1.02] hover:bg-white dark:hover:bg-neutral-800 transition-all duration-200 cursor-pointer text-left"
 							onClick={onUploadFiles}
 						>
 							<h4 className="font-medium text-base mb-2 flex items-center gap-2">
@@ -109,6 +113,8 @@ export function WelcomeMessage({
 									src={addToLibraryIcon}
 									alt="Add to Library"
 									className="w-12 h-12"
+									width={48}
+									height={48}
 								/>
 								Build your library
 							</h4>
@@ -119,11 +125,18 @@ export function WelcomeMessage({
 						</button>
 						<button
 							type="button"
-							className="flex-1 bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-pointer text-left"
+							aria-label="Plan your campaign"
+							className="flex-1 bg-white/80 dark:bg-neutral-800/80 p-5 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:scale-[1.02] hover:bg-white dark:hover:bg-neutral-800 transition-all duration-200 cursor-pointer text-left"
 							onClick={() => onSuggestionSubmit("Help me plan a new campaign")}
 						>
 							<h4 className="font-medium text-base mb-2 flex items-center gap-2">
-								<img src={mapIcon} alt="Map" className="w-12 h-12" />
+								<img
+									src={mapIcon}
+									alt="Map"
+									className="w-12 h-12"
+									width={48}
+									height={48}
+								/>
 								Plan your campaign
 							</h4>
 							<p className="text-sm text-muted-foreground">

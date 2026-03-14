@@ -10,6 +10,8 @@ interface CreateCampaignModalProps {
 	campaignDescription: string;
 	onCampaignDescriptionChange: (description: string) => void;
 	onCreateCampaign: (name: string, description: string) => Promise<void>;
+	/** Called after successful creation; can open Add Resource modal */
+	onSuggestAddResource?: () => void;
 }
 
 export function CreateCampaignModal({
@@ -20,78 +22,81 @@ export function CreateCampaignModal({
 	campaignDescription,
 	onCampaignDescriptionChange,
 	onCreateCampaign,
+	onSuggestAddResource,
 }: CreateCampaignModalProps) {
 	const [name, setName] = useState(campaignName);
 	const [description, setDescription] = useState(campaignDescription);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [createdSuccessfully, setCreatedSuccessfully] = useState(false);
 
 	// Sync with parent state when modal opens
 	useEffect(() => {
 		if (isOpen) {
 			setName(campaignName);
 			setDescription(campaignDescription);
+			setCreatedSuccessfully(false);
 		}
 	}, [isOpen, campaignName, campaignDescription]);
 
 	const handleCreate = async () => {
 		if (!name.trim() || isSubmitting) return;
 		setIsSubmitting(true);
-		try {
-			if (typeof document !== "undefined") {
-				document.body.style.cursor = "progress";
-				document.documentElement.style.cursor = "progress";
-			}
-		} catch (_e) {}
-
-		// Sync upstream state then close first for instant UX
 		onCampaignNameChange(name);
 		onCampaignDescriptionChange(description);
-		onClose();
 
 		try {
-			// Kick off creation on next tick so close renders immediately
-			await new Promise<void>((resolve) => {
-				setTimeout(async () => {
-					try {
-						await onCreateCampaign(name, description);
-					} finally {
-						// Always reset cursor when campaign creation completes (success or failure)
-						try {
-							if (typeof document !== "undefined") {
-								document.body.style.cursor = "";
-								document.documentElement.style.cursor = "";
-							}
-						} catch (_e) {}
-						resolve();
-					}
-				}, 0);
-			});
+			await onCreateCampaign(name, description);
+			setCreatedSuccessfully(true);
 		} catch (_error) {
-			// Reset cursor on error
-			try {
-				if (typeof document !== "undefined") {
-					document.body.style.cursor = "";
-					document.documentElement.style.cursor = "";
-				}
-			} catch (_e) {}
+			// Keep modal open on error
+		} finally {
+			setIsSubmitting(false);
 		}
 	};
 
-	// Reset cursor and submitting state when modal closes/unmounts
-	useEffect(() => {
-		if (!isOpen) {
-			setIsSubmitting(false);
-			try {
-				if (typeof document !== "undefined") {
-					document.body.style.cursor = "";
-					document.documentElement.style.cursor = "";
-				}
-			} catch (_e) {}
-		}
-	}, [isOpen]);
+	const handleDone = () => {
+		setCreatedSuccessfully(false);
+		onClose();
+	};
+
+	const handleAddResource = () => {
+		setCreatedSuccessfully(false);
+		onClose();
+		onSuggestAddResource?.();
+	};
 
 	const campaignNameId = "campaign-name";
 	const campaignDescriptionId = "campaign-description";
+
+	if (createdSuccessfully) {
+		return (
+			<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
+				<div className="mb-4 md:mb-6">
+					<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+						Campaign created
+					</h2>
+					<p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+						Your adventure awaits. Add your first resource to get started.
+					</p>
+				</div>
+				<div className="flex-1" />
+				<div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+					{onSuggestAddResource && (
+						<FormButton
+							variant="primary"
+							onClick={handleAddResource}
+							data-testid="create-campaign-add-resource"
+						>
+							Add your first resource
+						</FormButton>
+					)}
+					<FormButton onClick={handleDone} variant="secondary">
+						Done
+					</FormButton>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
@@ -110,6 +115,7 @@ export function CreateCampaignModal({
 				<FormField
 					id={campaignNameId}
 					label="Campaign name"
+					required
 					placeholder="Name your legendary adventure..."
 					value={name}
 					onValueChange={(value) => setName(value)}

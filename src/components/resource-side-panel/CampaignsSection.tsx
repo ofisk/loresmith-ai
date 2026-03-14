@@ -27,7 +27,13 @@ export function CampaignsSection({
 		<CollapsibleCard
 			header={
 				<>
-					<img src={campaignIcon} alt="Campaign" className="w-8 h-8" />
+					<img
+						src={campaignIcon}
+						alt="Campaign"
+						className="w-8 h-8"
+						width={32}
+						height={32}
+					/>
 					<span className="font-medium text-sm">Your campaigns</span>
 				</>
 			}
@@ -39,15 +45,21 @@ export function CampaignsSection({
 				<button
 					type="button"
 					onClick={onCreateCampaign}
-					className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+					className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-blue-600 dark:text-blue-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
 				>
 					<Plus size={14} />
 					Create campaign
 				</button>
 			</div>
 			{campaignsLoading ? (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-					<div className="text-muted-foreground mb-2">Loading campaigns...</div>
+				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 space-y-2">
+					{["a", "b", "c", "d"].map((id) => (
+						<div
+							key={id}
+							className="h-8 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse"
+							aria-hidden
+						/>
+					))}
 				</div>
 			) : campaignsError ? (
 				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">

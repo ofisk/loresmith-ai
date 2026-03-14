@@ -1,4 +1,4 @@
-import { PaperPlaneRight, Stop } from "@phosphor-icons/react";
+import { MapTrifold, PaperPlaneRight, Stop } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -235,10 +235,22 @@ export function ChatArea({
 	return (
 		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
 			{/* Campaign Context Selector - at top of chat pane */}
-			<div className="px-4 md:px-8 py-2 md:py-3 flex-shrink-0">
+			<div className="px-4 md:px-8 py-2 md:py-3 flex-shrink-0 flex items-center gap-2">
+				<MapTrifold
+					size={18}
+					className="text-neutral-500 dark:text-neutral-400 shrink-0"
+					aria-hidden
+				/>
+				<label
+					htmlFor="campaign-select"
+					className="text-sm text-neutral-600 dark:text-neutral-400 shrink-0"
+				>
+					Campaign
+				</label>
 				<select
 					id="campaign-select"
-					className="tour-campaign-selector w-full sm:w-auto rounded-md border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+					aria-label="Select campaign context"
+					className="tour-campaign-selector w-full sm:w-auto rounded-md border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-sm text-neutral-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:focus-visible:ring-neutral-500"
 					value={selectedCampaignId ?? ""}
 					onChange={handleCampaignChange}
 				>
@@ -265,8 +277,8 @@ export function ChatArea({
 					/>
 				)}
 				{messages.length === 0 && chatHistoryLoading && (
-					<div className="flex items-center justify-center py-12 text-muted-foreground">
-						Loading conversation...
+					<div className="flex items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
+						Loading conversation…
 					</div>
 				)}
 
@@ -299,9 +311,10 @@ export function ChatArea({
 							disabled={pendingToolCallConfirmation}
 							placeholder={
 								pendingToolCallConfirmation
-									? "Please respond to the tool confirmation above..."
+									? "Please respond to the tool confirmation above…"
 									: placeholder
 							}
+							aria-label="Chat message"
 							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[var(--height-input-min)] max-h-[var(--height-input-max)] overflow-y-auto overflow-x-hidden break-words resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
 							value={input}
 							onChange={

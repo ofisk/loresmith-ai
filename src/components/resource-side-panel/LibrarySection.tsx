@@ -170,7 +170,13 @@ export function LibrarySection({
 		<CollapsibleCard
 			header={
 				<>
-					<img src={libraryIcon} alt="Library" className="w-8 h-8" />
+					<img
+						src={libraryIcon}
+						alt="Library"
+						className="w-8 h-8"
+						width={32}
+						height={32}
+					/>
 					<span className="font-medium text-sm">Your resource library</span>
 				</>
 			}
@@ -194,7 +200,7 @@ export function LibrarySection({
 					<button
 						type="button"
 						onClick={onAddToLibrary}
-						className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+						className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-blue-600 dark:text-blue-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
 					>
 						<Plus size={14} />
 						Add to library

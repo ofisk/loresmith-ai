@@ -110,6 +110,11 @@ export function AppHeader({
 							? "Record session recap"
 							: "Select a campaign to record a session recap"
 					}
+					aria-label={
+						selectedCampaignId
+							? "Record session recap"
+							: "Select a campaign to record a session recap"
+					}
 				>
 					<NotePencil size={18} />
 				</Button>
@@ -124,6 +129,13 @@ export function AppHeader({
 					onClick={onNextStepsRequest}
 					disabled={!selectedCampaignId}
 					tooltip={
+						!selectedCampaignId
+							? "Select a campaign to get next-step suggestions"
+							: isPlayerRole
+								? "What should I do next as a player?"
+								: "What should I do next?"
+					}
+					aria-label={
 						!selectedCampaignId
 							? "Select a campaign to get next-step suggestions"
 							: isPlayerRole
@@ -158,6 +170,7 @@ export function AppHeader({
 					className="tour-admin-dashboard !h-8 !w-8 rounded-full flex items-center justify-center"
 					onClick={onAdminDashboardOpen}
 					tooltip="Admin dashboard - view telemetry and metrics"
+					aria-label="Admin dashboard - view telemetry and metrics"
 				>
 					<ChartBar size={18} />
 				</Button>

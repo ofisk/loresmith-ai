@@ -19,7 +19,7 @@ function formatBytes(bytes: number): string {
 function formatNumber(n: number): string {
 	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
 	if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
-	return n.toLocaleString();
+	return new Intl.NumberFormat().format(n);
 }
 
 interface BillingPageProps {
@@ -219,13 +219,12 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					Sign in to view billing
 				</p>
 				{onBack && (
-					<button
-						type="button"
-						onClick={onBack}
+					<a
+						href="/"
 						className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
 					>
 						Back to app
-					</button>
+					</a>
 				)}
 			</div>
 		);
@@ -233,8 +232,23 @@ export function BillingPage({ onBack }: BillingPageProps) {
 
 	if (loading && !status) {
 		return (
-			<div className="min-h-screen flex items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
-				<p className="text-neutral-600 dark:text-neutral-400">Loading...</p>
+			<div className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950">
+				<div className="max-w-2xl mx-auto space-y-6">
+					<div className="h-8 w-32 rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+					<div className="p-6 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 space-y-3">
+						<div className="h-5 w-24 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+						<div className="h-10 w-20 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+					</div>
+					<div className="grid gap-4 md:grid-cols-2">
+						{["plan-1", "plan-2"].map((id) => (
+							<div
+								key={id}
+								className="h-40 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 animate-pulse"
+								aria-hidden
+							/>
+						))}
+					</div>
+				</div>
 			</div>
 		);
 	}
@@ -254,13 +268,12 @@ export function BillingPage({ onBack }: BillingPageProps) {
 						Retry
 					</button>
 					{onBack && (
-						<button
-							type="button"
-							onClick={onBack}
+						<a
+							href="/"
 							className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
 						>
 							Back to app
-						</button>
+						</a>
 					)}
 				</div>
 			</div>
@@ -279,14 +292,13 @@ export function BillingPage({ onBack }: BillingPageProps) {
 			<div className="max-w-2xl mx-auto">
 				<div className="flex items-center gap-4 mb-8">
 					{onBack && (
-						<button
-							type="button"
-							onClick={onBack}
+						<a
+							href="/"
 							className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
 						>
 							<ArrowLeft size={18} />
-							Back
-						</button>
+							Back to app
+						</a>
 					)}
 					<div className="flex items-center gap-3">
 						<img src={loresmith} alt="LoreSmith" width={32} height={32} />
@@ -307,7 +319,12 @@ export function BillingPage({ onBack }: BillingPageProps) {
 					</p>
 					{isPaid && status.currentPeriodEnd && (
 						<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-							Renews {new Date(status.currentPeriodEnd).toLocaleDateString()}
+							Renews{" "}
+							{new Intl.DateTimeFormat(undefined, {
+								year: "numeric",
+								month: "short",
+								day: "numeric",
+							}).format(new Date(status.currentPeriodEnd))}
 						</p>
 					)}
 					{isPaid && (
@@ -318,7 +335,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									disabled={!!changingPlan || !!upgrading}
 									className="text-sm"
 								>
-									{changingPlan === "pro" ? "Updating..." : "Upgrade to Pro"}
+									{changingPlan === "pro" ? "Updating…" : "Upgrade to Pro"}
 								</PrimaryActionButton>
 							)}
 							{status.tier === "pro" && (
@@ -326,10 +343,10 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									type="button"
 									onClick={() => setConfirmPlanChange("basic")}
 									disabled={!!changingPlan || !!upgrading}
-									className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+									className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500"
 								>
 									{changingPlan === "basic"
-										? "Updating..."
+										? "Updating…"
 										: "Downgrade to Basic"}
 								</button>
 							)}
@@ -351,7 +368,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 						<tbody className="text-neutral-600 dark:text-neutral-400">
 							<tr>
 								<td className="py-2">Campaigns</td>
-								<td className="py-2 text-right">
+								<td className="py-2 text-right tabular-nums">
 									{limits.maxCampaigns >= 999_999
 										? "Unlimited"
 										: limits.maxCampaigns}
@@ -359,25 +376,29 @@ export function BillingPage({ onBack }: BillingPageProps) {
 							</tr>
 							<tr>
 								<td className="py-2">Files</td>
-								<td className="py-2 text-right">{limits.maxFiles}</td>
+								<td className="py-2 text-right tabular-nums">
+									{limits.maxFiles}
+								</td>
 							</tr>
 							<tr>
 								<td className="py-2">Storage</td>
-								<td className="py-2 text-right">
+								<td className="py-2 text-right tabular-nums">
 									{formatBytes(limits.storageBytes)}
 								</td>
 							</tr>
 							{limits.resourcesPerCampaignPerHour !== undefined && (
 								<tr>
 									<td className="py-2">Resources per campaign per hour</td>
-									<td className="py-2 text-right">
+									<td className="py-2 text-right tabular-nums">
 										{limits.resourcesPerCampaignPerHour} adds/hr
 									</td>
 								</tr>
 							)}
 							<tr>
 								<td className="py-2">Tokens per day</td>
-								<td className="py-2 text-right">{formatNumber(limits.tpd)}</td>
+								<td className="py-2 text-right tabular-nums">
+									{formatNumber(limits.tpd)}
+								</td>
 							</tr>
 							{(limits.lifetimeTokens !== undefined ||
 								limits.monthlyTokens !== undefined) && (
@@ -388,7 +409,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 												? "Trial tokens"
 												: "Monthly tokens (free tier)"}
 										</td>
-										<td className="py-2 text-right">
+										<td className="py-2 text-right tabular-nums">
 											{status.monthlyUsage !== undefined
 												? `${formatNumber(status.monthlyUsage)} / `
 												: ""}
@@ -401,7 +422,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									{(status.creditsRemaining ?? 0) > 0 && (
 										<tr>
 											<td className="py-2">Credits purchased</td>
-											<td className="py-2 text-right">
+											<td className="py-2 text-right tabular-nums">
 												{formatNumber(status.creditsRemaining ?? 0)}
 											</td>
 										</tr>
@@ -464,9 +485,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									disabled={!!upgrading}
 									className="mt-4 w-full"
 								>
-									{upgrading === "basic"
-										? "Redirecting..."
-										: "Upgrade to Basic"}
+									{upgrading === "basic" ? "Redirecting…" : "Upgrade to Basic"}
 								</PrimaryActionButton>
 							</div>
 							<div className="p-6 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
@@ -483,7 +502,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									disabled={!!upgrading}
 									className="mt-4 w-full"
 								>
-									{upgrading === "pro" ? "Redirecting..." : "Upgrade to Pro"}
+									{upgrading === "pro" ? "Redirecting…" : "Upgrade to Pro"}
 								</PrimaryActionButton>
 							</div>
 						</div>
@@ -532,7 +551,7 @@ export function BillingPage({ onBack }: BillingPageProps) {
 							disabled={!confirmPlanChange || !!changingPlan}
 							className="text-sm"
 						>
-							{changingPlan ? "Updating..." : "Confirm"}
+							{changingPlan ? "Updating…" : "Confirm"}
 						</PrimaryActionButton>
 					</div>
 				</div>
