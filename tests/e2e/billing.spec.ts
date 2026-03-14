@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { loginAsE2EUser } from "./helpers/auth";
+import { expect, test } from "./lib/test";
 
 test.describe("billing", () => {
 	test("billing page loads when authenticated", async ({ page }) => {
@@ -7,8 +7,8 @@ test.describe("billing", () => {
 
 		await page.goto("/billing");
 
-		await expect(
-			page.getByText(/billing|usage|plan|free|subscription/i).first()
-		).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByTestId("billing-page")).toBeVisible({
+			timeout: 10_000,
+		});
 	});
 });

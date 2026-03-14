@@ -79,7 +79,10 @@ export function AppShell() {
 				}}
 			/>
 			<div className="h-dvh w-full p-0 sm:p-4 md:p-6 flex justify-center items-center bg-fixed">
-				<div className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[var(--width-container-xl)] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden">
+				<div
+					className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[var(--width-container-xl)] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden"
+					data-testid="app-main"
+				>
 					<AppHeader
 						onToggleSidebar={ctx.onToggleSidebar}
 						isSidebarOpen={ctx.isSidebarOpen}

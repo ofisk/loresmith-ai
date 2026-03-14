@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test";
 import { loginAsE2EUser } from "./helpers/auth";
 import { createMockChatStreamBody } from "./helpers/mock-chat-stream";
+import { expect, test } from "./lib/test";
+import { AppShellPage } from "./pages/app-shell.page";
 
 const MOCK_RESPONSE = "Hello from E2E mock";
 
@@ -24,9 +25,8 @@ test.describe("AI chat", () => {
 			return route.continue();
 		});
 
-		await expect(
-			page.locator(".tour-campaign-selector, .tour-campaigns-section").first()
-		).toBeVisible({ timeout: 10_000 });
+		const appShell = new AppShellPage(page);
+		await appShell.waitForReady();
 
 		const textarea = page
 			.getByRole("textbox", { name: /message|prompt/i })
