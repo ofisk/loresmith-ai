@@ -20,8 +20,15 @@ describe("file-utils", () => {
 			["path/to/doc.PDF", "PDF"],
 			["file.doc", "Document"],
 			["file.docx", "Document"],
+			["note.txt", "Text"],
+			["readme.md", "Markdown"],
+			["data.json", "JSON"],
 			["photo.jpg", "Image"],
 			["photo.png", "Image"],
+			["photo.webp", "Image"],
+			["audio.mp3", "Audio"],
+			["audio.wav", "Audio"],
+			["video.mp4", "Video"],
 			["file.xyz", "File"],
 		])("returns %s for %s", (fileName, expected) => {
 			expect(getFileTypeFromName(fileName)).toBe(expected);
@@ -50,6 +57,10 @@ describe("file-utils", () => {
 		it("handles leading-dot filenames (treats leading dot as extension start)", () => {
 			// lastIndexOf(".") = 0, so name = "" and extension = ".gitignore"
 			expect(appendNumberToFilename(".gitignore", 1)).toBe(" (1).gitignore");
+		});
+
+		it("handles empty string filename", () => {
+			expect(appendNumberToFilename("", 1)).toBe(" (1)");
 		});
 	});
 
@@ -170,6 +181,19 @@ describe("file-utils", () => {
 				"Invalid filename for storage"
 			);
 		});
+
+		it("handles Unicode filenames", () => {
+			expect(buildStagingFileKey("user1", "café.pdf")).toBe(
+				"staging/user1/café.pdf"
+			);
+		});
+
+		it("handles long filenames", () => {
+			const longName = "a".repeat(200) + ".pdf";
+			expect(buildStagingFileKey("user1", longName)).toBe(
+				`staging/user1/${longName}`
+			);
+		});
 	});
 
 	describe("buildLibraryFileKey", () => {
@@ -193,6 +217,18 @@ describe("file-utils", () => {
 			await expect(buildLibraryFileKey("user1", "")).rejects.toThrow(
 				"Invalid filename for storage"
 			);
+		});
+
+		it("handles Unicode filenames", async () => {
+			const key = await buildLibraryFileKey("user1", "café.pdf");
+			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\/café\.pdf$/);
+		});
+
+		it("handles long filenames", async () => {
+			const longName = "a".repeat(200) + ".pdf";
+			const key = await buildLibraryFileKey("user1", longName);
+			expect(key).toContain(longName);
+			expect(key).toMatch(/^library\/user1\/[a-f0-9]{16}\//);
 		});
 	});
 });

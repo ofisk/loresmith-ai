@@ -6,6 +6,10 @@ import {
 } from "@/lib/file/text-chunking-utils";
 
 describe("chunkTextByPages", () => {
+	it("returns single chunk for empty string", () => {
+		expect(chunkTextByPages("", 100)).toEqual([""]);
+	});
+
 	it("returns single chunk when text fits in maxChunkSize", () => {
 		const text = "[Page 1]\nShort content";
 		expect(chunkTextByPages(text, 1000)).toEqual([text]);
@@ -33,9 +37,20 @@ describe("chunkTextByPages", () => {
 		const chunks = chunkTextByPages(text, 5);
 		expect(chunks.every((c) => c.trim().length > 0)).toBe(true);
 	});
+
+	it("handles single page marker only", () => {
+		const text = "[Page 1]\n";
+		const chunks = chunkTextByPages(text, 100);
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]).toBe(text);
+	});
 });
 
 describe("chunkTextByCharacterCount", () => {
+	it("returns single chunk for empty string", () => {
+		expect(chunkTextByCharacterCount("", 100)).toEqual([""]);
+	});
+
 	it("returns single chunk when text is short", () => {
 		const text = "Short text";
 		expect(chunkTextByCharacterCount(text, 100)).toEqual([text]);
@@ -66,9 +81,20 @@ describe("chunkTextByCharacterCount", () => {
 			text.replace(/\s+/g, " ").trim()
 		);
 	});
+
+	it("handles maxChunkSize of 1", () => {
+		const text = "abc";
+		const chunks = chunkTextByCharacterCount(text, 1);
+		expect(chunks.length).toBeGreaterThanOrEqual(2);
+		expect(chunks.join("")).toBe(text);
+	});
 });
 
 describe("truncateContentAtSentenceBoundary", () => {
+	it("returns empty string as-is", () => {
+		expect(truncateContentAtSentenceBoundary("", 5000)).toBe("");
+	});
+
 	it("returns content as-is when shorter than maxChars", () => {
 		const text = "Short content.";
 		expect(truncateContentAtSentenceBoundary(text, 5000)).toBe(text);
@@ -101,5 +127,13 @@ describe("truncateContentAtSentenceBoundary", () => {
 			""
 		);
 		expect(beforeSuffix.endsWith(".")).toBe(true);
+	});
+
+	it("truncates at effectiveMax when no sentence boundary in search region", () => {
+		const noPeriods = "abc def ghi jkl mno ".repeat(200);
+		expect(noPeriods.includes(".")).toBe(false);
+		const result = truncateContentAtSentenceBoundary(noPeriods, 1000);
+		expect(result).toContain("[Content truncated for context limit");
+		expect(result.length).toBeLessThanOrEqual(Math.max(2000, 1000) + 100);
 	});
 });

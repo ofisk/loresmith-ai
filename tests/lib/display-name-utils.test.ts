@@ -70,4 +70,37 @@ describe("getDisplayName", () => {
 			})
 		).toBe("Unknown file");
 	});
+
+	it("returns whitespace-only display_name as-is (truthy)", () => {
+		expect(
+			getDisplayName({
+				display_name: "   ",
+				file_name: "document.pdf",
+				name: "x",
+			})
+		).toBe("   ");
+	});
+
+	it("falls back when display_name is undefined", () => {
+		expect(
+			getDisplayName({
+				display_name: undefined,
+				file_name: "document.pdf",
+				name: "x",
+			})
+		).toBe("document.pdf");
+	});
+
+	it("falls back when file_name is undefined", () => {
+		expect(
+			getDisplayName({
+				file_name: undefined,
+				name: "Generic",
+			})
+		).toBe("Generic");
+	});
+
+	it("returns Unknown file when name is undefined", () => {
+		expect(getDisplayName({ name: undefined })).toBe("Unknown file");
+	});
 });

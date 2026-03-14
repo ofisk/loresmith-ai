@@ -16,6 +16,8 @@ describe("CampaignDAO", () => {
 
 	describe("createCampaign", () => {
 		it("calls execute with correct params", async () => {
+			expect.hasAssertions();
+
 			await dao.createCampaign(
 				"camp-1",
 				"My Campaign",
@@ -37,6 +39,8 @@ describe("CampaignDAO", () => {
 		});
 
 		it("propagates database errors", async () => {
+			expect.hasAssertions();
+
 			mockStmt.run.mockRejectedValue(new Error("D1 constraint violated"));
 
 			await expect(dao.createCampaign("id", "n", "u")).rejects.toThrow(
@@ -47,6 +51,8 @@ describe("CampaignDAO", () => {
 
 	describe("getCampaignsByUser", () => {
 		it("returns empty array when no campaigns", async () => {
+			expect.hasAssertions();
+
 			mockStmt.all.mockResolvedValue({ results: [] });
 
 			const result = await dao.getCampaignsByUser("user1");
@@ -55,7 +61,19 @@ describe("CampaignDAO", () => {
 			expect(mockStmt.bind).toHaveBeenCalledWith("user1");
 		});
 
+		it("propagates database errors when all rejects", async () => {
+			expect.hasAssertions();
+
+			mockStmt.all.mockRejectedValue(new Error("D1 query failed"));
+
+			await expect(dao.getCampaignsByUser("user1")).rejects.toThrow(
+				/Database query failed/
+			);
+		});
+
 		it("returns campaigns from results", async () => {
+			expect.hasAssertions();
+
 			const rows = [
 				{
 					id: "c1",
@@ -80,6 +98,8 @@ describe("CampaignDAO", () => {
 
 	describe("getCampaignByIdWithMapping", () => {
 		it("returns null when no row", async () => {
+			expect.hasAssertions();
+
 			mockStmt.first.mockResolvedValue(null);
 
 			const result = await dao.getCampaignByIdWithMapping("c1", "user1");
@@ -88,7 +108,19 @@ describe("CampaignDAO", () => {
 			expect(mockStmt.bind).toHaveBeenCalledWith("c1", "user1");
 		});
 
+		it("propagates database errors when first rejects", async () => {
+			expect.hasAssertions();
+
+			mockStmt.first.mockRejectedValue(new Error("D1 query failed"));
+
+			await expect(
+				dao.getCampaignByIdWithMapping("c1", "user1")
+			).rejects.toThrow(/Database query failed/);
+		});
+
 		it("returns mapped campaign when found", async () => {
+			expect.hasAssertions();
+
 			const row = {
 				campaignId: "c1",
 				name: "My Campaign",

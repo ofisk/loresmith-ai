@@ -27,4 +27,18 @@ describe("requireParam", () => {
 			400
 		);
 	});
+
+	it("returns JSON response when param is empty string", () => {
+		const jsonMock = vi.fn().mockReturnValue({} as Response);
+		const c = {
+			req: { param: () => "" },
+			json: jsonMock,
+		};
+		const result = requireParam(c as any, "campaignId");
+		expect(result).not.toBe("");
+		expect(jsonMock).toHaveBeenCalledWith(
+			{ error: "campaignId is required" },
+			400
+		);
+	});
 });
