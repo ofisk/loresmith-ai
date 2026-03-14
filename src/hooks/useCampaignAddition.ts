@@ -3,6 +3,7 @@ import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { QueuedReason } from "@/contexts/ActionQueueContext";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
+import { formatErrorMessage } from "@/lib/error-parsing";
 import { QuotaExceededError } from "@/lib/errors";
 import {
 	getBlockedExtensionsDescription,
@@ -335,8 +336,7 @@ export function useCampaignAddition(
 					setIsAddingToCampaigns(false);
 					return;
 				}
-				const errorMessage =
-					error instanceof Error ? error.message : String(error);
+				const errorMessage = formatErrorMessage(error);
 				addLocalNotification(
 					NOTIFICATION_TYPES.ERROR,
 					"Error adding file to campaign",
