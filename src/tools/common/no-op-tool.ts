@@ -1,5 +1,6 @@
 import { type ToolExecutionOptions, tool } from "ai";
 import { z } from "zod";
+import type { ToolResult } from "@/app-constants";
 import { createToolSuccess } from "@/tools/utils";
 
 const noOpToolSchema = z.object({
@@ -41,7 +42,7 @@ When in doubt, use the appropriate tool rather than this no-op tool.`,
 	execute: async (
 		input: z.infer<typeof noOpToolSchema>,
 		_options: ToolExecutionOptions
-	): Promise<any> => {
+	): Promise<ToolResult> => {
 		const { reason } = input;
 		return createToolSuccess(
 			`No tool needed: ${reason}`,

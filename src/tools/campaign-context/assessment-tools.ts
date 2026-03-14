@@ -130,8 +130,8 @@ export async function getCampaignReadinessScoreTool(
 		const assessmentService = getAssessmentService(env);
 		const assessment = await assessmentService.getCampaignReadiness(
 			campaignId,
-			campaign,
-			resources
+			resources,
+			campaign
 		);
 
 		const campaignState = getCampaignState(assessment.overallScore);
@@ -165,8 +165,8 @@ export async function getCampaignRecommendationsTool(
 		const assessmentService = getAssessmentService(env);
 		const assessment = await assessmentService.getCampaignReadiness(
 			campaignId,
-			campaign,
-			resources
+			resources,
+			campaign
 		);
 
 		// Generate recommendations based on health score
@@ -243,8 +243,8 @@ export async function analyzeCampaignDimensionTool(
 		const assessmentService = getAssessmentService(env);
 		const assessment = await assessmentService.getCampaignReadiness(
 			campaignId,
-			campaign,
-			resources
+			resources,
+			campaign
 		);
 
 		// Map the overall assessment to specific dimensions

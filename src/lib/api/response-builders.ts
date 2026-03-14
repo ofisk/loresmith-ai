@@ -1,5 +1,11 @@
 // Standardized response builders for API endpoints
 
+/** Minimal resource shape for shard/resource response builders */
+export interface ResourceWithIdAndName {
+	id: string;
+	file_name?: string;
+}
+
 export interface ApiResponse<T = unknown> {
 	success?: boolean;
 	message?: string;
@@ -41,10 +47,10 @@ export function buildErrorResponse(
 // Build entity generation response
 // This function name is kept for UI compatibility
 export function buildShardGenerationResponse(
-	resource: any,
+	resource: ResourceWithIdAndName,
 	shardCount: number,
 	campaignId: string,
-	serverGroups?: any[]
+	serverGroups?: unknown[]
 ) {
 	const response: ApiResponse = {
 		success: true,
@@ -80,7 +86,7 @@ export function buildShardGenerationResponse(
 
 // Build resource addition response (no shards)
 export function buildResourceAdditionResponse(
-	resource: any,
+	resource: ResourceWithIdAndName,
 	message: string = "Resource added to campaign successfully."
 ) {
 	return {
@@ -95,7 +101,7 @@ export function buildResourceAdditionResponse(
 }
 
 // Build campaign creation response
-export function buildCampaignCreationResponse(campaign: any) {
+export function buildCampaignCreationResponse(campaign: unknown) {
 	return {
 		success: true,
 		campaign,
@@ -103,7 +109,7 @@ export function buildCampaignCreationResponse(campaign: any) {
 }
 
 // Build campaign update response
-export function buildCampaignUpdateResponse(campaign: any) {
+export function buildCampaignUpdateResponse(campaign: unknown) {
 	return {
 		success: true,
 		message: "Campaign updated successfully",
@@ -112,7 +118,7 @@ export function buildCampaignUpdateResponse(campaign: any) {
 }
 
 // Build campaign deletion response
-export function buildCampaignDeletionResponse(deletedCampaign: any) {
+export function buildCampaignDeletionResponse(deletedCampaign: unknown) {
 	return {
 		success: true,
 		message: "Campaign deleted successfully",
@@ -121,7 +127,7 @@ export function buildCampaignDeletionResponse(deletedCampaign: any) {
 }
 
 // Build bulk deletion response
-export function buildBulkDeletionResponse(deletedCampaigns: any[]) {
+export function buildBulkDeletionResponse(deletedCampaigns: unknown[]) {
 	if (deletedCampaigns.length === 0) {
 		return {
 			success: true,
@@ -139,7 +145,7 @@ export function buildBulkDeletionResponse(deletedCampaigns: any[]) {
 }
 
 // Build resource removal response
-export function buildResourceRemovalResponse(removedResource: any) {
+export function buildResourceRemovalResponse(removedResource: unknown) {
 	return {
 		success: true,
 		message: "Resource removed from campaign successfully",

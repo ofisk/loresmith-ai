@@ -69,6 +69,10 @@ export function createToolError(
 	};
 }
 
+function isPlainObject(x: unknown): x is Record<string, unknown> {
+	return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
 /** Standard success response for tool execution. */
 export function createToolSuccess(
 	message: string,
@@ -81,10 +85,7 @@ export function createToolSuccess(
 		? formatMessageWithCampaign(message, campaignName)
 		: message;
 
-	const dataObj =
-		typeof data === "object" && data !== null && !Array.isArray(data)
-			? (data as Record<string, unknown>)
-			: { data };
+	const dataObj = isPlainObject(data) ? data : { data };
 
 	return {
 		toolCallId,

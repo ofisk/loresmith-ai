@@ -184,8 +184,8 @@ describe("AssessmentService", () => {
 
 			const result = await assessmentService.getCampaignReadiness(
 				campaignId,
-				mockCampaign,
-				mockResources
+				mockResources,
+				mockCampaign
 			);
 
 			expect(result.overallScore).toBe(30); // 10 + 10 + 10
@@ -228,8 +228,8 @@ describe("AssessmentService", () => {
 
 			const result = await assessmentService.getCampaignReadiness(
 				campaignId,
-				mockCampaign,
-				mockResources
+				mockResources,
+				mockCampaign
 			);
 
 			expect(result.overallScore).toBe(90); // 30 + 30 + 30
@@ -277,8 +277,8 @@ describe("AssessmentService", () => {
 
 			const result = await assessmentService.getCampaignReadiness(
 				campaignId,
-				mockCampaign,
-				mockResources
+				mockResources,
+				mockCampaign
 			);
 
 			expect(result.overallScore).toBe(100); // 50 + 50 + 40, capped at 100
@@ -295,8 +295,8 @@ describe("AssessmentService", () => {
 			await expect(
 				assessmentService.getCampaignReadiness(
 					campaignId,
-					mockCampaign,
-					mockResources
+					mockResources,
+					mockCampaign
 				)
 			).rejects.toThrow("Failed to analyze campaign readiness");
 		});
@@ -411,8 +411,8 @@ describe("AssessmentService", () => {
 			mockDAO.getCampaignCharacters.mockResolvedValue([]);
 			let result = await assessmentService.getCampaignReadiness(
 				campaignId,
-				mockCampaign,
-				[]
+				[],
+				mockCampaign
 			);
 			expect(result.campaignState).toBe("Taking Root"); // Score 30 = Taking Root
 
@@ -438,8 +438,8 @@ describe("AssessmentService", () => {
 			]);
 			result = await assessmentService.getCampaignReadiness(
 				campaignId,
-				mockCampaign,
-				someResources
+				someResources,
+				mockCampaign
 			);
 			expect(result.campaignState).toBe("Legendary"); // Score 90 = Legendary
 
@@ -454,8 +454,8 @@ describe("AssessmentService", () => {
 			]);
 			result = await assessmentService.getCampaignReadiness(
 				campaignId,
-				mockCampaign,
-				someResources
+				someResources,
+				mockCampaign
 			);
 			// With 2 context, 2 characters, 2 resources (1-2 items each): 30 + 30 + 30 = 90 = Legendary
 			expect(result.campaignState).toBe("Legendary");

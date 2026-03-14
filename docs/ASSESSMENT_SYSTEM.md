@@ -151,8 +151,8 @@ This allows agents to provide personalized guidance while presenting encouraging
 ```typescript
 async getCampaignReadiness(
   campaignId: string,
-  campaign: Campaign,
-  resources: CampaignResource[]
+  resources: CampaignResource[],
+  _campaign?: Campaign | null
 ): Promise<CampaignReadinessSummary> {
   // Get campaign data from database
   const contextData = await this.assessmentDAO.getCampaignContext(campaignId);

@@ -113,8 +113,8 @@ export class AssessmentService {
 	 */
 	async getCampaignReadiness(
 		campaignId: string,
-		_campaign: Campaign,
-		resources: CampaignResource[]
+		resources: CampaignResource[],
+		_campaign?: Campaign | null
 	): Promise<CampaignReadinessSummary> {
 		try {
 			// Sync character_backstory entries to entities before assessment

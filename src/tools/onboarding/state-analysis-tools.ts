@@ -16,8 +16,6 @@ import type {
 	ToolRecommendation,
 	UserState,
 } from "@/types/assessment";
-import type { Campaign, CampaignResource } from "@/types/campaign";
-
 export type {
 	UserState,
 	ActivityType,
@@ -125,8 +123,8 @@ export const getCampaignReadinessTool = tool({
 			const assessmentService = getAssessmentService(env as Env);
 			const campaignReadiness = await assessmentService.getCampaignReadiness(
 				campaignId,
-				{} as Campaign,
-				[] as CampaignResource[]
+				[],
+				undefined
 			);
 
 			const userFriendlyAssessment = {
