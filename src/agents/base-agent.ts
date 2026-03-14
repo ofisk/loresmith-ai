@@ -284,10 +284,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				);
 			}
 		} catch (supportError) {
-			console.error(
-				`[${this.constructor.name}] Failed to auto-submit low-balance support issue:`,
-				supportError
-			);
+			createLogger(
+				this.env as Record<string, unknown>,
+				`[${this.constructor.name}]`
+			).error("Failed to auto-submit low-balance support issue:", supportError);
 		}
 	}
 
@@ -332,10 +332,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			// Fire and forget - don't await to keep method signature synchronous
 			this.storeMessageToDatabase(message).catch((error) => {
 				// Log but don't fail - message storage is non-critical
-				console.error(
-					`[${this.constructor.name}] Failed to store message to database:`,
-					error
-				);
+				createLogger(
+					this.env as Record<string, unknown>,
+					`[${this.constructor.name}]`
+				).error("Failed to store message to database:", error);
 			});
 		}
 	}
@@ -377,10 +377,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				const jwtPayload = JSON.parse(atob(base64));
 				username = jwtPayload.username || null;
 			} catch (error) {
-				console.warn(
-					`[${this.constructor.name}] Failed to extract username from JWT:`,
-					error
-				);
+				createLogger(
+					this.env as Record<string, unknown>,
+					`[${this.constructor.name}]`
+				).warn("Failed to extract username from JWT:", error);
 			}
 		}
 
@@ -522,15 +522,15 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 							};
 							if (this.env && "DB" in this.env && this.env.DB) {
 								this.storeMessageToDatabase(assistantMessage).catch((error) => {
-									console.error(
-										`[${this.constructor.name}] Failed to store assistant message to database:`,
+									log.error(
+										"Failed to store assistant message to database:",
 										error
 									);
 								});
 							}
 						} catch (persistError) {
-							console.error(
-								`[${this.constructor.name}] Error while persisting assistant message:`,
+							log.error(
+								"Error while persisting assistant message:",
 								persistError
 							);
 						}
@@ -887,26 +887,23 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					};
 					if (this.env && "DB" in this.env && this.env.DB) {
 						this.storeMessageToDatabase(assistantMessage).catch((error) => {
-							console.error(
-								`[${this.constructor.name}] Failed to store assistant message to database:`,
+							log.error(
+								"Failed to store assistant message to database:",
 								error
 							);
 						});
 					}
 				} catch (persistError) {
-					console.error(
-						`[${this.constructor.name}] Error while persisting assistant message:`,
-						persistError
-					);
+					log.error("Error while persisting assistant message:", persistError);
 				}
 				await (onFinish ?? (() => {}))(args);
 			},
 			onError: (errorObj) => {
 				const error = errorObj.error as Error & Record<string, any>;
 				const errorMessage = error?.message || String(error);
-				console.error(`[${this.constructor.name}] ❌ LLM provider call failed`);
-				console.error(
-					`Request Summary:`,
+				log.error("LLM provider call failed");
+				log.error(
+					"Request Summary:",
 					JSON.stringify({
 						agent: requestDetails.agent,
 						model: requestDetails.model,
@@ -915,8 +912,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						toolNames: requestDetails.toolNames,
 					})
 				);
-				console.error(
-					`Error:`,
+				log.error(
+					"Error:",
 					JSON.stringify({
 						message: errorMessage,
 						name: error?.name,
@@ -925,7 +922,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					})
 				);
 				if (error?.stack && error.stack.length < 1000) {
-					console.error(`Stack:`, error.stack);
+					log.error("Stack:", error.stack);
 				}
 				// User-facing error message is provided by toUIMessageStreamResponse onError
 			},
