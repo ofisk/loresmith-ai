@@ -292,13 +292,14 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 
 	const onToggleSidebar = useCallback(
 		() => setIsMobileSidebarOpen((p) => !p),
-		[]
+		[setIsMobileSidebarOpen]
 	);
 	const onUploadFiles = useCallback(
 		() => setTriggerFileUpload(true),
 		[setTriggerFileUpload]
 	);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: invisibleUserContentsRef.current intentionally excluded; invisibleUserContentsVersion triggers updates when ref changes
 	const value = useMemo<AppShellContextValue>(
 		() => ({
 			showBillingPage,
@@ -421,7 +422,6 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			invisibleUserContentsVersion,
 			handleHelpAction,
 			handleSessionRecapRequest,
-			selectedCampaign,
 			handleNextStepsRequest,
 			chatError,
 			regenerate,

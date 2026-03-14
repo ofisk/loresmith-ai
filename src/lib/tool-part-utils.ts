@@ -24,7 +24,7 @@ export interface NormalizedToolPart {
 export function isToolPart(part: unknown): part is Record<string, unknown> {
 	if (!part || typeof part !== "object" || !("type" in part)) return false;
 	const p = part as Record<string, unknown>;
-	if (p.type === "tool-invocation" && p.toolInvocation) return true;
+	if (p.type === "tool-invocation") return !!p.toolInvocation;
 	if (typeof p.type === "string" && p.type.startsWith("tool-")) return true;
 	return false;
 }
