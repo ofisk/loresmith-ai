@@ -217,7 +217,7 @@ export function GraphControls({
 				<select
 					value={layout}
 					onChange={(e) => onLayoutChange(e.target.value as CytoscapeLayout)}
-					className="flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"
+					className="flex w-full rounded-md border border-neutral-300 dark:border-neutral-600 bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400"
 				>
 					{LAYOUT_OPTIONS.map((option) => (
 						<option key={option.value} value={option.value}>

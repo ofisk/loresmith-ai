@@ -49,23 +49,27 @@ export function ResourceFileDetails({
 			<div className="mt-4 text-xs space-y-1">
 				{file.display_name && (
 					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-						<span className="text-gray-600 dark:text-gray-400">
+						<span className="text-neutral-600 dark:text-neutral-400">
 							Display name:
 						</span>
-						<span className="font-medium text-gray-900 dark:text-gray-100 break-words">
+						<span className="font-medium text-neutral-900 dark:text-neutral-100 break-words">
 							{file.display_name}
 						</span>
 					</div>
 				)}
 				<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-					<span className="text-gray-600 dark:text-gray-400">Filename:</span>
-					<span className="font-medium text-gray-900 dark:text-gray-100 break-all">
+					<span className="text-neutral-600 dark:text-neutral-400">
+						Filename:
+					</span>
+					<span className="font-medium text-neutral-900 dark:text-neutral-100 break-all">
 						{file.file_name}
 					</span>
 				</div>
 				<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-					<span className="text-gray-600 dark:text-gray-400">Uploaded:</span>
-					<span className="font-medium text-gray-900 dark:text-gray-100">
+					<span className="text-neutral-600 dark:text-neutral-400">
+						Uploaded:
+					</span>
+					<span className="font-medium text-neutral-900 dark:text-neutral-100">
 						{new Date(file.created_at || file.updated_at)
 							.toLocaleDateString("en-US", {
 								month: "short",
@@ -81,8 +85,8 @@ export function ResourceFileDetails({
 					</span>
 				</div>
 				<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-					<span className="text-gray-600 dark:text-gray-400">Size:</span>
-					<span className="font-medium text-gray-900 dark:text-gray-100">
+					<span className="text-neutral-600 dark:text-neutral-400">Size:</span>
+					<span className="font-medium text-neutral-900 dark:text-neutral-100">
 						{file.file_size
 							? (file.file_size / 1024 / 1024).toFixed(2)
 							: "Unknown"}{" "}
@@ -93,7 +97,7 @@ export function ResourceFileDetails({
 
 			{file.description && (
 				<div className="mt-3">
-					<p className="text-sm text-gray-600 dark:text-gray-300">
+					<p className="text-sm text-neutral-600 dark:text-neutral-300">
 						{file.description}
 					</p>
 				</div>
@@ -115,7 +119,7 @@ export function ResourceFileDetails({
 
 			{file.campaigns && file.campaigns.length > 0 && (
 				<div className="mt-3">
-					<p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+					<p className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">
 						Linked campaigns:
 					</p>
 					<div className="flex flex-wrap gap-1">
@@ -217,7 +221,7 @@ export function ResourceFileDetails({
 					}}
 					variant="secondary"
 					size="sm"
-					className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+					className="w-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
 				>
 					Edit
 				</Button>

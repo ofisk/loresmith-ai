@@ -37,10 +37,10 @@ const InternalInput = forwardRef<
 		ref
 	) => {
 		const baseClasses =
-			"flex w-full rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:border-blue-500 dark:focus-visible:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50";
+			"flex w-full rounded-md border border-neutral-300 dark:border-neutral-600 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:border-[color:var(--ring)] disabled:cursor-not-allowed disabled:opacity-50";
 		const inputClasses =
 			"h-10 file:border-0 file:bg-transparent file:text-sm file:font-medium";
-		const textareaClasses = "min-h-[80px] resize-none";
+		const textareaClasses = "min-h-[var(--height-textarea-min)] resize-none";
 
 		if (multiline) {
 			return (
@@ -127,10 +127,10 @@ export const FormField: React.FC<FormFieldProps> = ({
 							weight="regular"
 						/>
 						{showTooltip && (
-							<div className="absolute z-50 left-full ml-2 top-0">
-								<div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 text-sm shadow-xl w-80">
+							<div className="absolute left-full ml-2 top-0 [z-index:var(--z-dropdown)]">
+								<div className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-4 py-3 text-sm shadow-xl w-80">
 									{tooltip}
-									<div className="absolute top-3 -left-2 w-0 h-0 border-t-2 border-b-2 border-r-2 border-transparent border-r-white dark:border-r-gray-800"></div>
+									<div className="absolute top-3 -left-2 w-0 h-0 border-t-2 border-b-2 border-r-2 border-transparent border-r-white dark:border-r-neutral-800"></div>
 								</div>
 							</div>
 						)}

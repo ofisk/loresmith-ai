@@ -439,7 +439,7 @@ export function FlexibleShardCard({
 
 	return (
 		<div
-			className={`bg-gray-800 border border-gray-700 rounded-lg ${className}`}
+			className={`bg-neutral-800 border border-neutral-700 rounded-lg ${className}`}
 		>
 			{/* Header */}
 			<div className="p-4">
@@ -449,7 +449,7 @@ export function FlexibleShardCard({
 							type="checkbox"
 							checked={selected}
 							onChange={(e) => onSelect?.(shard.id, e.target.checked)}
-							className="w-4 h-4 bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500"
+							className="w-4 h-4 bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500"
 						/>
 						<div className="flex-1 min-w-0">
 							<div className="flex items-center gap-2">
@@ -468,8 +468,8 @@ export function FlexibleShardCard({
 									className="font-semibold text-lg text-white bg-transparent focus:border-purple-500 focus:outline-none flex-1"
 								/>
 							</div>
-							<hr className="border-0 border-t border-gray-700 my-2" />
-							<div className="flex items-center gap-2 text-sm text-gray-300">
+							<hr className="border-0 border-t border-neutral-700 my-2" />
+							<div className="flex items-center gap-2 text-sm text-neutral-300">
 								<span className="capitalize">{displayName}</span>
 								{shard.confidence && (
 									<>
@@ -488,7 +488,7 @@ export function FlexibleShardCard({
 						<button
 							type="button"
 							onClick={() => setIsExpanded(!isExpanded)}
-							className="text-gray-400 hover:text-gray-200 transition-colors"
+							className="text-neutral-400 hover:text-neutral-200 transition-colors"
 						>
 							{isExpanded ? (
 								<ChevronDown size={20} />
@@ -517,7 +517,7 @@ export function FlexibleShardCard({
 							) : (
 								<span
 									key={key}
-									className="inline-flex items-center gap-1 px-2 py-1 bg-gray-700 text-gray-200 rounded text-xs"
+									className="inline-flex items-center gap-1 px-2 py-1 bg-neutral-700 text-neutral-200 rounded text-xs"
 								>
 									<span className="font-medium">{key}:</span>
 									<span className="truncate max-w-[100px]">
@@ -533,7 +533,7 @@ export function FlexibleShardCard({
 
 				{/* Description Preview */}
 				{!isExpanded && getShardDescription() && (
-					<p className="mt-2 text-sm text-gray-300 line-clamp-2">
+					<p className="mt-2 text-sm text-neutral-300 line-clamp-2">
 						{getShardDescription()}
 					</p>
 				)}
@@ -547,7 +547,7 @@ export function FlexibleShardCard({
 						<div>
 							<label
 								htmlFor={`shard-description-${shard.id}`}
-								className="text-sm font-medium text-gray-300 flex items-center gap-2"
+								className="text-sm font-medium text-neutral-300 flex items-center gap-2"
 							>
 								<FileText size={14} />
 								Description
@@ -566,7 +566,7 @@ export function FlexibleShardCard({
 											handleDescriptionCancel();
 										}
 									}}
-									className="w-full px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500"
+									className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
 									rows={4}
 								/>
 							</div>
@@ -578,12 +578,12 @@ export function FlexibleShardCard({
 						<div>
 							<label
 								htmlFor={`shard-importance-${shard.id}`}
-								className="text-sm font-medium text-gray-300 flex items-center gap-2 mb-2"
+								className="text-sm font-medium text-neutral-300 flex items-center gap-2 mb-2"
 							>
 								<Star size={14} />
 								Importance
 								{importanceScore !== undefined && (
-									<span className="text-xs text-gray-400">
+									<span className="text-xs text-neutral-400">
 										(Score: {Math.round(importanceScore)})
 									</span>
 								)}
@@ -598,7 +598,7 @@ export function FlexibleShardCard({
 									);
 								}}
 								disabled={importanceLoading}
-								className="w-full px-3 py-2 border border-gray-600 rounded text-sm bg-gray-700 text-white focus:border-purple-500 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								<option value="">Auto (calculated)</option>
 								<option value="high">High</option>
@@ -606,7 +606,7 @@ export function FlexibleShardCard({
 								<option value="low">Low</option>
 							</select>
 							{importanceLoading && (
-								<p className="text-xs text-gray-400 mt-1">Updating...</p>
+								<p className="text-xs text-neutral-400 mt-1">Updating...</p>
 							)}
 						</div>
 					)}
@@ -626,8 +626,8 @@ export function FlexibleShardCard({
 					</div>
 
 					{/* Actions */}
-					<div className="flex items-center justify-between pt-3 border-t border-gray-700">
-						<div className="text-xs text-gray-400">
+					<div className="flex items-center justify-between pt-3 border-t border-neutral-700">
+						<div className="text-xs text-neutral-400">
 							Shard ID: {shard.id.slice(-12)}
 						</div>
 						{onDelete && (

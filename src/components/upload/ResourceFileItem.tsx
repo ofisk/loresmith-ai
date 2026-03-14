@@ -90,7 +90,7 @@ export function ResourceFileItem({
 		<button
 			type="button"
 			className={cn(
-				"relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left",
+				"relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm overflow-hidden cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left",
 				isQueuedForUpload
 					? "border-l-4 border-l-amber-500 border-neutral-200 dark:border-neutral-800"
 					: "border border-neutral-200 dark:border-neutral-800"
@@ -112,7 +112,7 @@ export function ResourceFileItem({
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
 						<h4
-							className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[165px] sm:max-w-[200px]"
+							className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[var(--width-truncate-sm)] sm:max-w-[var(--width-truncate-md)]"
 							onClick={(e) => e.stopPropagation()}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" || e.key === " ") {

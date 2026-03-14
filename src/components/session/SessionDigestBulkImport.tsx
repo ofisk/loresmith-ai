@@ -226,10 +226,10 @@ export function SessionDigestBulkImport({
 	return (
 		<div className={`space-y-4 ${className}`}>
 			<div>
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
 					Bulk Import from Notes
 				</h3>
-				<p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+				<p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
 					Paste your session notes below. The importer will try to organize them
 					into the appropriate sections based on keywords and structure.
 				</p>
@@ -251,7 +251,7 @@ export function SessionDigestBulkImport({
 				rows={12}
 			/>
 
-			<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+			<div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 				{onCancel && (
 					<FormButton
 						type="button"

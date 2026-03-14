@@ -79,7 +79,7 @@ export function AppShell() {
 				}}
 			/>
 			<div className="h-dvh w-full p-0 sm:p-4 md:p-6 flex justify-center items-center bg-fixed">
-				<div className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[1400px] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden">
+				<div className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[var(--width-container-xl)] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden">
 					<AppHeader
 						onToggleSidebar={ctx.onToggleSidebar}
 						isSidebarOpen={ctx.isSidebarOpen}
@@ -104,11 +104,11 @@ export function AppShell() {
 						{ctx.isSidebarOpen && (
 							<>
 								<div
-									className="absolute inset-0 z-30 md:hidden bg-black/40"
+									className="absolute inset-0 md:hidden bg-black/40 [z-index:var(--z-panel)]"
 									onClick={ctx.onToggleSidebar}
 									aria-hidden="true"
 								/>
-								<ResourceSidePanel className="absolute inset-0 z-40 md:hidden w-full max-w-none shadow-2xl" />
+								<ResourceSidePanel className="absolute inset-0 md:hidden w-full max-w-none shadow-2xl [z-index:var(--z-overlay)]" />
 							</>
 						)}
 

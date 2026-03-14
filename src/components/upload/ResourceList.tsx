@@ -218,7 +218,7 @@ export function ResourceList({
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center h-32">
-				<div className="text-gray-500">Loading resources...</div>
+				<div className="text-neutral-500">Loading resources...</div>
 			</div>
 		);
 	}
@@ -265,8 +265,8 @@ export function ResourceList({
 	if (files.length === 0) {
 		return (
 			<div className="text-center py-8">
-				<div className="text-gray-500 mb-2">The shelves lie bare</div>
-				<p className="text-sm text-gray-400">
+				<div className="text-neutral-500 mb-2">The shelves lie bare</div>
+				<p className="text-sm text-neutral-400">
 					Place a scroll upon the archive to awaken it
 				</p>
 			</div>

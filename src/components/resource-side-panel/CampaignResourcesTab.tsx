@@ -49,7 +49,7 @@ export function CampaignResourcesTab({
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					Linked resources
 				</h3>
 				<Button
@@ -69,7 +69,7 @@ export function CampaignResourcesTab({
 				</Button>
 			</div>
 			{loading ? (
-				<div className="text-center py-8 text-gray-500 dark:text-gray-400">
+				<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
 					Loading resources...
 				</div>
 			) : error ? (
@@ -77,7 +77,7 @@ export function CampaignResourcesTab({
 					Error loading resources: {error}
 				</div>
 			) : resources.length === 0 ? (
-				<div className="text-center py-8 text-gray-500 dark:text-gray-400">
+				<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
 					No resources linked to this campaign.
 				</div>
 			) : (
@@ -98,13 +98,13 @@ export function CampaignResourcesTab({
 							<button
 								key={resource.id}
 								type="button"
-								className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
+								className="relative p-2 border rounded-lg bg-white dark:bg-neutral-900 shadow-sm border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors duration-200 w-full text-left"
 								onClick={toggleExpand}
 							>
 								<div className="flex flex-col h-full">
 									<div className="flex items-center justify-between">
 										<div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-											<h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[165px] sm:max-w-[200px]">
+											<h4 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[var(--width-truncate-sm)] sm:max-w-[var(--width-truncate-md)]">
 												{getDisplayName(resource)}
 											</h4>
 										</div>
@@ -135,27 +135,27 @@ export function CampaignResourcesTab({
 											<div className="mt-4 text-xs space-y-1">
 												{resource.display_name && (
 													<div className="flex justify-between items-center">
-														<span className="text-gray-600 dark:text-gray-400">
+														<span className="text-neutral-600 dark:text-neutral-400">
 															Display name:
 														</span>
-														<span className="font-medium text-gray-900 dark:text-gray-100">
+														<span className="font-medium text-neutral-900 dark:text-neutral-100">
 															{resource.display_name}
 														</span>
 													</div>
 												)}
 												<div className="flex justify-between items-center">
-													<span className="text-gray-600 dark:text-gray-400">
+													<span className="text-neutral-600 dark:text-neutral-400">
 														Filename:
 													</span>
-													<span className="font-medium text-gray-900 dark:text-gray-100">
+													<span className="font-medium text-neutral-900 dark:text-neutral-100">
 														{resource.file_name}
 													</span>
 												</div>
 												<div className="flex justify-between items-center">
-													<span className="text-gray-600 dark:text-gray-400">
+													<span className="text-neutral-600 dark:text-neutral-400">
 														Added:
 													</span>
-													<span className="font-medium text-gray-900 dark:text-gray-100">
+													<span className="font-medium text-neutral-900 dark:text-neutral-100">
 														{new Date(resource.created_at)
 															.toLocaleDateString("en-US", {
 																month: "short",
@@ -174,7 +174,7 @@ export function CampaignResourcesTab({
 
 											{resource.description && (
 												<div className="mt-3">
-													<p className="text-sm text-gray-600 dark:text-gray-300">
+													<p className="text-sm text-neutral-600 dark:text-neutral-300">
 														{resource.description}
 													</p>
 												</div>
@@ -216,7 +216,7 @@ export function CampaignResourcesTab({
 															<button
 																type="button"
 																disabled
-																className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700"
+																className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors opacity-50 cursor-not-allowed text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-700"
 															>
 																Retry entity extraction
 															</button>
@@ -246,7 +246,7 @@ export function CampaignResourcesTab({
 																	processingResources.has(resource.id)
 																}
 																title={tooltipContent}
-																className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+																className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 disabled:opacity-50 disabled:cursor-not-allowed"
 															>
 																{processingResources.has(resource.id) ? (
 																	<span className="flex items-center justify-center gap-2">
@@ -291,7 +291,7 @@ export function CampaignResourcesTab({
 																? "Only the campaign owner can remove resources"
 																: undefined
 														}
-														className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border-red-200 dark:border-red-900/50 hover:border-red-300 dark:hover:border-red-800 disabled:text-gray-400 disabled:dark:text-gray-500 disabled:border-gray-200 disabled:dark:border-gray-700 disabled:hover:border-gray-200 disabled:dark:hover:border-gray-700"
+														className="w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border-red-200 dark:border-red-900/50 hover:border-red-300 dark:hover:border-red-800 disabled:text-neutral-400 disabled:dark:text-neutral-500 disabled:border-neutral-200 disabled:dark:border-neutral-700 disabled:hover:border-neutral-200 disabled:dark:hover:border-neutral-700"
 													>
 														<Trash size={16} />
 														Delete resource

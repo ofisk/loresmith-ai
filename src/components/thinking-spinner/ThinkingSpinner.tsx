@@ -32,10 +32,10 @@ export const ThinkingSpinner = ({
 				<Loader size={size} className="text-orange-500" />
 				{showText && (
 					<div className="flex flex-col">
-						<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+						<span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
 							{primaryText}
 						</span>
-						<span className="text-xs text-gray-500 dark:text-gray-400">
+						<span className="text-xs text-neutral-500 dark:text-neutral-400">
 							{secondaryText}
 						</span>
 					</div>

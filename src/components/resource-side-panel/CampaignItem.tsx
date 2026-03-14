@@ -27,7 +27,7 @@ export function CampaignItem({ campaign, onCampaignClick }: CampaignItemProps) {
 			<div className="flex items-center justify-between">
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2 flex-wrap">
-						<div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+						<div className="font-medium text-neutral-900 dark:text-neutral-100 truncate">
 							{campaign.name}
 						</div>
 						{campaign.role && (
@@ -48,7 +48,7 @@ export function CampaignItem({ campaign, onCampaignClick }: CampaignItemProps) {
 							/>
 						)}
 					</div>
-					<div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					<div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
 						Created {new Date(campaign.createdAt).toLocaleString()}
 					</div>
 				</div>
@@ -61,7 +61,7 @@ export function CampaignItem({ campaign, onCampaignClick }: CampaignItemProps) {
 					className="opacity-0 group-hover:opacity-100 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded transition-all"
 					title="Manage campaign"
 				>
-					<DotsThreeVertical size={16} className="text-gray-500" />
+					<DotsThreeVertical size={16} className="text-neutral-500" />
 				</button>
 			</div>
 		</button>

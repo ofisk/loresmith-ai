@@ -47,17 +47,17 @@ export function CampaignsSection({
 			</div>
 			{campaignsLoading ? (
 				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-					<div className="text-gray-500 mb-2">Loading campaigns...</div>
+					<div className="text-neutral-500 mb-2">Loading campaigns...</div>
 				</div>
 			) : campaignsError ? (
 				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
 					<div className="text-red-500 mb-2">Error loading campaigns</div>
-					<p className="text-sm text-gray-400">{campaignsError}</p>
+					<p className="text-sm text-neutral-400">{campaignsError}</p>
 				</div>
 			) : campaigns.length === 0 ? (
 				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-					<div className="text-gray-500 mb-2">The table awaits</div>
-					<p className="text-sm text-gray-400">
+					<div className="text-neutral-500 mb-2">The table awaits</div>
+					<p className="text-sm text-neutral-400">
 						Forge your first campaign to begin the adventure
 					</p>
 				</div>

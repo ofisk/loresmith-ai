@@ -176,15 +176,11 @@ export function EditFileModal({
 	if (!file) return null;
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={handleCancel}
-			className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-		>
+		<Modal isOpen={isOpen} onClose={handleCancel} className="modal-size-md">
 			<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 				{/* Header */}
 				<div className="mb-4 md:mb-6">
-					<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+					<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
 						Edit file details
 					</h2>
 				</div>
@@ -193,11 +189,11 @@ export function EditFileModal({
 				<div className="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1">
 					{/* File Name */}
 					<div>
-						<div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+						<div className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 							File name
 						</div>
-						<div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-							<p className="text-gray-900 dark:text-gray-100">
+						<div className="p-3 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+							<p className="text-neutral-900 dark:text-neutral-100">
 								{file.file_name}
 							</p>
 						</div>
@@ -240,7 +236,7 @@ export function EditFileModal({
 				)}
 
 				{/* Actions */}
-				<div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
+				<div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
 					<div className="flex gap-2">
 						<FormButton
 							onClick={handleSave}

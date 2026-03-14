@@ -10,7 +10,6 @@ import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkI
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
-import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useBaseAsync } from "@/hooks/useBaseAsync";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
@@ -558,22 +557,18 @@ export function CampaignDetailsModal({
 
 	return (
 		<>
-			<Modal
-				isOpen={isOpen}
-				onClose={onClose}
-				className="w-[96vw] max-w-[960px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
-			>
+			<Modal isOpen={isOpen} onClose={onClose} className="modal-size-lg">
 				<div className="p-4 md:p-6 h-full flex flex-col">
 					{/* Header */}
 					<div className="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-						<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+						<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
 							Campaign details
 						</h2>
 						{!isPlayerRole && (
 							<button
 								type="button"
 								onClick={() => setIsGraphModalOpen(true)}
-								className="w-full sm:w-auto min-w-0 sm:min-w-[180px] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-blue-500 dark:text-blue-400 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
+								className="w-full sm:w-auto min-w-0 sm:min-w-[var(--width-tab-button)] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-[color:var(--color-link)] border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
 							>
 								View graph
 							</button>
@@ -581,15 +576,15 @@ export function CampaignDetailsModal({
 					</div>
 
 					{/* Tabs */}
-					<div className="mb-4 md:mb-6 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+					<div className="mb-4 md:mb-6 border-b border-neutral-200 dark:border-neutral-700 overflow-x-auto">
 						<div className="flex gap-4 min-w-max">
 							<button
 								type="button"
 								onClick={() => setActiveTab("details")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "details"
-										? "border-blue-500 text-blue-600 dark:text-blue-400"
-										: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+										? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
 								Details
@@ -599,8 +594,8 @@ export function CampaignDetailsModal({
 								onClick={() => setActiveTab("digests")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "digests"
-										? "border-blue-500 text-blue-600 dark:text-blue-400"
-										: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+										? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
 								Session digests
@@ -616,10 +611,10 @@ export function CampaignDetailsModal({
 								}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									isPlayerRole
-										? "border-transparent text-gray-400 dark:text-gray-500 cursor-not-allowed"
+										? "border-transparent text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
 										: activeTab === "nextSteps"
-											? "border-blue-500 text-blue-600 dark:text-blue-400"
-											: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+											? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+											: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
 								Next steps
@@ -629,8 +624,8 @@ export function CampaignDetailsModal({
 								onClick={() => setActiveTab("resources")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "resources"
-										? "border-blue-500 text-blue-600 dark:text-blue-400"
-										: "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+										? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
 								Resources
@@ -703,7 +698,7 @@ export function CampaignDetailsModal({
 
 					{/* Actions */}
 					{activeTab === "details" && (
-						<div className="flex items-center justify-between gap-2 mt-4 md:mt-6 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
+						<div className="flex items-center justify-between gap-2 mt-4 md:mt-6 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
 							<div className="flex items-center gap-2">
 								{isEditing ? (
 									<>
@@ -793,7 +788,7 @@ export function CampaignDetailsModal({
 					<Modal
 						isOpen={isBulkImportOpen}
 						onClose={() => setIsBulkImportOpen(false)}
-						cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+						className="modal-size-standard"
 					>
 						<div className="p-6">
 							<SessionDigestBulkImport
@@ -812,15 +807,15 @@ export function CampaignDetailsModal({
 					setIsAddResourceModalOpen(false);
 					setSelectedResourceKeys(new Set());
 				}}
-				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
+				className="modal-size-md"
 			>
 				<div className="p-4 md:p-6 flex flex-col h-full">
-					<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 md:mb-4">
+					<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-3 md:mb-4">
 						Add resources to campaign
 					</h3>
 
 					{libraryFiles.length === 0 ? (
-						<div className="text-center py-8 text-gray-500 dark:text-gray-400">
+						<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
 							No files in library. Upload files first.
 						</div>
 					) : (
@@ -838,8 +833,8 @@ export function CampaignDetailsModal({
 												key={file.file_key}
 												className={`w-full p-3 flex items-start gap-3 border rounded-lg cursor-pointer transition-colors ${
 													isSelected
-														? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
-														: "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+														? "border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800"
+														: "border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
 												}`}
 											>
 												<input
@@ -854,14 +849,14 @@ export function CampaignDetailsModal({
 														}
 														setSelectedResourceKeys(newSelected);
 													}}
-													className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+													className="mt-1 h-4 w-4 text-purple-600 border-neutral-300 rounded focus:ring-purple-500"
 												/>
 												<div className="flex-1">
-													<div className="font-medium text-gray-900 dark:text-gray-100">
+													<div className="font-medium text-neutral-900 dark:text-neutral-100">
 														{getDisplayName(file)}
 													</div>
 													{file.description && (
-														<div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+														<div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
 															{file.description}
 														</div>
 													)}
@@ -873,15 +868,15 @@ export function CampaignDetailsModal({
 									(file: any) =>
 										!resources.some((r) => r.file_key === file.file_key)
 								).length === 0 && (
-									<div className="text-center py-8 text-gray-500 dark:text-gray-400">
+									<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
 										All library files are already added to this campaign.
 									</div>
 								)}
 							</div>
 
 							{/* Action Buttons */}
-							<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 md:pt-6 border-t border-gray-200 dark:border-gray-700">
-								<div className="text-sm text-gray-500 dark:text-gray-400">
+							<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
+								<div className="text-sm text-neutral-500 dark:text-neutral-400">
 									{selectedResourceKeys.size > 0 &&
 										`${selectedResourceKeys.size} resource${selectedResourceKeys.size === 1 ? "" : "s"} selected`}
 								</div>

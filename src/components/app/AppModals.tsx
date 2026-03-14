@@ -13,7 +13,6 @@ import { CreateCampaignModal } from "@/components/resource-side-panel/CreateCamp
 import { EditFileModal } from "@/components/upload/EditFileModal";
 import { ResourceUpload } from "@/components/upload/ResourceUpload";
 import { EDIT_ROLES } from "@/constants/campaign-roles";
-import { STANDARD_MODAL_SIZE_OBJECT } from "@/constants/modal-sizes";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { QueuedFile } from "@/contexts/UploadQueueContext";
 import { useUploadQueue } from "@/contexts/UploadQueueContext";
@@ -295,7 +294,7 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isCreateCampaignModalOpen}
 				onClose={modalState.handleCreateCampaignClose}
-				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
+				className="modal-size-md"
 			>
 				<CreateCampaignModal
 					isOpen={modalState.isCreateCampaignModalOpen}
@@ -344,7 +343,7 @@ export function AppModals({
 					!modalState.isCreateCampaignModalOpen
 				}
 				onClose={modalState.handleAddResourceClose}
-				className="w-[96vw] max-w-[960px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
+				className="modal-size-lg"
 			>
 				<ResourceUpload
 					onUpload={async (file, filename, description, tags, options) => {
@@ -416,7 +415,7 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isAddToCampaignModalOpen}
 				onClose={modalState.handleAddToCampaignClose}
-				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
+				className="modal-size-md"
 			>
 				<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 					<h3 className="text-lg font-semibold mb-4">
@@ -424,16 +423,16 @@ export function AppModals({
 							? getDisplayName(modalState.selectedFile)
 							: ""}
 					</h3>
-					<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+					<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 						Choose which legendary adventures this tome shall join:
 					</p>
 					<div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
 						{availableCampaigns.length === 0 ? (
 							<div className="text-center py-6">
-								<div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+								<div className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
 									This file has already been added to all available campaigns.
 								</div>
-								<div className="text-xs text-gray-400 dark:text-gray-500">
+								<div className="text-xs text-neutral-400 dark:text-neutral-500">
 									Create a new campaign to add this file to additional
 									adventures.
 								</div>
@@ -488,7 +487,7 @@ export function AppModals({
 							</div>
 						)}
 
-						<div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+						<div className="flex items-center justify-between mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 							<div className="flex gap-2">
 								{availableCampaigns.length > 0 && (
 									<FormButton
@@ -554,13 +553,13 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isProposalConfirmModalOpen}
 				onClose={onProposalCancel}
-				cardStyle={STANDARD_MODAL_SIZE_OBJECT}
+				className="modal-size-standard"
 			>
 				<div className="p-6">
 					<h3 className="text-lg font-semibold mb-4">
 						Confirm before proposing file
 					</h3>
-					<p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line mb-6">
+					<p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-line mb-6">
 						{modalState.proposalConfirmLegalNotice}
 					</p>
 					<div className="flex justify-end gap-2">
@@ -578,7 +577,7 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isAdminDashboardModalOpen}
 				onClose={modalState.handleAdminDashboardClose}
-				className="w-[96vw] max-w-[720px] h-[calc(100dvh-1rem)] md:h-[80dvh] md:max-h-[760px]"
+				className="modal-size-md"
 			>
 				<TelemetryDashboard />
 			</Modal>

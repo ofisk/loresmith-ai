@@ -25,7 +25,7 @@ export const FormButton: React.FC<FormButtonProps> = ({
 		primary:
 			"text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300",
 		secondary:
-			"text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300",
+			"text-neutral-600 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300",
 		destructive:
 			"text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300",
 	};

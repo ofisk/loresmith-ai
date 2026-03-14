@@ -217,7 +217,7 @@ export function GraphVisualizationModal({
 								onChange={(e) => setSearchQuery(e.target.value)}
 								onKeyDown={(e) => e.key === "Enter" && handleSearch()}
 								placeholder="Search by name or topic..."
-								className="flex flex-1 min-w-0 rounded-md border border-gray-300 dark:border-gray-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400"
+								className="flex flex-1 min-w-0 rounded-md border border-neutral-300 dark:border-neutral-600 bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400"
 								aria-label="Search entities"
 							/>
 							<button

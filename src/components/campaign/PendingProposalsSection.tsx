@@ -199,7 +199,7 @@ export function PendingProposalsSection({
 					<h3 className="text-lg font-semibold mb-4">
 						Download file for review
 					</h3>
-					<p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+					<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 						{downloadDisclaimerProposal ? (
 							<>
 								This file was shared by{" "}

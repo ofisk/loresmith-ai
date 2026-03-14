@@ -283,7 +283,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 											<button
 												type="button"
 												onClick={() => handleMarkComplete(campaignId, task.id)}
-												className="p-1.5 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+												className="p-1.5 text-neutral-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
 												title="Mark done"
 											>
 												<Check size={16} weight="bold" />
@@ -291,7 +291,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 											<button
 												type="button"
 												onClick={() => handleEditTask(campaignId, task)}
-												className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+												className="p-1.5 text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
 												title="Edit"
 											>
 												<PencilSimple size={16} />
@@ -301,7 +301,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 												onClick={() =>
 													deletePlanningTask.execute(campaignId, task.id)
 												}
-												className="p-1.5 text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+												className="p-1.5 text-neutral-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
 												title="Delete"
 											>
 												<Trash size={16} />

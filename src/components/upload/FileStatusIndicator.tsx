@@ -207,8 +207,8 @@ export function FileStatusIndicator({
 							disabled={retryLimitDisabled}
 							className={`ml-1 p-1 transition-colors ${
 								retryLimitDisabled
-									? "text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"
-									: "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+									? "text-neutral-400 dark:text-neutral-500 cursor-not-allowed opacity-60"
+									: "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
 							}`}
 							title={!retryLimitTooltip ? "Retry processing" : undefined}
 						>

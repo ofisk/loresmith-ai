@@ -30,7 +30,7 @@ export function CampaignDigestsTab({
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-				<h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+				<h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					Session digests
 				</h3>
 				{canManageDigests && (

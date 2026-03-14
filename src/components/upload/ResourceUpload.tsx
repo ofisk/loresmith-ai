@@ -236,10 +236,10 @@ export const ResourceUpload = ({
 		<div className={cn("p-4 md:p-6 h-full flex flex-col min-h-0", className)}>
 			{/* Header */}
 			<div className="mb-4 md:mb-6">
-				<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+				<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
 					Add resource
 				</h2>
-				<p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+				<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 					Add tomes and scrolls to your library
 				</p>
 			</div>
@@ -253,7 +253,7 @@ export const ResourceUpload = ({
 						<label
 							htmlFor={fileInputId}
 							className={cn(
-								"w-full max-w-md border-2 border-dashed border-gray-300/80 dark:border-gray-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-gray-400 dark:hover:border-gray-500 focus-within:border-gray-400 dark:focus-within:border-gray-500 outline-none bg-gray-50/20 dark:bg-gray-800/10",
+								"w-full max-w-md border-2 border-dashed border-neutral-300/80 dark:border-neutral-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-neutral-400 dark:hover:border-neutral-500 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 outline-none bg-neutral-50/20 dark:bg-neutral-800/10",
 								loading && "opacity-50 pointer-events-none"
 							)}
 							onDrop={handleDrop}
@@ -285,7 +285,7 @@ export const ResourceUpload = ({
 												fileInputRef.current.value = "";
 											}
 										}}
-										className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition"
+										className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-600 dark:text-neutral-300 transition"
 										aria-label="Clear files"
 									>
 										<svg
@@ -441,7 +441,7 @@ export const ResourceUpload = ({
 			</div>
 
 			{/* Actions */}
-			<div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+			<div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 				<div className="flex gap-2">
 					<FormButton
 						variant="primary"

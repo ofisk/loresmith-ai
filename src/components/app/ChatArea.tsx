@@ -302,7 +302,7 @@ export function ChatArea({
 									? "Please respond to the tool confirmation above..."
 									: placeholder
 							}
-							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[25vh] overflow-y-auto overflow-x-hidden break-words resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
+							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[var(--height-input-min)] max-h-[var(--height-input-max)] overflow-y-auto overflow-x-hidden break-words resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"
 							value={input}
 							onChange={
 								onInputChange as unknown as React.ChangeEventHandler<HTMLInputElement>

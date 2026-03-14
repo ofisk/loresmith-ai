@@ -46,7 +46,7 @@ export function RebuildStatusIndicator({
 		},
 		cancelled: {
 			icon: XCircle,
-			color: "text-gray-500",
+			color: "text-neutral-500",
 			text: "Cancelled",
 			title: "Rebuild was cancelled",
 			spinning: false,
