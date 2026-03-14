@@ -18,7 +18,7 @@ npm run test:coverage
 
 ### E2E tests (Playwright)
 
-End-to-end tests cover auth, campaign management, file upload, AI chat, and billing flows.
+End-to-end tests cover auth, campaign management, file upload, AI chat, and billing flows. Tests use a page object model (`tests/e2e/pages/`) and semantic selectors (`data-testid`, `getByRole`) for stability.
 
 ```bash
 # First time: install browsers
@@ -29,6 +29,9 @@ npm run test:e2e
 
 # UI mode for debugging
 npm run test:e2e:ui
+
+# Burn-in run (repeat each test 10x) to surface flakiness before merge
+npm run test:e2e:repeat
 ```
 
 ## Test data factories
@@ -202,6 +205,8 @@ These tests are designed to drive the implementation of campaign features:
 - **Auth**: Sign in with seeded user `e2e-test-user` (password: `e2e-test-password`)
 - **Chat**: Mocks `/api/agents/*` to avoid AI API costs
 - **CI**: Runs in GitHub Actions; Playwright report and test results uploaded on failure
+- **Page objects**: `tests/e2e/pages/` – AppShellPage, CreateCampaignModal, LoginPage, UploadModal
+- **Flakiness**: Tests that pass on retry are logged as `FLAKY` in the output
 
 ## Future Enhancements
 

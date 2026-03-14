@@ -288,7 +288,10 @@ export function BillingPage({ onBack }: BillingPageProps) {
 	const isPaid = status.tier !== "free";
 
 	return (
-		<div className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950">
+		<div
+			className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950"
+			data-testid="billing-page"
+		>
 			<div className="max-w-2xl mx-auto">
 				<div className="flex items-center gap-4 mb-8">
 					{onBack && (

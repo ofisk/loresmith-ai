@@ -1,5 +1,8 @@
-import { expect, test } from "@playwright/test";
 import { loginAsE2EUser } from "./helpers/auth";
+import { uniqueCampaignName } from "./helpers/test-utils";
+import { expect, test } from "./lib/test";
+import { AppShellPage } from "./pages/app-shell.page";
+import { CreateCampaignModal } from "./pages/create-campaign-modal.page";
 
 test.describe("campaign management", () => {
 	test.beforeEach(async ({ page }) => {
@@ -7,54 +10,27 @@ test.describe("campaign management", () => {
 	});
 
 	test("create campaign", async ({ page }) => {
-		await expect(
-			page.locator(".tour-campaign-selector, .tour-campaigns-section").first()
-		).toBeVisible({ timeout: 10_000 });
+		const appShell = new AppShellPage(page);
+		const createModal = new CreateCampaignModal(page);
+		const campaignName = uniqueCampaignName("E2E Test Campaign");
 
-		await page
-			.getByRole("button", {
-				name: /create your first campaign|create campaign/i,
-			})
-			.first()
-			.click();
+		await appShell.waitForReady();
+		await appShell.createCampaignButton.click();
 
-		await page.getByLabel("Campaign name").fill("E2E Test Campaign");
-		await Promise.all([
-			page.waitForResponse(
-				(resp) =>
-					resp.url().includes("/api/campaigns") &&
-					resp.request().method() === "POST" &&
-					resp.status() === 201
-			),
-			page.getByTestId("create-campaign-submit").click(),
-		]);
+		await createModal.createCampaign(campaignName, { waitForApi: true });
 
 		await expect(
-			page.getByRole("button", { name: /E2E Test Campaign/ }).first()
+			page.getByRole("button", { name: new RegExp(campaignName) }).first()
 		).toBeVisible({ timeout: 10_000 });
 	});
 
 	test("edit campaign", async ({ page }) => {
-		await expect(page.locator(".tour-campaigns-section").first()).toBeVisible({
-			timeout: 10_000,
-		});
+		const appShell = new AppShellPage(page);
+		const createModal = new CreateCampaignModal(page);
 
-		await page
-			.getByRole("button", {
-				name: /create your first campaign|create campaign/i,
-			})
-			.first()
-			.click();
-		await page.getByLabel("Campaign name").fill("Original Name");
-		await Promise.all([
-			page.waitForResponse(
-				(resp) =>
-					resp.url().includes("/api/campaigns") &&
-					resp.request().method() === "POST" &&
-					resp.status() === 201
-			),
-			page.getByTestId("create-campaign-submit").click(),
-		]);
+		await appShell.waitForReady();
+		await appShell.createCampaignButton.click();
+		await createModal.createCampaign("Original Name", { waitForApi: true });
 
 		await page.getByRole("button", { name: "Done" }).click();
 		await expect(
@@ -66,35 +42,21 @@ test.describe("campaign management", () => {
 			.click();
 
 		await page.getByRole("button", { name: "Edit" }).click();
-		await page.getByLabel("Campaign name").fill("Edited Name");
+		await createModal.fillName("Edited Name");
 		await page.getByRole("button", { name: "Save" }).click();
 
 		await expect(
 			page.getByRole("button", { name: /Edited Name/ }).first()
-		).toBeVisible({ timeout: 5000 });
+		).toBeVisible({ timeout: 10_000 });
 	});
 
 	test("delete campaign", async ({ page }) => {
-		await expect(page.locator(".tour-campaigns-section").first()).toBeVisible({
-			timeout: 10_000,
-		});
+		const appShell = new AppShellPage(page);
+		const createModal = new CreateCampaignModal(page);
 
-		await page
-			.getByRole("button", {
-				name: /create your first campaign|create campaign/i,
-			})
-			.first()
-			.click();
-		await page.getByLabel("Campaign name").fill("To Delete");
-		await Promise.all([
-			page.waitForResponse(
-				(resp) =>
-					resp.url().includes("/api/campaigns") &&
-					resp.request().method() === "POST" &&
-					resp.status() === 201
-			),
-			page.getByTestId("create-campaign-submit").click(),
-		]);
+		await appShell.waitForReady();
+		await appShell.createCampaignButton.click();
+		await createModal.createCampaign("To Delete", { waitForApi: true });
 
 		await page.getByRole("button", { name: "Done" }).click();
 		await expect(

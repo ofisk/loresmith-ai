@@ -1,35 +1,27 @@
-import { expect, test } from "@playwright/test";
 import { E2E_PASSWORD, E2E_USERNAME, loginAsE2EUser } from "./helpers/auth";
+import { expect, test } from "./lib/test";
+import { AppShellPage } from "./pages/app-shell.page";
+import { LoginPage } from "./pages/login.page";
 
 test.describe("auth flow", () => {
 	test("sign in with seeded user", async ({ page }) => {
-		await page.goto("/");
-		await expect(
-			page.getByRole("button", { name: /sign in|sign up/i }).first()
-		).toBeVisible({ timeout: 10_000 });
+		const loginPage = new LoginPage(page);
+		const appShell = new AppShellPage(page);
 
-		await page
-			.getByRole("button", { name: /sign in/i })
-			.first()
-			.click();
-
-		await page.getByLabel(/username/i).fill(E2E_USERNAME);
-		await page.getByLabel(/^password/i).fill(E2E_PASSWORD);
-		await page.getByRole("button", { name: /sign in/i }).click();
+		await loginPage.goto();
+		await loginPage.openAuthButton.click();
+		await loginPage.login(E2E_USERNAME, E2E_PASSWORD);
 
 		await expect(
 			page.getByRole("button", { name: /sign in|sign up/i })
-		).not.toBeVisible({ timeout: 5000 });
+		).not.toBeVisible({ timeout: 10_000 });
 
-		await expect(
-			page.locator(".tour-campaign-selector, .tour-campaigns-section").first()
-		).toBeVisible({ timeout: 5000 });
+		await appShell.waitForReady();
 	});
 
 	test("auth helper sets JWT and app shows main UI", async ({ page }) => {
 		await loginAsE2EUser(page);
-		await expect(
-			page.locator(".tour-campaign-selector, .tour-campaigns-section").first()
-		).toBeVisible({ timeout: 10_000 });
+		const appShell = new AppShellPage(page);
+		await appShell.waitForReady();
 	});
 });
