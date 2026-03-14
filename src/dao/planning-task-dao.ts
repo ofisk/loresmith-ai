@@ -1,3 +1,4 @@
+import type { SqlParams } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 export type PlanningTaskStatus =
@@ -53,7 +54,7 @@ export class PlanningTaskDAO extends BaseDAOClass {
       WHERE campaign_id = ?
     `;
 
-		const params: unknown[] = [campaignId];
+		const params: SqlParams = [campaignId];
 
 		if (status && status.length > 0) {
 			const placeholders = status.map(() => "?").join(", ");
@@ -165,7 +166,7 @@ export class PlanningTaskDAO extends BaseDAOClass {
 		}
 	): Promise<void> {
 		const fields: string[] = [];
-		const params: unknown[] = [];
+		const params: SqlParams = [];
 
 		if (updates.title !== undefined) {
 			fields.push("title = ?");

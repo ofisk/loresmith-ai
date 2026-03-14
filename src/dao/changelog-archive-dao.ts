@@ -4,6 +4,7 @@ import type {
 	ChangelogArchiveQueryOptions,
 	CreateChangelogArchiveMetadataInput,
 } from "@/types/changelog-archive";
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 export class ChangelogArchiveDAO extends BaseDAOClass {
@@ -45,7 +46,7 @@ export class ChangelogArchiveDAO extends BaseDAOClass {
 		options: ChangelogArchiveQueryOptions = {}
 	): Promise<ChangelogArchiveMetadata[]> {
 		const conditions: string[] = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.campaignSessionId !== undefined) {
 			conditions.push(

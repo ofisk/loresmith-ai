@@ -1,8 +1,17 @@
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
+import type { CampaignResourceRow, CampaignRow } from "@/types/campaign";
+import type { SqlParam, SqlParams } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 import type { CampaignMemberRole } from "./campaign-share-link-dao";
 
 export type { CampaignMemberRole };
+export type { CampaignResourceRow, CampaignRow } from "@/types/campaign";
+
+/** Campaign row from DB; alias for backward compatibility */
+export type Campaign = CampaignRow;
+
+/** Campaign resource row from DB; alias for backward compatibility */
+export type CampaignResource = CampaignResourceRow;
 
 export interface CampaignMember {
 	campaign_id: string;
@@ -10,17 +19,6 @@ export interface CampaignMember {
 	role: CampaignMemberRole;
 	invited_by: string;
 	created_at: string;
-}
-
-export interface Campaign {
-	id: string;
-	name: string;
-	username: string;
-	description?: string;
-	campaignRagBasePath?: string;
-	metadata?: string | null;
-	created_at: string;
-	updated_at: string;
 }
 
 export interface CampaignContext {
@@ -42,23 +40,10 @@ export interface CampaignCharacter {
 	updated_at: string;
 }
 
-export interface CampaignResource {
-	id: string;
-	campaign_id: string;
-	file_key: string;
-	file_name: string;
-	display_name?: string;
-	description?: string;
-	tags?: string;
-	status: string;
-	created_at: string;
-	updated_at?: string;
-}
-
 export interface CampaignWithDetails extends Campaign {
 	context: CampaignContext[];
 	characters: CampaignCharacter[];
-	resources: CampaignResource[];
+	resources: CampaignResourceRow[];
 }
 
 export class CampaignDAO extends BaseDAOClass {
@@ -82,13 +67,13 @@ export class CampaignDAO extends BaseDAOClass {
 		]);
 	}
 
-	async getCampaignsByUser(username: string): Promise<Campaign[]> {
+	async getCampaignsByUser(username: string): Promise<CampaignRow[]> {
 		const sql = `
       select * from campaigns 
       where username = ? 
       order by updated_at desc
     `;
-		return await this.queryAll<Campaign>(sql, [username]);
+		return await this.queryAll<CampaignRow>(sql, [username]);
 	}
 
 	/** True if campaign_members table exists (migration 0001). Avoids failing when migrations not yet run. */
@@ -180,9 +165,9 @@ export class CampaignDAO extends BaseDAOClass {
 		return combined;
 	}
 
-	async getCampaignById(campaignId: string): Promise<Campaign | null> {
+	async getCampaignById(campaignId: string): Promise<CampaignRow | null> {
 		const sql = "select * from campaigns where id = ?";
-		return await this.queryFirst<Campaign>(sql, [campaignId]);
+		return await this.queryFirst<CampaignRow>(sql, [campaignId]);
 	}
 
 	async getCampaignByIdWithMapping(
@@ -210,7 +195,19 @@ export class CampaignDAO extends BaseDAOClass {
       from campaigns 
       where id = ? and username = ?
     `;
-		const asOwner = await this.queryFirst(ownerSql, [campaignId, username]);
+		type CampaignWithMapping = {
+			campaignId: string;
+			name: string;
+			description: string;
+			campaignRagBasePath: string;
+			createdAt: string;
+			updatedAt: string;
+			metadata?: string | null;
+		};
+		const asOwner = await this.queryFirst<CampaignWithMapping>(ownerSql, [
+			campaignId,
+			username,
+		]);
 		if (asOwner) return asOwner;
 
 		// Check campaign_members when table exists (migration 0001)
@@ -229,7 +226,10 @@ export class CampaignDAO extends BaseDAOClass {
       join campaign_members cm on c.id = cm.campaign_id
       where c.id = ? and cm.username = ?
     `;
-		return await this.queryFirst(memberSql, [campaignId, username]);
+		return await this.queryFirst<CampaignWithMapping>(memberSql, [
+			campaignId,
+			username,
+		]);
 	}
 
 	/** Returns 'owner' | editor_gm | readonly_gm | editor_player | readonly_player | null */
@@ -321,12 +321,12 @@ export class CampaignDAO extends BaseDAOClass {
 
 	async updateCampaign(
 		campaignId: string,
-		updates: Partial<Pick<Campaign, "name" | "description">> & {
+		updates: Partial<Pick<CampaignRow, "name" | "description">> & {
 			metadata?: Record<string, unknown> | string | null;
 		}
 	): Promise<void> {
 		const setClause: string[] = [];
-		const values: any[] = [];
+		const values: SqlParams = [];
 
 		for (const [key, value] of Object.entries(updates)) {
 			if (key === "metadata") {
@@ -338,7 +338,7 @@ export class CampaignDAO extends BaseDAOClass {
 				);
 			} else {
 				setClause.push(`${key} = ?`);
-				values.push(value);
+				values.push(value as SqlParam);
 			}
 		}
 
@@ -421,7 +421,9 @@ export class CampaignDAO extends BaseDAOClass {
 		await this.execute(sql, [id, campaignId, characterName, characterData]);
 	}
 
-	async getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
+	async getCampaignResources(
+		campaignId: string
+	): Promise<CampaignResourceRow[]> {
 		const sql = `
       select 
         cr.id,
@@ -439,7 +441,7 @@ export class CampaignDAO extends BaseDAOClass {
       where cr.campaign_id = ? 
       order by cr.created_at desc
     `;
-		return await this.queryAll<CampaignResource>(sql, [campaignId]);
+		return await this.queryAll<CampaignResourceRow>(sql, [campaignId]);
 	}
 
 	async addCampaignResource(

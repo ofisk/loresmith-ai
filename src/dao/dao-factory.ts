@@ -41,6 +41,11 @@ import { UserMonthlyUsageDAO } from "./user-monthly-usage-dao";
 // Cache for DAO factory instances
 const daoFactoryCache = new WeakMap<D1Database, DAOFactory>();
 
+/** Minimal env shape required for getDAOFactory (DB binding) */
+export interface EnvWithDb {
+	DB?: D1Database;
+}
+
 export interface DAOFactory {
 	authUserDAO: AuthUserDAO;
 	userDAO: UserDAO;
@@ -233,8 +238,8 @@ export function createDAOFactory(db: D1Database | undefined): DAOFactory {
 	return factory;
 }
 
-export function getDAOFactory(env: unknown): DAOFactory {
-	const e = env as { DB?: D1Database };
+export function getDAOFactory(env: EnvWithDb | unknown): DAOFactory {
+	const e = env as EnvWithDb;
 	const db = e?.DB;
 	if (!db) {
 		throw new DAOFactoryError();

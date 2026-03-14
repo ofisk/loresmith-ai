@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 // Raw row structure for the `entity_importance` table. Matches the D1 schema
@@ -148,7 +149,7 @@ export class EntityImportanceDAO extends BaseDAOClass {
 		options: EntityImportanceQueryOptions = {}
 	): Promise<EntityImportance[]> {
 		const conditions: string[] = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.minScore !== undefined) {
 			conditions.push("importance_score >= ?");

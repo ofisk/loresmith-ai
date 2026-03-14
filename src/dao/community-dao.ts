@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 // D1 has a relatively small SQL parameter ceiling; keep IN() batches conservative.
@@ -113,7 +114,7 @@ export class CommunityDAO extends BaseDAOClass {
 		options: { level?: number; limit?: number; offset?: number } = {}
 	): Promise<Community[]> {
 		const conditions = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.level !== undefined) {
 			conditions.push("level = ?");
@@ -165,7 +166,7 @@ export class CommunityDAO extends BaseDAOClass {
 		updates: UpdateCommunityInput
 	): Promise<void> {
 		const setClauses: string[] = [];
-		const values: any[] = [];
+		const values: SqlParam[] = [];
 
 		if (updates.entityIds !== undefined) {
 			// Update JSON column for backward compatibility during migration

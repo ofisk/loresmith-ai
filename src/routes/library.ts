@@ -226,7 +226,7 @@ export const handleDeleteFile = async (
 		}
 
 		// Delete from R2
-		await c.env.R2.delete(metadata.fileKey);
+		await c.env.R2.delete(metadata.file_key);
 
 		// Delete from D1
 		await c.env.DB.prepare(
@@ -262,9 +262,9 @@ export const handleGetFileDownload = async (
 
 		return c.json({
 			success: true,
-			fileKey: metadata.fileKey,
-			filename: metadata.filename,
-			fileSize: metadata.fileSize,
+			fileKey: metadata.file_key,
+			filename: metadata.file_name,
+			fileSize: metadata.file_size,
 		});
 	} catch (_error) {
 		return c.json({ error: "Failed to generate download URL" }, 500);

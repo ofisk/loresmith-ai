@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 // Raw row shape returned directly from D1 queries against the `community_summaries` table.
@@ -84,7 +85,7 @@ export class CommunitySummaryDAO extends BaseDAOClass {
       INNER JOIN communities c ON cs.community_id = c.id
       WHERE cs.community_id = ?
     `;
-		const params: any[] = [communityId];
+		const params: SqlParam[] = [communityId];
 
 		if (campaignId) {
 			sql += " AND c.campaign_id = ?";
@@ -107,7 +108,7 @@ export class CommunitySummaryDAO extends BaseDAOClass {
       INNER JOIN communities c ON cs.community_id = c.id
       WHERE cs.id = ?
     `;
-		const params: any[] = [summaryId];
+		const params: SqlParam[] = [summaryId];
 
 		if (campaignId) {
 			sql += " AND c.campaign_id = ?";
@@ -124,7 +125,7 @@ export class CommunitySummaryDAO extends BaseDAOClass {
 	): Promise<CommunitySummary[]> {
 		// Join with communities table to filter by campaign_id
 		const conditions = ["c.campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.level !== undefined) {
 			conditions.push("cs.level = ?");
@@ -164,7 +165,7 @@ export class CommunitySummaryDAO extends BaseDAOClass {
 		updates: UpdateCommunitySummaryInput
 	): Promise<void> {
 		const setClauses: string[] = [];
-		const values: any[] = [];
+		const values: SqlParam[] = [];
 
 		if (updates.name !== undefined) {
 			setClauses.push("name = ?");

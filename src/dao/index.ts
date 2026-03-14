@@ -13,6 +13,8 @@ export type {
 	CampaignCharacter,
 	CampaignContext,
 	CampaignResource,
+	CampaignResourceRow,
+	CampaignRow,
 	CampaignWithDetails,
 } from "./campaign-dao";
 // Campaign DAO

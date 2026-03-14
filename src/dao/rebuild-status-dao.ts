@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 // Raw row structure for the `rebuild_status` table. Matches the D1 schema exactly.
@@ -92,7 +93,7 @@ export class RebuildStatusDAO extends BaseDAOClass {
 		updates: UpdateRebuildStatusInput
 	): Promise<void> {
 		const updatesList: string[] = [];
-		const params: any[] = [];
+		const params: SqlParam[] = [];
 
 		if (updates.status !== undefined) {
 			updatesList.push("status = ?");
@@ -172,7 +173,7 @@ export class RebuildStatusDAO extends BaseDAOClass {
 
 	async getActiveRebuilds(campaignId?: string): Promise<RebuildStatus[]> {
 		const conditions: string[] = ["status IN ('pending', 'in_progress')"];
-		const params: any[] = [];
+		const params: SqlParam[] = [];
 
 		if (campaignId) {
 			conditions.push("campaign_id = ?");
@@ -194,7 +195,7 @@ export class RebuildStatusDAO extends BaseDAOClass {
 		options: RebuildStatusQueryOptions = {}
 	): Promise<RebuildStatus[]> {
 		const conditions: string[] = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.status) {
 			conditions.push("status = ?");

@@ -34,13 +34,19 @@ export async function sendUploadCompleteNotifications(
 			status: fileRecord.status,
 		});
 
+		const fileData = {
+			...fileRecord,
+			status: fileRecord.status ?? "uploaded",
+			tags: fileRecord.tags ? (JSON.parse(fileRecord.tags) as string[]) : [],
+		};
+
 		// Send file updated notification
-		notifyFileUpdated(env, userId, fileRecord).catch((error) => {
+		notifyFileUpdated(env, userId, fileData).catch((error) => {
 			log.error("File updated notification failed", error);
 		});
 
 		// Send upload complete notification
-		notifyFileUploadCompleteWithData(env, userId, fileRecord).catch((error) => {
+		notifyFileUploadCompleteWithData(env, userId, fileData).catch((error) => {
 			log.error("Upload complete notification failed", error);
 		});
 	} else {

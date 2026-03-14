@@ -13,7 +13,9 @@ import type { StructuredEntityType } from "@/lib/entity/entity-types";
 export type ShardStatus = "staging" | "approved" | "rejected" | "deleted";
 
 /**
- * Shard metadata containing file and source information
+ * Shard metadata containing file and source information.
+ * The index signature [key: string]: unknown allows extensions (e.g. from AI extraction).
+ * Use Record<string, unknown> for arbitrary extras; known fields are typed above.
  */
 export interface ShardMetadata {
 	fileKey: string;

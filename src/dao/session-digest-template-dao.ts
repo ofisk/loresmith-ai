@@ -6,6 +6,7 @@ import type {
 	UpdateSessionDigestTemplateInput,
 } from "@/types/session-digest";
 import { validateSessionDigestData } from "@/types/session-digest";
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 export class SessionDigestTemplateDAO extends BaseDAOClass {
@@ -94,7 +95,7 @@ export class SessionDigestTemplateDAO extends BaseDAOClass {
 		input: UpdateSessionDigestTemplateInput
 	): Promise<void> {
 		const updates: string[] = [];
-		const params: any[] = [];
+		const params: SqlParam[] = [];
 
 		if (input.name !== undefined) {
 			updates.push("name = ?");
