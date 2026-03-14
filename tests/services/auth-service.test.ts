@@ -1,5 +1,5 @@
 import { jwtVerify } from "jose";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	EnvironmentVariableError,
 	SecretStoreAccessError,
@@ -8,9 +8,6 @@ import {
 	type AuthRequest,
 	AuthService,
 } from "../../src/services/core/auth-service";
-
-// Mock process.env to prevent interference with actual environment variables
-const originalEnv = process.env;
 
 // Mock environment
 const mockEnv = {
@@ -64,14 +61,14 @@ describe("AuthService", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// Clear process.env to prevent interference with mock values
-		process.env = {};
+		// Stub JWT_SECRET to empty so getEnvVar falls through to env binding (mockEnv)
+		vi.stubEnv("JWT_SECRET", "");
 		authService = new AuthService(mockEnv);
 	});
 
 	afterEach(() => {
-		// Restore original environment
-		process.env = originalEnv;
+		vi.restoreAllMocks();
+		vi.unstubAllEnvs();
 	});
 
 	describe("getJwtSecret", () => {

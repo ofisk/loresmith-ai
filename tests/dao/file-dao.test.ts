@@ -3,7 +3,7 @@ import type {
 	R2Bucket,
 	VectorizeIndex,
 } from "@cloudflare/workers-types";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileDAO } from "../../src/dao/file/file-dao";
 
 // Mock D1Database
@@ -25,6 +25,10 @@ const mockVectorizeIndex = {
 describe("FileDAO", () => {
 	let fileDAO: FileDAO;
 	let mockPreparedStatement: any;
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
 
 	beforeEach(() => {
 		fileDAO = new FileDAO(mockDB);
@@ -153,8 +157,6 @@ describe("FileDAO", () => {
 				expect.stringContaining("Failed to delete file from R2"),
 				expect.any(Error)
 			);
-
-			consoleSpy.mockRestore();
 		});
 
 		it("should handle vector index deletion errors gracefully", async () => {
@@ -203,8 +205,6 @@ describe("FileDAO", () => {
 				expect.stringContaining("Failed to delete vector embeddings"),
 				expect.any(Error)
 			);
-
-			consoleSpy.mockRestore();
 		});
 
 		it("should not attempt vector index deletion when no vector_id exists", async () => {

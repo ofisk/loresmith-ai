@@ -1,37 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFindCommunitiesContainingEntity = vi.fn();
-const mockFindCommunitiesContainingEntities = vi.fn();
+const mockFindCommunitiesContainingEntity = vi.hoisted(() => vi.fn());
+const mockFindCommunitiesContainingEntities = vi.hoisted(() => vi.fn());
 
-const mockPlanningTaskDAO = {
+const mockPlanningTaskDAO = vi.hoisted(() => ({
 	listByCampaign: vi.fn(),
-};
+}));
 
-const mockSessionDigestDAO = {
+const mockSessionDigestDAO = vi.hoisted(() => ({
 	getNextSessionNumber: vi.fn(),
-};
+}));
 
-const mockSessionPlanReadoutDAO = {
+const mockSessionPlanReadoutDAO = vi.hoisted(() => ({
 	get: vi.fn(),
-};
+}));
 
-const mockCommunityDAO = {
+const mockCommunityDAO = vi.hoisted(() => ({
 	findCommunitiesContainingEntity: mockFindCommunitiesContainingEntity,
 	findCommunitiesContainingEntities: mockFindCommunitiesContainingEntities,
-};
+}));
 
-const mockDaoFactory = {
+const mockDaoFactory = vi.hoisted(() => ({
 	planningTaskDAO: mockPlanningTaskDAO,
 	sessionDigestDAO: mockSessionDigestDAO,
 	sessionPlanReadoutDAO: mockSessionPlanReadoutDAO,
 	communityDAO: mockCommunityDAO,
-};
+}));
 
 vi.mock("@/dao/dao-factory", () => ({
 	getDAOFactory: vi.fn(() => mockDaoFactory),
 }));
 
-const mockSearchExecute = vi.fn();
+const mockSearchExecute = vi.hoisted(() => vi.fn());
 vi.mock("@/tools/campaign-context/search-tools", () => ({
 	searchCampaignContext: {
 		execute: (...args: unknown[]) => mockSearchExecute(...args),

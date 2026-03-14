@@ -29,6 +29,7 @@ describe("useFormSubmission", () => {
 	});
 
 	it("sets error on validation failure", async () => {
+		expect.hasAssertions();
 		const submitFn = vi.fn();
 		const validate = vi.fn().mockReturnValue("invalid");
 		const { result } = renderHook(() =>
@@ -46,6 +47,7 @@ describe("useFormSubmission", () => {
 	});
 
 	it("sets error on submit failure", async () => {
+		expect.hasAssertions();
 		const submitFn = vi.fn().mockRejectedValue(new Error("network error"));
 		const { result } = renderHook(() =>
 			useFormSubmission(submitFn, { errorMessage: "Submit failed" })
@@ -61,6 +63,7 @@ describe("useFormSubmission", () => {
 	});
 
 	it("reset clears error and resets async state", async () => {
+		expect.hasAssertions();
 		const submitFn = vi.fn().mockRejectedValue(new Error("err"));
 		const { result } = renderHook(() => useFormSubmission(submitFn));
 		await act(async () => {
@@ -94,6 +97,7 @@ describe("useFormSubmissionWithData", () => {
 	});
 
 	it("validates before submit", async () => {
+		expect.hasAssertions();
 		const submitFn = vi.fn();
 		const validate = vi.fn().mockReturnValue("bad data");
 		const { result } = renderHook(() =>

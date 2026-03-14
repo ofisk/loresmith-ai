@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BaseAgent } from "../../src/agents/base-agent";
 import { SimpleChatAgent } from "../../src/agents/simple-chat-agent";
 
@@ -121,6 +121,10 @@ describe("BaseAgent", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		agent = new TestBaseAgent();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
 	describe("constructor and initialization", () => {
@@ -443,8 +447,6 @@ describe("BaseAgent", () => {
 				];
 			expect(lastCallArgs?.[0]).toBe(testJwt);
 			expect(lastCallArgs?.[1]).toBe("camp-123");
-
-			createEnhancedToolsSpy.mockRestore();
 		});
 	});
 

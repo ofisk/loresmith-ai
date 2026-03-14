@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGenerateStructuredOutput = vi.fn();
-const mockCampaignDAO = {
+const mockGenerateStructuredOutput = vi.hoisted(() => vi.fn());
+const mockCampaignDAO = vi.hoisted(() => ({
 	getCampaignByIdWithMapping: vi.fn(),
 	getCampaignRole: vi.fn(),
-};
-const mockEntityDAO = {
+}));
+const mockEntityDAO = vi.hoisted(() => ({
 	getEntityById: vi.fn(),
-};
+}));
 
 vi.mock("@/dao/dao-factory", () => ({
 	getDAOFactory: vi.fn(() => ({

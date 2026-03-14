@@ -3,10 +3,14 @@ import type {
 	D1PreparedStatement,
 	D1Result,
 } from "@cloudflare/workers-types";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DAOFactoryImpl } from "@/dao/dao-factory";
 
 describe("DAOFactoryImpl", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("parallel runs all operations and returns results", async () => {
 		const mockDB = {
 			prepare: vi.fn(),
@@ -37,8 +41,6 @@ describe("DAOFactoryImpl", () => {
 
 		await expect(factory.parallel([op])).rejects.toThrow("boom");
 		expect(logSpy).toHaveBeenCalledWith("DAO parallel error:", error);
-
-		logSpy.mockRestore();
 	});
 
 	it("batch delegates to db.batch with prepared statements", async () => {

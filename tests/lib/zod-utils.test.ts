@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { parseOrThrow } from "@/lib/zod-utils";
 
@@ -8,6 +8,10 @@ const TestSchema = z.object({
 });
 
 describe("parseOrThrow", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("returns parsed data when valid", () => {
 		const data = { name: "test", count: 42 };
 		const result = parseOrThrow(TestSchema, data);
@@ -49,6 +53,7 @@ describe("parseOrThrow", () => {
 	});
 
 	it("logs with logPrefix when validation fails", () => {
+		expect.hasAssertions();
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 		try {
 			parseOrThrow(
@@ -65,6 +70,5 @@ describe("parseOrThrow", () => {
 			"[Test] Schema validation failed:",
 			expect.anything()
 		);
-		warnSpy.mockRestore();
 	});
 });

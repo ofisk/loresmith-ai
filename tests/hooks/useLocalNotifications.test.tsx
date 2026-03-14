@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { useLocalNotifications } from "@/hooks/useLocalNotifications";
 
@@ -17,6 +17,10 @@ vi.mock("@/hooks/useNotificationStream", () => ({
 describe("useLocalNotifications", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
 	const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -51,8 +55,6 @@ describe("useLocalNotifications", () => {
 		});
 		expect(result.current.localNotifications[0].timestamp).toBeDefined();
 		expect(result.current.allNotifications).toHaveLength(1);
-
-		consoleSpy.mockRestore();
 	});
 
 	it("dismissNotification removes local notification by timestamp", () => {
@@ -71,8 +73,6 @@ describe("useLocalNotifications", () => {
 		});
 
 		expect(result.current.localNotifications).toHaveLength(0);
-
-		consoleSpy.mockRestore();
 	});
 
 	it("clearAllNotifications clears local notifications", () => {
@@ -90,7 +90,5 @@ describe("useLocalNotifications", () => {
 		});
 
 		expect(result.current.localNotifications).toEqual([]);
-
-		consoleSpy.mockRestore();
 	});
 });

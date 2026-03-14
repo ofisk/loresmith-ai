@@ -554,18 +554,24 @@ describe("PlanningContextService", () => {
 
 		it("does not return expired entries (cache miss after TTL)", async () => {
 			vi.useFakeTimers();
-			const extract = (service as any).extractEntityNamesWithLLM.bind(service);
+			try {
+				const extract = (service as any).extractEntityNamesWithLLM.bind(
+					service
+				);
 
-			const result1 = await extract("campaign-1", "What about Gandalf?");
-			expect(result1).toEqual(["Gandalf", "Frodo"]);
-			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(1);
+				const result1 = await extract("campaign-1", "What about Gandalf?");
+				expect(result1).toEqual(["Gandalf", "Frodo"]);
+				expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(1);
 
-			// Advance time past 5-minute TTL
-			vi.advanceTimersByTime(6 * 60 * 1000);
+				// Advance time past 5-minute TTL
+				vi.advanceTimersByTime(6 * 60 * 1000);
 
-			const result2 = await extract("campaign-1", "What about Gandalf?");
-			expect(result2).toEqual(["Gandalf", "Frodo"]);
-			expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(2);
+				const result2 = await extract("campaign-1", "What about Gandalf?");
+				expect(result2).toEqual(["Gandalf", "Frodo"]);
+				expect(mockGenerateStructuredOutput).toHaveBeenCalledTimes(2);
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 	});
 });

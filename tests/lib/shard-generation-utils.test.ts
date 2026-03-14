@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	getRAGSearchPath,
 	logShardGenerationContext,
@@ -10,6 +10,10 @@ import {
 } from "../../src/lib/shard-generation-utils";
 
 describe("ShardGenerationUtils", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	describe("validateShardGenerationResource", () => {
 		it("should validate a correct resource", () => {
 			const resource = {
@@ -130,8 +134,6 @@ describe("ShardGenerationUtils", () => {
 			expect(consoleSpy).toHaveBeenCalledWith(
 				expect.stringContaining("Search path looks like a UUID")
 			);
-
-			consoleSpy.mockRestore();
 		});
 
 		it("should warn about paths without separators", () => {
@@ -142,8 +144,6 @@ describe("ShardGenerationUtils", () => {
 			expect(consoleSpy).toHaveBeenCalledWith(
 				expect.stringContaining("Search path has no path separators")
 			);
-
-			consoleSpy.mockRestore();
 		});
 	});
 
@@ -245,8 +245,6 @@ describe("ShardGenerationUtils", () => {
 					pathMatches: true,
 				})
 			);
-
-			consoleSpy.mockRestore();
 		});
 	});
 
