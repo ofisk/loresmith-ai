@@ -62,7 +62,7 @@ export const commonSchemas = {
  */
 export async function getCampaignName(
 	campaignId: string | null | undefined,
-	env: any,
+	env: ToolEnv | unknown,
 	jwt: string | null | undefined
 ): Promise<string | null> {
 	if (!campaignId || !env || !jwt) {
@@ -202,7 +202,7 @@ export async function requireCampaignAccessByUserIdForTool(params: {
 export async function executeApiRequest(
 	url: string,
 	options: RequestInit = {}
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
 	try {
 		const response = await fetch(url, options);
 
@@ -227,15 +227,19 @@ export async function executeApiRequest(
 /**
  * Check if running in Durable Object context
  */
-export function isDurableObjectContext(context?: any): boolean {
+export function isDurableObjectContext(
+	context?: { env?: unknown } | null
+): boolean {
 	return context?.env !== undefined;
 }
 
 /**
  * Get environment from context with fallback
  */
-export function getEnvironment(context?: any): any {
-	return context?.env || {};
+export function getEnvironment(
+	context?: { env?: unknown } | null
+): Record<string, unknown> {
+	return (context?.env as Record<string, unknown>) ?? {};
 }
 
 /**

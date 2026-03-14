@@ -307,8 +307,8 @@ export const provideCampaignGuidanceTool = tool({
 			const assessmentService = getAssessmentService(env as Env);
 			const campaignReadiness = await assessmentService.getCampaignReadiness(
 				campaignId,
-				{} as any,
-				[]
+				[],
+				undefined
 			);
 
 			return createToolSuccess(

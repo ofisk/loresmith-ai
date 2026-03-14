@@ -26,7 +26,7 @@ export async function handleGetUserState(c: ContextWithAuth) {
 // Get assessment recommendations
 export async function handleGetAssessmentRecommendations(c: ContextWithAuth) {
 	try {
-		const { currentModule, userState } = await c.req.json();
+		const { currentModule } = await c.req.json();
 
 		if (!currentModule) {
 			return c.json({ error: "Current module is required" }, 400);
@@ -35,8 +35,8 @@ export async function handleGetAssessmentRecommendations(c: ContextWithAuth) {
 		const assessmentService = getAssessmentService(c.env);
 		const recommendations = await assessmentService.getCampaignReadiness(
 			currentModule,
-			userState,
-			[]
+			[],
+			undefined
 		);
 
 		return c.json({ recommendations });
