@@ -41,7 +41,7 @@ jobs:
           echo "ADMIN_SECRET=e2e-admin-secret" >> .dev.vars
           echo "CORS_ALLOWED_ORIGINS=http://localhost:8787,http://localhost:5173" >> .dev.vars
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
