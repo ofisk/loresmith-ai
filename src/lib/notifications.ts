@@ -89,7 +89,7 @@ export async function notifyShardGeneration(
 	shardCount: number,
 	context?: {
 		campaignId: string;
-		resourceId: string;
+		resourceId?: string;
 		groups?: any[];
 		chunkNumber?: number;
 		errorMessage?: string;
@@ -128,6 +128,7 @@ export async function notifyShardGeneration(
 			campaignName,
 			fileName,
 			shardCount,
+			...(context?.campaignId ? { campaignId: context.campaignId } : {}),
 			// Provide optional decoupled UI hint (no component names)
 			...(context
 				? {

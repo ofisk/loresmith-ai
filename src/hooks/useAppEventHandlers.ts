@@ -181,7 +181,7 @@ export function useAppEventHandlers({
 		onContextRecapRequest,
 	]);
 
-	// Listen for shards-generated events to refresh shards overlay
+	// Listen for shards-generated events to refresh shards (collapsed count + expanded overlay)
 	useEffect(() => {
 		const handleShardsGenerated = (_event: Event) => {
 			if (shardsGeneratedTimeoutRef.current) {
@@ -190,7 +190,7 @@ export function useAppEventHandlers({
 			shardsGeneratedTimeoutRef.current = setTimeout(() => {
 				shardsGeneratedTimeoutRef.current = null;
 				fetchAllStagedShards();
-			}, 1500);
+			}, 300);
 		};
 
 		window.addEventListener(

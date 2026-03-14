@@ -52,9 +52,15 @@ export const ShardOverlay = ({
 	}, [isExpanded]);
 
 	const toggleExpanded = useCallback(() => {
-		setIsExpanded((prev) => !prev);
+		setIsExpanded((prev) => {
+			const next = !prev;
+			if (next && onRefresh) {
+				onRefresh();
+			}
+			return next;
+		});
 		setIsMinimized(false);
-	}, []);
+	}, [onRefresh]);
 
 	const handleClose = useCallback(() => {
 		setIsExpanded(false);
