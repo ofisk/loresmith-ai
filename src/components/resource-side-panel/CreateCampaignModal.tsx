@@ -90,7 +90,11 @@ export function CreateCampaignModal({
 							Add your first resource
 						</FormButton>
 					)}
-					<FormButton onClick={handleDone} variant="secondary">
+					<FormButton
+						onClick={handleDone}
+						variant="secondary"
+						data-testid="create-campaign-done"
+					>
 						Done
 					</FormButton>
 				</div>

@@ -32,7 +32,7 @@ test.describe("campaign management", () => {
 		await appShell.createCampaignButton.click();
 		await createModal.createCampaign("Original Name", { waitForApi: true });
 
-		await page.getByRole("button", { name: "Done" }).click();
+		await createModal.doneButton.click();
 		await expect(
 			page.getByRole("button", { name: /Original Name/ }).first()
 		).toBeVisible({ timeout: 10_000 });
@@ -41,9 +41,9 @@ test.describe("campaign management", () => {
 			.first()
 			.click();
 
-		await page.getByRole("button", { name: "Edit" }).click();
+		await page.getByTestId("campaign-details-edit").click();
 		await createModal.fillName("Edited Name");
-		await page.getByRole("button", { name: "Save" }).click();
+		await page.getByTestId("campaign-details-save").click();
 
 		await expect(
 			page.getByRole("button", { name: /Edited Name/ }).first()
@@ -58,7 +58,7 @@ test.describe("campaign management", () => {
 		await appShell.createCampaignButton.click();
 		await createModal.createCampaign("To Delete", { waitForApi: true });
 
-		await page.getByRole("button", { name: "Done" }).click();
+		await createModal.doneButton.click();
 		await expect(
 			page.getByRole("button", { name: /To Delete/ }).first()
 		).toBeVisible({ timeout: 10_000 });
@@ -68,10 +68,11 @@ test.describe("campaign management", () => {
 			.click();
 
 		await page.getByRole("button", { name: "Delete campaign" }).click();
-		await page.getByRole("button", { name: "Confirm delete" }).click();
+		await page.getByTestId("confirm-delete").click();
 
 		await expect(page.getByRole("button", { name: /To Delete/ })).toHaveCount(
-			0
+			0,
+			{ timeout: 10_000 }
 		);
 	});
 });

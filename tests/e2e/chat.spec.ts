@@ -28,11 +28,9 @@ test.describe("AI chat", () => {
 		const appShell = new AppShellPage(page);
 		await appShell.waitForReady();
 
-		const textarea = page
-			.getByRole("textbox", { name: /message|prompt/i })
-			.or(page.locator("textarea"));
+		const textarea = page.getByRole("textbox", { name: "Chat message" });
 		await textarea.fill("Hello");
-		await page.getByRole("button", { name: /send message/i }).click();
+		await page.getByRole("button", { name: "Send message" }).click();
 
 		await expect(page.getByText(MOCK_RESPONSE)).toBeVisible({
 			timeout: 15_000,

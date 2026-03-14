@@ -759,6 +759,7 @@ export function CampaignDetailsModal({
 											disabled={isUpdating || !editedName.trim()}
 											loading={isUpdating}
 											icon={<FloppyDisk size={16} />}
+											data-testid="campaign-details-save"
 										>
 											{isUpdating ? "Saving…" : "Save changes"}
 										</FormButton>
@@ -776,6 +777,7 @@ export function CampaignDetailsModal({
 											<FormButton
 												onClick={() => setIsEditing(true)}
 												icon={<PencilSimple size={16} />}
+												data-testid="campaign-details-edit"
 											>
 												Edit
 											</FormButton>

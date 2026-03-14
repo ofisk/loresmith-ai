@@ -29,4 +29,7 @@ export async function loginAsE2EUser(
 		localStorage.setItem("loresmith-tour-completed", "true");
 	}, token);
 	await page.reload();
+	await page
+		.getByTestId("app-main")
+		.waitFor({ state: "visible", timeout: 15_000 });
 }
