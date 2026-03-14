@@ -1,15 +1,7 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { CampaignDAO } from "@/dao/campaign-dao";
-
-function createMockStmt() {
-	return {
-		bind: vi.fn().mockReturnThis(),
-		run: vi.fn().mockResolvedValue({}),
-		all: vi.fn().mockResolvedValue({ results: [] }),
-		first: vi.fn().mockResolvedValue(null),
-	};
-}
+import { createMockD1, createMockStmt } from "./helpers";
 
 describe("CampaignDAO", () => {
 	let dao: CampaignDAO;
@@ -18,84 +10,101 @@ describe("CampaignDAO", () => {
 
 	beforeEach(() => {
 		mockStmt = createMockStmt();
-		mockDB = {
-			prepare: vi.fn().mockReturnValue(mockStmt),
-		} as unknown as D1Database;
+		mockDB = createMockD1(mockStmt);
 		dao = new CampaignDAO(mockDB);
 	});
 
-	it("createCampaign calls execute with correct params", async () => {
-		await dao.createCampaign("camp-1", "My Campaign", "user1", "A great game");
+	describe("createCampaign", () => {
+		it("calls execute with correct params", async () => {
+			await dao.createCampaign(
+				"camp-1",
+				"My Campaign",
+				"user1",
+				"A great game"
+			);
 
-		expect(mockDB.prepare).toHaveBeenCalledWith(
-			expect.stringContaining("insert into campaigns")
-		);
-		expect(mockStmt.bind).toHaveBeenCalledWith(
-			"camp-1",
-			"My Campaign",
-			"user1",
-			"A great game",
-			null
-		);
-		expect(mockStmt.run).toHaveBeenCalled();
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.stringContaining("insert into campaigns")
+			);
+			expect(mockStmt.bind).toHaveBeenCalledWith(
+				"camp-1",
+				"My Campaign",
+				"user1",
+				"A great game",
+				null
+			);
+			expect(mockStmt.run).toHaveBeenCalled();
+		});
+
+		it("propagates database errors", async () => {
+			mockStmt.run.mockRejectedValue(new Error("D1 constraint violated"));
+
+			await expect(dao.createCampaign("id", "n", "u")).rejects.toThrow(
+				/Database/
+			);
+		});
 	});
 
-	it("getCampaignsByUser returns empty array when no campaigns", async () => {
-		mockStmt.all.mockResolvedValue({ results: [] });
+	describe("getCampaignsByUser", () => {
+		it("returns empty array when no campaigns", async () => {
+			mockStmt.all.mockResolvedValue({ results: [] });
 
-		const result = await dao.getCampaignsByUser("user1");
+			const result = await dao.getCampaignsByUser("user1");
 
-		expect(result).toEqual([]);
-		expect(mockStmt.bind).toHaveBeenCalledWith("user1");
+			expect(result).toEqual([]);
+			expect(mockStmt.bind).toHaveBeenCalledWith("user1");
+		});
+
+		it("returns campaigns from results", async () => {
+			const rows = [
+				{
+					id: "c1",
+					name: "Campaign One",
+					username: "user1",
+					description: "First",
+					campaignRagBasePath: null,
+					metadata: null,
+					created_at: "2024-01-01T00:00:00Z",
+					updated_at: "2024-01-01T00:00:00Z",
+				},
+			];
+			mockStmt.all.mockResolvedValue({ results: rows });
+
+			const result = await dao.getCampaignsByUser("user1");
+
+			expect(result).toHaveLength(1);
+			expect(result[0].id).toBe("c1");
+			expect(result[0].name).toBe("Campaign One");
+		});
 	});
 
-	it("getCampaignsByUser returns campaigns from results", async () => {
-		const rows = [
-			{
-				id: "c1",
-				name: "Campaign One",
-				username: "user1",
-				description: "First",
-				campaignRagBasePath: null,
+	describe("getCampaignByIdWithMapping", () => {
+		it("returns null when no row", async () => {
+			mockStmt.first.mockResolvedValue(null);
+
+			const result = await dao.getCampaignByIdWithMapping("c1", "user1");
+
+			expect(result).toBeNull();
+			expect(mockStmt.bind).toHaveBeenCalledWith("c1", "user1");
+		});
+
+		it("returns mapped campaign when found", async () => {
+			const row = {
+				campaignId: "c1",
+				name: "My Campaign",
+				description: "Desc",
+				campaignRagBasePath: "/rag",
+				createdAt: "2024-01-01T00:00:00Z",
+				updatedAt: "2024-01-01T00:00:00Z",
 				metadata: null,
-				created_at: "2024-01-01T00:00:00Z",
-				updated_at: "2024-01-01T00:00:00Z",
-			},
-		];
-		mockStmt.all.mockResolvedValue({ results: rows });
+			};
+			mockStmt.first.mockResolvedValue(row);
 
-		const result = await dao.getCampaignsByUser("user1");
+			const result = await dao.getCampaignByIdWithMapping("c1", "user1");
 
-		expect(result).toHaveLength(1);
-		expect(result[0].id).toBe("c1");
-		expect(result[0].name).toBe("Campaign One");
-	});
-
-	it("getCampaignByIdWithMapping returns null when no row", async () => {
-		mockStmt.first.mockResolvedValue(null);
-
-		const result = await dao.getCampaignByIdWithMapping("c1", "user1");
-
-		expect(result).toBeNull();
-		expect(mockStmt.bind).toHaveBeenCalledWith("c1", "user1");
-	});
-
-	it("getCampaignByIdWithMapping returns mapped campaign when found", async () => {
-		const row = {
-			campaignId: "c1",
-			name: "My Campaign",
-			description: "Desc",
-			campaignRagBasePath: "/rag",
-			createdAt: "2024-01-01T00:00:00Z",
-			updatedAt: "2024-01-01T00:00:00Z",
-			metadata: null,
-		};
-		mockStmt.first.mockResolvedValue(row);
-
-		const result = await dao.getCampaignByIdWithMapping("c1", "user1");
-
-		expect(result).not.toBeNull();
-		expect(result?.campaignId).toBe("c1");
-		expect(result?.name).toBe("My Campaign");
+			expect(result).not.toBeNull();
+			expect(result?.campaignId).toBe("c1");
+			expect(result?.name).toBe("My Campaign");
+		});
 	});
 });

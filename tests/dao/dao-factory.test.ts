@@ -11,6 +11,18 @@ describe("DAOFactoryImpl", () => {
 		vi.restoreAllMocks();
 	});
 
+	it("parallel returns empty array for empty operations", async () => {
+		const mockDB = {
+			prepare: vi.fn(),
+			batch: vi.fn(),
+		} as unknown as D1Database;
+		const factory = new DAOFactoryImpl(mockDB);
+
+		const result = await factory.parallel([]);
+
+		expect(result).toEqual([]);
+	});
+
 	it("parallel runs all operations and returns results", async () => {
 		const mockDB = {
 			prepare: vi.fn(),
@@ -41,6 +53,20 @@ describe("DAOFactoryImpl", () => {
 
 		await expect(factory.parallel([op])).rejects.toThrow("boom");
 		expect(logSpy).toHaveBeenCalledWith("DAO parallel error:", error);
+	});
+
+	it("batch returns empty result for empty statements", async () => {
+		const batch = vi.fn().mockResolvedValue([]);
+		const mockDB = {
+			prepare: vi.fn(),
+			batch,
+		} as unknown as D1Database;
+		const factory = new DAOFactoryImpl(mockDB);
+
+		const result = await factory.batch([]);
+
+		expect(batch).toHaveBeenCalledWith([]);
+		expect(result).toEqual([]);
 	});
 
 	it("batch delegates to db.batch with prepared statements", async () => {
