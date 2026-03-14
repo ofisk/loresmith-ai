@@ -1,4 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import type { CampaignResource } from "@/dao/campaign-dao";
+import type { Entity, EntityDAORead } from "@/dao/entity-dao";
 import {
 	ENTITY_TYPE_FACTIONS,
 	ENTITY_TYPE_HOOKS,
@@ -110,8 +112,8 @@ export class AssessmentDAO {
 	 */
 	async getCampaignContext(
 		campaignId: string,
-		entityDAO?: any
-	): Promise<any[]> {
+		entityDAO?: EntityDAORead
+	): Promise<Entity[]> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for getCampaignContext");
 		}
@@ -128,7 +130,7 @@ export class AssessmentDAO {
 		];
 
 		// Query entities for each type and combine
-		const allContext: any[] = [];
+		const allContext: Entity[] = [];
 		for (const entityType of conversationalContextTypes) {
 			const entities = await entityDAO.listEntitiesByCampaign(campaignId, {
 				entityType,
@@ -145,8 +147,8 @@ export class AssessmentDAO {
 	 */
 	async getCampaignCharacters(
 		campaignId: string,
-		entityDAO?: any
-	): Promise<any[]> {
+		entityDAO?: EntityDAORead
+	): Promise<Entity[]> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for getCampaignCharacters");
 		}
@@ -155,7 +157,7 @@ export class AssessmentDAO {
 		const characterEntityTypes = ["npcs", "pcs"];
 
 		// Query entities for each type and combine
-		const allCharacters: any[] = [];
+		const allCharacters: Entity[] = [];
 		for (const entityType of characterEntityTypes) {
 			const entities = await entityDAO.listEntitiesByCampaign(campaignId, {
 				entityType,
@@ -201,9 +203,9 @@ export class AssessmentDAO {
 	 */
 	async storeNPCs(
 		campaignId: string,
-		npcs: any[],
+		npcs: object[],
 		moduleName: string,
-		entityDAO?: any
+		entityDAO?: EntityDAORead
 	): Promise<void> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for storeNPCs");
@@ -211,11 +213,12 @@ export class AssessmentDAO {
 
 		for (const npc of npcs) {
 			const entityId = crypto.randomUUID();
+			const item = npc as { name?: string };
 			await entityDAO.createEntity({
 				id: entityId,
 				campaignId,
 				entityType: ENTITY_TYPE_NPCS,
-				name: npc.name || "Unnamed NPC",
+				name: item.name || "Unnamed NPC",
 				content: npc,
 				metadata: {
 					source: "module",
@@ -232,9 +235,9 @@ export class AssessmentDAO {
 	 */
 	async storeLocations(
 		campaignId: string,
-		locations: any[],
+		locations: object[],
 		moduleName: string,
-		entityDAO?: any
+		entityDAO?: EntityDAORead
 	): Promise<void> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for storeLocations");
@@ -242,11 +245,12 @@ export class AssessmentDAO {
 
 		for (const location of locations) {
 			const entityId = crypto.randomUUID();
+			const item = location as { name?: string };
 			await entityDAO.createEntity({
 				id: entityId,
 				campaignId,
 				entityType: ENTITY_TYPE_LOCATIONS,
-				name: location.name || "Unnamed Location",
+				name: item.name || "Unnamed Location",
 				content: location,
 				metadata: {
 					source: "module",
@@ -263,9 +267,9 @@ export class AssessmentDAO {
 	 */
 	async storePlotHooks(
 		campaignId: string,
-		plotHooks: any[],
+		plotHooks: object[],
 		moduleName: string,
-		entityDAO?: any
+		entityDAO?: EntityDAORead
 	): Promise<void> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for storePlotHooks");
@@ -273,11 +277,12 @@ export class AssessmentDAO {
 
 		for (const plotHook of plotHooks) {
 			const entityId = crypto.randomUUID();
+			const item = plotHook as { title?: string };
 			await entityDAO.createEntity({
 				id: entityId,
 				campaignId,
 				entityType: ENTITY_TYPE_HOOKS,
-				name: plotHook.title || "Unnamed Plot Hook",
+				name: item.title || "Unnamed Plot Hook",
 				content: plotHook,
 				metadata: {
 					source: "module",
@@ -294,9 +299,9 @@ export class AssessmentDAO {
 	 */
 	async storeStoryBeats(
 		campaignId: string,
-		storyBeats: any[],
+		storyBeats: object[],
 		moduleName: string,
-		entityDAO?: any
+		entityDAO?: EntityDAORead
 	): Promise<void> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for storeStoryBeats");
@@ -304,11 +309,12 @@ export class AssessmentDAO {
 
 		for (const storyBeat of storyBeats) {
 			const entityId = crypto.randomUUID();
+			const item = storyBeat as { title?: string };
 			await entityDAO.createEntity({
 				id: entityId,
 				campaignId,
 				entityType: ENTITY_TYPE_PLOT_LINES,
-				name: storyBeat.title || "Unnamed Story Beat",
+				name: item.title || "Unnamed Story Beat",
 				content: storyBeat,
 				metadata: {
 					source: "module",
@@ -325,16 +331,17 @@ export class AssessmentDAO {
 	 */
 	async storeKeyItems(
 		campaignId: string,
-		keyItems: any[],
+		keyItems: object[],
 		moduleName: string,
-		entityDAO?: any
+		entityDAO?: EntityDAORead
 	): Promise<void> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for storeKeyItems");
 		}
 
-		for (const item of keyItems) {
+		for (const keyItem of keyItems) {
 			const entityId = crypto.randomUUID();
+			const item = keyItem as { name?: string };
 			await entityDAO.createEntity({
 				id: entityId,
 				campaignId,
@@ -356,9 +363,9 @@ export class AssessmentDAO {
 	 */
 	async storeConflicts(
 		campaignId: string,
-		conflicts: any[],
+		conflicts: object[],
 		moduleName: string,
-		entityDAO?: any
+		entityDAO?: EntityDAORead
 	): Promise<void> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for storeConflicts");
@@ -366,11 +373,12 @@ export class AssessmentDAO {
 
 		for (const conflict of conflicts) {
 			const entityId = crypto.randomUUID();
+			const item = conflict as { title?: string };
 			await entityDAO.createEntity({
 				id: entityId,
 				campaignId,
 				entityType: ENTITY_TYPE_FACTIONS,
-				name: conflict.title || "Unnamed Conflict",
+				name: item.title || "Unnamed Conflict",
 				content: conflict,
 				metadata: {
 					source: "module",
@@ -388,8 +396,8 @@ export class AssessmentDAO {
 	 */
 	async getCampaignContextOrdered(
 		campaignId: string,
-		entityDAO?: any
-	): Promise<any[]> {
+		entityDAO?: EntityDAORead
+	): Promise<Entity[]> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for getCampaignContextOrdered");
 		}
@@ -404,8 +412,8 @@ export class AssessmentDAO {
 	 */
 	async getCampaignCharactersOrdered(
 		campaignId: string,
-		entityDAO?: any
-	): Promise<any[]> {
+		entityDAO?: EntityDAORead
+	): Promise<Entity[]> {
 		if (!entityDAO) {
 			throw new Error("entityDAO is required for getCampaignCharactersOrdered");
 		}
@@ -417,13 +425,15 @@ export class AssessmentDAO {
 	/**
 	 * Get campaign resources ordered by creation date
 	 */
-	async getCampaignResourcesOrdered(campaignId: string): Promise<any[]> {
+	async getCampaignResourcesOrdered(
+		campaignId: string
+	): Promise<CampaignResource[]> {
 		const result = await this.db
 			.prepare(
 				"SELECT * FROM campaign_resources WHERE campaign_id = ? ORDER BY created_at DESC"
 			)
 			.bind(campaignId)
-			.all();
+			.all<CampaignResource>();
 
 		return result.results || [];
 	}

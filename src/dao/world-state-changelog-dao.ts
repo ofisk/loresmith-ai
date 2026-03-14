@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import type {
 	WorldStateChangelogEntry,
 	WorldStateChangelogPayload,
@@ -55,7 +56,7 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
 		options: WorldStateChangelogQueryOptions = {}
 	): Promise<WorldStateChangelogEntry[]> {
 		const conditions: string[] = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.campaignSessionId !== undefined) {
 			conditions.push("campaign_session_id = ?");

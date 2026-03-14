@@ -1,4 +1,5 @@
 import { BaseDAOClass } from "@/dao/base-dao";
+import type { SqlParams } from "@/types/utils";
 
 /**
  * DAO for the file_processing_chunks table (chunked upload / processing pipeline).
@@ -93,7 +94,7 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
 		}
 	): Promise<void> {
 		const fields: string[] = [];
-		const values: unknown[] = [];
+		const values: SqlParams = [];
 
 		if (updates.status !== undefined) {
 			fields.push("status = ?");
@@ -151,7 +152,7 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
       SELECT * FROM file_processing_chunks
       WHERE status = 'pending'
     `;
-		const params: unknown[] = [];
+		const params: SqlParams = [];
 
 		if (username) {
 			sql += " AND username = ?";

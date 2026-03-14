@@ -7,6 +7,7 @@ import type {
 	UpdateSessionDigestInput,
 } from "@/types/session-digest";
 import { validateSessionDigestData } from "@/types/session-digest";
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 export class SessionDigestDAO extends BaseDAOClass {
@@ -136,7 +137,7 @@ export class SessionDigestDAO extends BaseDAOClass {
 		status?: SessionDigestStatus
 	): Promise<SessionDigestWithData[]> {
 		const conditions: string[] = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (status) {
 			conditions.push("status = ?");
@@ -195,7 +196,7 @@ export class SessionDigestDAO extends BaseDAOClass {
 		toDate?: string
 	): Promise<SessionDigestWithData[]> {
 		const conditions: string[] = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (fromDate) {
 			conditions.push("session_date >= ?");
@@ -301,7 +302,7 @@ export class SessionDigestDAO extends BaseDAOClass {
 		input: UpdateSessionDigestInput
 	): Promise<void> {
 		const updates: string[] = [];
-		const params: any[] = [];
+		const params: SqlParam[] = [];
 
 		if (input.sessionDate !== undefined) {
 			updates.push("session_date = ?");
@@ -358,7 +359,7 @@ export class SessionDigestDAO extends BaseDAOClass {
 		reviewNotes?: string | null
 	): Promise<void> {
 		const updates: string[] = ["status = ?"];
-		const params: any[] = [status];
+		const params: SqlParam[] = [status];
 
 		if (reviewNotes !== undefined) {
 			updates.push("review_notes = ?");

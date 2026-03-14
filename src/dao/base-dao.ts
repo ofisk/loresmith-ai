@@ -52,14 +52,15 @@ export abstract class BaseDAOClass implements BaseDAO {
 		return rows.length > 0;
 	}
 
-	protected async queryAll<T = any>(
+	protected async queryAll<T = unknown>(
 		sql: string,
-		params: any[] = []
+		params: import("@/types/utils").SqlParamsInput = []
 	): Promise<T[]> {
 		return this.withD1Retry(async () => {
 			try {
+				const bindParams = params.map((p) => (p === undefined ? null : p));
 				const stmt = this.db.prepare(sql);
-				const result = await stmt.bind(...params).all<T>();
+				const result = await stmt.bind(...bindParams).all<T>();
 				return result.results || [];
 			} catch (error) {
 				throw new Error(
@@ -69,14 +70,15 @@ export abstract class BaseDAOClass implements BaseDAO {
 		});
 	}
 
-	protected async queryFirst<T = any>(
+	protected async queryFirst<T = unknown>(
 		sql: string,
-		params: any[] = []
+		params: import("@/types/utils").SqlParamsInput = []
 	): Promise<T | null> {
 		return this.withD1Retry(async () => {
 			try {
+				const bindParams = params.map((p) => (p === undefined ? null : p));
 				const stmt = this.db.prepare(sql);
-				const result = await stmt.bind(...params).first<T>();
+				const result = await stmt.bind(...bindParams).first<T>();
 				return result;
 			} catch (error) {
 				throw new Error(
@@ -86,11 +88,15 @@ export abstract class BaseDAOClass implements BaseDAO {
 		});
 	}
 
-	protected async execute(sql: string, params: any[] = []): Promise<void> {
+	protected async execute(
+		sql: string,
+		params: import("@/types/utils").SqlParamsInput = []
+	): Promise<void> {
 		return this.withD1Retry(async () => {
 			try {
+				const bindParams = params.map((p) => (p === undefined ? null : p));
 				const stmt = this.db.prepare(sql);
-				await stmt.bind(...params).run();
+				await stmt.bind(...bindParams).run();
 			} catch (error) {
 				throw new Error(
 					`Database execute failed: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -101,12 +107,13 @@ export abstract class BaseDAOClass implements BaseDAO {
 
 	protected async executeAndGetId(
 		sql: string,
-		params: any[] = []
+		params: import("@/types/utils").SqlParamsInput = []
 	): Promise<number> {
 		return this.withD1Retry(async () => {
 			try {
+				const bindParams = params.map((p) => (p === undefined ? null : p));
 				const stmt = this.db.prepare(sql);
-				const result = await stmt.bind(...params).run();
+				const result = await stmt.bind(...bindParams).run();
 				return result.meta?.last_row_id || 0;
 			} catch (error) {
 				throw new Error(

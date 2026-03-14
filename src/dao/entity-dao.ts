@@ -4,6 +4,7 @@ import {
 } from "@/lib/entity/relationship-types";
 import { RelationshipUpsertError } from "@/lib/errors";
 import { incrementCampaignCacheVersion } from "@/services/search/entity-search-cache-service";
+import type { SqlParam, SqlParams } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
@@ -47,7 +48,9 @@ export interface Entity {
 	campaignId: string;
 	entityType: string;
 	name: string;
+	/** Structured content (entity-type-specific). Cast to known shape when type is known. */
 	content?: unknown;
+	/** Arbitrary metadata; may include resourceId, source, etc. Cast when shape is known. */
 	metadata?: unknown;
 	confidence?: number;
 	sourceType?: string | null;
@@ -126,6 +129,25 @@ export interface CreateEntityRelationshipInput {
 	relationshipType: RelationshipType;
 	strength?: number | null;
 	metadata?: unknown;
+}
+
+/** Minimal EntityDAO interface for DI (e.g. AssessmentDAO). Use for testing and injection. */
+export interface EntityDAORead {
+	listEntitiesByCampaign(
+		campaignId: string,
+		options?: {
+			entityType?: string;
+			sourceId?: string;
+			resourceId?: string;
+			entityIds?: string[];
+			shardStatus?: string | string[];
+			excludeShardStatuses?: string[];
+			limit?: number;
+			offset?: number;
+			orderBy?: "updated_at" | "name";
+		}
+	): Promise<Entity[]>;
+	createEntity(entity: CreateEntityInput): Promise<void>;
 }
 
 // Lightweight representation used by traversal helpers (e.g. breadth-first search)
@@ -225,7 +247,7 @@ export class EntityDAO extends BaseDAOClass {
 		updates: UpdateEntityInput
 	): Promise<void> {
 		const setClauses: string[] = [];
-		const values: any[] = [];
+		const values: SqlParam[] = [];
 
 		if (updates.name !== undefined) {
 			setClauses.push("name = ?");
@@ -371,7 +393,7 @@ export class EntityDAO extends BaseDAOClass {
 		} = {}
 	): Promise<Entity[]> {
 		const conditions = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.entityType) {
 			conditions.push("entity_type = ?");
@@ -449,7 +471,7 @@ export class EntityDAO extends BaseDAOClass {
 		options: { entityType?: string } = {}
 	): Promise<number> {
 		const conditions = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.entityType) {
 			conditions.push("entity_type = ?");
@@ -517,7 +539,7 @@ export class EntityDAO extends BaseDAOClass {
 		options: { entityType?: string; limit?: number } = {}
 	): Promise<Entity[]> {
 		const conditions = ["campaign_id = ?"];
-		const params: any[] = [campaignId];
+		const params: SqlParam[] = [campaignId];
 
 		if (options.entityType) {
 			conditions.push("entity_type = ?");
@@ -642,7 +664,7 @@ export class EntityDAO extends BaseDAOClass {
       WHERE campaign_id = ?
         AND LOWER(TRIM(name)) = LOWER(?)
     `;
-		const params: (string | undefined)[] = [campaignId, normalizedName];
+		const params: SqlParams = [campaignId, normalizedName];
 
 		if (entityType !== undefined && entityType !== null && entityType !== "") {
 			sql += ` AND LOWER(entity_type) = LOWER(?)`;
@@ -848,7 +870,7 @@ export class EntityDAO extends BaseDAOClass {
 		entityId: string,
 		options: { relationshipType?: RelationshipType } = {}
 	): Promise<EntityRelationship[]> {
-		const params: any[] = [entityId, entityId];
+		const params: SqlParam[] = [entityId, entityId];
 		const filters: string[] = ["(from_entity_id = ? OR to_entity_id = ?)"];
 
 		if (options.relationshipType) {
@@ -889,7 +911,7 @@ export class EntityDAO extends BaseDAOClass {
 			const typeFilter = options.relationshipType
 				? " AND relationship_type = ?"
 				: "";
-			const params: unknown[] = options.relationshipType
+			const params: SqlParams = options.relationshipType
 				? [
 						...chunk,
 						options.relationshipType,
@@ -1023,7 +1045,7 @@ export class EntityDAO extends BaseDAOClass {
 						.join(", ")})`
 				: "";
 
-		const params: any[] = [
+		const params: SqlParam[] = [
 			entityId,
 			...relationshipTypes,
 			maxDepth,
@@ -1119,7 +1141,7 @@ export class EntityDAO extends BaseDAOClass {
 			if (chunk.length === 0) continue;
 
 			const entityPlaceholders = chunk.map(() => "?").join(", ");
-			const params: any[] = [
+			const params: SqlParam[] = [
 				...chunk,
 				...relationshipTypes,
 				maxDepth,
@@ -1276,7 +1298,7 @@ export class EntityDAO extends BaseDAOClass {
 		updates: UpdateEntityDeduplicationInput
 	): Promise<void> {
 		const setClauses: string[] = [];
-		const values: any[] = [];
+		const values: SqlParam[] = [];
 
 		if (updates.status !== undefined) {
 			setClauses.push("status = ?");

@@ -85,7 +85,7 @@ export class SubscriptionDAO extends BaseDAOClass {
 		if (!existing) return;
 
 		const updates: string[] = [];
-		const params: unknown[] = [];
+		const params: import("@/types/utils").SqlParams = [];
 
 		if (data.tier !== undefined) {
 			updates.push("tier = ?");

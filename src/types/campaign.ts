@@ -2,6 +2,55 @@
 
 export type ResourceType = "file" | "character" | "note" | "image";
 
+/** Database row shape for campaigns table (snake_case) */
+export interface CampaignRow {
+	id: string;
+	name: string;
+	username: string;
+	description?: string;
+	campaignRagBasePath?: string;
+	metadata?: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/** Database row shape for campaign_resources table (snake_case) */
+export interface CampaignResourceRow {
+	id: string;
+	campaign_id: string;
+	file_key: string;
+	file_name: string;
+	display_name?: string;
+	description?: string;
+	tags?: string;
+	status: string;
+	created_at: string;
+	updated_at?: string;
+}
+
+/** Map CampaignRow to camelCase (for consumers that need it) */
+export function mapCampaignRow(row: CampaignRow): {
+	id: string;
+	name: string;
+	username: string;
+	description?: string;
+	campaignRagBasePath?: string;
+	metadata?: string | null;
+	createdAt: string;
+	updatedAt: string;
+} {
+	return {
+		id: row.id,
+		name: row.name,
+		username: row.username,
+		description: row.description,
+		campaignRagBasePath: row.campaignRagBasePath,
+		metadata: row.metadata,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
 export interface CampaignResource {
 	type: ResourceType;
 	id: string;

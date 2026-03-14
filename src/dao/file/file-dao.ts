@@ -4,7 +4,9 @@ import type {
 	VectorizeIndex,
 } from "@cloudflare/workers-types";
 import { BaseDAOClass } from "@/dao/base-dao";
+import type { Env } from "@/middleware/auth";
 import { LibraryRAGService } from "@/services/rag/rag-service";
+import type { SqlParam, SqlParams } from "@/types/utils";
 import { FileProcessingChunksDAO } from "./file-processing-chunks-dao";
 
 export interface FileMetadata {
@@ -17,6 +19,7 @@ export interface FileMetadata {
 	content_type: string;
 	description?: string;
 	tags?: string;
+	status?: string;
 	vector_id?: string;
 	chunk_count?: number;
 	created_at: string;
@@ -52,6 +55,73 @@ export interface PDFChunk {
 
 export interface FileWithChunks extends ParsedFileMetadata {
 	chunks: PDFChunk[];
+}
+
+/** Row shape for file stats by status (GROUP BY status) */
+export interface FileStatsByStatusRow {
+	status: string;
+	count: number;
+}
+
+/** Row shape for file size stats aggregate */
+export interface FileSizeStatsRow {
+	total_size: number;
+	avg_size: number;
+	total_files: number;
+}
+
+/** Row shape for file status info */
+export interface FileStatusInfoRow {
+	status: string;
+	created_at: string;
+	updated_at: string;
+	file_size: number;
+}
+
+/** Row shape for RAG file list (subset of file_metadata) */
+export interface FileForRagRow {
+	file_key: string;
+	file_name: string;
+	display_name?: string;
+	description?: string;
+	tags?: string;
+	status: string;
+	created_at: string;
+	file_size: number;
+	updated_at?: string;
+	processing_error?: string;
+}
+
+/** Row shape for RAG file chunks (subset of file_chunks) */
+export interface FileChunkForRagRow {
+	id: string;
+	file_key: string;
+	chunk_text: string;
+	chunk_index: number;
+	created_at: string;
+}
+
+/** Row shape for storage usage (file_metadata subset) */
+export interface FileStorageUsageRow {
+	username?: string;
+	file_size: number;
+	status: string;
+}
+
+/** Row shape for sync_queue table. file_size may come from joined file_metadata in some queries. */
+export interface SyncQueueRow {
+	id: number;
+	username: string;
+	file_key: string;
+	file_name: string;
+	rag_id: string;
+	status: string;
+	retry_count: number;
+	created_at: string;
+	processed_at: string | null;
+	updated_at: string | null;
+	/** Present when joined with file_metadata */
+	file_size?: number;
 }
 
 export class FileDAO extends BaseDAOClass {
@@ -98,7 +168,7 @@ export class FileDAO extends BaseDAOClass {
 	 */
 	private async queryAndParseFileMetadata(
 		sql: string,
-		params: any[]
+		params: readonly SqlParam[]
 	): Promise<ParsedFileMetadata | null> {
 		const file = await this.queryFirst<FileMetadata>(sql, params);
 
@@ -118,7 +188,7 @@ export class FileDAO extends BaseDAOClass {
 	 */
 	private async queryAndParseMultipleFileMetadata(
 		sql: string,
-		params: any[]
+		params: readonly SqlParam[]
 	): Promise<ParsedFileMetadata[]> {
 		const files = await this.queryAll<FileMetadata>(sql, params);
 
@@ -180,8 +250,11 @@ export class FileDAO extends BaseDAOClass {
       FROM file_metadata
       WHERE username = ? AND file_name = ?
     `;
-		const result = await this.queryFirst(sql, [username, fileName]);
-		return (result?.count as number) > 0;
+		const result = await this.queryFirst<{ count: number }>(sql, [
+			username,
+			fileName,
+		]);
+		return (result?.count ?? 0) > 0;
 	}
 
 	/**
@@ -205,15 +278,15 @@ export class FileDAO extends BaseDAOClass {
       FROM file_metadata
       WHERE username = ? AND display_name = ?
     `;
-		const params: unknown[] = [username, displayName];
+		const params: SqlParams = [username, displayName];
 
 		if (excludeFileKey) {
 			sql += ` AND file_key != ?`;
 			params.push(excludeFileKey);
 		}
 
-		const result = await this.queryFirst(sql, params);
-		return (result?.count as number) > 0;
+		const result = await this.queryFirst<{ count: number }>(sql, params);
+		return (result?.count ?? 0) > 0;
 	}
 
 	async getFilesByUser(username: string): Promise<ParsedFileMetadata[]> {
@@ -385,7 +458,7 @@ export class FileDAO extends BaseDAOClass {
 	async checkFileIndexingStatus(
 		fileKey: string,
 		username: string,
-		env: any
+		env: Env
 	): Promise<{ isIndexed: boolean; error?: string }> {
 		try {
 			// Extract filename from fileKey for search
@@ -426,35 +499,37 @@ export class FileDAO extends BaseDAOClass {
 		return this.queryAndParseMultipleFileMetadata(sql, [username]);
 	}
 
-	async getFileStatsByUser(username: string): Promise<any[]> {
+	async getFileStatsByUser(username: string): Promise<FileStatsByStatusRow[]> {
 		const sql = `
       SELECT status, COUNT(*) as count 
       FROM file_metadata 
       WHERE username = ? 
       GROUP BY status
     `;
-		return await this.queryAll(sql, [username]);
+		return await this.queryAll<FileStatsByStatusRow>(sql, [username]);
 	}
 
-	async getFileSizeStatsByUser(username: string): Promise<any> {
+	async getFileSizeStatsByUser(
+		username: string
+	): Promise<FileSizeStatsRow | null> {
 		const sql = `
       SELECT SUM(file_size) as total_size, AVG(file_size) as avg_size, COUNT(*) as total_files 
       FROM file_metadata 
       WHERE username = ? AND file_size > 0
     `;
-		return await this.queryFirst(sql, [username]);
+		return await this.queryFirst<FileSizeStatsRow>(sql, [username]);
 	}
 
 	async getFileStatusInfo(
 		fileKey: string,
 		username: string
-	): Promise<any | null> {
+	): Promise<FileStatusInfoRow | null> {
 		const sql = `
       SELECT status, created_at, updated_at, file_size 
       FROM file_metadata 
       WHERE file_key = ? AND username = ?
     `;
-		return await this.queryFirst(sql, [fileKey, username]);
+		return await this.queryFirst<FileStatusInfoRow>(sql, [fileKey, username]);
 	}
 
 	async updateFileDescriptionAndTags(
@@ -659,7 +734,7 @@ export class FileDAO extends BaseDAOClass {
 		fileSize?: number
 	): Promise<void> {
 		let sql: string;
-		let params: any[];
+		let params: SqlParam[];
 
 		if (fileSize !== undefined) {
 			sql = `
@@ -766,48 +841,58 @@ export class FileDAO extends BaseDAOClass {
 		}
 	}
 
-	async getFilesForRag(username: string): Promise<any[]> {
+	async getFilesForRag(username: string): Promise<FileForRagRow[]> {
 		const sql = `
       SELECT file_key, file_name, display_name, description, tags, status, created_at, file_size, updated_at, processing_error
       FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
-		return await this.queryAll(sql, [username]);
+		return await this.queryAll<FileForRagRow>(sql, [username]);
 	}
 
-	async getFileForRag(fileKey: string, username: string): Promise<any | null> {
+	async getFileForRag(
+		fileKey: string,
+		username: string
+	): Promise<FileMetadata | null> {
 		const sql = `
       SELECT * FROM file_metadata 
       WHERE file_key = ? AND username = ?
     `;
-		return await this.queryFirst(sql, [fileKey, username]);
+		return await this.queryFirst<FileMetadata>(sql, [fileKey, username]);
 	}
 
-	async getFileChunksForRag(fileKey: string, username: string): Promise<any[]> {
+	async getFileChunksForRag(
+		fileKey: string,
+		username: string
+	): Promise<FileChunkForRagRow[]> {
 		const sql = `
       SELECT id, file_key, chunk_text, chunk_index, created_at 
       FROM file_chunks 
       WHERE file_key = ? AND username = ? 
       ORDER BY chunk_index
     `;
-		return await this.queryAll(sql, [fileKey, username]);
+		return await this.queryAll<FileChunkForRagRow>(sql, [fileKey, username]);
 	}
 
-	async getFileStatsForRag(username: string): Promise<any> {
+	async getFileStatsForRag(username: string): Promise<{
+		uploaded: number;
+		processed: number;
+		processing: number;
+		error: number;
+		total: number;
+	}> {
 		const sql = `
       SELECT * FROM file_metadata 
       WHERE username = ? 
       ORDER BY created_at DESC
     `;
-		const files = await this.queryAll(sql, [username]);
+		const files = await this.queryAll<FileMetadata>(sql, [username]);
 
-		const uploaded = files.filter((f: any) => f.status === "uploaded").length;
-		const processed = files.filter((f: any) => f.status === "processed").length;
-		const processing = files.filter(
-			(f: any) => f.status === "processing"
-		).length;
-		const error = files.filter((f: any) => f.status === "error").length;
+		const uploaded = files.filter((f) => f.status === "uploaded").length;
+		const processed = files.filter((f) => f.status === "processed").length;
+		const processing = files.filter((f) => f.status === "processing").length;
+		const error = files.filter((f) => f.status === "error").length;
 
 		return {
 			uploaded,
@@ -818,23 +903,25 @@ export class FileDAO extends BaseDAOClass {
 		};
 	}
 
-	async getAllFilesForStorageUsage(): Promise<any[]> {
+	async getAllFilesForStorageUsage(): Promise<FileStorageUsageRow[]> {
 		const sql = `
       SELECT username, file_size, status 
       FROM file_metadata 
       ORDER BY created_at DESC
     `;
-		return await this.queryAll(sql, []);
+		return await this.queryAll<FileStorageUsageRow>(sql, []);
 	}
 
-	async getUserFilesForStorageUsage(username: string): Promise<any[]> {
+	async getUserFilesForStorageUsage(
+		username: string
+	): Promise<FileStorageUsageRow[]> {
 		const sql = `
       SELECT file_size, status
       FROM file_metadata
       WHERE username = ?
       ORDER BY created_at DESC
     `;
-		return await this.queryAll(sql, [username]);
+		return await this.queryAll<FileStorageUsageRow>(sql, [username]);
 	}
 
 	async deleteFileForUser(fileKey: string, username: string): Promise<void> {
@@ -914,7 +1001,7 @@ export class FileDAO extends BaseDAOClass {
 		}
 	): Promise<void> {
 		const updates: string[] = [];
-		const values: any[] = [];
+		const values: SqlParam[] = [];
 
 		// Build dynamic update query
 		if (enhancedMetadata.content_summary !== undefined) {
@@ -990,7 +1077,7 @@ export class FileDAO extends BaseDAOClass {
       SELECT * FROM file_metadata 
       WHERE username = ? AND analysis_status = 'completed'
     `;
-		const values: any[] = [username];
+		const values: SqlParam[] = [username];
 
 		if (filters?.content_type_categories) {
 			sql += " AND content_type_categories LIKE ?";
@@ -1016,15 +1103,15 @@ export class FileDAO extends BaseDAOClass {
 			values.push(filters.limit);
 		}
 
-		const files = await this.queryAll(sql, values);
+		const files = await this.queryAll<FileMetadata>(sql, values);
 
 		// Parse tags and filter by campaign themes if specified
-		let parsedFiles = files.map((file: any) => ({
+		let parsedFiles = files.map((file: FileMetadata) => ({
 			...file,
 			tags: this.parseTags(file.tags || null, file.file_key),
-			campaign_themes: file.campaign_themes
+			campaign_themes: (file.campaign_themes
 				? JSON.parse(file.campaign_themes)
-				: [],
+				: []) as string[],
 			recommended_campaign_types: file.recommended_campaign_types
 				? JSON.parse(file.recommended_campaign_types)
 				: [],
@@ -1036,15 +1123,16 @@ export class FileDAO extends BaseDAOClass {
 
 		// Filter by campaign themes if specified
 		if (filters?.campaign_themes && filters.campaign_themes.length > 0) {
-			parsedFiles = parsedFiles.filter((file: any) => {
-				const fileThemes = file.campaign_themes || [];
-				return filters.campaign_themes!.some((theme) =>
-					fileThemes.includes(theme)
-				);
+			const themeFilter = filters.campaign_themes;
+			parsedFiles = parsedFiles.filter((file) => {
+				const fileThemes: string[] = Array.isArray(file.campaign_themes)
+					? file.campaign_themes
+					: [];
+				return themeFilter.some((theme) => fileThemes.includes(theme));
 			});
 		}
 
-		return parsedFiles;
+		return parsedFiles as unknown as ParsedFileMetadata[];
 	}
 
 	/**
@@ -1101,13 +1189,13 @@ export class FileDAO extends BaseDAOClass {
 	/**
 	 * Get pending sync queue items for a user
 	 */
-	async getSyncQueue(username: string): Promise<any[]> {
+	async getSyncQueue(username: string): Promise<SyncQueueRow[]> {
 		const sql = `
       SELECT * FROM sync_queue 
       WHERE username = ? AND status = 'pending'
       ORDER BY created_at ASC
     `;
-		return await this.queryAll(sql, [username]);
+		return await this.queryAll<SyncQueueRow>(sql, [username]);
 	}
 
 	/**
@@ -1144,8 +1232,8 @@ export class FileDAO extends BaseDAOClass {
       FROM sync_queue 
       WHERE status = 'pending'
     `;
-		const results = await this.queryAll(sql, []);
-		return results.map((row: any) => row.username);
+		const results = await this.queryAll<{ username: string }>(sql, []);
+		return results.map((row) => row.username);
 	}
 
 	/** Delegates to FileProcessingChunksDAO. */

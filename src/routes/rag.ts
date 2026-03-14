@@ -124,11 +124,13 @@ export async function handleProcessFileForRag(c: ContextWithAuth) {
 						userAuth.username
 					);
 					if (fileRecord) {
-						await notifyFileUploadCompleteWithData(
-							c.env,
-							userAuth.username,
-							fileRecord
-						);
+						await notifyFileUploadCompleteWithData(c.env, userAuth.username, {
+							...fileRecord,
+							status: fileRecord.status ?? "uploaded",
+							tags: fileRecord.tags
+								? (JSON.parse(fileRecord.tags) as string[])
+								: [],
+						});
 					} else {
 					}
 					await notifyIndexingCompleted(c.env, userAuth.username, filename);
@@ -208,7 +210,10 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 			FileDAO.STATUS.SYNCING,
 			FileDAO.STATUS.INDEXING,
 		];
-		if (inProgressStatuses.includes(file.status)) {
+		if (
+			file.status &&
+			(inProgressStatuses as readonly string[]).includes(file.status)
+		) {
 			return c.json(
 				{
 					success: false,

@@ -6,6 +6,7 @@ import type {
 	TelemetryRecord,
 	TimeSeriesDataPoint,
 } from "@/types/telemetry";
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 // Raw row structure matching the database schema
@@ -46,7 +47,7 @@ export class TelemetryDAO extends BaseDAOClass {
 		options: TelemetryQueryOptions = {}
 	): Promise<TelemetryRecord[]> {
 		const conditions: string[] = [];
-		const params: any[] = [];
+		const params: SqlParam[] = [];
 
 		if (options.campaignId) {
 			conditions.push("campaign_id = ?");
@@ -120,7 +121,7 @@ export class TelemetryDAO extends BaseDAOClass {
 		} = {}
 	): Promise<AggregatedMetrics | null> {
 		const conditions: string[] = ["metric_type = ?"];
-		const params: any[] = [metricType];
+		const params: SqlParam[] = [metricType];
 
 		if (options.campaignId) {
 			conditions.push("campaign_id = ?");
@@ -189,7 +190,7 @@ export class TelemetryDAO extends BaseDAOClass {
 		}
 	): Promise<TimeSeriesDataPoint[]> {
 		const conditions: string[] = ["metric_type = ?"];
-		const params: any[] = [metricType];
+		const params: SqlParam[] = [metricType];
 
 		if (options.campaignId) {
 			conditions.push("campaign_id = ?");

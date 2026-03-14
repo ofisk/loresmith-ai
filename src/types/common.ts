@@ -144,7 +144,7 @@ export interface ActionButton {
 /**
  * Table column configuration
  */
-export interface TableColumn<T = any> {
+export interface TableColumn<T = unknown> {
 	key: string;
 	label: string;
 	render?: (item: T) => ReactNode;
@@ -156,7 +156,7 @@ export interface TableColumn<T = any> {
 /**
  * Table configuration
  */
-export interface TableConfig<T = any> {
+export interface TableConfig<T = unknown> {
 	columns: TableColumn<T>[];
 	data: T[];
 	loading?: boolean;

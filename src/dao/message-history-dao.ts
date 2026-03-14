@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 export interface ChatMessageRecord {
@@ -112,7 +113,7 @@ export class MessageHistoryDAO extends BaseDAOClass {
 	 */
 	async getMessages(options: GetMessagesOptions): Promise<ChatMessageRecord[]> {
 		const conditions: string[] = [];
-		const params: any[] = [];
+		const params: SqlParam[] = [];
 
 		// sessionId is optional - can query by campaignId or username alone
 		if (options.sessionId) {
