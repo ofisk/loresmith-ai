@@ -849,7 +849,7 @@ export function CampaignDetailsModal({
 														}
 														setSelectedResourceKeys(newSelected);
 													}}
-													className="mt-1 h-4 w-4 text-purple-600 border-neutral-300 rounded focus:ring-purple-500"
+													className="mt-1 h-4 w-4 text-purple-600 border-neutral-300 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 												/>
 												<div className="flex-1">
 													<div className="font-medium text-neutral-900 dark:text-neutral-100">

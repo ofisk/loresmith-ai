@@ -163,7 +163,7 @@ export function PropertyField({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 							id={fieldId}
-							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 					);
 
@@ -198,7 +198,7 @@ export function PropertyField({
 								onChange={(e) => setNewArrayItem(e.target.value)}
 								onKeyDown={(e) => e.key === "Enter" && addArrayItem()}
 								placeholder="Add tag"
-								className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white placeholder-neutral-400 focus:border-blue-500 focus:ring-blue-500"
+								className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white placeholder-neutral-400 focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							/>
 						</div>
 					);
@@ -219,7 +219,7 @@ export function PropertyField({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 							id={fieldId}
-							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm font-mono bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm font-mono bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							rows={4}
 						/>
 					);
@@ -239,7 +239,7 @@ export function PropertyField({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 							id={fieldId}
-							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+							className="w-full px-2 py-1 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 					);
 			}

@@ -238,7 +238,7 @@ export function ShardGrid({
 									onChange={(e) =>
 										setFilters((prev) => ({ ...prev, search: e.target.value }))
 									}
-									className="w-full pl-10 pr-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white placeholder-neutral-400 focus:border-purple-500 focus:ring-purple-500"
+									className="w-full pl-10 pr-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white placeholder-neutral-400 focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 								/>
 							</div>
 
@@ -247,7 +247,7 @@ export function ShardGrid({
 								onChange={(e) =>
 									setFilters((prev) => ({ ...prev, type: e.target.value }))
 								}
-								className="px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+								className="px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							>
 								<option value="">All types</option>
 								{shardTypes.map((type) => (
@@ -265,7 +265,7 @@ export function ShardGrid({
 										confidence: e.target.value,
 									}))
 								}
-								className="px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+								className="px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							>
 								<option value="">All confidence</option>
 								<option value="high">High (90%+)</option>
@@ -346,7 +346,7 @@ export function ShardGrid({
 									if (input) input.indeterminate = someSelected;
 								}}
 								onChange={handleSelectAll}
-								className="w-4 h-4 bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500"
+								className="w-4 h-4 bg-neutral-700 border-neutral-600 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 							/>
 							Select all
 						</label>
@@ -357,7 +357,7 @@ export function ShardGrid({
 			{/* Shard Groups */}
 			{Object.keys(groupedShards).length === 0 ? (
 				<div className="bg-neutral-800 border border-neutral-700 rounded-lg p-8 text-center">
-					<p className="text-neutral-500">
+					<p className="text-muted-foreground">
 						No shards found matching your filters.
 					</p>
 				</div>

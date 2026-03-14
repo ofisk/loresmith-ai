@@ -69,7 +69,7 @@ export function ExplainabilitySection({
 						<div className="space-y-3">
 							{entities.length > 0 && (
 								<div>
-									<h4 className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 uppercase tracking-wide">
+									<h4 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
 										Entities
 									</h4>
 									<ul className="space-y-1">
@@ -85,7 +85,7 @@ export function ExplainabilitySection({
 											</li>
 										))}
 										{entities.length > 10 && (
-											<li className="text-xs text-neutral-500 dark:text-neutral-400">
+											<li className="text-xs text-muted-foreground">
 												+{entities.length - 10} more
 											</li>
 										)}
@@ -94,7 +94,7 @@ export function ExplainabilitySection({
 							)}
 							{planning.length > 0 && (
 								<div>
-									<h4 className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 uppercase tracking-wide">
+									<h4 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
 										Session digests
 									</h4>
 									<ul className="space-y-1">
@@ -110,7 +110,7 @@ export function ExplainabilitySection({
 											</li>
 										))}
 										{planning.length > 5 && (
-											<li className="text-xs text-neutral-500 dark:text-neutral-400">
+											<li className="text-xs text-muted-foreground">
 												+{planning.length - 5} more
 											</li>
 										)}
@@ -119,7 +119,7 @@ export function ExplainabilitySection({
 							)}
 							{files.length > 0 && (
 								<div>
-									<h4 className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 uppercase tracking-wide">
+									<h4 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
 										Files
 									</h4>
 									<ul className="space-y-1">
@@ -139,7 +139,7 @@ export function ExplainabilitySection({
 											</li>
 										))}
 										{files.length > 5 && (
-											<li className="text-xs text-neutral-500 dark:text-neutral-400">
+											<li className="text-xs text-muted-foreground">
 												+{files.length - 5} more
 											</li>
 										)}

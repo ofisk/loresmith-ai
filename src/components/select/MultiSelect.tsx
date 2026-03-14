@@ -64,7 +64,7 @@ export const MultiSelect = ({
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				className={cn(
-					"btn btn-secondary interactive relative appearance-none truncate bg-no-repeat focus:outline-none w-full text-left",
+					"btn btn-secondary interactive relative appearance-none truncate bg-no-repeat focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 w-full text-left",
 					{
 						"add-size-sm !pr-6.5": size === "sm",
 						"add-size-md !pr-8": size === "md",

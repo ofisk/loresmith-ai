@@ -128,7 +128,7 @@ export function GraphControls({
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-4 p-4 border-r border-neutral-200 dark:border-neutral-700",
+				"flex flex-col gap-4 p-4 border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-700",
 				className
 			)}
 		>

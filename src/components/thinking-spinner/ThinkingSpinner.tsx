@@ -35,7 +35,7 @@ export const ThinkingSpinner = ({
 						<span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
 							{primaryText}
 						</span>
-						<span className="text-xs text-neutral-500 dark:text-neutral-400">
+						<span className="text-xs text-muted-foreground">
 							{secondaryText}
 						</span>
 					</div>

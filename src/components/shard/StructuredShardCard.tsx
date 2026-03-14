@@ -378,7 +378,7 @@ export function StructuredShardCard({
 							type="checkbox"
 							checked={selected}
 							onChange={(e) => onSelect(shard.id, e.target.checked)}
-							className="w-4 h-4 flex-shrink-0 bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500"
+							className="w-4 h-4 flex-shrink-0 bg-neutral-700 border-neutral-600 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 					)}
 					<div className="min-w-0 flex-1">
@@ -389,7 +389,7 @@ export function StructuredShardCard({
 									const nameField = displayMetadata.display_name || "name";
 									onEdit(shard.id, { [nameField]: e.target.value });
 								}}
-								className="font-semibold text-lg text-white bg-transparent focus:border-purple-500 focus:outline-none w-full"
+								className="font-semibold text-lg text-white bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] w-full"
 							/>
 						) : (
 							<h3 className="font-semibold text-lg text-white truncate">
@@ -541,7 +541,7 @@ export function StructuredShardCard({
 											[fieldName]: e.target.value,
 										} as Partial<StructuredShard>);
 									}}
-									className="w-full mt-1 px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+									className="w-full mt-1 px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 									rows={4}
 								/>
 							) : (
@@ -577,7 +577,7 @@ export function StructuredShardCard({
 									);
 								}}
 								disabled={importanceLoading}
-								className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								<option value="">Auto (calculated)</option>
 								<option value="high">High</option>

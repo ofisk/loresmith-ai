@@ -449,7 +449,7 @@ export function FlexibleShardCard({
 							type="checkbox"
 							checked={selected}
 							onChange={(e) => onSelect?.(shard.id, e.target.checked)}
-							className="w-4 h-4 bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500"
+							className="w-4 h-4 bg-neutral-700 border-neutral-600 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 						/>
 						<div className="flex-1 min-w-0">
 							<div className="flex items-center gap-2">
@@ -465,7 +465,7 @@ export function FlexibleShardCard({
 											handleTitleCancel();
 										}
 									}}
-									className="font-semibold text-lg text-white bg-transparent focus:border-purple-500 focus:outline-none flex-1"
+									className="font-semibold text-lg text-white bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] flex-1"
 								/>
 							</div>
 							<hr className="border-0 border-t border-neutral-700 my-2" />
@@ -566,7 +566,7 @@ export function FlexibleShardCard({
 											handleDescriptionCancel();
 										}
 									}}
-									className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500"
+									className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
 									rows={4}
 								/>
 							</div>
@@ -598,7 +598,7 @@ export function FlexibleShardCard({
 									);
 								}}
 								disabled={importanceLoading}
-								className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus:border-purple-500 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								className="w-full px-3 py-2 border border-neutral-600 rounded text-sm bg-neutral-700 text-white focus-visible:outline-none focus-visible:border-[color:var(--ring)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								<option value="">Auto (calculated)</option>
 								<option value="high">High</option>

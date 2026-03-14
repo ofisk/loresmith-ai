@@ -282,7 +282,7 @@ export const Modal = ({
 						<button
 							type="button"
 							aria-label="Close Modal"
-							className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-600 dark:text-neutral-300 transition"
+							className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-600 dark:text-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2"
 							onClick={onClose}
 						>
 							<X size={18} />

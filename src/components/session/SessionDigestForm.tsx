@@ -334,7 +334,7 @@ export function SessionDigestForm({
 										>
 											<input
 												type="checkbox"
-												className="mt-0.5 h-3.5 w-3.5 rounded border-neutral-300 text-purple-600 focus:ring-purple-500 dark:border-neutral-600"
+												className="mt-0.5 h-3.5 w-3.5 rounded border-neutral-300 text-purple-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] dark:border-neutral-600"
 												checked={checked}
 												onChange={(e) => {
 													setSelectedTaskIds((prev) =>

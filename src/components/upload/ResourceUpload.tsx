@@ -253,7 +253,7 @@ export const ResourceUpload = ({
 						<label
 							htmlFor={fileInputId}
 							className={cn(
-								"w-full max-w-md border-2 border-dashed border-neutral-300/80 dark:border-neutral-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-neutral-400 dark:hover:border-neutral-500 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 outline-none bg-neutral-50/20 dark:bg-neutral-800/10",
+								"w-full max-w-md border-2 border-dashed border-neutral-300/80 dark:border-neutral-600/80 rounded-lg p-3 md:p-4 flex flex-col items-center justify-center cursor-pointer transition hover:border-neutral-400 dark:hover:border-neutral-500 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 focus-within:ring-2 focus-within:ring-[color:var(--ring)] focus-within:ring-offset-2 outline-none bg-neutral-50/20 dark:bg-neutral-800/10",
 								loading && "opacity-50 pointer-events-none"
 							)}
 							onDrop={handleDrop}
@@ -390,7 +390,7 @@ export const ResourceUpload = ({
 																disabled={!canAddToCampaign}
 																className={cn(
 																	"px-3 py-1.5 text-sm transition-colors rounded border-2",
-																	"focus:outline-none",
+																	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2",
 																	!canAddToCampaign
 																		? "font-normal bg-neutral-100 dark:bg-neutral-900 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-800 cursor-not-allowed opacity-70"
 																		: isSelected

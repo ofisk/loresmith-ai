@@ -72,7 +72,7 @@ export function CampaignDetailsTab({
 				</div>
 			)}
 
-			<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+			<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm text-muted-foreground">
 				<div className="min-w-0">
 					<span className="font-medium">Created:</span>{" "}
 					{new Date(campaign.createdAt).toLocaleDateString()}

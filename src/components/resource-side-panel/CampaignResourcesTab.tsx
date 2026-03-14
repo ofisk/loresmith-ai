@@ -69,7 +69,7 @@ export function CampaignResourcesTab({
 				</Button>
 			</div>
 			{loading ? (
-				<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+				<div className="text-center py-8 text-muted-foreground">
 					Loading resources...
 				</div>
 			) : error ? (
@@ -77,7 +77,7 @@ export function CampaignResourcesTab({
 					Error loading resources: {error}
 				</div>
 			) : resources.length === 0 ? (
-				<div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+				<div className="text-center py-8 text-muted-foreground">
 					No resources linked to this campaign.
 				</div>
 			) : (

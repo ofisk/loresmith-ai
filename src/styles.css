@@ -749,7 +749,9 @@ html {
 
 .add-focus {
 	outline: none;
-	box-shadow: 0 0 0 1px var(--color-ob-focus);
+}
+.add-focus:focus-visible {
+	box-shadow: 0 0 0 2px var(--color-ob-focus);
 }
 
 .add-disable:disabled {

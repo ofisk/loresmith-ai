@@ -467,7 +467,7 @@ export function AppModals({
 											disabled={!canAddToCampaign}
 											className={cn(
 												"px-3 py-1.5 text-sm transition-colors rounded border-2",
-												"focus:outline-none",
+												"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2",
 												!canAddToCampaign
 													? "font-normal bg-neutral-100 dark:bg-neutral-900 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-800 cursor-not-allowed opacity-70"
 													: isSelected

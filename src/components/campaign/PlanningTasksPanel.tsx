@@ -150,14 +150,14 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 						value={newTitle}
 						onChange={(e) => setNewTitle(e.target.value)}
 						placeholder="Add a planning task..."
-						className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+						className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus-visible:outline-none focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:border-blue-400 dark:focus-visible:ring-blue-400"
 					/>
 					<textarea
 						value={newDescription}
 						onChange={(e) => setNewDescription(e.target.value)}
 						placeholder="Optional details or notes"
 						rows={2}
-						className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+						className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-xs text-neutral-900 placeholder:text-neutral-400 focus-visible:outline-none focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:border-blue-400 dark:focus-visible:ring-blue-400"
 					/>
 					<div className="flex justify-end gap-2">
 						<button
@@ -207,14 +207,14 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 											value={editingTitle}
 											onChange={(e) => setEditingTitle(e.target.value)}
 											placeholder="Task title"
-											className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+											className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus-visible:outline-none focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:border-blue-400 dark:focus-visible:ring-blue-400"
 										/>
 										<textarea
 											value={editingDescription}
 											onChange={(e) => setEditingDescription(e.target.value)}
 											placeholder="Optional details or notes"
 											rows={2}
-											className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+											className="w-full rounded-md border border-neutral-200/60 bg-white px-2 py-1.5 text-xs text-neutral-900 placeholder:text-neutral-400 focus-visible:outline-none focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500 dark:border-neutral-700/70 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:border-blue-400 dark:focus-visible:ring-blue-400"
 										/>
 										<div className="flex justify-end gap-2">
 											<button
