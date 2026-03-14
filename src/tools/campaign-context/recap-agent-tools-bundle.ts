@@ -9,7 +9,9 @@ import {
 import {
 	generateGMContextRecapTool,
 	generatePlayerContextRecapTool,
+	getSessionReadoutChunk,
 	getSessionReadoutContext,
+	stitchSessionReadout,
 } from "./recap-tools";
 import { searchCampaignContext } from "./search-tools";
 
@@ -23,6 +25,8 @@ export const gmRecapToolsBundle = {
 	showCampaignDetails,
 	searchCampaignContext,
 	getSessionReadoutContext,
+	getSessionReadoutChunk,
+	stitchSessionReadout,
 };
 
 /** Player recap tools: player-focused recap, search (sanitized), campaign details */

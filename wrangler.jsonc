@@ -11,6 +11,9 @@
 		"nodejs_compat",
 		"nodejs_compat_populate_process_env"
 	],
+	"limits": {
+		"cpu_ms": 300000
+	},
 	"assets": {
 		"directory": "dist/client",
 		"not_found_handling": "single-page-application",

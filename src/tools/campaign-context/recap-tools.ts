@@ -246,9 +246,12 @@ type SearchResultItem = { entityId?: string; text?: string; title?: string };
 
 const ENTITY_CONTENT_MARKER =
 	"ENTITY CONTENT (may contain unverified mentions):";
-const MAX_READOUT_STEPS = 8;
-const MAX_READOUT_ENTITIES_PER_STEP = 14;
-const MAX_READOUT_ENTITY_TEXT_CHARS = 3500;
+const MAX_READOUT_STEPS = 5;
+const MAX_READOUT_ENTITIES_PER_STEP = 10;
+const MAX_READOUT_ENTITY_TEXT_CHARS = 2500;
+const SESSION_READOUT_TIMEOUT_MS = 90000; // Fail fast to avoid Worker/connection limits
+const CHUNK_BATCH_SIZE = 2;
+const CHUNK_THRESHOLD = 3; // Use chunked flow when 3+ tasks to avoid timeout
 
 function extractTargetSessionFromTitle(title: string): number | null {
 	const match = /\(\s*target\s*:\s*session\s*(\d+)\s*\)/i.exec(title);
@@ -302,6 +305,160 @@ function entityContentOnly(rawText: string): string {
 	if (idx < 0) return rawText;
 	const after = rawText.slice(idx + ENTITY_CONTENT_MARKER.length);
 	return after.replace(/^[\s\n═-]+/, "").trim();
+}
+
+type ProcessTaskOpts = {
+	env: unknown;
+	campaignId: string;
+	jwt: string;
+	toolCallId: string;
+};
+
+async function processTaskForReadout(
+	task: {
+		id: string;
+		title: string;
+		completionNotes: string | null;
+		createdAt: string;
+	},
+	opts: ProcessTaskOpts
+): Promise<{
+	task: {
+		id: string;
+		title: string;
+		completionNotes: string | null;
+		createdAt: string;
+	};
+	instruction: string;
+	readoutBlock: string;
+	entityResults: Array<{ entityId: string; title: string; text: string }>;
+	entityIds: string[];
+}> {
+	const { env, campaignId, jwt, toolCallId } = opts;
+	const execOpts = {
+		env,
+		toolCallId: `${toolCallId}-step`,
+	} as ToolExecuteOptions;
+	const baseSearchArgs = {
+		campaignId,
+		jwt,
+		searchOriginalFiles: false,
+		includeTraversedEntities: true,
+		offset: 0,
+		limit: 50,
+		forSessionReadout: true,
+	};
+
+	const notesSlice = (task.completionNotes ?? "").slice(0, 400).trim();
+	const queryFromTask = [task.title, notesSlice]
+		.filter(Boolean)
+		.join(" ")
+		.trim();
+	const searchQuery = queryFromTask || task.title;
+
+	type SearchRes =
+		| { result: { success: boolean; data?: { results?: SearchResultItem[] } } }
+		| undefined;
+	const [searchRes, notesOnlyRes] = (await Promise.all([
+		searchCampaignContext.execute?.(
+			{ ...baseSearchArgs, query: searchQuery },
+			execOpts
+		),
+		notesSlice && notesSlice.length > 80
+			? searchCampaignContext.execute?.(
+					{ ...baseSearchArgs, query: notesSlice },
+					execOpts
+				)
+			: Promise.resolve(undefined),
+	])) as [SearchRes, SearchRes];
+
+	const initialResults: SearchResultItem[] =
+		searchRes?.result?.success && searchRes?.result?.data?.results
+			? searchRes.result.data.results
+			: [];
+
+	if (notesOnlyRes?.result?.success && notesOnlyRes?.result?.data?.results) {
+		const notesResults = notesOnlyRes.result.data.results;
+		const seenIds = new Set(
+			initialResults.map((r) => r.entityId).filter(Boolean)
+		);
+		for (const r of notesResults) {
+			if (r.entityId && !seenIds.has(r.entityId)) {
+				seenIds.add(r.entityId);
+				initialResults.push(r);
+			}
+		}
+	}
+
+	const entityIds = initialResults
+		.map((r) => r.entityId)
+		.filter((id): id is string => Boolean(id));
+
+	let traversedResults: SearchResultItem[] = [];
+	if (entityIds.length > 0 && entityIds.length < 6) {
+		const traverseRes = (await searchCampaignContext.execute?.(
+			{
+				...baseSearchArgs,
+				query: task.title,
+				traverseFromEntityIds: entityIds,
+				traverseDepth: 2,
+			},
+			execOpts
+		)) as SearchRes;
+		traversedResults =
+			traverseRes?.result?.success && traverseRes?.result?.data?.results
+				? traverseRes.result.data.results
+				: [];
+	}
+
+	const byId = new Map<string, { title: string; text: string }>();
+	for (const r of initialResults) {
+		if (r.entityId && r.text != null) {
+			byId.set(r.entityId, {
+				title: r.title ?? r.entityId,
+				text: entityContentOnly(r.text),
+			});
+		}
+	}
+	for (const r of traversedResults) {
+		if (r.entityId && r.text != null && !byId.has(r.entityId)) {
+			byId.set(r.entityId, {
+				title: r.title ?? r.entityId,
+				text: entityContentOnly(r.text),
+			});
+		}
+	}
+
+	const entityResults = Array.from(byId.entries())
+		.slice(0, MAX_READOUT_ENTITIES_PER_STEP)
+		.map(([entityId, v]) => ({
+			entityId,
+			title: v.title,
+			text:
+				v.text.length > MAX_READOUT_ENTITY_TEXT_CHARS
+					? `${v.text.slice(0, MAX_READOUT_ENTITY_TEXT_CHARS)}\n\n[truncated for readout context size]`
+					: v.text,
+		}));
+
+	const readoutBlock = [
+		`## ${task.title}`,
+		"",
+		...entityResults.flatMap((e) => [`### ${e.title}`, "", e.text, ""]),
+	].join("\n");
+
+	return {
+		task: {
+			id: task.id,
+			title: task.title,
+			completionNotes: task.completionNotes,
+			createdAt: task.createdAt,
+		},
+		instruction:
+			"Transform the readoutBlock below into part of a session plan for the DM. Use the full entity content (Background, Character Traits, Emotional Stakes, NPC Reactions, mechanics, etc.) but present it as a scene or encounter in the plan: Description, Helpful DM Info, Dialogue, player options. Do not expose graph structure or relationship metadata. Output should read like a session script outline the DM can run at the table—not a raw dump of entity data. Include all substantive detail from the readoutBlock.",
+		readoutBlock,
+		entityResults,
+		entityIds: entityResults.map((e) => e.entityId),
+	};
 }
 
 /**
@@ -415,168 +572,283 @@ export const getSessionReadoutContext = tool({
 				);
 			}
 
-			const opts = {
-				env,
-				toolCallId: `${toolCallId}-step`,
-			} as ToolExecuteOptions;
-
-			const baseSearchArgs = {
-				campaignId,
-				jwt,
-				searchOriginalFiles: false,
-				includeTraversedEntities: true,
-				offset: 0,
-				limit: 50,
-				forSessionReadout: true,
-			};
-
-			async function processTaskForReadout(task: {
-				id: string;
-				title: string;
-				completionNotes: string | null;
-				createdAt: string;
-			}): Promise<{
-				task: {
-					id: string;
-					title: string;
-					completionNotes: string | null;
-					createdAt: string;
-				};
-				instruction: string;
-				readoutBlock: string;
-				entityResults: Array<{ entityId: string; title: string; text: string }>;
-				entityIds: string[];
-			}> {
-				const notesSlice = (task.completionNotes ?? "").slice(0, 400).trim();
-				const queryFromTask = [task.title, notesSlice]
-					.filter(Boolean)
-					.join(" ")
-					.trim();
-				const searchQuery = queryFromTask || task.title;
-
-				// Run initial search and notes-only search in parallel when both apply
-				type SearchRes =
-					| {
-							result: {
-								success: boolean;
-								data?: { results?: SearchResultItem[] };
-							};
-					  }
-					| undefined;
-				const [searchRes, notesOnlyRes] = (await Promise.all([
-					searchCampaignContext.execute?.(
-						{ ...baseSearchArgs, query: searchQuery },
-						opts
-					),
-					notesSlice && notesSlice.length > 80
-						? searchCampaignContext.execute?.(
-								{ ...baseSearchArgs, query: notesSlice },
-								opts
-							)
-						: Promise.resolve(undefined),
-				])) as [SearchRes, SearchRes];
-
-				const initialResults: SearchResultItem[] =
-					searchRes?.result?.success && searchRes?.result?.data?.results
-						? searchRes.result.data.results
-						: [];
-
-				if (
-					notesOnlyRes?.result?.success &&
-					notesOnlyRes?.result?.data?.results
-				) {
-					const notesResults = notesOnlyRes.result.data.results;
-					const seenIds = new Set(
-						initialResults.map((r) => r.entityId).filter(Boolean)
-					);
-					for (const r of notesResults) {
-						if (r.entityId && !seenIds.has(r.entityId)) {
-							seenIds.add(r.entityId);
-							initialResults.push(r);
-						}
-					}
-				}
-
-				const entityIds = initialResults
-					.map((r) => r.entityId)
-					.filter((id): id is string => Boolean(id));
-
-				let traversedResults: SearchResultItem[] = [];
-				if (entityIds.length > 0) {
-					const traverseRes = (await searchCampaignContext.execute?.(
-						{
-							...baseSearchArgs,
-							query: task.title,
-							traverseFromEntityIds: entityIds,
-							traverseDepth: 2,
-						},
-						opts
-					)) as
-						| {
-								result: {
-									success: boolean;
-									data?: { results?: SearchResultItem[] };
-								};
-						  }
-						| undefined;
-					traversedResults =
-						traverseRes?.result?.success && traverseRes?.result?.data?.results
-							? traverseRes.result.data.results
-							: [];
-				}
-
-				const byId = new Map<string, { title: string; text: string }>();
-				for (const r of initialResults) {
-					if (r.entityId && r.text != null) {
-						byId.set(r.entityId, {
-							title: r.title ?? r.entityId,
-							text: entityContentOnly(r.text),
-						});
-					}
-				}
-				for (const r of traversedResults) {
-					if (r.entityId && r.text != null && !byId.has(r.entityId)) {
-						byId.set(r.entityId, {
-							title: r.title ?? r.entityId,
-							text: entityContentOnly(r.text),
-						});
-					}
-				}
-
-				const entityResults = Array.from(byId.entries())
-					.slice(0, MAX_READOUT_ENTITIES_PER_STEP)
-					.map(([entityId, v]) => ({
-						entityId,
-						title: v.title,
-						text:
-							v.text.length > MAX_READOUT_ENTITY_TEXT_CHARS
-								? `${v.text.slice(0, MAX_READOUT_ENTITY_TEXT_CHARS)}\n\n[truncated for readout context size]`
-								: v.text,
-					}));
-
-				const readoutBlock = [
-					`## ${task.title}`,
-					"",
-					...entityResults.flatMap((e) => [`### ${e.title}`, "", e.text, ""]),
-				].join("\n");
-
-				return {
-					task: {
-						id: task.id,
-						title: task.title,
-						completionNotes: task.completionNotes,
-						createdAt: task.createdAt,
+			// Use chunked flow for 3+ tasks to avoid Worker timeout
+			if (completedTasks.length >= CHUNK_THRESHOLD) {
+				const taskIds = completedTasks.map((t) => t.id);
+				const totalChunks = Math.ceil(taskIds.length / CHUNK_BATCH_SIZE);
+				return createToolSuccess(
+					`This campaign has ${completedTasks.length} completed next steps. Use the chunked flow to avoid timeout: call getSessionReadoutChunk for each batch (chunkIndex 0 to ${totalChunks - 1}), then stitchSessionReadout.`,
+					{
+						useChunkedFlow: true,
+						taskIds,
+						nextSessionNumber,
+						totalChunks,
+						message: `Call getSessionReadoutChunk with taskIds and chunkIndex 0, then ${totalChunks > 1 ? `chunkIndex 1 through ${totalChunks - 1}, then ` : ""}stitchSessionReadout.`,
 					},
-					instruction:
-						"Transform the readoutBlock below into part of a session plan for the DM. Use the full entity content (Background, Character Traits, Emotional Stakes, NPC Reactions, mechanics, etc.) but present it as a scene or encounter in the plan: Description, Helpful DM Info, Dialogue, player options. Do not expose graph structure or relationship metadata. Output should read like a session script outline the DM can run at the table—not a raw dump of entity data. Include all substantive detail from the readoutBlock.",
-					readoutBlock,
-					entityResults,
-					entityIds: entityResults.map((e) => e.entityId),
-				};
+					toolCallId
+				);
 			}
 
+			if (!jwt) {
+				return createToolError(
+					"Authentication required",
+					"JWT is required",
+					401,
+					toolCallId
+				);
+			}
+			const processOpts: ProcessTaskOpts = {
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			};
+
+			const doReadoutWork = async () => {
+				const READOUT_CONCURRENCY = 2;
+				const taskResults: Awaited<ReturnType<typeof processTaskForReadout>>[] =
+					[];
+				for (let i = 0; i < completedTasks.length; i += READOUT_CONCURRENCY) {
+					const chunk = completedTasks.slice(i, i + READOUT_CONCURRENCY);
+					const chunkResults = await Promise.all(
+						chunk.map((task) => processTaskForReadout(task, processOpts))
+					);
+					taskResults.push(...chunkResults);
+				}
+
+				const allEntityIds = [
+					...new Set(taskResults.flatMap((r) => r.entityIds)),
+				];
+				const communitiesByEntityId = await batchLoadCommunitiesByEntity(
+					campaignId,
+					allEntityIds,
+					communityDAO
+				);
+
+				const steps = taskResults.map((tr) => {
+					const communitiesByEntity: Record<
+						string,
+						{ id: string; level: number; entityCount: number }[]
+					> = {};
+					for (const entity of tr.entityResults) {
+						const communities =
+							communitiesByEntityId.get(entity.entityId) ?? [];
+						if (communities.length > 0) {
+							communitiesByEntity[entity.entityId] = communities.map((c) => ({
+								id: c.id,
+								level: c.level,
+								entityCount: c.entityIds.length,
+							}));
+						}
+					}
+
+					return {
+						task: tr.task,
+						instruction: tr.instruction,
+						readoutBlock: tr.readoutBlock,
+						entityResults: tr.entityResults,
+					};
+				});
+
+				// Generate session plan via LLM and persist
+				const providerEnvVar =
+					MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+						? "ANTHROPIC_API_KEY"
+						: "OPENAI_API_KEY";
+				const providerApiKeyRaw = await getEnvVar(
+					env as unknown as Record<string, unknown>,
+					providerEnvVar,
+					false
+				);
+				const providerApiKey = providerApiKeyRaw?.trim() ?? "";
+				if (!providerApiKey) {
+					return createToolError(
+						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
+						"AI is not configured for this environment.",
+						503,
+						toolCallId
+					);
+				}
+
+				const { formatSessionPlanReadoutPrompt } = await import(
+					"../../lib/prompts/recap-prompts"
+				);
+				const { createLLMProvider } = await import(
+					"../../services/llm/llm-provider-factory"
+				);
+				const { getGenerationModelForProvider } = await import(
+					"../../app-constants"
+				);
+
+				const prompt = formatSessionPlanReadoutPrompt(steps, nextSessionNumber);
+				const llmProvider = createLLMProvider({
+					provider: MODEL_CONFIG.PROVIDER.DEFAULT,
+					apiKey: providerApiKey,
+					defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
+					defaultTemperature:
+						MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+					defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+				});
+				const transformedPlan = await llmProvider.generateSummary(prompt, {
+					model: getGenerationModelForProvider("SESSION_PLANNING"),
+					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+					maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+				});
+
+				await sessionPlanReadoutDAO.save(
+					campaignId,
+					nextSessionNumber,
+					transformedPlan
+				);
+
+				return createToolSuccess(
+					`Session plan generated for session ${nextSessionNumber}. Present the plan to the user. It has been saved for future requests.`,
+					{
+						plan: transformedPlan,
+						nextSessionNumber,
+						cached: false,
+					},
+					toolCallId
+				);
+			};
+
+			const timeoutPromise = new Promise<never>((_, reject) =>
+				setTimeout(
+					() =>
+						reject(
+							new Error(
+								"Session readout timed out after 90 seconds. Try again or use fewer next steps."
+							)
+						),
+					SESSION_READOUT_TIMEOUT_MS
+				)
+			);
+
+			return await Promise.race([doReadoutWork(), timeoutPromise]);
+		} catch (error) {
+			const isTimeout =
+				error instanceof Error && error.message.includes("timed out");
+			return createToolError(
+				isTimeout
+					? "Session readout timed out"
+					: "Failed to get session readout context",
+				error instanceof Error ? error.message : String(error),
+				isTimeout ? 504 : 500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const getSessionReadoutChunkSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	jwt: commonSchemas.jwt,
+	taskIds: z
+		.array(z.string().uuid())
+		.min(1, "At least one task ID is required")
+		.describe("IDs of completed planning tasks to include in this chunk"),
+	chunkIndex: z
+		.number()
+		.int()
+		.min(0)
+		.describe(
+			"Index of this chunk (0-based). When 0, clears any existing chunks for this campaign/session."
+		),
+});
+
+export const getSessionReadoutChunk = tool({
+	description:
+		"Process a batch of completed planning tasks into a readout chunk. Call multiple times with incrementing chunkIndex (e.g. 0, 1, 2) for different task batches, then call stitchSessionReadout. Use when getSessionReadoutContext returns useChunkedFlow: true.",
+	inputSchema: getSessionReadoutChunkSchema,
+	execute: async (
+		input: z.infer<typeof getSessionReadoutChunkSchema>,
+		options: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId, jwt, taskIds, chunkIndex } = input;
+		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Server environment is required",
+					500,
+					toolCallId
+				);
+			}
+
+			const access = await requireCanSeeSpoilersForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if (!("userId" in access)) return access;
+
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) return campaignAccess;
+
+			const gmError = await requireGMRole(
+				env,
+				campaignId,
+				(access as { userId: string }).userId,
+				toolCallId
+			);
+			if (gmError) return gmError;
+
+			const daoFactory = getDAOFactory(env);
+			const planningTaskDAO = daoFactory.planningTaskDAO;
+			const sessionDigestDAO = daoFactory.sessionDigestDAO;
+			const sessionPlanReadoutChunkDAO = daoFactory.sessionPlanReadoutChunkDAO;
+			const communityDAO = daoFactory.communityDAO;
+
+			const nextSessionNumber =
+				await sessionDigestDAO.getNextSessionNumber(campaignId);
+
+			const start = chunkIndex * CHUNK_BATCH_SIZE;
+			const batchTaskIds = taskIds.slice(start, start + CHUNK_BATCH_SIZE);
+			if (batchTaskIds.length === 0) {
+				return createToolError(
+					"No tasks in chunk",
+					`chunkIndex ${chunkIndex} exceeds available tasks`,
+					400,
+					toolCallId
+				);
+			}
+
+			if (!jwt) {
+				return createToolError(
+					"Authentication required",
+					"JWT is required",
+					401,
+					toolCallId
+				);
+			}
+			const tasks = await Promise.all(
+				batchTaskIds.map((id) => planningTaskDAO.getById(id))
+			);
+
+			if (chunkIndex === 0) {
+				await sessionPlanReadoutChunkDAO.clearChunks(
+					campaignId,
+					nextSessionNumber
+				);
+			}
+
+			const processOpts: ProcessTaskOpts = {
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			};
 			const taskResults = await Promise.all(
-				completedTasks.map((task) => processTaskForReadout(task))
+				tasks.map((t) => processTaskForReadout(t, processOpts))
 			);
 
 			const allEntityIds = [
@@ -603,7 +875,6 @@ export const getSessionReadoutContext = tool({
 						}));
 					}
 				}
-
 				return {
 					task: tr.task,
 					instruction: tr.instruction,
@@ -612,7 +883,113 @@ export const getSessionReadoutContext = tool({
 				};
 			});
 
-			// Generate session plan via LLM and persist
+			await sessionPlanReadoutChunkDAO.saveChunk(
+				campaignId,
+				nextSessionNumber,
+				chunkIndex,
+				steps
+			);
+
+			const totalChunks = Math.ceil(taskIds.length / CHUNK_BATCH_SIZE);
+			const done = chunkIndex >= totalChunks - 1;
+
+			return createToolSuccess(
+				done
+					? `Chunk ${chunkIndex + 1}/${totalChunks} saved. All chunks ready. Call stitchSessionReadout to generate the final plan.`
+					: `Chunk ${chunkIndex + 1}/${totalChunks} saved. Call getSessionReadoutChunk with chunkIndex ${chunkIndex + 1} next.`,
+				{
+					chunkIndex,
+					processedCount: tasks.length,
+					totalChunks,
+					done,
+					nextSessionNumber,
+					nextChunkIndex: done ? undefined : chunkIndex + 1,
+				},
+				toolCallId
+			);
+		} catch (error) {
+			return createToolError(
+				"Failed to process readout chunk",
+				error instanceof Error ? error.message : String(error),
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const stitchSessionReadoutSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	jwt: commonSchemas.jwt,
+});
+
+export const stitchSessionReadout = tool({
+	description:
+		"Combine saved readout chunks into the final session plan. Call after all getSessionReadoutChunk calls are complete.",
+	inputSchema: stitchSessionReadoutSchema,
+	execute: async (
+		input: z.infer<typeof stitchSessionReadoutSchema>,
+		options: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId, jwt } = input;
+		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env) {
+				return createToolError(
+					"Environment not available",
+					"Server environment is required",
+					500,
+					toolCallId
+				);
+			}
+
+			const access = await requireCanSeeSpoilersForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if (!("userId" in access)) return access;
+
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) return campaignAccess;
+
+			const gmError = await requireGMRole(
+				env,
+				campaignId,
+				(access as { userId: string }).userId,
+				toolCallId
+			);
+			if (gmError) return gmError;
+
+			const daoFactory = getDAOFactory(env);
+			const sessionDigestDAO = daoFactory.sessionDigestDAO;
+			const sessionPlanReadoutDAO = daoFactory.sessionPlanReadoutDAO;
+			const sessionPlanReadoutChunkDAO = daoFactory.sessionPlanReadoutChunkDAO;
+
+			const nextSessionNumber =
+				await sessionDigestDAO.getNextSessionNumber(campaignId);
+
+			const steps = await sessionPlanReadoutChunkDAO.getChunks(
+				campaignId,
+				nextSessionNumber
+			);
+			if (steps.length === 0) {
+				return createToolError(
+					"No chunks to stitch",
+					"Call getSessionReadoutChunk at least once before stitchSessionReadout.",
+					400,
+					toolCallId
+				);
+			}
+
 			const providerEnvVar =
 				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
 					? "ANTHROPIC_API_KEY"
@@ -662,6 +1039,10 @@ export const getSessionReadoutContext = tool({
 				nextSessionNumber,
 				transformedPlan
 			);
+			await sessionPlanReadoutChunkDAO.clearChunks(
+				campaignId,
+				nextSessionNumber
+			);
 
 			return createToolSuccess(
 				`Session plan generated for session ${nextSessionNumber}. Present the plan to the user. It has been saved for future requests.`,
@@ -674,7 +1055,7 @@ export const getSessionReadoutContext = tool({
 			);
 		} catch (error) {
 			return createToolError(
-				"Failed to get session readout context",
+				"Failed to stitch session readout",
 				error instanceof Error ? error.message : String(error),
 				500,
 				toolCallId
