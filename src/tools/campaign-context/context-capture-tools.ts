@@ -241,14 +241,15 @@ export const captureConversationalContext = tool({
 				// Do not fail the capture operation if planning task linkage fails
 			}
 
-			// Send notification to user about new pending shard
+			// Send notification to user about new pending shard (triggers UI refresh for collapsed count and overlay)
 			try {
 				await notifyShardGeneration(
 					env as Env,
 					userId,
 					campaign.name,
 					`Conversation: ${title}`,
-					1 // One shard created
+					1, // One shard created
+					{ campaignId }
 				);
 			} catch (_notifyError) {
 				// Don't fail the operation if notification fails
@@ -395,14 +396,15 @@ export const saveContextExplicitly = tool({
 				);
 			}
 
-			// Send notification to user about new pending shard
+			// Send notification to user about new pending shard (triggers UI refresh for collapsed count and overlay)
 			try {
 				await notifyShardGeneration(
 					env as Env,
 					userId,
 					campaign.name,
 					`Conversation: ${title}`,
-					1
+					1,
+					{ campaignId }
 				);
 			} catch (_notifyError) {
 				// Don't fail the operation if notification fails

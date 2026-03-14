@@ -15,6 +15,7 @@ import {
 	updateHouseRuleTool,
 } from "@/tools/campaign-context/entity-tools";
 import {
+	completePlanningTask,
 	getPlanningTaskProgress,
 	recordPlanningTasks,
 } from "@/tools/campaign-context/planning-task-tools";
@@ -89,6 +90,7 @@ export {
 	saveContextExplicitly,
 	recordPlanningTasks,
 	getPlanningTaskProgress,
+	completePlanningTask,
 	searchCampaignContext,
 	listAllEntities,
 	recordWorldEventTool,
@@ -153,6 +155,7 @@ export const campaignTools = {
 	saveContextExplicitly,
 	recordPlanningTasks,
 	getPlanningTaskProgress,
+	completePlanningTask,
 	searchCampaignContext,
 	listAllEntities,
 	recordWorldEventTool,

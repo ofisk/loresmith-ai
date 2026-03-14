@@ -279,7 +279,7 @@ const completePlanningTaskSchema = z.object({
 
 export const completePlanningTask = tool({
 	description:
-		"Mark a planning task (next step) as completed. Use this only after the user has confirmed they want to mark the step done. Always pass completionNotes: comprehensive notes capturing how the user completed this step—include all planning detail from their messages (not a short summary) so the session plan readout can be highly detailed. Call when the user explicitly confirms (e.g. 'yes', 'mark it done').",
+		"Mark a planning task (next step) as completed. Call when user content clearly satisfies the task's constraints—automatically after capturing with captureConversationalContext, or when the user explicitly confirms. Always pass completionNotes: comprehensive notes capturing how the user completed this step (include all planning detail from their messages, not a short summary). When one capture fulfills multiple tasks, call this for each task with the shared completionNotes and linkedShardId if a shard was created.",
 	inputSchema: completePlanningTaskSchema,
 	execute: async (
 		input: z.infer<typeof completePlanningTaskSchema>,
