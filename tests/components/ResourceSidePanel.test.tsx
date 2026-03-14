@@ -122,7 +122,7 @@ describe("ResourceSidePanel", () => {
 
 	it("should call onLogout when logout button is clicked", async () => {
 		mockOnLogout.mockResolvedValue(undefined);
-		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		const _confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
 		render(
 			<ResourceSidePanel
@@ -143,7 +143,7 @@ describe("ResourceSidePanel", () => {
 	});
 
 	it("should not call onLogout when user cancels logout confirmation", async () => {
-		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		const _confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 
 		render(
 			<ResourceSidePanel

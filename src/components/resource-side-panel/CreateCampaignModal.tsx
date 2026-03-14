@@ -72,7 +72,10 @@ export function CreateCampaignModal({
 		return (
 			<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 				<div className="mb-4 md:mb-6">
-					<h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+					<h2
+						id="create-campaign-modal-title"
+						className="text-xl font-semibold text-gray-900 dark:text-gray-100"
+					>
 						Campaign created
 					</h2>
 					<p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -90,7 +93,11 @@ export function CreateCampaignModal({
 							Add your first resource
 						</FormButton>
 					)}
-					<FormButton onClick={handleDone} variant="secondary">
+					<FormButton
+						onClick={handleDone}
+						variant="secondary"
+						data-testid="create-campaign-done"
+					>
 						Done
 					</FormButton>
 				</div>
@@ -102,7 +109,10 @@ export function CreateCampaignModal({
 		<div className="p-4 md:p-6 h-full flex flex-col min-h-0">
 			{/* Header */}
 			<div className="mb-4 md:mb-6">
-				<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+				<h2
+					id="create-campaign-modal-title"
+					className="text-xl font-semibold text-neutral-900 dark:text-neutral-100"
+				>
 					Create new campaign
 				</h2>
 				<p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">

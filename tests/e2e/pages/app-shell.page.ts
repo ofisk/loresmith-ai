@@ -19,4 +19,10 @@ export class AppShellPage {
 			})
 			.first();
 	}
+
+	/** Campaign button in the sidebar by name (regex or string). */
+	getCampaignButton(name: string | RegExp) {
+		const matcher = typeof name === "string" ? new RegExp(name) : name;
+		return this.page.getByRole("button", { name: matcher }).first();
+	}
 }

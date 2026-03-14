@@ -12,6 +12,10 @@ export class CreateCampaignModal {
 		return this.page.getByTestId("create-campaign-submit");
 	}
 
+	get doneButton() {
+		return this.page.getByTestId("create-campaign-done");
+	}
+
 	async fillName(name: string): Promise<void> {
 		await this.campaignNameInput.fill(name);
 	}

@@ -301,6 +301,7 @@ export function AppModals({
 				isOpen={modalState.isCreateCampaignModalOpen}
 				onClose={modalState.handleCreateCampaignClose}
 				className="modal-size-md"
+				ariaLabelledBy="create-campaign-modal-title"
 			>
 				<CreateCampaignModal
 					isOpen={modalState.isCreateCampaignModalOpen}

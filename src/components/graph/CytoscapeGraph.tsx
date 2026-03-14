@@ -531,10 +531,23 @@ export function CytoscapeGraph({
 		cy.pan({ x: pan.x - 50, y: pan.y });
 	}, []);
 
+	const nodesCount = elements.filter(
+		(el) => el.data?.id && !(el.data as { source?: string }).source
+	).length;
+	const edgesCount = elements.filter(
+		(el) => (el.data as { source?: string })?.source != null
+	).length;
+	const ariaLabel =
+		nodesCount > 0
+			? `Graph visualization showing ${nodesCount} nodes and ${edgesCount} relationships`
+			: "Graph visualization loading";
+
 	return (
 		<div className="relative w-full h-full" style={{ minHeight: "400px" }}>
 			<div
 				ref={containerRef}
+				role="img"
+				aria-label={ariaLabel}
 				data-cytoscape-container
 				className={className}
 				style={{

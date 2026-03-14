@@ -98,6 +98,7 @@ export function ConfirmDeleteButton({
 				onClick={handleConfirm}
 				disabled={isDeleting}
 				className="relative flex items-center gap-2 overflow-hidden"
+				data-testid="confirm-delete"
 			>
 				<div
 					className="absolute inset-0 bg-neutral-400/30 transition-all duration-75 ease-linear"

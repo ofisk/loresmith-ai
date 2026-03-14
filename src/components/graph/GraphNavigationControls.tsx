@@ -36,36 +36,36 @@ export function GraphNavigationControls({
 					type="button"
 					onClick={onPanUp}
 					className={buttonClass}
-					title="Pan up"
+					aria-label="Pan up"
 				>
-					<CaretUp size={16} weight="bold" />
+					<CaretUp size={16} weight="bold" aria-hidden />
 				</button>
 				<div />
 				<button
 					type="button"
 					onClick={onPanLeft}
 					className={buttonClass}
-					title="Pan left"
+					aria-label="Pan left"
 				>
-					<CaretLeft size={16} weight="bold" />
+					<CaretLeft size={16} weight="bold" aria-hidden />
 				</button>
 				<div />
 				<button
 					type="button"
 					onClick={onPanRight}
 					className={buttonClass}
-					title="Pan right"
+					aria-label="Pan right"
 				>
-					<CaretRight size={16} weight="bold" />
+					<CaretRight size={16} weight="bold" aria-hidden />
 				</button>
 				<div />
 				<button
 					type="button"
 					onClick={onPanDown}
 					className={buttonClass}
-					title="Pan down"
+					aria-label="Pan down"
 				>
-					<CaretDown size={16} weight="bold" />
+					<CaretDown size={16} weight="bold" aria-hidden />
 				</button>
 				<div />
 			</div>
@@ -75,18 +75,18 @@ export function GraphNavigationControls({
 				<button
 					type="button"
 					onClick={onZoomIn}
+					aria-label="Zoom in"
 					className="w-8 h-8 flex items-center justify-center bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors rounded-full"
-					title="Zoom in"
 				>
-					<Plus size={16} weight="bold" />
+					<Plus size={16} weight="bold" aria-hidden />
 				</button>
 				<button
 					type="button"
 					onClick={onZoomOut}
+					aria-label="Zoom out"
 					className="w-8 h-8 flex items-center justify-center bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors rounded-full"
-					title="Zoom out"
 				>
-					<Minus size={16} weight="bold" />
+					<Minus size={16} weight="bold" aria-hidden />
 				</button>
 			</div>
 		</div>

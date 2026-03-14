@@ -567,11 +567,19 @@ export function CampaignDetailsModal({
 
 	return (
 		<>
-			<Modal isOpen={isOpen} onClose={onClose} className="modal-size-lg">
+			<Modal
+				isOpen={isOpen}
+				onClose={onClose}
+				className="modal-size-lg"
+				ariaLabelledBy="campaign-details-modal-title"
+			>
 				<div className="p-4 md:p-6 h-full flex flex-col">
 					{/* Header */}
 					<div className="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-						<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+						<h2
+							id="campaign-details-modal-title"
+							className="text-xl font-semibold text-neutral-900 dark:text-neutral-100"
+						>
 							Campaign details
 						</h2>
 						{!isPlayerRole && (
@@ -759,6 +767,7 @@ export function CampaignDetailsModal({
 											disabled={isUpdating || !editedName.trim()}
 											loading={isUpdating}
 											icon={<FloppyDisk size={16} />}
+											data-testid="campaign-details-save"
 										>
 											{isUpdating ? "Saving…" : "Save changes"}
 										</FormButton>
@@ -776,6 +785,7 @@ export function CampaignDetailsModal({
 											<FormButton
 												onClick={() => setIsEditing(true)}
 												icon={<PencilSimple size={16} />}
+												data-testid="campaign-details-edit"
 											>
 												Edit
 											</FormButton>
