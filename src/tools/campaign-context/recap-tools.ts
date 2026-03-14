@@ -384,16 +384,22 @@ export const getSessionReadoutContext = tool({
 					);
 				}
 			}
-			const allTasks = await planningTaskDAO.listByCampaign(campaignId, {
-				status: ["completed"] as PlanningTaskStatus[],
-			});
-			const completedTasksForUpcomingSession = allTasks.filter((task) => {
-				if (task.targetSessionNumber != null) {
-					return task.targetSessionNumber === nextSessionNumber;
-				}
-				const targetFromTitle = extractTargetSessionFromTitle(task.title);
-				return targetFromTitle === nextSessionNumber;
-			});
+			// Only fetch completed tasks for the upcoming session (not all campaign tasks)
+			let completedTasksForUpcomingSession =
+				await planningTaskDAO.listByCampaign(campaignId, {
+					status: ["completed"] as PlanningTaskStatus[],
+					targetSessionNumber: nextSessionNumber,
+				});
+			// Fallback for legacy tasks with null targetSessionNumber but "(target: session N)" in title
+			if (completedTasksForUpcomingSession.length === 0) {
+				const allCompleted = await planningTaskDAO.listByCampaign(campaignId, {
+					status: ["completed"] as PlanningTaskStatus[],
+				});
+				completedTasksForUpcomingSession = allCompleted.filter(
+					(task) =>
+						extractTargetSessionFromTitle(task.title) === nextSessionNumber
+				);
+			}
 			const completedTasks = [...completedTasksForUpcomingSession]
 				.sort(
 					(a, b) =>

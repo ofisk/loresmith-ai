@@ -33,9 +33,13 @@ export interface CreatePlanningTaskInput {
 export class PlanningTaskDAO extends BaseDAOClass {
 	async listByCampaign(
 		campaignId: string,
-		options?: { status?: PlanningTaskStatus[] }
+		options?: {
+			status?: PlanningTaskStatus[];
+			/** When set, only return tasks targeting this session (for session readout). */
+			targetSessionNumber?: number;
+		}
 	): Promise<PlanningTaskRecord[]> {
-		const { status } = options ?? {};
+		const { status, targetSessionNumber } = options ?? {};
 
 		let sql = `
       SELECT
@@ -60,6 +64,11 @@ export class PlanningTaskDAO extends BaseDAOClass {
 			const placeholders = status.map(() => "?").join(", ");
 			sql += ` AND status IN (${placeholders})`;
 			params.push(...status);
+		}
+
+		if (targetSessionNumber != null) {
+			sql += " AND target_session_number = ?";
+			params.push(targetSessionNumber);
 		}
 
 		sql += " ORDER BY created_at DESC";
