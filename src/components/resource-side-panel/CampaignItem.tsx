@@ -1,9 +1,11 @@
 import { DotsThreeVertical } from "@phosphor-icons/react";
 import { RebuildStatusIndicator } from "@/components/graph/RebuildStatusIndicator";
+import { Tooltip } from "@/components/tooltip/Tooltip";
 import {
 	CAMPAIGN_ROLE_LABELS,
 	CAMPAIGN_ROLES,
 } from "@/constants/campaign-roles";
+import { PROCESSING_DOCUMENTS_MESSAGE } from "@/constants/processing-documents-copy";
 import { useRebuildStatus } from "@/hooks/useRebuildStatus";
 import type { Campaign } from "@/types/campaign";
 
@@ -46,6 +48,13 @@ export function CampaignItem({ campaign, onCampaignClick }: CampaignItemProps) {
 								rebuildStatus={activeRebuild}
 								className="flex-shrink-0"
 							/>
+						)}
+						{campaign.hasProcessingDocuments && (
+							<Tooltip content={PROCESSING_DOCUMENTS_MESSAGE}>
+								<span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400">
+									Processing documents
+								</span>
+							</Tooltip>
 						)}
 					</div>
 					<div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">

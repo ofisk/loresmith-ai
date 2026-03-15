@@ -330,6 +330,20 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 	}
 
 	/**
+	 * Get campaign IDs that have at least one active extraction job (pending, processing, or rate_limited).
+	 * Used to show "Processing documents" in the campaign list.
+	 */
+	async getCampaignIdsWithActiveExtraction(): Promise<string[]> {
+		const sql = `
+      SELECT DISTINCT campaign_id
+      FROM entity_extraction_queue
+      WHERE status IN ('pending', 'processing', 'rate_limited')
+    `;
+		const results = await this.queryAll<{ campaign_id: string }>(sql, []);
+		return results.map((row) => row.campaign_id);
+	}
+
+	/**
 	 * Get queue item by ID
 	 */
 	async getQueueItemById(

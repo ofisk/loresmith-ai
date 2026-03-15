@@ -103,6 +103,24 @@ export function useAppEventHandlers({
 		};
 	}, [refetchCampaigns]);
 
+	// Listen for entity-extraction-completed to refresh campaigns (clear "Processing documents" badge)
+	useEffect(() => {
+		const handleEntityExtractionCompleted = () => {
+			refetchCampaigns();
+		};
+
+		window.addEventListener(
+			APP_EVENT_TYPE.ENTITY_EXTRACTION_COMPLETED,
+			handleEntityExtractionCompleted as EventListener
+		);
+		return () => {
+			window.removeEventListener(
+				APP_EVENT_TYPE.ENTITY_EXTRACTION_COMPLETED,
+				handleEntityExtractionCompleted as EventListener
+			);
+		};
+	}, [refetchCampaigns]);
+
 	// Trigger recap on app initialization if user has been away
 	useEffect(() => {
 		if (!authReady || !selectedCampaignId || isLoading) {

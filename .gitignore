@@ -141,6 +141,9 @@ dist
 # Claude worktrees
 .claude/
 
+# Cursor plans (local planning artifacts)
+.cursor/plans/
+
 # Cloudflare
 wrangler.preview.generated.jsonc
 .wrangler
