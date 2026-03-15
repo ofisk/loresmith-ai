@@ -1,16 +1,26 @@
 import type React from "react";
-import { createContext, useCallback, useContext, useMemo } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
 import { useAppOrchestration } from "@/hooks/useAppOrchestration";
+import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useTourState } from "@/hooks/useTourState";
 import { useUiHints } from "@/hooks/useUiHints";
 import { AuthService } from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
 import type { Message } from "@/types/ai-message";
 import type { Campaign } from "@/types/campaign";
+import { OPEN_PLANNING_TASK_STATUSES } from "@/types/planning-task";
 import type { StagedShardGroup } from "@/types/shard";
 
 export interface AppShellContextValue {
@@ -89,6 +99,8 @@ export interface AppShellContextValue {
 	onSuggestionSubmit: (suggestion: string) => void;
 	/** Submit a "work on this step" message for next-step buttons in agent messages. */
 	onWorkOnNextStep: (stepLabel: string) => void;
+	/** Open planning task titles for the selected campaign (from API); used by chat to render "Work on this" buttons. */
+	openPlanningTaskTitles: string[];
 	onUploadFiles: () => void;
 	textareaHeight: string;
 	setTextareaHeight: (height: string) => void;
@@ -274,6 +286,23 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		},
 	});
 
+	const [openPlanningTaskTitles, setOpenPlanningTaskTitles] = useState<
+		string[]
+	>([]);
+	const { makeRequestWithData } = useAuthenticatedRequest();
+	useEffect(() => {
+		if (!selectedCampaignId || !authReady) {
+			setOpenPlanningTaskTitles([]);
+			return;
+		}
+		const url = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(selectedCampaignId))}?status=${OPEN_PLANNING_TASK_STATUSES.join(",")}`;
+		makeRequestWithData<{ tasks: Array<{ title: string }> }>(url)
+			.then((data) =>
+				setOpenPlanningTaskTitles((data.tasks ?? []).map((t) => t.title))
+			)
+			.catch(() => setOpenPlanningTaskTitles([]));
+	}, [selectedCampaignId, authReady, makeRequestWithData]);
+
 	const handleChatInputChange = useCallback(
 		(e: React.ChangeEvent<HTMLTextAreaElement>) => {
 			handleAgentInputChange(e);
@@ -348,6 +377,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			onSuggestionSubmit: handleSuggestionSubmit,
 			onWorkOnNextStep: (stepLabel: string) =>
 				handleSuggestionSubmit(`I'd like to work on ${stepLabel}`),
+			openPlanningTaskTitles,
 			onUploadFiles,
 			textareaHeight,
 			setTextareaHeight,
@@ -419,6 +449,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			formatTime,
 			agentStatus,
 			handleSuggestionSubmit,
+			openPlanningTaskTitles,
 			onUploadFiles,
 			textareaHeight,
 			setTextareaHeight,

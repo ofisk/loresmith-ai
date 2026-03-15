@@ -57,6 +57,8 @@ interface ChatAreaProps {
 	onRegenerate?: () => Promise<void>;
 	/** When provided, "Work on this" buttons are shown for next steps in agent messages; called with the step label. */
 	onWorkOnNextStep?: (stepLabel: string) => void;
+	/** When provided, used as step labels for "Work on this" buttons (e.g. from planning-tasks API). */
+	openPlanningTaskTitles?: string[];
 }
 
 /**
@@ -86,6 +88,7 @@ export function ChatArea({
 	chatError,
 	onRegenerate,
 	onWorkOnNextStep,
+	openPlanningTaskTitles,
 }: ChatAreaProps) {
 	const [placeholder] = useState(() => getRandomPrompt());
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
@@ -313,6 +316,7 @@ export function ChatArea({
 					formatTime={formatTime}
 					invisibleUserContents={invisibleUserContents}
 					onWorkOnNextStep={onWorkOnNextStep}
+					openPlanningTaskTitles={openPlanningTaskTitles}
 				/>
 
 				{/* Thinking Spinner - shown when agent is processing */}

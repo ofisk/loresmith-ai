@@ -9,16 +9,37 @@ interface ChatMessageListProps {
 	formatTime: (date: Date) => string;
 	/** User message contents to hide (e.g. button-triggered prompts). */
 	invisibleUserContents?: Set<string>;
-	/** When provided, "Work on this" buttons are shown for parsed next steps; called with the step label. */
+	/** When provided, "Work on this" buttons are shown for next steps in agent messages; called with the step label. */
 	onWorkOnNextStep?: (stepLabel: string) => void;
+	/** When provided, used as the list of step labels for buttons (from planning-tasks API). Message text is still used as a hint for whether to show buttons. */
+	openPlanningTaskTitles?: string[];
 }
 
-const NEXT_STEP_HEADING = /next step/i;
+/**
+ * Next-step buttons can be driven in two ways (see plan/docs):
+ * 1. Programmatic: pass openPlanningTaskTitles from the planning-tasks API; we use message text only as a hint
+ *    ("next step" / "open task") for whether to show buttons. Single source of truth, no markdown parsing.
+ * 2. Fallback: when no API list is provided, parse message text for a "next steps" / "open tasks" heading
+ *    and following list items. Works but is brittle to model wording.
+ * Alternative patterns: (A) backend attaches message.data.openPlanningTaskTitles when storing the reply;
+ * (B) model outputs a structured block (e.g. <next-steps>...</next-steps>) for reliable parsing.
+ */
+/** Matches a line that introduces a list of next steps or open tasks (e.g. "Your open next steps:", "You still have two open tasks:"). */
+const NEXT_STEP_HEADING = /(?:next step|open task)/i;
 const LIST_ITEM_START = /^\s*[-*]\s+|^\s*\d+\.\s+/;
 
 /**
- * Parses assistant message text for a "next steps" section and returns labels for each list item.
- * Tolerant of wording like "Your open next steps" or "Next steps:".
+ * Returns true if the message text suggests this message is presenting next steps / open tasks
+ * (so we should show "Work on this" buttons when we have a list from API or parser).
+ */
+function messageSuggestsNextSteps(text: string): boolean {
+	const normalized = text.replace(/^scheduled message: /, "").trim();
+	return NEXT_STEP_HEADING.test(normalized);
+}
+
+/**
+ * Parses assistant message text for a "next steps" / "open tasks" section and returns labels for each list item.
+ * Used only when openPlanningTaskTitles is not provided (fallback). Tolerant of wording like "Your open next steps", "Next steps:", or "You still have two open tasks:".
  */
 function parseNextStepLabels(text: string): string[] {
 	const normalized = text.replace(/^scheduled message: /, "").trim();
@@ -27,7 +48,10 @@ function parseNextStepLabels(text: string): string[] {
 	if (headingIndex < 0) return [];
 
 	const labels: string[] = [];
-	for (let i = headingIndex + 1; i < lines.length; i++) {
+	let i = headingIndex + 1;
+	// Skip blank lines after the heading (e.g. "You still have two open tasks:\n\n- Item")
+	while (i < lines.length && lines[i].trim() === "") i++;
+	for (; i < lines.length; i++) {
 		const line = lines[i];
 		if (line.trim() === "") break;
 		if (!LIST_ITEM_START.test(line)) break;
@@ -67,6 +91,7 @@ export function ChatMessageList({
 	formatTime,
 	invisibleUserContents,
 	onWorkOnNextStep,
+	openPlanningTaskTitles,
 }: ChatMessageListProps) {
 	return (
 		<>
@@ -167,10 +192,13 @@ export function ChatMessageList({
 																</Card>
 																{!isUser &&
 																	onWorkOnNextStep &&
+																	messageSuggestsNextSteps(part.text) &&
 																	(() => {
-																		const stepLabels = parseNextStepLabels(
-																			part.text
-																		);
+																		const stepLabels =
+																			openPlanningTaskTitles &&
+																			openPlanningTaskTitles.length > 0
+																				? openPlanningTaskTitles
+																				: parseNextStepLabels(part.text);
 																		if (stepLabels.length === 0) return null;
 																		return (
 																			<div className="mt-2 flex flex-wrap gap-2">

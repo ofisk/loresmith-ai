@@ -129,6 +129,7 @@ export function AppShell() {
 								formatTime={ctx.formatTime}
 								onSuggestionSubmit={ctx.onSuggestionSubmit}
 								onWorkOnNextStep={ctx.onWorkOnNextStep}
+								openPlanningTaskTitles={ctx.openPlanningTaskTitles}
 								onUploadFiles={ctx.onUploadFiles}
 								textareaHeight={ctx.textareaHeight}
 								pendingToolCallConfirmation={ctx.pendingToolCallConfirmation}
