@@ -505,10 +505,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			name?: string;
 		}>(c);
 
-		log.debug(
-			`[Server] POST /campaigns/${campaignId}/resource - starting request`
-		);
-		log.debug("[Server] User auth from middleware:", userAuth);
+		log.info("[handleAddResourceToCampaign] request", {
+			campaignId,
+			resourceId: id,
+			username: userAuth?.username,
+		});
 		log.debug("[Server] Request body:", { type, id, name });
 
 		if (!type || !id) {
@@ -526,7 +527,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 				err.name === "CampaignAccessDeniedError"
 			) {
 				const role = await getCampaignRole(c, campaignId, userAuth.username);
-				log.debug("[handleAddResourceToCampaign] 403: requireCanEdit denied", {
+				log.warn("[handleAddResourceToCampaign] 403: requireCanEdit denied", {
 					campaignId,
 					username: userAuth.username,
 					role,
@@ -584,9 +585,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
 
 		if (!fileRecord) {
-			log.warn(
-				`[Server] File ${id} not found in file library for user ${userAuth.username}`
-			);
+			log.warn("[handleAddResourceToCampaign] 404: file not in library", {
+				resourceId: id,
+				username: userAuth.username,
+			});
 			return c.json(
 				{ error: "File not found in library. Please upload the file first." },
 				404
