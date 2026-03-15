@@ -9,6 +9,7 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
+import { getRequestLogger } from "@/lib/logger";
 import {
 	notifyProposalApproved,
 	notifyProposalRejected,
@@ -34,6 +35,7 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 
 /** POST /campaigns/:campaignId/resource-proposals - propose document (editor_player only) */
 export async function handleCreateResourceProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -96,7 +98,11 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 					return c.json({ error: validation.error }, 400);
 				}
 			}
-		} catch (_validateErr) {
+		} catch (validateErr) {
+			log.warn(
+				"[handleCreateResourceProposal] File validation failed",
+				validateErr
+			);
 			return c.json(
 				{
 					error:
@@ -159,12 +165,17 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleCreateResourceProposal] Failed to create proposal",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/resource-proposals - list pending proposals (editor_gm, owner) */
 export async function handleListResourceProposals(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -199,12 +210,14 @@ export async function handleListResourceProposals(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error("[handleListResourceProposals] Failed to list proposals", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** POST /campaigns/:campaignId/resource-proposals/:id/approve */
 export async function handleApproveResourceProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -316,7 +329,12 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				fileKey: proposal.file_key,
 				proposedBy: proposal.proposed_by,
 			});
-		} catch (_queueError) {}
+		} catch (queueError) {
+			log.warn(
+				"[handleApproveResourceProposal] Entity extraction queue failed",
+				queueError
+			);
+		}
 
 		return c.json({
 			success: true,
@@ -335,12 +353,17 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleApproveResourceProposal] Failed to approve proposal",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/resource-proposals/:id/download - download the file for GM review (editor_gm, owner) */
 export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -383,7 +406,11 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 				return c.json({ error: validation.error }, 400);
 			}
 			bodyStream = validation.stream;
-		} catch (_validateErr) {
+		} catch (validateErr) {
+			log.warn(
+				"[handleDownloadFileFromProposal] File validation failed",
+				validateErr
+			);
 			return c.json(
 				{
 					error:
@@ -418,12 +445,17 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleDownloadFileFromProposal] Failed to download file",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** POST /campaigns/:campaignId/resource-proposals/:id/reject */
 export async function handleRejectResourceProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -474,6 +506,10 @@ export async function handleRejectResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleRejectResourceProposal] Failed to reject proposal",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

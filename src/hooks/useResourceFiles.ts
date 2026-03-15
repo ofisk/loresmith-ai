@@ -147,7 +147,11 @@ export function useResourceFiles(
 					}));
 
 				setFiles(filesWithCampaigns);
-			} catch (_err) {
+			} catch (err) {
+				console.error(
+					"[useResourceFiles] Failed to fetch resource campaigns",
+					err
+				);
 				setError("Failed to fetch resource campaigns");
 			}
 		},
@@ -194,6 +198,7 @@ export function useResourceFiles(
 			const fetchedFiles = resourcesData.files || [];
 			await fetchResourceCampaigns(fetchedFiles, campaigns);
 		} catch (err) {
+			console.error("[useResourceFiles] Failed to fetch resources", err);
 			setError(
 				err instanceof Error ? err.message : "Failed to fetch resources"
 			);

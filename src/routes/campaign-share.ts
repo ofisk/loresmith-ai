@@ -3,6 +3,7 @@ import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { CampaignMemberRole } from "@/dao/campaign-share-link-dao";
 import { type DAOFactory, getDAOFactory } from "@/dao/dao-factory";
+import { getRequestLogger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
 import { notifyUser } from "@/lib/notifications";
 import {
@@ -68,6 +69,7 @@ async function getCampaignManagerUsernames(
 
 /** POST /campaigns/:campaignId/share-links - create share link (owner, editor_gm) */
 export async function handleCreateShareLink(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -131,12 +133,14 @@ export async function handleCreateShareLink(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error("[handleCreateShareLink] Failed to create share link", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/share-links - list active links (owner, editor_gm) */
 export async function handleListShareLinks(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -172,12 +176,14 @@ export async function handleListShareLinks(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error("[handleListShareLinks] Failed to list share links", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** DELETE /campaigns/:campaignId/share-links/:token - revoke link */
 export async function handleRevokeShareLink(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -208,12 +214,14 @@ export async function handleRevokeShareLink(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error("[handleRevokeShareLink] Failed to revoke share link", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/join?token=... - redeem share link (can be unauthenticated; redirects to login if needed) */
 export async function handleCampaignJoin(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const token = c.req.query("token");
 		if (!token) {
@@ -328,13 +336,15 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 			playerCharacterClaim: claim,
 			url: `/campaigns/${result.campaignId}`,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleCampaignJoin] Failed to claim share link", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/player-character-claim/options - list unclaimed PCs for player onboarding */
 export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const auth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -383,13 +393,18 @@ export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
 				role === CAMPAIGN_ROLES.EDITOR_PLAYER &&
 				hasCampaignPcEntities,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error(
+			"[handleGetPlayerCharacterClaimOptions] Failed to get options",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** POST /campaigns/:campaignId/player-character-claim - self-claim a PC entity */
 export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const auth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -437,12 +452,17 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 		) {
 			return c.json({ error: message }, 400);
 		}
+		log.error(
+			"[handleCreatePlayerCharacterClaim] Failed to create claim",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/player-character-claims - list all campaign claims (owner/editor_gm) */
 export async function handleListPlayerCharacterClaims(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const auth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -472,13 +492,15 @@ export async function handleListPlayerCharacterClaims(c: ContextWithAuth) {
 			unclaimedOptions,
 			requestedBy: auth.username,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleListPlayerCharacterClaims] Failed to list claims", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** PUT /campaigns/:campaignId/player-character-claims/:username - assign/reassign a player's claimed PC (owner/editor_gm) */
 export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const auth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -527,12 +549,17 @@ export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
 		) {
 			return c.json({ error: message }, 400);
 		}
+		log.error(
+			"[handleAssignPlayerCharacterClaim] Failed to assign claim",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** DELETE /campaigns/:campaignId/player-character-claims/:username - clear a player's claimed PC (owner/editor_gm) */
 export async function handleClearPlayerCharacterClaim(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -557,7 +584,8 @@ export async function handleClearPlayerCharacterClaim(c: ContextWithAuth) {
 			targetUsername
 		);
 		return c.json({ success: true, username: targetUsername });
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleClearPlayerCharacterClaim] Failed to clear claim", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

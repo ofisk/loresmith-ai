@@ -3,6 +3,7 @@
 
 import { type Context, Hono } from "hono";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { getRequestLogger } from "@/lib/logger";
 import { requireParam } from "@/lib/route-utils";
 import { getLibraryService, LibraryRAGService } from "@/lib/service-factory";
 import { requireUserJwt } from "@/middleware/auth";
@@ -21,6 +22,7 @@ library.use("*", requireUserJwt);
 export const handleGetFiles = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
@@ -42,7 +44,8 @@ export const handleGetFiles = async (
 				total: files.length,
 			},
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleGetFiles] Failed to get files", error);
 		return c.json({ error: "Failed to get files" }, 500);
 	}
 };
@@ -50,6 +53,7 @@ export const handleGetFiles = async (
 export const handleSearchFiles = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
@@ -85,7 +89,8 @@ export const handleSearchFiles = async (
 				total: Array.isArray(results) ? results.length : 0,
 			},
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleSearchFiles] Failed to search files", error);
 		return c.json({ error: "Failed to search files" }, 500);
 	}
 };
@@ -93,6 +98,7 @@ export const handleSearchFiles = async (
 export const handleGetStorageUsage = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 
@@ -110,7 +116,8 @@ export const handleGetStorageUsage = async (
 			success: true,
 			usage,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleGetStorageUsage] Failed to get storage usage", error);
 		return c.json({ error: "Failed to get storage usage" }, 500);
 	}
 };
@@ -118,6 +125,7 @@ export const handleGetStorageUsage = async (
 export const handleGetLlmUsage = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
 		if (!userAuth) {
@@ -157,7 +165,8 @@ export const handleGetLlmUsage = async (
 			},
 			limits,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleGetLlmUsage] Failed to get LLM usage", error);
 		return c.json({ error: "Failed to get LLM usage" }, 500);
 	}
 };
@@ -165,6 +174,7 @@ export const handleGetLlmUsage = async (
 export const handleGetFileDetails = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const fileId = requireParam(c, "fileId");
 		if (fileId instanceof Response) return fileId;
@@ -182,7 +192,8 @@ export const handleGetFileDetails = async (
 			success: true,
 			metadata,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleGetFileDetails] Failed to get file metadata", error);
 		return c.json({ error: "Failed to get file metadata" }, 500);
 	}
 };
@@ -190,6 +201,7 @@ export const handleGetFileDetails = async (
 export const handleUpdateFile = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const fileId = requireParam(c, "fileId");
 		if (fileId instanceof Response) return fileId;
@@ -203,7 +215,8 @@ export const handleUpdateFile = async (
 		}
 
 		return c.json({ success: true });
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleUpdateFile] Failed to update file metadata", error);
 		return c.json({ error: "Failed to update file metadata" }, 500);
 	}
 };
@@ -211,6 +224,7 @@ export const handleUpdateFile = async (
 export const handleDeleteFile = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const fileId = requireParam(c, "fileId");
 		if (fileId instanceof Response) return fileId;
@@ -239,7 +253,8 @@ export const handleDeleteFile = async (
 			.run();
 
 		return c.json({ success: true });
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleDeleteFile] Failed to delete file", error);
 		return c.json({ error: "Failed to delete file" }, 500);
 	}
 };
@@ -247,6 +262,7 @@ export const handleDeleteFile = async (
 export const handleGetFileDownload = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const fileId = requireParam(c, "fileId");
 		if (fileId instanceof Response) return fileId;
@@ -266,7 +282,8 @@ export const handleGetFileDownload = async (
 			filename: metadata.file_name,
 			fileSize: metadata.file_size,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleGetFileDownload] Failed to generate download URL", error);
 		return c.json({ error: "Failed to generate download URL" }, 500);
 	}
 };
@@ -274,6 +291,7 @@ export const handleGetFileDownload = async (
 export const handleRegenerateFileMetadata = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {
+	const log = getRequestLogger(c);
 	try {
 		const fileId = requireParam(c, "fileId");
 		if (fileId instanceof Response) return fileId;
@@ -291,7 +309,11 @@ export const handleRegenerateFileMetadata = async (
 			success: true,
 			metadata,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error(
+			"[handleRegenerateFileMetadata] Failed to regenerate metadata",
+			error
+		);
 		return c.json({ error: "Failed to regenerate metadata" }, 500);
 	}
 };

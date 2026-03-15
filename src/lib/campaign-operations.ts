@@ -1,6 +1,7 @@
 // Common campaign operations and utilities
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { createLogger } from "@/lib/logger";
 import { notifyCampaignCreated, notifyCampaignMembers } from "./notifications";
 
 export interface CreateCampaignOptions {
@@ -49,7 +50,12 @@ export async function createCampaign(options: CreateCampaignOptions) {
 	// Notify campaign creation
 	try {
 		await notifyCampaignCreated(env, username, name, description);
-	} catch (_e) {}
+	} catch (e) {
+		createLogger(env as Record<string, unknown>, "[CampaignOperations]").warn(
+			"createCampaign: notifyCampaignCreated failed",
+			e
+		);
+	}
 
 	return newCampaign;
 }
@@ -97,7 +103,12 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
 				}),
 				[]
 			);
-		} catch (_e) {}
+		} catch (e) {
+			createLogger(env as Record<string, unknown>, "[CampaignOperations]").warn(
+				"addResourceToCampaign: notifyCampaignMembers failed",
+				e
+			);
+		}
 	}
 
 	return {

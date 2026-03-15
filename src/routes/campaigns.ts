@@ -526,6 +526,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 				err.name === "CampaignAccessDeniedError"
 			) {
 				const role = await getCampaignRole(c, campaignId, userAuth.username);
+				log.debug("[handleAddResourceToCampaign] 403: requireCanEdit denied", {
+					campaignId,
+					username: userAuth.username,
+					role,
+				});
 				if (role === CAMPAIGN_ROLES.EDITOR_PLAYER) {
 					return c.json(
 						{
