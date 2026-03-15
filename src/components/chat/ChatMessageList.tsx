@@ -99,6 +99,39 @@ function parseNextStepsSegments(text: string): NextStepsSegments | null {
 	return { beforeList, listItemLines, afterList };
 }
 
+/**
+ * When the message has no bullet list but we have step labels (e.g. from API), find the line
+ * containing the first label and return segments so we can show the button inline with that line.
+ */
+function segmentsFromLabelSearch(
+	text: string,
+	stepLabels: string[]
+): NextStepsSegments | null {
+	if (stepLabels.length === 0) return null;
+	const normalized = text.replace(/^scheduled message: /, "").trim();
+	const lines = normalized.split("\n");
+	const firstLabel = stepLabels[0];
+	const labelCore = firstLabel.replace(/\*\*/g, "").trim();
+	const lineIndex = lines.findIndex((line) => {
+		const lineCore = line.replace(/\*\*/g, "").trim();
+		return (
+			lineCore.includes(labelCore) ||
+			(labelCore.length > 20 && lineCore.includes(labelCore.slice(0, 50)))
+		);
+	});
+	if (lineIndex < 0) return null;
+	const beforeList = lines.slice(0, lineIndex).join("\n").trim();
+	const afterList = lines
+		.slice(lineIndex + 1)
+		.join("\n")
+		.trim();
+	return {
+		beforeList,
+		listItemLines: [lines[lineIndex]!],
+		afterList,
+	};
+}
+
 function getMessageText(m: Message): string {
 	const parts = m.parts ?? [];
 	if (parts.length > 0) {
@@ -226,9 +259,14 @@ export function ChatMessageList({
 																				openPlanningTaskTitles.length > 0
 																					? openPlanningTaskTitles
 																					: parseNextStepLabels(part.text);
-																			const segments = parseNextStepsSegments(
-																				part.text
-																			);
+																			const segments =
+																				parseNextStepsSegments(part.text) ??
+																				(stepLabels.length > 0
+																					? segmentsFromLabelSearch(
+																							part.text,
+																							stepLabels
+																						)
+																					: null);
 																			if (
 																				stepLabels.length === 0 &&
 																				(!segments ||
