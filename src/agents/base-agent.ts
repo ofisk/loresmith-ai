@@ -447,6 +447,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		if (!clientJwt && this.ctx?.storage) {
 			clientJwt = (await this.ctx.storage.get<string>(JWT_STORAGE_KEY)) || null;
 		}
+		if (!clientJwt) {
+			log.debug(
+				"[onChatMessage] No JWT in message data or DO storage; tool calls requiring auth may return 401",
+				{ hasLastUserMessage: !!lastUserMessage }
+			);
+		}
 		if (!selectedCampaignId) {
 			// Fallback: use the most recent campaignId found in message metadata
 			// (including client marker system messages) so tools can use the
