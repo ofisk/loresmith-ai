@@ -87,6 +87,8 @@ export interface AppShellContextValue {
 	formatTime: (date: Date) => string;
 	agentStatus: string | null;
 	onSuggestionSubmit: (suggestion: string) => void;
+	/** Submit a "work on this step" message for next-step buttons in agent messages. */
+	onWorkOnNextStep: (stepLabel: string) => void;
 	onUploadFiles: () => void;
 	textareaHeight: string;
 	setTextareaHeight: (height: string) => void;
@@ -344,6 +346,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			formatTime,
 			agentStatus,
 			onSuggestionSubmit: handleSuggestionSubmit,
+			onWorkOnNextStep: (stepLabel: string) =>
+				handleSuggestionSubmit(`I'd like to work on ${stepLabel}`),
 			onUploadFiles,
 			textareaHeight,
 			setTextareaHeight,

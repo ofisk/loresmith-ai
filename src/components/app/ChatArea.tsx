@@ -55,6 +55,8 @@ interface ChatAreaProps {
 	chatError?: Error | undefined;
 	/** Retry failed request (e.g. after error) */
 	onRegenerate?: () => Promise<void>;
+	/** When provided, "Work on this" buttons are shown for next steps in agent messages; called with the step label. */
+	onWorkOnNextStep?: (stepLabel: string) => void;
 }
 
 /**
@@ -83,6 +85,7 @@ export function ChatArea({
 	agentStatus,
 	chatError,
 	onRegenerate,
+	onWorkOnNextStep,
 }: ChatAreaProps) {
 	const [placeholder] = useState(() => getRandomPrompt());
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
@@ -309,6 +312,7 @@ export function ChatArea({
 					messages={messages}
 					formatTime={formatTime}
 					invisibleUserContents={invisibleUserContents}
+					onWorkOnNextStep={onWorkOnNextStep}
 				/>
 
 				{/* Thinking Spinner - shown when agent is processing */}

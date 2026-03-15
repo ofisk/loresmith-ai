@@ -9,6 +9,36 @@ interface ChatMessageListProps {
 	formatTime: (date: Date) => string;
 	/** User message contents to hide (e.g. button-triggered prompts). */
 	invisibleUserContents?: Set<string>;
+	/** When provided, "Work on this" buttons are shown for parsed next steps; called with the step label. */
+	onWorkOnNextStep?: (stepLabel: string) => void;
+}
+
+const NEXT_STEP_HEADING = /next step/i;
+const LIST_ITEM_START = /^\s*[-*]\s+|^\s*\d+\.\s+/;
+
+/**
+ * Parses assistant message text for a "next steps" section and returns labels for each list item.
+ * Tolerant of wording like "Your open next steps" or "Next steps:".
+ */
+function parseNextStepLabels(text: string): string[] {
+	const normalized = text.replace(/^scheduled message: /, "").trim();
+	const lines = normalized.split("\n");
+	const headingIndex = lines.findIndex((line) => NEXT_STEP_HEADING.test(line));
+	if (headingIndex < 0) return [];
+
+	const labels: string[] = [];
+	for (let i = headingIndex + 1; i < lines.length; i++) {
+		const line = lines[i];
+		if (line.trim() === "") break;
+		if (!LIST_ITEM_START.test(line)) break;
+		const withoutPrefix = line.replace(LIST_ITEM_START, "").trim();
+		const withoutBold = withoutPrefix.replace(/\*\*/g, "").trim();
+		const label = withoutBold.includes(" - ")
+			? withoutBold.split(" - ")[0].trim()
+			: withoutBold;
+		if (label.length > 0) labels.push(label.slice(0, 200));
+	}
+	return labels;
 }
 
 function getMessageText(m: Message): string {
@@ -36,6 +66,7 @@ export function ChatMessageList({
 	messages,
 	formatTime,
 	invisibleUserContents,
+	onWorkOnNextStep,
 }: ChatMessageListProps) {
 	return (
 		<>
@@ -134,6 +165,31 @@ export function ChatMessageList({
 																		)}
 																	/>
 																</Card>
+																{!isUser &&
+																	onWorkOnNextStep &&
+																	(() => {
+																		const stepLabels = parseNextStepLabels(
+																			part.text
+																		);
+																		if (stepLabels.length === 0) return null;
+																		return (
+																			<div className="mt-2 flex flex-wrap gap-2">
+																				{stepLabels.map((label) => (
+																					<button
+																						key={label}
+																						type="button"
+																						onClick={() =>
+																							onWorkOnNextStep(label)
+																						}
+																						className="rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																						aria-label={`Work on this step: ${label}`}
+																					>
+																						Work on this
+																					</button>
+																				))}
+																			</div>
+																		);
+																	})()}
 																{isLastTextPart &&
 																	!isUser &&
 																	m.data?.explainability &&

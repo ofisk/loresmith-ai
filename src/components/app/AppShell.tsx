@@ -128,6 +128,7 @@ export function AppShell() {
 								onStop={ctx.onStop}
 								formatTime={ctx.formatTime}
 								onSuggestionSubmit={ctx.onSuggestionSubmit}
+								onWorkOnNextStep={ctx.onWorkOnNextStep}
 								onUploadFiles={ctx.onUploadFiles}
 								textareaHeight={ctx.textareaHeight}
 								pendingToolCallConfirmation={ctx.pendingToolCallConfirmation}
