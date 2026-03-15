@@ -282,13 +282,8 @@ export function ChatMessageList({
 																									return (
 																										<li
 																											key={`${i}-${label.slice(0, 40)}`}
-																											className="flex items-center gap-1.5 [&>span]:min-w-0 [&>span]:flex-1"
+																											className="flex items-center gap-2 [&>span]:min-w-0 [&>span]:flex-1"
 																										>
-																											<span>
-																												<MemoizedMarkdown
-																													content={line}
-																												/>
-																											</span>
 																											<button
 																												type="button"
 																												onClick={() =>
@@ -296,7 +291,7 @@ export function ChatMessageList({
 																														label
 																													)
 																												}
-																												className="shrink-0 inline-flex items-center justify-center rounded p-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																												className="shrink-0 inline-flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
 																												aria-label={`Work on this step: ${label}`}
 																												title="Work on this"
 																											>
@@ -306,6 +301,11 @@ export function ChatMessageList({
 																													aria-hidden
 																												/>
 																											</button>
+																											<span>
+																												<MemoizedMarkdown
+																													content={line}
+																												/>
+																											</span>
 																										</li>
 																									);
 																								}
@@ -336,7 +336,7 @@ export function ChatMessageList({
 																								onClick={() =>
 																									onWorkOnNextStep(label)
 																								}
-																								className="shrink-0 inline-flex items-center justify-center rounded p-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																								className="shrink-0 inline-flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
 																								aria-label={`Work on this step: ${label}`}
 																								title="Work on this"
 																							>
