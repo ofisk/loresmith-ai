@@ -635,9 +635,14 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			`[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
 		);
 
-		// 3b) Validate file type (allowlist + magic-byte check)
-		const fileName = name || fileRecord.file_name || id;
-		if (!isFileAllowedForProposal(fileName)) {
+		// 3b) Validate file type (allowlist + magic-byte check). Use stored file_name if provided name has no allowed extension (e.g. agent sends display name without extension).
+		const requestedName = name || fileRecord.file_name || id;
+		const fileName = isFileAllowedForProposal(requestedName)
+			? requestedName
+			: isFileAllowedForProposal(fileRecord.file_name)
+				? fileRecord.file_name
+				: null;
+		if (!fileName) {
 			return c.json(
 				{
 					error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
@@ -695,7 +700,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			campaignId,
 			resourceId,
 			fileKey: id,
-			fileName: name || id,
+			fileName,
 		});
 
 		await ResourceAddRateLimitService.recordAdd(

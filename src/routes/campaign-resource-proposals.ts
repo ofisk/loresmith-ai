@@ -60,7 +60,24 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 			);
 		}
 
-		if (!isFileAllowedForProposal(body.fileName)) {
+		// Must be editor_player
+		await requireCampaignRole(c, campaignId, [CAMPAIGN_ROLES.EDITOR_PLAYER]);
+
+		const daoFactory = getDAOFactory(c.env);
+
+		// Verify file is in proposer's library (need fileMeta for fallback name and ownership)
+		const fileMeta = await daoFactory.fileDAO.getFileMetadata(body.fileKey);
+		if (!fileMeta || fileMeta.username !== userAuth.username) {
+			return c.json({ error: "File not found in your library" }, 404);
+		}
+
+		// Resolve effective fileName for allowlist: use provided name if allowed, else stored name (e.g. agent sends display name without extension)
+		const effectiveFileName = isFileAllowedForProposal(body.fileName)
+			? body.fileName
+			: isFileAllowedForProposal(fileMeta.file_name)
+				? fileMeta.file_name
+				: null;
+		if (!effectiveFileName) {
 			return c.json(
 				{
 					error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
@@ -69,22 +86,11 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 			);
 		}
 
-		// Must be editor_player
-		await requireCampaignRole(c, campaignId, [CAMPAIGN_ROLES.EDITOR_PLAYER]);
-
-		const daoFactory = getDAOFactory(c.env);
-
-		// Verify file is in proposer's library
-		const fileMeta = await daoFactory.fileDAO.getFileMetadata(body.fileKey);
-		if (!fileMeta || fileMeta.username !== userAuth.username) {
-			return c.json({ error: "File not found in your library" }, 404);
-		}
-
 		// Magic-byte validation: verify file content matches claimed extension
 		try {
 			const r2Object = await c.env.R2.get(body.fileKey);
 			if (r2Object) {
-				const ext = getExtension(body.fileName);
+				const ext = getExtension(effectiveFileName);
 				const validation = await validateR2ObjectAndGetStream(r2Object, ext);
 				if (!validation.valid) {
 					return c.json({ error: validation.error }, 400);
@@ -125,7 +131,7 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 			id,
 			campaignId,
 			body.fileKey,
-			body.fileName,
+			effectiveFileName,
 			userAuth.username
 		);
 
@@ -134,7 +140,7 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 				id,
 				campaignId,
 				fileKey: body.fileKey,
-				fileName: body.fileName,
+				fileName: effectiveFileName,
 				status: "pending",
 			},
 			201
