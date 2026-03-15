@@ -101,7 +101,7 @@ function parseNextStepsSegments(text: string): NextStepsSegments | null {
 
 /**
  * When the message has no bullet list but we have step labels (e.g. from API), find the line
- * containing the first label and return segments so we can show the button inline with that line.
+ * containing each label and return segments so we can show a "Work on this" button next to each.
  */
 function segmentsFromLabelSearch(
 	text: string,
@@ -110,24 +110,34 @@ function segmentsFromLabelSearch(
 	if (stepLabels.length === 0) return null;
 	const normalized = text.replace(/^scheduled message: /, "").trim();
 	const lines = normalized.split("\n");
-	const firstLabel = stepLabels[0];
-	const labelCore = firstLabel.replace(/\*\*/g, "").trim();
-	const lineIndex = lines.findIndex((line) => {
-		const lineCore = line.replace(/\*\*/g, "").trim();
-		return (
-			lineCore.includes(labelCore) ||
-			(labelCore.length > 20 && lineCore.includes(labelCore.slice(0, 50)))
-		);
-	});
-	if (lineIndex < 0) return null;
-	const beforeList = lines.slice(0, lineIndex).join("\n").trim();
+
+	const lineIndices: number[] = [];
+	for (const label of stepLabels) {
+		const labelCore = label.replace(/\*\*/g, "").trim();
+		const searchLen = labelCore.length > 20 ? 50 : labelCore.length;
+		const index = lines.findIndex((line) => {
+			const lineCore = line.replace(/\*\*/g, "").trim();
+			return (
+				lineCore.includes(labelCore) ||
+				(searchLen >= 20 && lineCore.includes(labelCore.slice(0, searchLen)))
+			);
+		});
+		if (index < 0) return null;
+		lineIndices.push(index);
+	}
+
+	const firstLineIndex = Math.min(...lineIndices);
+	const lastLineIndex = Math.max(...lineIndices);
+	const beforeList = lines.slice(0, firstLineIndex).join("\n").trim();
+	const listItemLines = lineIndices.map((i) => lines[i]!);
 	const afterList = lines
-		.slice(lineIndex + 1)
+		.slice(lastLineIndex + 1)
 		.join("\n")
 		.trim();
+
 	return {
 		beforeList,
-		listItemLines: [lines[lineIndex]!],
+		listItemLines,
 		afterList,
 	};
 }
