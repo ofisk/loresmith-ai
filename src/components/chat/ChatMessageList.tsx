@@ -1,4 +1,5 @@
 import { Card } from "@/components/card/Card";
+import { CopyAsMarkdownButton } from "@/components/chat/CopyAsMarkdownButton";
 import { ExplainabilitySection } from "@/components/chat/ExplainabilitySection";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 import type { Message } from "@/types/ai-message";
@@ -117,6 +118,14 @@ export function ChatMessageList({
 																		>
 																			🕒
 																		</span>
+																	)}
+																	{!isUser && (
+																		<CopyAsMarkdownButton
+																			markdown={part.text.replace(
+																				/^scheduled message: /,
+																				""
+																			)}
+																		/>
 																	)}
 																	<MemoizedMarkdown
 																		content={part.text.replace(
