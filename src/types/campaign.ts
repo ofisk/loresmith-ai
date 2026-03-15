@@ -85,6 +85,8 @@ export interface CampaignData {
 	resources?: CampaignResource[];
 	/** User's role in this campaign (owner or from membership) */
 	role?: CampaignRole;
+	/** True when the campaign has documents in the entity extraction queue (shard discovery in progress). */
+	hasProcessingDocuments?: boolean;
 }
 
 // Campaign interface for UI components (alias for consistency)

@@ -77,12 +77,23 @@ export async function handleGetCampaigns(c: ContextWithAuth) {
 			userAuth.username
 		);
 
+		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
+		const campaignIdsWithProcessing = new Set(
+			await queueDAO.getCampaignIdsWithActiveExtraction()
+		);
+		const campaignsWithFlags = campaigns.map((campaign) => ({
+			...campaign,
+			hasProcessingDocuments: campaignIdsWithProcessing.has(
+				campaign.campaignId
+			),
+		}));
+
 		log.debug("Found campaigns for user", {
 			count: campaigns.length,
 			username: userAuth.username,
 		});
 
-		return c.json({ campaigns: campaigns });
+		return c.json({ campaigns: campaignsWithFlags });
 	} catch (error) {
 		log.error("Error fetching campaigns", error);
 		return c.json({ error: "Internal server error" }, 500);

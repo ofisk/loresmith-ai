@@ -5,6 +5,7 @@ import {
 	type PlayerCharacterOption,
 	PlayerCharacterSelectionModal,
 } from "@/components/campaign/PlayerCharacterSelectionModal";
+import { ProcessingDocumentsNotice } from "@/components/campaign/ProcessingDocumentsNotice";
 import { Card } from "@/components/card/Card";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { WelcomeMessage } from "@/components/chat/WelcomeMessage";
@@ -274,6 +275,15 @@ export function ChatArea({
 					))}
 				</select>
 			</div>
+
+			{selectedCampaign?.hasProcessingDocuments && (
+				<div className="px-4 md:px-8 pt-0 pb-2 flex-shrink-0">
+					<ProcessingDocumentsNotice
+						campaignId={selectedCampaign.campaignId}
+						hasProcessingDocuments={selectedCampaign.hasProcessingDocuments}
+					/>
+				</div>
+			)}
 
 			{/* Main Content Area - stretches down to input, scrolls when content overflows */}
 			<div
