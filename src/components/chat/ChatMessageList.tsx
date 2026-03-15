@@ -1,3 +1,4 @@
+import { CaretRight } from "@phosphor-icons/react";
 import { Card } from "@/components/card/Card";
 import { CopyAsMarkdownButton } from "@/components/chat/CopyAsMarkdownButton";
 import { ExplainabilitySection } from "@/components/chat/ExplainabilitySection";
@@ -263,7 +264,7 @@ export function ChatMessageList({
 																								content={segments.beforeList}
 																							/>
 																						)}
-																						<ul className="list-disc pl-5 my-2 space-y-2">
+																						<ul className="list-disc pl-5 my-2 space-y-1.5">
 																							{segments.listItemLines.map(
 																								(line, i) => {
 																									const label =
@@ -281,9 +282,9 @@ export function ChatMessageList({
 																									return (
 																										<li
 																											key={`${i}-${label.slice(0, 40)}`}
-																											className="flex flex-wrap items-center gap-2"
+																											className="flex items-center gap-1.5 [&>span]:min-w-0 [&>span]:flex-1"
 																										>
-																											<span className="min-w-0 flex-1">
+																											<span>
 																												<MemoizedMarkdown
 																													content={line}
 																												/>
@@ -295,10 +296,15 @@ export function ChatMessageList({
 																														label
 																													)
 																												}
-																												className="shrink-0 rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																												className="shrink-0 inline-flex items-center justify-center rounded p-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
 																												aria-label={`Work on this step: ${label}`}
+																												title="Work on this"
 																											>
-																												Work on this
+																												<CaretRight
+																													size={16}
+																													weight="bold"
+																													aria-hidden
+																												/>
 																											</button>
 																										</li>
 																									);
@@ -322,7 +328,7 @@ export function ChatMessageList({
 																							""
 																						)}
 																					/>
-																					<div className="mt-2 flex flex-wrap gap-2">
+																					<div className="mt-2 flex flex-wrap gap-1.5">
 																						{stepLabels.map((label) => (
 																							<button
 																								key={label}
@@ -330,10 +336,15 @@ export function ChatMessageList({
 																								onClick={() =>
 																									onWorkOnNextStep(label)
 																								}
-																								className="rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																								className="shrink-0 inline-flex items-center justify-center rounded p-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
 																								aria-label={`Work on this step: ${label}`}
+																								title="Work on this"
 																							>
-																								Work on this
+																								<CaretRight
+																									size={16}
+																									weight="bold"
+																									aria-hidden
+																								/>
 																							</button>
 																						))}
 																					</div>
