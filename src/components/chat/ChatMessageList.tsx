@@ -65,6 +65,39 @@ function parseNextStepLabels(text: string): string[] {
 	return labels;
 }
 
+export interface NextStepsSegments {
+	beforeList: string;
+	listItemLines: string[];
+	afterList: string;
+}
+
+/**
+ * Splits message text into before-list, list item lines, and after-list so we can render a "Work on this" button next to each list item.
+ */
+function parseNextStepsSegments(text: string): NextStepsSegments | null {
+	const normalized = text.replace(/^scheduled message: /, "").trim();
+	const lines = normalized.split("\n");
+	const headingIndex = lines.findIndex((line) => NEXT_STEP_HEADING.test(line));
+	if (headingIndex < 0) return null;
+
+	let i = headingIndex + 1;
+	while (i < lines.length && lines[i].trim() === "") i++;
+	const listStart = i;
+	while (
+		i < lines.length &&
+		lines[i].trim() !== "" &&
+		LIST_ITEM_START.test(lines[i])
+	)
+		i++;
+	const listEnd = i;
+	const listItemLines = lines.slice(listStart, listEnd).filter((l) => l.trim());
+	if (listItemLines.length === 0) return null;
+
+	const beforeList = lines.slice(0, listStart).join("\n").trim();
+	const afterList = lines.slice(listEnd).join("\n").trim();
+	return { beforeList, listItemLines, afterList };
+}
+
 function getMessageText(m: Message): string {
 	const parts = m.parts ?? [];
 	if (parts.length > 0) {
@@ -183,41 +216,140 @@ export function ChatMessageList({
 																			)}
 																		/>
 																	)}
-																	<MemoizedMarkdown
-																		content={part.text.replace(
-																			/^scheduled message: /,
-																			""
-																		)}
-																	/>
+																	{!isUser &&
+																		onWorkOnNextStep &&
+																		messageSuggestsNextSteps(part.text) &&
+																		(() => {
+																			const stepLabels =
+																				openPlanningTaskTitles &&
+																				openPlanningTaskTitles.length > 0
+																					? openPlanningTaskTitles
+																					: parseNextStepLabels(part.text);
+																			const segments = parseNextStepsSegments(
+																				part.text
+																			);
+																			if (
+																				stepLabels.length === 0 &&
+																				(!segments ||
+																					segments.listItemLines.length === 0)
+																			)
+																				return (
+																					<MemoizedMarkdown
+																						content={part.text.replace(
+																							/^scheduled message: /,
+																							""
+																						)}
+																					/>
+																				);
+																			// Render with "Work on this" next to each list item
+																			if (
+																				segments &&
+																				segments.listItemLines.length > 0
+																			) {
+																				const labels =
+																					stepLabels.length >=
+																					segments.listItemLines.length
+																						? stepLabels
+																						: [
+																								...stepLabels,
+																								...parseNextStepLabels(
+																									part.text
+																								).slice(stepLabels.length),
+																							];
+																				return (
+																					<>
+																						{segments.beforeList && (
+																							<MemoizedMarkdown
+																								content={segments.beforeList}
+																							/>
+																						)}
+																						<ul className="list-disc pl-5 my-2 space-y-2">
+																							{segments.listItemLines.map(
+																								(line, i) => {
+																									const label =
+																										labels[i] ??
+																										line
+																											.replace(
+																												LIST_ITEM_START,
+																												""
+																											)
+																											.replace(/\*\*/g, "")
+																											.trim()
+																											.split(" - ")[0]
+																											?.trim() ??
+																										line;
+																									return (
+																										<li
+																											key={`${i}-${label.slice(0, 40)}`}
+																											className="flex flex-wrap items-center gap-2"
+																										>
+																											<span className="min-w-0 flex-1">
+																												<MemoizedMarkdown
+																													content={line}
+																												/>
+																											</span>
+																											<button
+																												type="button"
+																												onClick={() =>
+																													onWorkOnNextStep(
+																														label
+																													)
+																												}
+																												className="shrink-0 rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																												aria-label={`Work on this step: ${label}`}
+																											>
+																												Work on this
+																											</button>
+																										</li>
+																									);
+																								}
+																							)}
+																						</ul>
+																						{segments.afterList && (
+																							<MemoizedMarkdown
+																								content={segments.afterList}
+																							/>
+																						)}
+																					</>
+																				);
+																			}
+																			// Fallback: single block + buttons below
+																			return (
+																				<>
+																					<MemoizedMarkdown
+																						content={part.text.replace(
+																							/^scheduled message: /,
+																							""
+																						)}
+																					/>
+																					<div className="mt-2 flex flex-wrap gap-2">
+																						{stepLabels.map((label) => (
+																							<button
+																								key={label}
+																								type="button"
+																								onClick={() =>
+																									onWorkOnNextStep(label)
+																								}
+																								className="rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																								aria-label={`Work on this step: ${label}`}
+																							>
+																								Work on this
+																							</button>
+																						))}
+																					</div>
+																				</>
+																			);
+																		})()}
+																	{(!onWorkOnNextStep ||
+																		!messageSuggestsNextSteps(part.text)) && (
+																		<MemoizedMarkdown
+																			content={part.text.replace(
+																				/^scheduled message: /,
+																				""
+																			)}
+																		/>
+																	)}
 																</Card>
-																{!isUser &&
-																	onWorkOnNextStep &&
-																	messageSuggestsNextSteps(part.text) &&
-																	(() => {
-																		const stepLabels =
-																			openPlanningTaskTitles &&
-																			openPlanningTaskTitles.length > 0
-																				? openPlanningTaskTitles
-																				: parseNextStepLabels(part.text);
-																		if (stepLabels.length === 0) return null;
-																		return (
-																			<div className="mt-2 flex flex-wrap gap-2">
-																				{stepLabels.map((label) => (
-																					<button
-																						key={label}
-																						type="button"
-																						onClick={() =>
-																							onWorkOnNextStep(label)
-																						}
-																						className="rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
-																						aria-label={`Work on this step: ${label}`}
-																					>
-																						Work on this
-																					</button>
-																				))}
-																			</div>
-																		);
-																	})()}
 																{isLastTextPart &&
 																	!isUser &&
 																	m.data?.explainability &&
