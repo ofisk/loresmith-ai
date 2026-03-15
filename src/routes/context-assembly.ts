@@ -1,4 +1,5 @@
 import { CampaignAccessDeniedError } from "@/lib/errors";
+import { getRequestLogger } from "@/lib/logger";
 import {
 	type ContextWithAuth,
 	ensureCampaignAccess,
@@ -50,8 +51,15 @@ export async function handleAssembleContext(c: ContextWithAuth) {
 		});
 	} catch (error) {
 		if (error instanceof CampaignAccessDeniedError) {
+			getRequestLogger(c).debug("[handleAssembleContext] Access denied", {
+				error,
+			});
 			return c.json({ error: "Access denied" }, 403);
 		}
+		getRequestLogger(c).error(
+			"[handleAssembleContext] Failed to assemble context",
+			error
+		);
 		return c.json(
 			{ error: "Failed to assemble context" },
 			error instanceof Error && /required|must/i.test(error.message) ? 400 : 500

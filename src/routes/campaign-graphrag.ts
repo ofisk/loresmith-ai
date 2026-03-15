@@ -5,6 +5,7 @@ import {
 	isStubContentSufficient,
 } from "@/lib/entity/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
+import { getRequestLogger } from "@/lib/logger";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import {
 	type ContextWithAuth,
@@ -68,6 +69,7 @@ async function checkAndRunCommunityDetection(
 
 // Get staged entities for a campaign (UI refers to them as "shards")
 export async function handleGetStagedShards(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -175,13 +177,15 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 
 		// Return the grouped entities in shard format for UI compatibility
 		return c.json({ shards: stagedShardGroups });
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleGetStagedShards] Failed to get staged entities", error);
 		return c.json({ error: "Failed to get staged entities" }, 500);
 	}
 }
 
 // Approve entities for a campaign (UI refers to them as "shards")
 export async function handleApproveShards(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -374,13 +378,15 @@ export async function handleApproveShards(c: ContextWithAuth) {
 			approvedCount,
 			relationshipCount,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleApproveShards] Failed to approve entities", error);
 		return c.json({ error: "Failed to approve entities" }, 500);
 	}
 }
 
 // Reject entities for a campaign (UI refers to them as "shards")
 export async function handleRejectShards(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -531,13 +537,15 @@ export async function handleRejectShards(c: ContextWithAuth) {
 			rejectedCount,
 			relationshipCount,
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleRejectShards] Failed to reject entities", error);
 		return c.json({ error: "Failed to reject entities" }, 500);
 	}
 }
 
 // Update a single entity (UI refers to it as "shard")
 export async function handleUpdateShard(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -596,7 +604,8 @@ export async function handleUpdateShard(c: ContextWithAuth) {
 				metadata: updatedMetadata,
 			},
 		});
-	} catch (_error) {
+	} catch (error) {
+		log.error("[handleUpdateShard] Failed to update entity", error);
 		return c.json({ error: "Failed to update entity" }, 500);
 	}
 }
@@ -626,6 +635,7 @@ const GENERATABLE_FIELD_KEYS = new Set([
 
 // Generate a single field value for a stub shard via LLM
 export async function handleGenerateShardField(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -731,6 +741,7 @@ Rules:
 		const trimmed = value?.trim() ?? "";
 		return c.json({ value: trimmed });
 	} catch (error) {
+		log.error("[handleGenerateShardField] Failed to generate field", error);
 		return c.json(
 			{
 				error: "Failed to generate field",

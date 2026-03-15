@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { UserAuthenticationMissingError } from "@/lib/errors";
+import { getRequestLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
@@ -64,6 +65,10 @@ export async function handleRecordSatisfactionRating(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
+		getRequestLogger(c).error(
+			"[handleRecordSatisfaction] Failed to record satisfaction",
+			error
+		);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
@@ -102,6 +107,10 @@ export async function handleRecordContextAccuracy(c: ContextWithAuth) {
 
 		return c.json({ success: true });
 	} catch (error) {
+		getRequestLogger(c).error(
+			"[handleRecordContextAccuracy] Failed to record context accuracy",
+			error
+		);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
@@ -192,6 +201,10 @@ export async function handleGetMetrics(c: ContextWithAuth) {
 		if (error instanceof Error && error.message === "Admin access required") {
 			return c.json({ error: "Admin access required" }, 403);
 		}
+		getRequestLogger(c).error(
+			"[handleGetMetrics] Failed to get metrics",
+			error
+		);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
@@ -217,6 +230,10 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 			return c.json({ error: "Admin access required" }, 403);
 		}
 	} catch (_error) {
+		getRequestLogger(c).debug(
+			"[handleGetDashboard] Authentication check failed",
+			{ error: _error }
+		);
 		return c.json({ error: "Authentication required" }, 401);
 	}
 
@@ -260,6 +277,10 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 		if (error instanceof Error && error.message === "Admin access required") {
 			return c.json({ error: "Admin access required" }, 403);
 		}
+		getRequestLogger(c).error(
+			"[handleGetDashboard] Failed to get dashboard",
+			error
+		);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
@@ -291,6 +312,7 @@ export async function handleGetAlerts(c: ContextWithAuth) {
 		// For now, return empty array
 		return c.json({ alerts: [] });
 	} catch (error) {
+		getRequestLogger(c).error("[handleGetAlerts] Failed to get alerts", error);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",

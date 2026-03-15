@@ -9,6 +9,7 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
+import { getRequestLogger } from "@/lib/logger";
 import {
 	notifyProposalApproved,
 	notifyProposalRejected,
@@ -34,6 +35,7 @@ type ContextWithAuth = Context<{ Bindings: Env }> & {
 
 /** POST /campaigns/:campaignId/resource-proposals - propose document (editor_player only) */
 export async function handleCreateResourceProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -60,7 +62,24 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 			);
 		}
 
-		if (!isFileAllowedForProposal(body.fileName)) {
+		// Must be editor_player
+		await requireCampaignRole(c, campaignId, [CAMPAIGN_ROLES.EDITOR_PLAYER]);
+
+		const daoFactory = getDAOFactory(c.env);
+
+		// Verify file is in proposer's library (need fileMeta for fallback name and ownership)
+		const fileMeta = await daoFactory.fileDAO.getFileMetadata(body.fileKey);
+		if (!fileMeta || fileMeta.username !== userAuth.username) {
+			return c.json({ error: "File not found in your library" }, 404);
+		}
+
+		// Resolve effective fileName for allowlist: use provided name if allowed, else stored name (e.g. agent sends display name without extension)
+		const effectiveFileName = isFileAllowedForProposal(body.fileName)
+			? body.fileName
+			: isFileAllowedForProposal(fileMeta.file_name)
+				? fileMeta.file_name
+				: null;
+		if (!effectiveFileName) {
 			return c.json(
 				{
 					error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
@@ -69,28 +88,21 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 			);
 		}
 
-		// Must be editor_player
-		await requireCampaignRole(c, campaignId, [CAMPAIGN_ROLES.EDITOR_PLAYER]);
-
-		const daoFactory = getDAOFactory(c.env);
-
-		// Verify file is in proposer's library
-		const fileMeta = await daoFactory.fileDAO.getFileMetadata(body.fileKey);
-		if (!fileMeta || fileMeta.username !== userAuth.username) {
-			return c.json({ error: "File not found in your library" }, 404);
-		}
-
 		// Magic-byte validation: verify file content matches claimed extension
 		try {
 			const r2Object = await c.env.R2.get(body.fileKey);
 			if (r2Object) {
-				const ext = getExtension(body.fileName);
+				const ext = getExtension(effectiveFileName);
 				const validation = await validateR2ObjectAndGetStream(r2Object, ext);
 				if (!validation.valid) {
 					return c.json({ error: validation.error }, 400);
 				}
 			}
-		} catch (_validateErr) {
+		} catch (validateErr) {
+			log.warn(
+				"[handleCreateResourceProposal] File validation failed",
+				validateErr
+			);
 			return c.json(
 				{
 					error:
@@ -125,7 +137,7 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 			id,
 			campaignId,
 			body.fileKey,
-			body.fileName,
+			effectiveFileName,
 			userAuth.username
 		);
 
@@ -134,7 +146,7 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 				id,
 				campaignId,
 				fileKey: body.fileKey,
-				fileName: body.fileName,
+				fileName: effectiveFileName,
 				status: "pending",
 			},
 			201
@@ -153,12 +165,17 @@ export async function handleCreateResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleCreateResourceProposal] Failed to create proposal",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/resource-proposals - list pending proposals (editor_gm, owner) */
 export async function handleListResourceProposals(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -193,12 +210,14 @@ export async function handleListResourceProposals(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error("[handleListResourceProposals] Failed to list proposals", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** POST /campaigns/:campaignId/resource-proposals/:id/approve */
 export async function handleApproveResourceProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -310,7 +329,12 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				fileKey: proposal.file_key,
 				proposedBy: proposal.proposed_by,
 			});
-		} catch (_queueError) {}
+		} catch (queueError) {
+			log.warn(
+				"[handleApproveResourceProposal] Entity extraction queue failed",
+				queueError
+			);
+		}
 
 		return c.json({
 			success: true,
@@ -329,12 +353,17 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleApproveResourceProposal] Failed to approve proposal",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** GET /campaigns/:campaignId/resource-proposals/:id/download - download the file for GM review (editor_gm, owner) */
 export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
@@ -377,7 +406,11 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 				return c.json({ error: validation.error }, 400);
 			}
 			bodyStream = validation.stream;
-		} catch (_validateErr) {
+		} catch (validateErr) {
+			log.warn(
+				"[handleDownloadFileFromProposal] File validation failed",
+				validateErr
+			);
 			return c.json(
 				{
 					error:
@@ -412,12 +445,17 @@ export async function handleDownloadFileFromProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleDownloadFileFromProposal] Failed to download file",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }
 
 /** POST /campaigns/:campaignId/resource-proposals/:id/reject */
 export async function handleRejectResourceProposal(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
 	try {
 		const userAuth = getUserAuth(c);
 		const campaignId = requireParam(c, "campaignId");
@@ -468,6 +506,10 @@ export async function handleRejectResourceProposal(c: ContextWithAuth) {
 				403
 			);
 		}
+		log.error(
+			"[handleRejectResourceProposal] Failed to reject proposal",
+			error
+		);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

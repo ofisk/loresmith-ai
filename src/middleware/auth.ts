@@ -34,6 +34,10 @@ export async function requireUserJwt(
 	const token = extractJwtFromHeader(authHeader);
 
 	if (!token) {
+		getRequestLogger(c).debug("[requireUserJwt] 401: missing or empty token", {
+			path: c.req.path,
+			method: c.req.method,
+		});
 		return c.json({ error: "Authorization header required" }, 401);
 	}
 
@@ -44,6 +48,9 @@ export async function requireUserJwt(
 		const { payload } = await jwtVerify(token, jwtSecret);
 
 		if (payload.type !== "user-auth") {
+			getRequestLogger(c).debug("[requireUserJwt] 401: invalid token type", {
+				path: c.req.path,
+			});
 			return c.json({ error: "Invalid token type" }, 401);
 		}
 

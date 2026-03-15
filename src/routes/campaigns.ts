@@ -505,10 +505,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			name?: string;
 		}>(c);
 
-		log.debug(
-			`[Server] POST /campaigns/${campaignId}/resource - starting request`
-		);
-		log.debug("[Server] User auth from middleware:", userAuth);
+		log.info("[handleAddResourceToCampaign] request", {
+			campaignId,
+			resourceId: id,
+			username: userAuth?.username,
+		});
 		log.debug("[Server] Request body:", { type, id, name });
 
 		if (!type || !id) {
@@ -526,6 +527,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 				err.name === "CampaignAccessDeniedError"
 			) {
 				const role = await getCampaignRole(c, campaignId, userAuth.username);
+				log.warn("[handleAddResourceToCampaign] 403: requireCanEdit denied", {
+					campaignId,
+					username: userAuth.username,
+					role,
+				});
 				if (role === CAMPAIGN_ROLES.EDITOR_PLAYER) {
 					return c.json(
 						{
@@ -579,9 +585,10 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		const fileRecord = await fileDAO.getFileForRag(id, userAuth.username);
 
 		if (!fileRecord) {
-			log.warn(
-				`[Server] File ${id} not found in file library for user ${userAuth.username}`
-			);
+			log.warn("[handleAddResourceToCampaign] 404: file not in library", {
+				resourceId: id,
+				username: userAuth.username,
+			});
 			return c.json(
 				{ error: "File not found in library. Please upload the file first." },
 				404
@@ -635,9 +642,14 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			`[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
 		);
 
-		// 3b) Validate file type (allowlist + magic-byte check)
-		const fileName = name || fileRecord.file_name || id;
-		if (!isFileAllowedForProposal(fileName)) {
+		// 3b) Validate file type (allowlist + magic-byte check). Use stored file_name if provided name has no allowed extension (e.g. agent sends display name without extension).
+		const requestedName = name || fileRecord.file_name || id;
+		const fileName = isFileAllowedForProposal(requestedName)
+			? requestedName
+			: isFileAllowedForProposal(fileRecord.file_name)
+				? fileRecord.file_name
+				: null;
+		if (!fileName) {
 			return c.json(
 				{
 					error: `This file type is not allowed. Allowed formats: ${getBlockedExtensionsDescription()}`,
@@ -695,7 +707,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			campaignId,
 			resourceId,
 			fileKey: id,
-			fileName: name || id,
+			fileName,
 		});
 
 		await ResourceAddRateLimitService.recordAdd(

@@ -11,6 +11,7 @@ import {
 	AuthenticationRequiredError,
 	LLMProviderAPIKeyError,
 } from "@/lib/errors";
+import { createLogger } from "@/lib/logger";
 import { ModelManager } from "@/lib/model-manager";
 import { notifyAuthenticationRequired } from "@/lib/notifications";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
@@ -119,7 +120,10 @@ export class Chat extends SimpleChatAgent<Env> {
 			) {
 				throw error;
 			}
-			// For other errors, log but don't throw - allow onChatMessage to handle auth errors
+			createLogger(this.env as Record<string, unknown>, "[ChatDO]").error(
+				"loadServerProviderKey: unexpected error (non-auth)",
+				error
+			);
 		}
 	}
 
@@ -243,6 +247,10 @@ export class Chat extends SimpleChatAgent<Env> {
 				const response = await this.onChatMessage(() => {});
 				return response;
 			} catch (err) {
+				createLogger(this.env as Record<string, unknown>, "[ChatDO]").error(
+					"fetch: preload/onChatMessage failed",
+					err
+				);
 				return new Response(
 					JSON.stringify({
 						error: err instanceof Error ? err.message : String(err),
@@ -386,7 +394,12 @@ export class Chat extends SimpleChatAgent<Env> {
 						}
 					);
 				}
-			} catch (_persistError) {}
+			} catch (persistError) {
+				createLogger(this.env as Record<string, unknown>, "[ChatDO]").warn(
+					"onChatMessage: failed to persist messages to target agent",
+					persistError
+				);
+			}
 			targetAgentInstance.messages = [...messages];
 
 			return targetAgentInstance.onChatMessage(onFinish, {
@@ -416,7 +429,12 @@ export class Chat extends SimpleChatAgent<Env> {
 							);
 						}
 					}
-				} catch (_notifyError) {}
+				} catch (notifyError) {
+					createLogger(this.env as Record<string, unknown>, "[ChatDO]").warn(
+						"onChatMessage: failed to notify auth required",
+						notifyError
+					);
+				}
 				throw error;
 			}
 
@@ -424,6 +442,10 @@ export class Chat extends SimpleChatAgent<Env> {
 			if (error instanceof LLMProviderAPIKeyError) {
 				throw error;
 			}
+			createLogger(this.env as Record<string, unknown>, "[ChatDO]").error(
+				"onChatMessage: unexpected error",
+				error
+			);
 			throw error;
 		}
 	}

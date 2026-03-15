@@ -76,21 +76,32 @@ export const listCampaignResources = tool({
 
 const addResourceToCampaignSchema = z.object({
 	campaignId: commonSchemas.campaignId,
-	resourceId: z.string().describe("The ID of the resource to add"),
+	resourceId: z
+		.string()
+		.describe(
+			"The file key from the user's library (use file_key from listFiles or fileKey from searchFileLibrary; do not use display name)"
+		),
 	resourceType: z
 		.string()
 		.describe("The type of resource (e.g., 'document', 'character-sheet')"),
+	name: z
+		.string()
+		.optional()
+		.describe(
+			"Optional display name for the resource; if omitted, resourceId is used"
+		),
 	jwt: commonSchemas.jwt,
 });
 
 export const addResourceToCampaign = tool({
-	description: "Add a resource to a campaign",
+	description:
+		"Add a resource (file) from the user's library to a campaign. Use the file key (file_key from listFiles or fileKey from searchFileLibrary) as resourceId, not the display name. Only GMs (owners, editor_gm) can add directly; if you get useProposeInstead, call proposeResourceToCampaign instead.",
 	inputSchema: addResourceToCampaignSchema,
 	execute: async (
 		input: z.infer<typeof addResourceToCampaignSchema>,
 		options?: ToolExecuteOptions
 	): Promise<ToolResult> => {
-		const { campaignId, resourceId, resourceType, jwt } = input;
+		const { campaignId, resourceId, resourceType, name, jwt } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
 
 		try {
@@ -104,13 +115,37 @@ export const addResourceToCampaign = tool({
 					body: JSON.stringify({
 						type: resourceType,
 						id: resourceId,
-						name: resourceId,
+						name: name ?? resourceId,
 					}),
 				}
 			);
 
 			if (!response.ok) {
-				const authError = await handleAuthError(response);
+				const text = await response.text();
+				if (response.status === 403) {
+					try {
+						const body = JSON.parse(text) as {
+							useProposeInstead?: boolean;
+							error?: string;
+						};
+						if (body.useProposeInstead) {
+							return createToolError(
+								"Editor players cannot add resources directly. Use proposeResourceToCampaign to propose this file for GM approval instead.",
+								{ useProposeInstead: true },
+								response.status,
+								toolCallId
+							);
+						}
+					} catch {
+						// not JSON or missing useProposeInstead
+					}
+				}
+				const authError = handleAuthError(
+					new Response(text, {
+						status: response.status,
+						statusText: response.statusText,
+					})
+				);
 				if (authError) {
 					return createToolError(
 						authError,
@@ -121,7 +156,7 @@ export const addResourceToCampaign = tool({
 				}
 				return createToolError(
 					"Failed to add resource to campaign",
-					`HTTP ${response.status}: ${await response.text()}`,
+					`HTTP ${response.status}: ${text}`,
 					500,
 					toolCallId
 				);
