@@ -13,6 +13,8 @@ import {
 	createToolSuccess,
 	extractUsernameFromJwt,
 	getEnvFromContext,
+	requireCampaignAccessForTool,
+	requireGMRole,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
 import {
@@ -151,7 +153,7 @@ export const storeCharacterInfo = tool({
 								content: duplicate.content,
 								metadata: duplicate.metadata,
 							},
-							message: `An entity with the name "${characterName}" already exists in this campaign. Use updateEntityMetadataTool or updateEntityTypeTool to update it, or ask the user if they want to create a new entity with a different name.`,
+							message: `An entity with the name "${characterName}" already exists in this campaign. Use updateCharacterInfo with duplicateEntityId and the new fields (e.g. characterClass) to update the existing character, or ask the user if they want to create a new entity with a different name.`,
 						},
 						toolCallId
 					);
@@ -249,6 +251,177 @@ export const storeCharacterInfo = tool({
 			return createToolError(
 				"Failed to store character information",
 				error,
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const updateCharacterInfoSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	entityId: z
+		.string()
+		.describe(
+			"The ID of the existing player character entity to update. Use the duplicateEntityId returned by storeCharacterInfo when a duplicate was found."
+		),
+	characterName: z
+		.string()
+		.optional()
+		.describe("Updated name of the character"),
+	characterClass: z
+		.string()
+		.optional()
+		.describe("Updated class (e.g., Fighter, Wizard)"),
+	characterLevel: z.number().optional().describe("Updated level"),
+	characterRace: z.string().optional().describe("Updated race/species"),
+	backstory: z.string().optional().describe("Updated backstory"),
+	personalityTraits: z
+		.string()
+		.optional()
+		.describe("Updated personality traits"),
+	goals: z.string().optional().describe("Updated goals"),
+	relationships: z
+		.array(z.string())
+		.optional()
+		.describe("Updated relationships"),
+	metadata: z
+		.record(z.string(), z.any())
+		.optional()
+		.describe("Additional metadata"),
+	jwt: commonSchemas.jwt,
+});
+
+export const updateCharacterInfo = tool({
+	description:
+		"Update an existing player character entity's stored information (e.g. class, level, race, backstory). Use this when the user wants to change a character's details and storeCharacterInfo returned duplicateFound with duplicateEntityId. entityId must be the real entity ID from the duplicate response or from listAllEntities/searchCampaignContext.",
+	inputSchema: updateCharacterInfoSchema,
+	execute: async (
+		input: z.infer<typeof updateCharacterInfoSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const {
+			campaignId,
+			entityId,
+			characterName,
+			characterClass,
+			characterLevel,
+			characterRace,
+			backstory,
+			personalityTraits,
+			goals,
+			relationships,
+			metadata,
+			jwt,
+		} = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env?.DB) {
+				return createToolError(
+					"Update character is not available",
+					"Character update requires server context",
+					503,
+					toolCallId
+				);
+			}
+
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) {
+				return campaignAccess;
+			}
+			const { userId } = campaignAccess;
+
+			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
+			if (gmError) return gmError;
+
+			const daoFactory = getDAOFactory(env as Env);
+			const entity = await daoFactory.entityDAO.getEntityById(entityId);
+
+			if (!entity) {
+				return createToolError(
+					"Entity not found",
+					`No entity with ID ${entityId} found`,
+					404,
+					toolCallId
+				);
+			}
+			if (entity.campaignId !== campaignId) {
+				return createToolError(
+					"Entity belongs to different campaign",
+					"Campaign mismatch",
+					400,
+					toolCallId
+				);
+			}
+			if (entity.entityType !== ENTITY_TYPE_PCS) {
+				return createToolError(
+					"Entity is not a player character",
+					"updateCharacterInfo only updates player character (pcs) entities",
+					400,
+					toolCallId
+				);
+			}
+
+			const existingContent =
+				entity.content && typeof entity.content === "object"
+					? (entity.content as Record<string, unknown>)
+					: {};
+			const updatedContent: Record<string, unknown> = {
+				...existingContent,
+				...(characterName !== undefined && { characterName }),
+				...(characterClass !== undefined && { characterClass }),
+				...(characterLevel !== undefined && { characterLevel }),
+				...(characterRace !== undefined && { characterRace }),
+				...(backstory !== undefined && { backstory }),
+				...(personalityTraits !== undefined && { personalityTraits }),
+				...(goals !== undefined && { goals }),
+				...(relationships !== undefined && { relationships }),
+			};
+			const updates: {
+				content: Record<string, unknown>;
+				name?: string;
+				metadata?: Record<string, unknown>;
+			} = { content: updatedContent };
+			if (characterName !== undefined) {
+				updates.name = characterName;
+			}
+			if (metadata !== undefined && Object.keys(metadata).length > 0) {
+				const existingMeta = (entity.metadata as Record<string, unknown>) || {};
+				updates.metadata = { ...existingMeta, ...metadata };
+			}
+
+			await daoFactory.entityDAO.updateEntity(entityId, updates);
+
+			const updatedEntity = await daoFactory.entityDAO.getEntityById(entityId);
+			return createToolSuccess(
+				`Successfully updated character ${updatedEntity?.name ?? entityId}`,
+				{
+					id: entityId,
+					entityType: ENTITY_TYPE_PCS,
+					characterName:
+						updatedEntity?.name ??
+						characterName ??
+						existingContent.characterName,
+					characterClass:
+						updatedContent.characterClass ?? existingContent.characterClass,
+					characterLevel:
+						updatedContent.characterLevel ?? existingContent.characterLevel,
+					characterRace:
+						updatedContent.characterRace ?? existingContent.characterRace,
+				},
+				toolCallId
+			);
+		} catch (error) {
+			return createToolError(
+				"Failed to update character information",
+				error instanceof Error ? error.message : "Unknown error",
 				500,
 				toolCallId
 			);
