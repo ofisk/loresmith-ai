@@ -250,6 +250,8 @@ export async function handleTriggerIndexing(c: ContextWithAuth) {
 				processingError.code !== "MEMORY_LIMIT_EXCEEDED"
 			) {
 				await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.UPLOADED);
+				// Reset failed chunks to pending so processSyncQueue will retry them (chunked large files).
+				await fileDAO.resetFailedChunksToPending(fileKey);
 			}
 
 			// Send status update notification so UI can update immediately

@@ -213,4 +213,17 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
 		const sql = `DELETE FROM file_processing_chunks WHERE file_key = ?`;
 		await this.execute(sql, [fileKey]);
 	}
+
+	/**
+	 * Reset all failed chunks for a file to pending so they can be retried.
+	 * Use when the user clicks "Retry Indexing" and the file already has chunks in failed state.
+	 */
+	async resetFailedChunksToPending(fileKey: string): Promise<void> {
+		const sql = `
+      UPDATE file_processing_chunks
+      SET status = 'pending', error_message = NULL, updated_at = datetime('now')
+      WHERE file_key = ? AND status = 'failed'
+    `;
+		await this.execute(sql, [fileKey]);
+	}
 }

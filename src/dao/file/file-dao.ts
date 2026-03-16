@@ -1329,4 +1329,9 @@ export class FileDAO extends BaseDAOClass {
 	async deleteFileProcessingChunks(fileKey: string): Promise<void> {
 		return this.processingChunksDAO.deleteFileProcessingChunks(fileKey);
 	}
+
+	/** Reset failed chunks to pending so they can be retried (e.g. when user clicks Retry Indexing). */
+	async resetFailedChunksToPending(fileKey: string): Promise<void> {
+		return this.processingChunksDAO.resetFailedChunksToPending(fileKey);
+	}
 }
