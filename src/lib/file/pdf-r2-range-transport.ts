@@ -37,12 +37,25 @@ class R2PDFDataRangeTransport extends PDFDataRangeTransport {
 					range: { offset: begin, length },
 				});
 				if (!obj) {
+					// biome-ignore lint/suspicious/noConsole: debug logging for wrangler tail (no env/logger here)
+					console.warn("[pdf-r2-range] R2.get returned null", {
+						fileKey: this.fileKey,
+						begin,
+						length,
+					});
 					this.onDataRange(begin, null);
 					return;
 				}
 				const buf = await obj.arrayBuffer();
 				this.onDataRange(begin, new Uint8Array(buf));
-			} catch (_e) {
+			} catch (e) {
+				// biome-ignore lint/suspicious/noConsole: debug logging for wrangler tail (no env/logger here)
+				console.error("[pdf-r2-range] R2 range request failed", {
+					fileKey: this.fileKey,
+					begin,
+					length,
+					error: e instanceof Error ? e.message : String(e),
+				});
 				this.onDataRange(begin, null);
 			}
 		})();
@@ -67,7 +80,20 @@ export async function extractPdfPagesRangeFromR2(
 		range: transport,
 		useSystemFonts: true,
 	});
-	const pdf = await loadingTask.promise;
+	let pdf: Awaited<typeof loadingTask.promise>;
+	try {
+		pdf = await loadingTask.promise;
+	} catch (loadError) {
+		// biome-ignore lint/suspicious/noConsole: debug logging for wrangler tail (no env/logger here)
+		console.error("[pdf-r2-range] getDocument failed", {
+			fileKey,
+			fileSize,
+			startPage,
+			endPage,
+			error: loadError instanceof Error ? loadError.message : String(loadError),
+		});
+		throw loadError;
+	}
 	const numPages = totalPages ?? pdf.numPages;
 	const actualStartPage = Math.max(1, Math.min(startPage, numPages));
 	const actualEndPage = Math.max(actualStartPage, Math.min(endPage, numPages));

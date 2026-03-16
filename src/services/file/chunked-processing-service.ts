@@ -2,6 +2,7 @@ import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { extractPdfPagesRangeFromR2 } from "@/lib/file/pdf-r2-range-transport";
 import { extractPdfPagesRange } from "@/lib/file/pdf-utils";
+import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
 import type { ChunkDefinition } from "@/types/upload";
@@ -261,7 +262,7 @@ export class ChunkedProcessingService {
 		fileKey: string,
 		chunkDefinition: ChunkDefinition,
 		fileSize: number,
-		contentType: string,
+		_contentType: string,
 		metadataId: string
 	): Promise<{
 		success: boolean;
@@ -269,7 +270,15 @@ export class ChunkedProcessingService {
 		text?: string;
 		error?: string;
 	}> {
+		const log = createLogger(this.env, "[ChunkedPDFRange]");
 		try {
+			log.info("processPdfChunkWithR2Range start", {
+				chunkId,
+				fileKey,
+				pageRangeStart: chunkDefinition.pageRangeStart,
+				pageRangeEnd: chunkDefinition.pageRangeEnd,
+				fileSize,
+			});
 			await this.fileDAO.updateFileProcessingChunk(chunkId, {
 				status: "processing",
 			});
@@ -315,6 +324,11 @@ export class ChunkedProcessingService {
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
+			log.error("processPdfChunkWithR2Range failed", error, {
+				chunkId,
+				fileKey,
+				errorMessage,
+			});
 			await this.fileDAO.updateFileProcessingChunk(chunkId, {
 				status: "failed",
 				errorMessage,
