@@ -123,7 +123,7 @@ function parseHtmlError(html: string, statusCode?: number): ParsedError {
 			message: "The file is too large to upload",
 			isActionable: true,
 			suggestion:
-				"Please use a file smaller than 100MB. Large files should be split into smaller parts.",
+				"Please use a file within the maximum upload size (500MB). Large files are processed in chunks.",
 		};
 	}
 

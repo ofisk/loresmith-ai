@@ -1,5 +1,6 @@
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
+import { extractPdfPagesRangeFromR2 } from "@/lib/file/pdf-r2-range-transport";
 import { extractPdfPagesRange } from "@/lib/file/pdf-utils";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
@@ -244,6 +245,80 @@ export class ChunkedProcessingService {
 				errorMessage,
 			});
 
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
+	 * Process a single PDF chunk using R2 range requests only (no full-file buffer).
+	 * Use for large PDFs when file size exceeds Worker memory limit.
+	 */
+	async processPdfChunkWithR2Range(
+		chunkId: string,
+		fileKey: string,
+		chunkDefinition: ChunkDefinition,
+		fileSize: number,
+		contentType: string,
+		metadataId: string
+	): Promise<{
+		success: boolean;
+		vectorId?: string;
+		text?: string;
+		error?: string;
+	}> {
+		try {
+			await this.fileDAO.updateFileProcessingChunk(chunkId, {
+				status: "processing",
+			});
+
+			if (!chunkDefinition.pageRangeStart || !chunkDefinition.pageRangeEnd) {
+				throw new Error("PDF chunk missing page range");
+			}
+
+			const extractionResult = await extractPdfPagesRangeFromR2(
+				this.env.R2,
+				fileKey,
+				fileSize,
+				chunkDefinition.pageRangeStart,
+				chunkDefinition.pageRangeEnd
+			);
+
+			if (!extractionResult?.text) {
+				throw new Error("No text extracted from chunk");
+			}
+
+			const embeddingService = new FileEmbeddingService(
+				this.env.VECTORIZE,
+				this.env.OPENAI_API_KEY,
+				this.env as unknown as Record<string, unknown>
+			);
+
+			const vectorId = await embeddingService.storeEmbeddings(
+				extractionResult.text,
+				metadataId,
+				{
+					metadataId,
+					type: "file_chunk",
+				}
+			);
+
+			await this.fileDAO.markFileChunkComplete(chunkId, vectorId);
+
+			return {
+				success: true,
+				vectorId,
+				text: extractionResult.text,
+			};
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			await this.fileDAO.updateFileProcessingChunk(chunkId, {
+				status: "failed",
+				errorMessage,
+			});
 			return {
 				success: false,
 				error: errorMessage,

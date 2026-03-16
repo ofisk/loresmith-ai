@@ -262,7 +262,7 @@ try {
 - **Small files**: < 100MB (direct upload)
 - **Large files**: ≥ 100MB (multipart upload)
 - **Part size**: 50MB per part
-- **Maximum file size**: 100MB (practical limit due to Cloudflare Workers' 128MB memory limit with buffer)
+- **Maximum file size**: 500MB. Large files are processed in chunks (R2 range reads for non-PDF; PDF.js range transport for PDFs), so uploads up to 500MB are supported without loading the full file into Worker memory.
 
 ### Environment Variables
 

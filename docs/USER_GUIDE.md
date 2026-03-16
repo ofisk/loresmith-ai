@@ -540,10 +540,10 @@ Your plan (free, basic, or pro) sets limits on campaigns, files, storage, and AI
 
 ### File limits
 
-- **Max file size**: 100 MB per file (due to Cloudflare Worker memory limits)
+- **Max file size**: 500 MB per file
 - **Supported types**: PDF, text, markdown, DOCX, JSON, images (PNG, JPG, WebP)
 
-Files over the memory limit cannot be loaded in one pass. Large files are processed in chunks, which may take longer.
+Large files are processed in chunks automatically. PDFs and other formats over 100 MB use multipart upload and chunked processing, so you can upload and index files up to 500 MB without splitting them manually.
 
 ### Plan limits (per tier)
 
@@ -604,7 +604,7 @@ If you see a file with a "Failed" status in your resource library:
 - Click the retry button next to the failed file to attempt processing again
 - Check that the file format is supported (PDF, images, text documents)
 - Verify the file isn't corrupted - try opening it locally first
-- Check file size (max 100MB - Cloudflare Workers memory limit with buffer)
+- Check file size (max 500 MB); very large or complex PDFs may occasionally fail—try a smaller file or retry
 - Wait a few minutes and refresh, then retry if needed
 
 **Missing Context:**
