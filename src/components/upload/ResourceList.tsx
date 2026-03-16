@@ -26,6 +26,7 @@ interface ResourceListProps {
 	fetchResources: () => Promise<void>;
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
+	onDeleteFile?: (fileKey: string) => Promise<void>;
 	campaigns?: Campaign[];
 	campaignAdditionProgress?: Record<string, number>;
 	_isAddingToCampaigns?: boolean;
@@ -44,10 +45,35 @@ export function ResourceList({
 	fetchResources,
 	onAddToCampaign,
 	onEditFile,
+	onDeleteFile: onDeleteFileProp,
 	campaigns = [],
 	campaignAdditionProgress = {},
 	_isAddingToCampaigns = false,
 }: ResourceListProps) {
+	const handleDeleteFile = useCallback(
+		async (fileKey: string) => {
+			const jwt = getStoredJwt();
+			if (!jwt) return;
+			const url = API_CONFIG.buildUrl(
+				API_CONFIG.ENDPOINTS.LIBRARY.FILE_DELETE(encodeURIComponent(fileKey))
+			);
+			const { response, jwtExpired } = await authenticatedFetchWithExpiration(
+				url,
+				{ method: "DELETE", jwt }
+			);
+			if (jwtExpired || !response.ok) {
+				const msg = await response.text();
+				logger.scope("[ResourceList]").warn("Delete file failed", {
+					status: response.status,
+					body: msg,
+				});
+				throw new Error(response.ok ? "Auth expired" : msg || "Delete failed");
+			}
+			await fetchResources();
+		},
+		[fetchResources]
+	);
+	const onDeleteFile = onDeleteFileProp ?? handleDeleteFile;
 	const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 	const [progressByFileKey, setProgressByFileKey] = useState<
 		Record<string, number>
@@ -287,6 +313,7 @@ export function ResourceList({
 						onRetryFile={handleRetryFile}
 						onAddToCampaign={onAddToCampaign}
 						onEditFile={onEditFile}
+						onDeleteFile={onDeleteFile}
 						onRetryIndexing={handleRetryIndexing}
 						fetchResources={fetchResources}
 						campaigns={campaigns}

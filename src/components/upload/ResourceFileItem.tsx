@@ -17,6 +17,7 @@ interface ResourceFileItemProps {
 	onRetryFile: (fileKey: string, fileName: string) => Promise<void>;
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
+	onDeleteFile?: (fileKey: string) => Promise<void>;
 	onRetryIndexing: (fileKey: string) => Promise<void>;
 	fetchResources: () => Promise<void>;
 	campaigns?: Campaign[];
@@ -35,6 +36,7 @@ export function ResourceFileItem({
 	onRetryFile,
 	onAddToCampaign,
 	onEditFile,
+	onDeleteFile,
 	onRetryIndexing,
 	fetchResources,
 	campaigns = [],
@@ -167,6 +169,7 @@ export function ResourceFileItem({
 						file={file}
 						onAddToCampaign={onAddToCampaign}
 						onEditFile={onEditFile}
+						onDeleteFile={onDeleteFile}
 						onRetryIndexing={onRetryIndexing}
 						fetchResources={fetchResources}
 						campaigns={campaigns}
