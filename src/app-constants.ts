@@ -24,8 +24,9 @@ export const PROCESSING_LIMITS = {
 	/** Cloudflare Workers memory limit (MB). Used for file size checks and error messages. */
 	MEMORY_LIMIT_MB: 128,
 	/**
-	 * Max PDF size (bytes) for R2 range-based extraction.
-	 * PDF.js allocates a ChunkedStream buffer of this size in the Worker; must stay under heap.
+	 * Max size (bytes) per PDF part for indexing. PDF.js allocates a ChunkedStream of this size in the Worker.
+	 * Upload limit is 500MB (UPLOAD_CONFIG.MAX_FILE_SIZE). PDFs over this constant are split automatically
+	 * in the browser before upload so each part is under 100MB and can be indexed.
 	 */
 	MAX_PDF_SIZE_FOR_RANGE_BYTES: 100 * 1024 * 1024,
 } as const;

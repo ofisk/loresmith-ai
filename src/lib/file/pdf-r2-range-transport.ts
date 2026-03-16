@@ -88,7 +88,7 @@ export async function extractPdfPagesRangeFromR2(
 			limitMB,
 			fileKey,
 			undefined,
-			`PDF is too large to process with the range loader (limit ${limitMB}MB). File size: ${fileSizeMB.toFixed(2)}MB. Try a smaller file or split the document.`
+			`This PDF (${fileSizeMB.toFixed(2)}MB) is too large to index in one piece. In the app, PDFs over ${limitMB}MB are split automatically before upload. Re-upload this file in the app to split and index it, or use a PDF under ${limitMB}MB.`
 		);
 	}
 	const transport = new R2PDFDataRangeTransport(fileSize, r2, fileKey);
