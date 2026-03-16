@@ -2,9 +2,14 @@
  * R2-backed range transport for PDF.js.
  * Allows loading a PDF from R2 by fetching only the byte ranges requested by PDF.js,
  * so large PDFs can be processed without loading the full file into Worker memory.
+ *
+ * PDF.js allocates a ChunkedStream buffer of size fileSize in the Worker; files over
+ * PROCESSING_LIMITS.MAX_PDF_SIZE_FOR_RANGE_BYTES are rejected with MemoryLimitError.
  */
 
 import { getDocument, PDFDataRangeTransport } from "pdfjs-serverless";
+import { PROCESSING_LIMITS } from "@/app-constants";
+import { MemoryLimitError } from "@/lib/errors";
 import type { ExtractionResult } from "@/services/file/file-extraction-service";
 
 /** R2 bucket interface (subset we need) */
@@ -74,6 +79,18 @@ export async function extractPdfPagesRangeFromR2(
 	endPage: number,
 	totalPages?: number
 ): Promise<ExtractionResult> {
+	const maxBytes = PROCESSING_LIMITS.MAX_PDF_SIZE_FOR_RANGE_BYTES;
+	if (fileSize > maxBytes) {
+		const fileSizeMB = fileSize / (1024 * 1024);
+		const limitMB = maxBytes / (1024 * 1024);
+		throw new MemoryLimitError(
+			fileSizeMB,
+			limitMB,
+			fileKey,
+			undefined,
+			`PDF is too large to process with the range loader (limit ${limitMB}MB). File size: ${fileSizeMB.toFixed(2)}MB. Try a smaller file or split the document.`
+		);
+	}
 	const transport = new R2PDFDataRangeTransport(fileSize, r2, fileKey);
 	const loadingTask = getDocument({
 		length: fileSize,

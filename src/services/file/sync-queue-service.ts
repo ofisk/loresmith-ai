@@ -315,8 +315,22 @@ export class SyncQueueService {
 							file_key: item.file_key,
 							file_name: item.file_name,
 							stats: mergeResult.stats,
+							firstFailedErrorMessage: mergeResult.firstFailedErrorMessage,
 						});
-						await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.ERROR);
+						const msg = mergeResult.firstFailedErrorMessage ?? "";
+						if (msg.startsWith("MEMORY_LIMIT_EXCEEDED:")) {
+							await fileDAO.updateFileRecordWithError(
+								item.file_key,
+								FileDAO.STATUS.ERROR,
+								"MEMORY_LIMIT_EXCEEDED",
+								msg.slice("MEMORY_LIMIT_EXCEEDED:".length).trim()
+							);
+						} else {
+							await fileDAO.updateFileRecord(
+								item.file_key,
+								FileDAO.STATUS.ERROR
+							);
+						}
 						await fileDAO.removeFromSyncQueue(item.file_key);
 					} else {
 					}

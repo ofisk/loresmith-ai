@@ -927,8 +927,18 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 					await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
 					log.debug("All chunks complete for file", { fileKey });
 				} else if (mergeResult.allComplete && !mergeResult.allSuccessful) {
-					// Some chunks failed - mark file as error
-					await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
+					// Some chunks failed - mark file as error (use MEMORY_LIMIT_EXCEEDED if applicable)
+					const msg = mergeResult.firstFailedErrorMessage ?? "";
+					if (msg.startsWith("MEMORY_LIMIT_EXCEEDED:")) {
+						await fileDAO.updateFileRecordWithError(
+							fileKey,
+							FileDAO.STATUS.ERROR,
+							"MEMORY_LIMIT_EXCEEDED",
+							msg.slice("MEMORY_LIMIT_EXCEEDED:".length).trim()
+						);
+					} else {
+						await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
+					}
 					log.error("Some chunks failed for file", mergeResult.stats);
 				}
 			} catch (fileError) {

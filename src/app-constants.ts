@@ -23,6 +23,11 @@ export const APP_CONFIG = {
 export const PROCESSING_LIMITS = {
 	/** Cloudflare Workers memory limit (MB). Used for file size checks and error messages. */
 	MEMORY_LIMIT_MB: 128,
+	/**
+	 * Max PDF size (bytes) for R2 range-based extraction.
+	 * PDF.js allocates a ChunkedStream buffer of this size in the Worker; must stay under heap.
+	 */
+	MAX_PDF_SIZE_FOR_RANGE_BYTES: 100 * 1024 * 1024,
 } as const;
 
 const _cannotProcessText = `Files over ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB cannot be processed in one pass due to memory limits. Large files are processed in chunks; if you see this, processing failed.`;

@@ -1,5 +1,6 @@
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
+import { MemoryLimitError } from "@/lib/errors";
 import { extractPdfPagesRangeFromR2 } from "@/lib/file/pdf-r2-range-transport";
 import { extractPdfPagesRange } from "@/lib/file/pdf-utils";
 import { createLogger } from "@/lib/logger";
@@ -323,7 +324,11 @@ export class ChunkedProcessingService {
 			};
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : String(error);
+				error instanceof MemoryLimitError
+					? `MEMORY_LIMIT_EXCEEDED: ${error.message}`
+					: error instanceof Error
+						? error.message
+						: String(error);
 			log.error("processPdfChunkWithR2Range failed", error, {
 				chunkId,
 				fileKey,
@@ -341,11 +346,14 @@ export class ChunkedProcessingService {
 	}
 
 	/**
-	 * Merge chunk results and check if all chunks are complete
+	 * Merge chunk results and check if all chunks are complete.
+	 * When there are failures, returns the first failed chunk's error_message so callers
+	 * can set file-level error codes (e.g. MEMORY_LIMIT_EXCEEDED).
 	 */
 	async mergeChunkResults(fileKey: string): Promise<{
 		allComplete: boolean;
 		allSuccessful: boolean;
+		firstFailedErrorMessage: string | null;
 		stats: {
 			total: number;
 			completed: number;
@@ -358,9 +366,19 @@ export class ChunkedProcessingService {
 		const allComplete = stats.completed + stats.failed === stats.total;
 		const allSuccessful = stats.completed === stats.total && stats.failed === 0;
 
+		let firstFailedErrorMessage: string | null = null;
+		if (stats.failed > 0) {
+			const chunks = await this.fileDAO.getFileProcessingChunks(fileKey);
+			const failed = chunks.find((c) => c.status === "failed");
+			if (failed?.errorMessage) {
+				firstFailedErrorMessage = failed.errorMessage;
+			}
+		}
+
 		return {
 			allComplete,
 			allSuccessful,
+			firstFailedErrorMessage,
 			stats,
 		};
 	}
