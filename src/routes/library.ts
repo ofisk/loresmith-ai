@@ -226,31 +226,27 @@ export const handleDeleteFile = async (
 ) => {
 	const log = getRequestLogger(c);
 	try {
-		const fileId = requireParam(c, "fileId");
-		if (fileId instanceof Response) return fileId;
+		let fileKey = requireParam(c, "fileId");
+		if (fileKey instanceof Response) return fileKey;
+		try {
+			fileKey = decodeURIComponent(fileKey);
+		} catch {
+			// use as-is if decoding fails
+		}
 		const userAuth = (c as any).userAuth;
 		const userId = userAuth?.username || "anonymous";
 
-		// Get file metadata first
 		const fileDAO = getDAOFactory(c.env).fileDAO;
-		const metadata = await fileDAO.getFileForRag(fileId, userId);
+		const metadata = await fileDAO.getFileForRag(fileKey, userId);
 
 		if (!metadata) {
 			return c.json({ error: "File not found" }, 404);
 		}
 
-		// Delete from R2
 		await c.env.R2.delete(metadata.file_key);
-
-		// Delete from D1
-		await c.env.DB.prepare(
-			`
-            delete from file_metadata
-      where id = ? and user_id = ?
-    `
-		)
-			.bind(fileId, userId)
-			.run();
+		await fileDAO.deleteFileProcessingChunks(fileKey);
+		await fileDAO.removeFromSyncQueue(fileKey);
+		await fileDAO.deleteFileForUser(fileKey, userId);
 
 		return c.json({ success: true });
 	} catch (error) {

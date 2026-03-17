@@ -1,6 +1,9 @@
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
+import { MemoryLimitError } from "@/lib/errors";
+import { extractPdfPagesRangeFromR2 } from "@/lib/file/pdf-r2-range-transport";
 import { extractPdfPagesRange } from "@/lib/file/pdf-utils";
+import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
 import type { ChunkDefinition } from "@/types/upload";
@@ -252,11 +255,105 @@ export class ChunkedProcessingService {
 	}
 
 	/**
-	 * Merge chunk results and check if all chunks are complete
+	 * Process a single PDF chunk using R2 range requests only (no full-file buffer).
+	 * Use for large PDFs when file size exceeds Worker memory limit.
+	 */
+	async processPdfChunkWithR2Range(
+		chunkId: string,
+		fileKey: string,
+		chunkDefinition: ChunkDefinition,
+		fileSize: number,
+		_contentType: string,
+		metadataId: string
+	): Promise<{
+		success: boolean;
+		vectorId?: string;
+		text?: string;
+		error?: string;
+	}> {
+		const log = createLogger(this.env, "[ChunkedPDFRange]");
+		try {
+			log.info("processPdfChunkWithR2Range start", {
+				chunkId,
+				fileKey,
+				pageRangeStart: chunkDefinition.pageRangeStart,
+				pageRangeEnd: chunkDefinition.pageRangeEnd,
+				fileSize,
+			});
+			await this.fileDAO.updateFileProcessingChunk(chunkId, {
+				status: "processing",
+			});
+
+			if (!chunkDefinition.pageRangeStart || !chunkDefinition.pageRangeEnd) {
+				throw new Error("PDF chunk missing page range");
+			}
+
+			const extractionResult = await extractPdfPagesRangeFromR2(
+				this.env.R2,
+				fileKey,
+				fileSize,
+				chunkDefinition.pageRangeStart,
+				chunkDefinition.pageRangeEnd
+			);
+
+			if (!extractionResult?.text) {
+				throw new Error("No text extracted from chunk");
+			}
+
+			const embeddingService = new FileEmbeddingService(
+				this.env.VECTORIZE,
+				this.env.OPENAI_API_KEY,
+				this.env as unknown as Record<string, unknown>
+			);
+
+			const vectorId = await embeddingService.storeEmbeddings(
+				extractionResult.text,
+				metadataId,
+				{
+					metadataId,
+					type: "file_chunk",
+				}
+			);
+
+			await this.fileDAO.markFileChunkComplete(chunkId, vectorId);
+
+			return {
+				success: true,
+				vectorId,
+				text: extractionResult.text,
+			};
+		} catch (error) {
+			const errorMessage =
+				error instanceof MemoryLimitError
+					? `MEMORY_LIMIT_EXCEEDED: ${error.message}`
+					: error instanceof Error
+						? error.message
+						: String(error);
+			log.error("processPdfChunkWithR2Range failed", error, {
+				chunkId,
+				fileKey,
+				errorMessage,
+			});
+			await this.fileDAO.updateFileProcessingChunk(chunkId, {
+				status: "failed",
+				errorMessage,
+			});
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
+	 * Merge chunk results and check if all chunks are complete.
+	 * When there are failures, returns the first failed chunk's error_message so callers
+	 * can set file-level error codes (e.g. MEMORY_LIMIT_EXCEEDED).
 	 */
 	async mergeChunkResults(fileKey: string): Promise<{
 		allComplete: boolean;
 		allSuccessful: boolean;
+		firstFailedErrorMessage: string | null;
 		stats: {
 			total: number;
 			completed: number;
@@ -269,9 +366,19 @@ export class ChunkedProcessingService {
 		const allComplete = stats.completed + stats.failed === stats.total;
 		const allSuccessful = stats.completed === stats.total && stats.failed === 0;
 
+		let firstFailedErrorMessage: string | null = null;
+		if (stats.failed > 0) {
+			const chunks = await this.fileDAO.getFileProcessingChunks(fileKey);
+			const failed = chunks.find((c) => c.status === "failed");
+			if (failed?.errorMessage) {
+				firstFailedErrorMessage = failed.errorMessage;
+			}
+		}
+
 		return {
 			allComplete,
 			allSuccessful,
+			firstFailedErrorMessage,
 			stats,
 		};
 	}

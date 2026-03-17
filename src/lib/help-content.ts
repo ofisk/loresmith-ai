@@ -25,7 +25,7 @@ export function getHelpContent(action: string): string {
 				"3. Wait for processing to complete\n" +
 				"4. Add files to campaigns to make them searchable\n\n" +
 				"**Supported Formats:**\n" +
-				"- PDF files (up to 100MB - Cloudflare Workers memory limit with buffer)\n" +
+				"- PDF and other documents (up to 500MB; large files are processed in chunks)\n" +
 				"- Images (PNG, JPG, etc.)\n" +
 				"- Text documents\n\n" +
 				"**What Happens Next:**\n" +

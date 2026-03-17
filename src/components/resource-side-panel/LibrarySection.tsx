@@ -218,6 +218,7 @@ export function LibrarySection({
 							fetchResources={fetchResources}
 							onAddToCampaign={onAddToCampaign}
 							onEditFile={onEditFile}
+							onOpenAddToLibrary={onAddToLibrary}
 							campaigns={campaigns}
 							campaignAdditionProgress={campaignAdditionProgress}
 							_isAddingToCampaigns={isAddingToCampaigns}

@@ -789,21 +789,85 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 				// Process each chunk
 				for (const chunk of chunks) {
 					try {
-						// If we couldn't load the full buffer, fetch the file fresh for this chunk
 						let chunkBuffer: ArrayBuffer;
-						if (usePerChunkFetch) {
-							const chunkFile = await env.R2.get(fileKey);
-							if (!chunkFile) {
-								throw new Error("File not found in R2");
+						const hasByteRange =
+							chunk.byteRangeStart != null && chunk.byteRangeEnd != null;
+
+						if (hasByteRange) {
+							// Non-PDF: fetch only this chunk's byte range from R2 (avoids loading full file)
+							const rangeLength =
+								(chunk.byteRangeEnd ?? 0) - (chunk.byteRangeStart ?? 0);
+							const rangeObject = await env.R2.get(fileKey, {
+								range: {
+									offset: chunk.byteRangeStart ?? 0,
+									length: rangeLength,
+								},
+							});
+							if (!rangeObject) {
+								throw new Error("File or range not found in R2");
 							}
-							try {
-								chunkBuffer = await chunkFile.arrayBuffer();
-							} catch (chunkBufferError) {
-								// Even per-chunk fetch failed - file is too large for Worker memory
-								throw new Error(
-									`File too large to process: ${chunkBufferError instanceof Error ? chunkBufferError.message : "Memory limit exceeded"}`
+							chunkBuffer = await rangeObject.arrayBuffer();
+						} else if (usePerChunkFetch) {
+							// PDF chunk and file too large for full buffer: use R2 range transport
+							const isPdfChunk =
+								contentType.includes("pdf") &&
+								chunk.pageRangeStart != null &&
+								chunk.pageRangeEnd != null;
+							const fileSize = dbMetadata.file_size ?? 0;
+
+							if (isPdfChunk && fileSize > 0) {
+								const chunkDef = {
+									chunkIndex: chunk.chunkIndex,
+									totalChunks: chunk.totalChunks,
+									pageRangeStart: chunk.pageRangeStart,
+									pageRangeEnd: chunk.pageRangeEnd,
+									byteRangeStart: chunk.byteRangeStart,
+									byteRangeEnd: chunk.byteRangeEnd,
+								};
+								await chunkedService.processPdfChunkWithR2Range(
+									chunk.id,
+									fileKey,
+									chunkDef,
+									fileSize,
+									contentType,
+									metadataId
+								);
+								log.debug("Successfully processed PDF chunk (R2 range)", {
+									chunkIndex: chunk.chunkIndex + 1,
+									totalChunks: chunk.totalChunks,
+									fileKey,
+								});
+							} else {
+								// Non-PDF or missing page range: must load full file (may OOM)
+								const chunkFile = await env.R2.get(fileKey);
+								if (!chunkFile) {
+									throw new Error("File not found in R2");
+								}
+								try {
+									chunkBuffer = await chunkFile.arrayBuffer();
+								} catch (chunkBufferError) {
+									throw new Error(
+										`File too large to process: ${chunkBufferError instanceof Error ? chunkBufferError.message : "Memory limit exceeded"}`
+									);
+								}
+								const chunkDefinition = {
+									chunkIndex: chunk.chunkIndex,
+									totalChunks: chunk.totalChunks,
+									pageRangeStart: chunk.pageRangeStart,
+									pageRangeEnd: chunk.pageRangeEnd,
+									byteRangeStart: chunk.byteRangeStart,
+									byteRangeEnd: chunk.byteRangeEnd,
+								};
+								await chunkedService.processChunk(
+									chunk.id,
+									fileKey,
+									chunkDefinition,
+									chunkBuffer,
+									contentType,
+									metadataId
 								);
 							}
+							continue;
 						} else {
 							chunkBuffer = fileBuffer!;
 						}
@@ -863,8 +927,18 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 					await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
 					log.debug("All chunks complete for file", { fileKey });
 				} else if (mergeResult.allComplete && !mergeResult.allSuccessful) {
-					// Some chunks failed - mark file as error
-					await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
+					// Some chunks failed - mark file as error (use MEMORY_LIMIT_EXCEEDED if applicable)
+					const msg = mergeResult.firstFailedErrorMessage ?? "";
+					if (msg.startsWith("MEMORY_LIMIT_EXCEEDED:")) {
+						await fileDAO.updateFileRecordWithError(
+							fileKey,
+							FileDAO.STATUS.ERROR,
+							"MEMORY_LIMIT_EXCEEDED",
+							msg.slice("MEMORY_LIMIT_EXCEEDED:".length).trim()
+						);
+					} else {
+						await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.ERROR);
+					}
 					log.error("Some chunks failed for file", mergeResult.stats);
 				}
 			} catch (fileError) {

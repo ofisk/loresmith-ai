@@ -23,40 +23,49 @@ export const APP_CONFIG = {
 export const PROCESSING_LIMITS = {
 	/** Cloudflare Workers memory limit (MB). Used for file size checks and error messages. */
 	MEMORY_LIMIT_MB: 128,
+	/**
+	 * Max size (bytes) per PDF part for indexing. PDF.js allocates a ChunkedStream of this size in the Worker.
+	 * Upload limit is 500MB (UPLOAD_CONFIG.MAX_FILE_SIZE). PDFs over this constant are split automatically
+	 * in the browser before upload so each part is under 100MB and can be indexed.
+	 */
+	MAX_PDF_SIZE_FOR_RANGE_BYTES: 100 * 1024 * 1024,
 } as const;
 
-const _cannotProcessText = `Files over ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB cannot be processed due to Cloudflare Worker memory limits. Please split the file into smaller parts.`;
+const _cannotProcessText = `Files over ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB cannot be processed in one pass due to memory limits. Large files are processed in chunks; if you see this, processing failed.`;
 
-/** User-facing copy for memory limit errors. Centralized for reuse and consistency. */
+/** User-facing copy for memory limit and upload errors. Upload max = UPLOAD_CONFIG.MAX_FILE_SIZE; processing uses chunks. */
 export const MEMORY_LIMIT_COPY = {
-	/** Generic: "This file exceeds our 128MB limit..." */
-	generic: `This file exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
+	/** Generic: processing failed (e.g. after upload) */
+	generic: `This file could not be processed. Large files are normally processed in chunks; if the problem persists, try a smaller file.`,
 	/** Short fallback for status/indicators */
-	short: `File is too large to process. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	short: `File could not be processed. Large files are processed in chunks; try again or use a smaller file.`,
 	/** Fallback when error has no message */
-	fallback: `This file exceeds the ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB memory limit. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+	fallback: `This file could not be processed. Large files are processed in chunks. If the problem persists, try a smaller file.`,
 	/** "Files over XMB cannot be processed..." (used in RAG, retry alerts) */
 	cannotProcess: _cannotProcessText,
 	/** Error-parsing suggestion (includes chunking note) */
-	suggestion: `This file exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later. Large files are processed in chunks, which may take longer.`,
-	/** With specific filename */
+	suggestion: `Large files are processed in chunks, which may take longer. If processing failed, try a smaller file or try again later.`,
+	/** With specific filename (processing failed) */
 	withFilename: (fileName: string) =>
-		`The file "${fileName}" exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts (under 100MB each) or try again later.`,
-	/** With filename and size (sync/upload notifications) */
+		`The file "${fileName}" could not be processed. Large files are processed in chunks; try again or use a smaller file.`,
+	/** With filename and size (sync/upload notifications when processing fails) */
 	withFileDetails: (fileName: string, sizeMB: number) =>
-		`⚠️ "${fileName}" (${sizeMB.toFixed(2)}MB) exceeds our ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB limit. Please split the file into smaller parts or use a file under ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB.`,
+		`⚠️ "${fileName}" (${sizeMB.toFixed(2)}MB) could not be processed. Large files are processed in chunks; try again or use a smaller file.`,
 	/** File too large for processing (RAG endpoint) */
 	fileTooLarge: (fileName: string) =>
 		`"${fileName}" is too large to process. ${_cannotProcessText}`,
 	/** Retry alert (ResourceList) */
 	retryAlert: (fileName: string, errorMessage: string) =>
 		`⚠️ Cannot retry "${fileName}": ${errorMessage}\n\n${_cannotProcessText}`,
+	/** When PDF range loading fails (large PDF fallback) */
+	pdfRangeLoadFailed: (fileName: string) =>
+		`"${fileName}" could not be processed. Very large or complex PDFs may need to be split into smaller files.`,
 } as const;
 
 // File upload constants
 export const UPLOAD_CONFIG = {
-	/** 100MB max - buffer under PROCESSING_LIMITS.MEMORY_LIMIT_MB */
-	MAX_FILE_SIZE: 100 * 1024 * 1024,
+	/** Max file size for upload (500MB). Large files are processed in chunks. */
+	MAX_FILE_SIZE: 500 * 1024 * 1024,
 	// MIME types supported by RAG (FileExtractionService). Keep in sync with ResourceUpload and file-upload-security ALLOWED_EXTENSIONS.
 	ALLOWED_FILE_TYPES: [
 		"application/pdf",
@@ -117,7 +126,7 @@ export const ERROR_MESSAGES = {
 	AUTHENTICATION_REQUIRED: "Authentication required. Please log in.",
 	ACCESS_DENIED:
 		"Access denied. You don't have permission to perform this action.",
-	FILE_TOO_LARGE: "File is too large. Maximum size is 100MB.",
+	FILE_TOO_LARGE: `File is too large. Maximum size is ${UPLOAD_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB.`,
 	INVALID_FILE_TYPE: "Invalid file type.",
 	CAMPAIGN_NOT_FOUND: "Campaign not found",
 	RESOURCE_NOT_FOUND: "Resource not found.",

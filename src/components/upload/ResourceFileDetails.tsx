@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import { Tooltip } from "@/components/tooltip/Tooltip";
@@ -9,6 +10,9 @@ interface ResourceFileDetailsProps {
 	file: ResourceFileWithCampaigns;
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
+	onDeleteFile?: (fileKey: string) => Promise<void>;
+	/** Called after successful "Retry upload" delete so the Add to library modal can open */
+	onOpenAddToLibrary?: () => void;
 	onRetryIndexing: (fileKey: string) => Promise<void>;
 	fetchResources: () => Promise<void>;
 	campaigns?: Campaign[];
@@ -23,15 +27,39 @@ export function ResourceFileDetails({
 	file,
 	onAddToCampaign,
 	onEditFile,
+	onDeleteFile,
+	onOpenAddToLibrary,
 	onRetryIndexing,
 	fetchResources,
 	campaigns = [],
 	retryLimitDisabled = false,
 	retryLimitTooltip,
 }: ResourceFileDetailsProps) {
+	const [isDeleting, setIsDeleting] = useState(false);
 	const handleRetryIndexing = async () => {
 		await onRetryIndexing(file.file_key);
 		await fetchResources();
+	};
+	const handleDelete = async () => {
+		if (!onDeleteFile) return;
+		setIsDeleting(true);
+		try {
+			await onDeleteFile(file.file_key);
+			await fetchResources();
+		} finally {
+			setIsDeleting(false);
+		}
+	};
+	const handleRetryUpload = async () => {
+		if (!onDeleteFile) return;
+		setIsDeleting(true);
+		try {
+			await onDeleteFile(file.file_key);
+			await fetchResources();
+			onOpenAddToLibrary?.();
+		} finally {
+			setIsDeleting(false);
+		}
 	};
 
 	// Calculate available campaigns (campaigns the file isn't already in)
@@ -188,10 +216,25 @@ export function ResourceFileDetails({
 							if (errorData.code === "MEMORY_LIMIT_EXCEEDED") {
 								return (
 									<div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
-										<p className="font-medium mb-1">⚠️ File Too Large</p>
-										<p className="text-xs">
+										<p className="font-medium mb-1">⚠️ File too large</p>
+										<p className="text-xs mb-2">
 											{errorData.message || MEMORY_LIMIT_COPY.fallback}
 										</p>
+										<p className="text-xs mb-2">
+											Delete this file and add it again to split into smaller,
+											indexable parts.
+										</p>
+										{onDeleteFile && (
+											<Button
+												onClick={handleRetryUpload}
+												disabled={isDeleting}
+												variant="secondary"
+												size="sm"
+												className="w-full !text-yellow-800 dark:!text-yellow-200 border-yellow-300 dark:border-yellow-700 hover:!text-yellow-900 dark:hover:!text-yellow-100"
+											>
+												{isDeleting ? "Deleting…" : "Retry upload"}
+											</Button>
+										)}
 									</div>
 								);
 							}
@@ -225,6 +268,17 @@ export function ResourceFileDetails({
 				>
 					Edit
 				</Button>
+				{onDeleteFile && (
+					<Button
+						onClick={handleDelete}
+						disabled={isDeleting}
+						variant="secondary"
+						size="sm"
+						className="w-full text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
+					>
+						{isDeleting ? "Deleting…" : "Delete"}
+					</Button>
+				)}
 			</div>
 		</div>
 	);

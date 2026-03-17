@@ -127,6 +127,26 @@ describe("Large File Upload", () => {
 				400
 			);
 		});
+
+		it("should reject files larger than MAX_FILE_SIZE (413)", async () => {
+			const context = createMockContext({
+				filename: "huge-file.pdf",
+				fileSize: 600 * 1024 * 1024, // 600MB
+				contentType: "application/pdf",
+			});
+
+			(context as any).userAuth = { username: "testuser" };
+
+			await handleStartLargeUpload(context as any);
+
+			expect(context.json).toHaveBeenCalledWith(
+				expect.objectContaining({
+					code: "FILE_TOO_LARGE",
+					error: expect.stringContaining("500"),
+				}),
+				413
+			);
+		});
 	});
 
 	describe("handleUploadPart", () => {

@@ -4,6 +4,7 @@ import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import {
 	generateCharacterWithAITool,
 	storeCharacterInfo,
+	updateCharacterInfo,
 } from "./character-tools";
 import { deleteEntityTool } from "./entity-tools";
 import { getDocumentContent } from "./get-document-content-tool";
@@ -11,6 +12,7 @@ import { listAllEntities, searchCampaignContext } from "./search-tools";
 
 export const characterManagementTools = {
 	storeCharacterInfo,
+	updateCharacterInfo,
 	generateCharacterWithAITool,
 	listAllEntities,
 	searchCampaignContext,
@@ -19,9 +21,10 @@ export const characterManagementTools = {
 	showCampaignDetails,
 };
 
-/** Player-facing subset: create/store characters, search/list (sanitized), campaign details */
+/** Player-facing subset: create/store/update characters, search/list (sanitized), campaign details */
 export const playerCharacterTools = {
 	storeCharacterInfo,
+	updateCharacterInfo,
 	generateCharacterWithAITool,
 	listAllEntities,
 	searchCampaignContext,

@@ -1,5 +1,6 @@
 import { Plus } from "@phosphor-icons/react";
 import { useId, useRef, useState } from "react";
+import { UPLOAD_CONFIG } from "@/app-constants";
 import { FormButton } from "@/components/button/FormButton";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { EDIT_ROLES } from "@/constants/campaign-roles";
@@ -115,15 +116,14 @@ export const ResourceUpload = ({
 			return byMime || byExt;
 		});
 
-		// Filter by file size (100MB max)
-		const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+		// Filter by file size (use app constant; large files use multipart and are processed in chunks)
 		const validFiles = typeValidFiles.filter((file) => {
-			if (file.size > MAX_FILE_SIZE) {
-				const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
+			if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
+				const maxSizeMB = UPLOAD_CONFIG.MAX_FILE_SIZE / (1024 * 1024);
 				const fileSizeMB = file.size / (1024 * 1024);
 				onValidationError?.(
 					"File too large",
-					`"${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB. Please split the file into smaller parts.`
+					`"${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB.`
 				);
 				return false;
 			}

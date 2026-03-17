@@ -1,5 +1,6 @@
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { Context } from "hono";
+import { UPLOAD_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import { UploadSessionActions } from "@/lib/durable-object-helpers";
@@ -502,6 +503,17 @@ export async function handleStartLargeUpload(c: ContextWithAuth) {
 					error: `File size must be at least ${LARGE_FILE_THRESHOLD / (1024 * 1024)}MB for large file uploads`,
 				},
 				400
+			);
+		}
+
+		// Enforce max upload size
+		if (fileSize > UPLOAD_CONFIG.MAX_FILE_SIZE) {
+			return c.json(
+				{
+					code: "FILE_TOO_LARGE",
+					error: `File size exceeds maximum of ${UPLOAD_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`,
+				},
+				413
 			);
 		}
 
