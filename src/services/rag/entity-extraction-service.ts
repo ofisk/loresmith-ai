@@ -18,11 +18,11 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 /**
  * Maximum tokens for entity extraction responses.
  *
- * Anthropic structured generation is more reliable with smaller output budgets.
- * Keep OpenAI on the larger budget while using a safer ceiling for Anthropic.
+ * 8192 for Anthropic aligns with PIPELINE_LIGHT (claude-haiku-4-5) and reduces
+ * silent truncation on large chunks. OpenAI remains at 16384.
  */
 const MAX_EXTRACTION_RESPONSE_TOKENS =
-	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 2000 : 16384;
+	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 8192 : 16384;
 
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
