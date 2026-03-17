@@ -236,6 +236,8 @@ export const ENTITY_TYPE_EXTRACTION_HINTS: Partial<
 	hooks: "imperative requests with stakes and links to NPCs/locations",
 	quests: "imperative requests with stakes and links to NPCs/locations",
 	house_rule: 'table-specific modifications (e.g., "short rests take 8 hours")',
+	subclasses:
+		'section heading naming a class archetype (e.g., "Way of X", "Path of X", "Oath of X", "Circle of X", "School of X"), followed by a stated parent class reference, with level-keyed feature tables. The SUBCLASS NAME is the section/chapter heading — do not substitute item, ability, or feature names found within the subclass description.',
 	tables: "a dice column (d20/d100), range → result rows",
 	encounter_tables: "a dice column (d20/d100), range → result rows",
 	treasure_tables: "a dice column (d20/d100), range → result rows",
