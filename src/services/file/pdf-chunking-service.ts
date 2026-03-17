@@ -16,9 +16,9 @@ export class PDFChunkingService {
 		totalPages: number,
 		fileSizeMB: number
 	): ChunkDefinition[] {
-		// Target: ~50-100 pages per chunk for PDFs
-		// Adjust based on file size to stay under memory limits
-		const PAGES_PER_CHUNK = fileSizeMB > 200 ? 50 : 100;
+		// Target: ~50-100 pages per chunk for PDFs. The 100MB threshold supports both
+		// memory limits and extraction quality (smaller chunks improve per-chunk extraction).
+		const PAGES_PER_CHUNK = fileSizeMB > 100 ? 50 : 100;
 		const chunks: ChunkDefinition[] = [];
 
 		const totalChunks = Math.ceil(totalPages / PAGES_PER_CHUNK);
