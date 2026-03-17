@@ -27,6 +27,7 @@ interface ResourceListProps {
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
 	onDeleteFile?: (fileKey: string) => Promise<void>;
+	onOpenAddToLibrary?: () => void;
 	campaigns?: Campaign[];
 	campaignAdditionProgress?: Record<string, number>;
 	_isAddingToCampaigns?: boolean;
@@ -46,6 +47,7 @@ export function ResourceList({
 	onAddToCampaign,
 	onEditFile,
 	onDeleteFile: onDeleteFileProp,
+	onOpenAddToLibrary,
 	campaigns = [],
 	campaignAdditionProgress = {},
 	_isAddingToCampaigns = false,
@@ -314,6 +316,7 @@ export function ResourceList({
 						onAddToCampaign={onAddToCampaign}
 						onEditFile={onEditFile}
 						onDeleteFile={onDeleteFile}
+						onOpenAddToLibrary={onOpenAddToLibrary}
 						onRetryIndexing={handleRetryIndexing}
 						fetchResources={fetchResources}
 						campaigns={campaigns}

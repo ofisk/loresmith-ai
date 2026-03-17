@@ -11,6 +11,8 @@ interface ResourceFileDetailsProps {
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
 	onDeleteFile?: (fileKey: string) => Promise<void>;
+	/** Called after successful "Retry upload" delete so the Add to library modal can open */
+	onOpenAddToLibrary?: () => void;
 	onRetryIndexing: (fileKey: string) => Promise<void>;
 	fetchResources: () => Promise<void>;
 	campaigns?: Campaign[];
@@ -26,6 +28,7 @@ export function ResourceFileDetails({
 	onAddToCampaign,
 	onEditFile,
 	onDeleteFile,
+	onOpenAddToLibrary,
 	onRetryIndexing,
 	fetchResources,
 	campaigns = [],
@@ -43,6 +46,17 @@ export function ResourceFileDetails({
 		try {
 			await onDeleteFile(file.file_key);
 			await fetchResources();
+		} finally {
+			setIsDeleting(false);
+		}
+	};
+	const handleRetryUpload = async () => {
+		if (!onDeleteFile) return;
+		setIsDeleting(true);
+		try {
+			await onDeleteFile(file.file_key);
+			await fetchResources();
+			onOpenAddToLibrary?.();
 		} finally {
 			setIsDeleting(false);
 		}
@@ -212,7 +226,7 @@ export function ResourceFileDetails({
 										</p>
 										{onDeleteFile && (
 											<Button
-												onClick={handleDelete}
+												onClick={handleRetryUpload}
 												disabled={isDeleting}
 												variant="secondary"
 												size="sm"
