@@ -18,8 +18,8 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 /**
  * Maximum tokens for entity extraction responses.
  *
- * 8192 for Anthropic aligns with PIPELINE_LIGHT (claude-haiku-4-5) and reduces
- * silent truncation on large chunks. OpenAI remains at 16384.
+ * Entity extraction uses PIPELINE_STRUCTURED (e.g. claude-sonnet-4-6 on Anthropic).
+ * 8192 for Anthropic and 16384 for OpenAI reduce silent truncation on large chunks.
  */
 const MAX_EXTRACTION_RESPONSE_TOKENS =
 	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 8192 : 16384;
@@ -273,7 +273,7 @@ CONTENT END`;
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey,
 				// Use non-interactive structured pipeline tier for extraction
-				defaultModel: getGenerationModelForProvider("PIPELINE_LIGHT"),
+				defaultModel: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 			});
@@ -282,7 +282,7 @@ CONTENT END`;
 			const result = await llmProvider.generateStructuredOutput<
 				z.infer<typeof EntityExtractionSchema>
 			>(prompt, {
-				model: getGenerationModelForProvider("PIPELINE_LIGHT"),
+				model: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
 				temperature: 0.1,
 				maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 				username: usageOptions?.username,
