@@ -233,6 +233,11 @@ const REASONING_MODELS = new Set([
 ]);
 
 // Model configuration - Change models here!
+//
+// Cost vs quality: shard/entity extraction uses PIPELINE_STRUCTURED (see entity-extraction-service).
+// Do not downgrade that tier without validating shard quality on real content. Lower-impact
+// call sites (routing, suggestions, some analysis) use PIPELINE_LIGHT or other tiers—audit
+// each getGenerationModelForProvider(...) usage before changing tiers.
 export const MODEL_CONFIG = {
 	// OpenAI Models
 	OPENAI: {
@@ -319,8 +324,9 @@ export function getGenerationModelForProvider(
 		: MODEL_CONFIG.OPENAI[tier];
 }
 
-// Rate limits for non-admin users (admin users bypass all limits)
-// Fallback values when tier limits unavailable (e.g. UsageLimitsModal)
+// Rate limits for non-admin users (admin users bypass all limits).
+// Fallback when tier limits unavailable (e.g. UsageLimitsModal). Tuning per deployment: adjust
+// SUBSCRIPTION_TIERS tph/qph/tpd/qpd and resourcesPerCampaignPerHour (see LLMRateLimitService).
 export const RATE_LIMITS = {
 	NON_ADMIN_TPH: 600_000, // 10k/min * 60 = tokens per hour
 	NON_ADMIN_QPH: 600, // 10/min * 60 = queries per hour (Basic tier fallback)

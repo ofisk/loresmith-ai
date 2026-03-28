@@ -56,11 +56,6 @@
 			"sourceType": "github",
 			"computedHash": "669c7275f7e1379b06b2bcfa593603aead4c983b951c7e8edbc09640aa38d0a1"
 		},
-		"web-accessibility": {
-			"source": "supercent-io/skills-template",
-			"sourceType": "github",
-			"computedHash": "1e0a30c11fc1524b36124c278642204597e137d927a46cc6262753c174af5a81"
-		},
 		"web-design-guidelines": {
 			"source": "vercel-labs/agent-skills",
 			"sourceType": "github",

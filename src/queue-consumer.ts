@@ -6,6 +6,7 @@ import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
 import type { Community } from "./dao/community-dao";
 import { getDAOFactory } from "./dao/dao-factory";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
+import { campaignHasActiveDocumentProcessing } from "./lib/campaign-document-processing";
 import { FileSplitter } from "./lib/file/split";
 import { createLogger } from "./lib/logger";
 import { notifyFileStatusUpdated } from "./lib/notifications";
@@ -296,13 +297,39 @@ export async function queue(
 	}
 }
 
+/** Frequent cron: queues, chunk processing, cleanup (see wrangler `triggers.crons`). */
+export const CRON_SCHEDULE_FAST = "*/5 * * * *";
+/** Less frequent cron: graph rebuild decisions and checklist LLM analysis (cost-sensitive). */
+export const CRON_SCHEDULE_HEAVY = "*/15 * * * *";
+
 export async function scheduled(
-	_event: ScheduledController,
+	event: ScheduledController,
 	env: Env,
 	ctx?: ExecutionContext
 ): Promise<void> {
+	const cron = event.cron;
+	if (!cron) {
+		await runFastScheduledTasks(env, ctx);
+		await runHeavyScheduledTasks(env, ctx);
+		return;
+	}
+	if (cron === CRON_SCHEDULE_HEAVY) {
+		await runHeavyScheduledTasks(env, ctx);
+		return;
+	}
+	if (cron === CRON_SCHEDULE_FAST) {
+		await runFastScheduledTasks(env, ctx);
+		return;
+	}
+	await runFastScheduledTasks(env, ctx);
+	await runHeavyScheduledTasks(env, ctx);
+}
+
+async function runFastScheduledTasks(
+	env: Env,
+	_ctx?: ExecutionContext
+): Promise<void> {
 	const log = createLogger(env, "[Scheduled]");
-	// Prune LLM usage log (rows older than 25 hours) - runs every cron cycle
 	try {
 		const daoFactory = getDAOFactory(env);
 		await daoFactory.llmUsageDAO.pruneOldRows();
@@ -310,26 +337,25 @@ export async function scheduled(
 		log.error("Failed to prune LLM usage log", error);
 	}
 
-	// Clean up old staging files every hour
 	const processor = new FileProcessingQueue(env);
 	await processor.cleanupStaging();
 
-	// Process pending sync queue items for all users
 	await processPendingSyncQueueItems(env);
 
-	// Process pending entity extraction queue items
 	await EntityExtractionQueueService.processPendingQueueItems(env);
 
-	// Process pending file chunks for files that have been chunked
 	await processPendingFileChunks(env);
 
-	// Clean up files stuck in processing status (10 minute timeout)
 	await cleanupStuckProcessingFiles(env, 10);
+}
 
-	// Check campaigns and trigger rebuilds if needed
+async function runHeavyScheduledTasks(
+	env: Env,
+	ctx?: ExecutionContext
+): Promise<void> {
+	const log = createLogger(env, "[ScheduledHeavy]");
 	await checkAndTriggerRebuilds(env);
 
-	// Analyze checklist status for all campaigns (async, non-blocking)
 	const analyzePromise = ChecklistStatusService.analyzeAllCampaigns(env).catch(
 		(error) => {
 			log.error("Failed to analyze checklist status for campaigns", error);
@@ -405,6 +431,11 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 					});
 					continue;
 				}
+
+				const deferGraphJobs = await campaignHasActiveDocumentProcessing(
+					env,
+					campaignId
+				);
 
 				// Get unapplied entries to determine affected entities
 				const unappliedEntries =
@@ -493,7 +524,11 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 				}
 
 				// Check for communities with fallback names and generate summaries directly
-				if (daoFactory.communityDAO && daoFactory.communitySummaryDAO) {
+				if (
+					!deferGraphJobs &&
+					daoFactory.communityDAO &&
+					daoFactory.communitySummaryDAO
+				) {
 					const communities =
 						await daoFactory.communityDAO.listCommunitiesByCampaign(campaignId);
 					const communitiesWithFallbackNames: Community[] = [];
@@ -584,7 +619,17 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 					Array.from(affectedEntityIds)
 				);
 
-				if (decision.shouldRebuild) {
+				if (decision.shouldRebuild && deferGraphJobs) {
+					log.debug(
+						"Deferring graph rebuild until document processing completes",
+						{
+							campaignId,
+							rebuildType: decision.rebuildType,
+						}
+					);
+				}
+
+				if (decision.shouldRebuild && !deferGraphJobs) {
 					log.debug("Triggering rebuild for campaign", {
 						rebuildType: decision.rebuildType,
 						campaignId,

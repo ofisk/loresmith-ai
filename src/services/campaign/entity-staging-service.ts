@@ -566,7 +566,12 @@ export async function stageEntitiesFromResource(
 				if (isRateLimit && retryCount < MAX_CHUNK_RETRIES) {
 					// Increment retry count and schedule retry (same payload)
 					chunkRetryCounts.set(chunkIndex, retryCount + 1);
-					const rateLimitWaitMs = 5000; // Wait 5 seconds for rate limit
+					const RATE_LIMIT_BACKOFF_BASE_MS = 2000;
+					const RATE_LIMIT_BACKOFF_MAX_MS = 60_000;
+					const rateLimitWaitMs = Math.min(
+						RATE_LIMIT_BACKOFF_MAX_MS,
+						RATE_LIMIT_BACKOFF_BASE_MS * 2 ** retryCount
+					);
 					await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs));
 
 					return false; // Indicates failure but will be retried

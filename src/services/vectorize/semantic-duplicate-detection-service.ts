@@ -62,8 +62,12 @@ export interface FindDuplicateEntityOptions {
 }
 
 /**
- * Service for detecting semantic duplicates using embeddings
- * Reusable across entity staging, conversational shards, and other content creation flows
+ * Service for detecting semantic duplicates using embeddings.
+ *
+ * Duplicate layers in the product: (1) this path merges **entity** rows when name+content
+ * are near-duplicates (Vectorize + lexical fallback); (2) R2 shard files and shard_registry
+ * are separate—repeated uploads or chunk jobs may still create duplicate entities if the LLM
+ * names the same fiction differently across chunks; merge policy and threshold tuning live here.
  */
 export class SemanticDuplicateDetectionService {
 	/**
