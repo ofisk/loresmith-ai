@@ -234,6 +234,53 @@ export class RebuildStatusDAO extends BaseDAOClass {
 		});
 	}
 
+	/**
+	 * Most common error_message values among failed rebuilds (admin telemetry).
+	 */
+	async getTopFailedErrorMessages(options: {
+		fromDate?: string;
+		toDate?: string;
+		limit?: number;
+	}): Promise<{ errorMessage: string; count: number }[]> {
+		const conditions: string[] = [
+			"status = 'failed'",
+			"error_message IS NOT NULL",
+			"TRIM(error_message) != ''",
+		];
+		const params: SqlParam[] = [];
+
+		if (options.fromDate) {
+			conditions.push("completed_at >= ?");
+			params.push(options.fromDate);
+		}
+		if (options.toDate) {
+			conditions.push("completed_at <= ?");
+			params.push(options.toDate);
+		}
+
+		const limit = Math.min(Math.max(1, options.limit ?? 15), 50);
+
+		const sql = `
+      SELECT error_message AS error_message, COUNT(*) AS cnt
+      FROM rebuild_status
+      WHERE ${conditions.join(" AND ")}
+      GROUP BY error_message
+      ORDER BY cnt DESC
+      LIMIT ?
+    `;
+
+		params.push(limit);
+
+		const rows = await this.queryAll<{ error_message: string; cnt: number }>(
+			sql,
+			params
+		);
+		return rows.map((r) => ({
+			errorMessage: r.error_message,
+			count: Number(r.cnt),
+		}));
+	}
+
 	private mapRecord(record: RebuildStatusRecord): RebuildStatus {
 		let affectedEntityIds: string[] | undefined;
 		if (record.affected_entity_ids) {

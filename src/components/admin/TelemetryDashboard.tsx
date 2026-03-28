@@ -1,5 +1,8 @@
 import { useCallback, useState } from "react";
-import { useAdminTelemetryOverview } from "@/hooks/useTelemetryMetrics";
+import {
+	useAdminTelemetryOverview,
+	useTelemetryDashboard,
+} from "@/hooks/useTelemetryMetrics";
 import type { StuckJobSample } from "@/types/admin-analytics";
 import type { AggregatedMetrics } from "@/types/telemetry";
 
@@ -105,6 +108,7 @@ export function TelemetryDashboard() {
 		fromDate,
 		toDate
 	);
+	const { dashboard } = useTelemetryDashboard();
 
 	if (loading) {
 		return (
@@ -391,6 +395,92 @@ export function TelemetryDashboard() {
 					</div>
 				)}
 			</div>
+
+			{/* Most common errors */}
+			{dashboard && (dashboard.topErrors ?? []).length > 0 && (
+				<div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
+					<h2 className="text-lg md:text-xl font-semibold mb-4">
+						Most common errors (last 7 days)
+					</h2>
+					<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+						Grouped by identical message text from failed graph rebuilds and
+						failed entity extraction jobs.
+					</p>
+					<ol className="list-decimal list-inside space-y-3 text-sm">
+						{(dashboard.topErrors ?? []).map((row) => (
+							<li
+								key={`${row.source}-${row.count}-${row.message.slice(0, 120)}`}
+							>
+								<span className="font-medium text-neutral-800 dark:text-neutral-200">
+									{row.count}×{" "}
+								</span>
+								<span className="text-neutral-500 dark:text-neutral-400 text-xs uppercase tracking-wide">
+									{row.source === "graph_rebuild"
+										? "Graph rebuild"
+										: "Entity extraction"}
+								</span>
+								<div className="mt-1 pl-0 sm:pl-5 text-neutral-700 dark:text-neutral-300 break-words whitespace-pre-wrap font-mono text-xs">
+									{row.message}
+								</div>
+							</li>
+						))}
+					</ol>
+				</div>
+			)}
+
+			{/* Dashboard summary */}
+			{dashboard && (
+				<div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">
+					<h2 className="text-lg md:text-xl font-semibold mb-4">
+						Dashboard summary
+					</h2>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						{dashboard.summary.queryLatency && (
+							<div>
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
+									Query latency (P95)
+								</div>
+								<div className="text-xl font-bold">
+									{Math.round(dashboard.summary.queryLatency.p95)}ms
+								</div>
+							</div>
+						)}
+						{dashboard.summary.rebuildDuration && (
+							<div>
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
+									Rebuild duration (avg)
+								</div>
+								<div className="text-xl font-bold">
+									{Math.round(dashboard.summary.rebuildDuration.avg)}ms
+								</div>
+							</div>
+						)}
+						{dashboard.summary.dmSatisfaction && (
+							<div>
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
+									DM satisfaction (avg)
+								</div>
+								<div className="text-xl font-bold">
+									{dashboard.summary.dmSatisfaction.avg.toFixed(2)} / 5.0
+								</div>
+							</div>
+						)}
+						{dashboard.summary.changelogGrowth.length > 0 && (
+							<div>
+								<div className="text-sm text-neutral-600 dark:text-neutral-400">
+									Changelog entries (last 7 days)
+								</div>
+								<div className="text-xl font-bold">
+									{dashboard.summary.changelogGrowth.reduce(
+										(sum, point) => sum + point.count,
+										0
+									)}
+								</div>
+							</div>
+						)}
+					</div>
+				</div>
+			)}
 
 			{/* Digests */}
 			<div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0">

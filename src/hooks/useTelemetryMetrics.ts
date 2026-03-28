@@ -5,6 +5,7 @@ import type { AdminTelemetryOverviewResponse } from "@/types/admin-analytics";
 import type {
 	AggregatedMetrics,
 	MetricType,
+	TelemetryTopError,
 	TimeSeriesDataPoint,
 } from "@/types/telemetry";
 
@@ -24,6 +25,7 @@ export interface DashboardSummary {
 		dmSatisfaction: AggregatedMetrics | null;
 		changelogGrowth: TimeSeriesDataPoint[];
 	};
+	topErrors?: TelemetryTopError[];
 	lastUpdated: string;
 }
 
