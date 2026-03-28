@@ -9,6 +9,7 @@ import {
 } from "@/dao/entity-extraction-queue-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { stageEntitiesFromResource } from "./entity-staging-service";
@@ -281,13 +282,36 @@ export class EntityExtractionQueueService {
 				// Mark as completed
 				await queueDAO.markAsCompleted(item.id);
 
-				void new TelemetryService(new TelemetryDAO(env.DB))
+				const extractionLog = createLogger(env, "[EntityExtractionQueue]");
+				extractionLog.info("entity_extraction_job_completed", {
+					campaignId: item.campaign_id,
+					resourceId: item.resource_id,
+					resourceName: item.resource_name,
+					username: item.username,
+					totalChunks: result.totalChunks ?? 0,
+					successfulChunks: result.successfulChunks,
+					jsonRepairCount: result.jsonRepairCount ?? 0,
+					durationMs: Date.now() - runStartedAt,
+					entityCount: result.entityCount,
+				});
+
+				const telemetry = new TelemetryService(new TelemetryDAO(env.DB));
+				void telemetry
 					.recordFileProcessingDuration(Date.now() - runStartedAt, {
 						campaignId: item.campaign_id,
 						metadata: {
 							pipeline: "campaign_resource",
 							username: item.username,
 							resourceId: item.resource_id,
+						},
+					})
+					.catch(() => {});
+				void telemetry
+					.recordExtractionJsonRepairCount(result.jsonRepairCount ?? 0, {
+						campaignId: item.campaign_id,
+						metadata: {
+							resourceId: item.resource_id,
+							username: item.username,
 						},
 					})
 					.catch(() => {});

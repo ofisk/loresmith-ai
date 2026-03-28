@@ -24,6 +24,11 @@ export interface DashboardSummary {
 		rebuildDuration: AggregatedMetrics | null;
 		dmSatisfaction: AggregatedMetrics | null;
 		changelogGrowth: TimeSeriesDataPoint[];
+		/** Avg/total JSON repair LLM passes per recorded extraction job (last 7 days window). */
+		extractionJsonRepair: AggregatedMetrics | null;
+		/** Counts of approved shards that were new vs updates (last 7 days). */
+		shardApprovalNew: AggregatedMetrics | null;
+		shardApprovalUpdate: AggregatedMetrics | null;
 	};
 	topErrors?: TelemetryTopError[];
 	lastUpdated: string;

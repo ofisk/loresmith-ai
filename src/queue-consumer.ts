@@ -299,9 +299,17 @@ export async function queue(
 			// Route to appropriate processor based on message type
 			if (isRebuildQueueMessage(message.body)) {
 				const q = message as Message<RebuildQueueMessage>;
-				const result = await rebuildProcessor.processRebuild(q.body, {
+				const body = q.body;
+				const result = await rebuildProcessor.processRebuild(body, {
 					queueAttempt: q.attempts,
 					maxAttempts: GRAPH_REBUILD_QUEUE_MAX_ATTEMPTS,
+				});
+				log.info("graph_rebuild_queue_message_finished", {
+					campaignId: body.campaignId,
+					rebuildId: body.rebuildId,
+					triggeredBy: body.triggeredBy,
+					success: result.success,
+					queueAttempt: q.attempts,
 				});
 				if (result.success) {
 					q.ack();
@@ -710,9 +718,10 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 						},
 					});
 
-					log.debug("Rebuild enqueued for campaign", {
+					log.info("graph_rebuild_enqueued", {
 						rebuildId,
 						campaignId,
+						triggeredBy: "scheduled",
 					});
 				} else {
 					log.debug("Campaign does not need rebuild", {
@@ -751,9 +760,10 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 						queueService,
 					});
 				if (result.enqueued) {
-					log.debug("Enqueued deferred graph rebuild from dirty state", {
+					log.info("graph_rebuild_enqueued", {
 						campaignId: dirtyCampaignId,
 						rebuildId: result.rebuildId,
+						triggeredBy: "scheduled_dirty_flush",
 					});
 				}
 			} catch (error) {

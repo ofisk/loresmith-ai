@@ -23,10 +23,23 @@ export interface LLMOptions {
 }
 
 /**
+ * Split prompt for Anthropic prompt caching: identical `cacheablePrefix` across
+ * chunks (cached); `variableSuffix` is the document chunk + CONTENT END.
+ */
+export interface StructuredPromptParts {
+	cacheablePrefix: string;
+	variableSuffix: string;
+}
+
+/**
  * Options for structured output generation
  */
 export interface StructuredOutputOptions extends LLMOptions {
 	schema?: string; // JSON schema as string for structured output
+	/** When set (Anthropic), uses message parts + ephemeral cache on the prefix. */
+	structuredPromptParts?: StructuredPromptParts;
+	/** Invoked when a JSON repair LLM pass runs after first-pass parse failure. */
+	onJsonRepair?: () => void | Promise<void>;
 }
 
 /**

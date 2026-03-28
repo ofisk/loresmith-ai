@@ -56,6 +56,8 @@ export interface EntityStagingResult {
 	totalChunks?: number;
 	completed?: boolean;
 	nextChunkIndex?: number;
+	/** Anthropic JSON repair passes across all chunks in this staging run (observability). */
+	jsonRepairCount?: number;
 }
 
 export interface EntityStagingOptions {
@@ -305,6 +307,7 @@ export async function stageEntitiesFromResource(
 						...((existingPC.metadata as Record<string, unknown>) || {}),
 						shardStatus: "staging",
 						staged: true,
+						shardStagingOrigin: "update",
 						resourceId: normalizedResource.id,
 						resourceName: normalizedResource.file_name || normalizedResource.id,
 						fileKey: normalizedResource.file_key || normalizedResource.id,
@@ -329,6 +332,7 @@ export async function stageEntitiesFromResource(
 					finalMetadata = {
 						shardStatus: "staging",
 						staged: true,
+						shardStagingOrigin: "new",
 						resourceId: normalizedResource.id,
 						resourceName: normalizedResource.file_name || normalizedResource.id,
 						fileKey: normalizedResource.file_key || normalizedResource.id,
@@ -401,6 +405,7 @@ export async function stageEntitiesFromResource(
 		// Extract entities from each chunk and merge results
 		const extractionService = new EntityExtractionService(llmApiKey);
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
+		let jsonRepairCount = 0;
 
 		const CHUNK_CONCURRENCY = 3;
 		const CHUNK_START_INTERVAL_MS = 1000; // Min interval between chunk starts to respect provider TPM
@@ -458,6 +463,9 @@ export async function stageEntitiesFromResource(
 					sourceType: "file_upload",
 					llmApiKey,
 					username,
+					onJsonRepair: () => {
+						jsonRepairCount += 1;
+					},
 					onUsage: async (usage, ctx) => {
 						await rateLimitService.recordUsage(
 							username,
@@ -676,6 +684,7 @@ export async function stageEntitiesFromResource(
 					completed: false,
 					nextChunkIndex: endChunkExclusive,
 					totalChunks: chunks.length,
+					jsonRepairCount,
 				};
 			}
 			const notificationDetail =
@@ -694,6 +703,7 @@ export async function stageEntitiesFromResource(
 				success: true,
 				entityCount: 0,
 				stagedEntities: [],
+				jsonRepairCount,
 				...(failedChunks.length > 0 && {
 					failedChunks,
 					successfulChunks,
@@ -789,6 +799,7 @@ export async function stageEntitiesFromResource(
 			"pendingRelations",
 			"stagedFrom",
 			"stagedAt",
+			"shardStagingOrigin",
 		]);
 		function metaUnchanged(
 			existingMeta: Record<string, unknown>,
@@ -863,8 +874,16 @@ export async function stageEntitiesFromResource(
 				};
 				const mergedMeta =
 					existingMetadata.shardStatus === "approved"
-						? { ...mergedMetaBase, shardStatus: "approved" as const }
-						: { ...mergedMetaBase, shardStatus: "staging" as const };
+						? {
+								...mergedMetaBase,
+								shardStatus: "approved" as const,
+								shardStagingOrigin: "update" as const,
+							}
+						: {
+								...mergedMetaBase,
+								shardStatus: "staging" as const,
+								shardStagingOrigin: "update" as const,
+							};
 				if (existingMetadata.shardStatus === "approved") {
 					if (
 						contentUnchanged(existing.content, mergedContent) &&
@@ -969,8 +988,16 @@ export async function stageEntitiesFromResource(
 				};
 				const mergedMeta =
 					existingMetadata.shardStatus === "approved"
-						? { ...mergedMetaBase, shardStatus: "approved" as const }
-						: { ...mergedMetaBase, shardStatus: "staging" as const };
+						? {
+								...mergedMetaBase,
+								shardStatus: "approved" as const,
+								shardStagingOrigin: "update" as const,
+							}
+						: {
+								...mergedMetaBase,
+								shardStatus: "staging" as const,
+								shardStagingOrigin: "update" as const,
+							};
 				if (existingMetadata.shardStatus === "approved") {
 					if (
 						contentUnchanged(duplicateEntity.content, mergedContent) &&
@@ -1027,7 +1054,11 @@ export async function stageEntitiesFromResource(
 			}
 
 			const isStub = isStubContent(extracted.content, entityType);
-			const newMeta = { ...entityMetadata, isStub };
+			const newMeta = {
+				...entityMetadata,
+				isStub,
+				shardStagingOrigin: "new" as const,
+			};
 			await daoFactory.entityDAO.createEntity({
 				id: entityId,
 				campaignId,
@@ -1191,6 +1222,7 @@ export async function stageEntitiesFromResource(
 			completed: !hasMoreChunks,
 			nextChunkIndex: hasMoreChunks ? endChunkExclusive : undefined,
 			totalChunks: chunks.length,
+			jsonRepairCount,
 			...(failedChunks.length > 0
 				? {
 						warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,

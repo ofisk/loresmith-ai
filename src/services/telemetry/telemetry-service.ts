@@ -200,6 +200,43 @@ export class TelemetryService {
 	}
 
 	/**
+	 * JSON repair LLM passes during Anthropic structured extraction (per completed job sum).
+	 */
+	async recordExtractionJsonRepairCount(
+		count: number,
+		options: {
+			campaignId?: string;
+			metadata?: Record<string, unknown>;
+		} = {}
+	): Promise<void> {
+		await this.recordMetric("extraction_json_repair_count", count, {
+			campaignId: options.campaignId,
+			metadata: options.metadata,
+		});
+	}
+
+	/**
+	 * Shard approvals by staging origin (one telemetry row per non-zero bucket per batch).
+	 */
+	async recordShardApprovalStagingOrigin(options: {
+		newCount: number;
+		updateCount: number;
+		campaignId?: string;
+	}): Promise<void> {
+		const { newCount, updateCount, campaignId } = options;
+		if (newCount > 0) {
+			await this.recordMetric("shard_approval_new_count", newCount, {
+				campaignId,
+			});
+		}
+		if (updateCount > 0) {
+			await this.recordMetric("shard_approval_update_count", updateCount, {
+				campaignId,
+			});
+		}
+	}
+
+	/**
 	 * Record number of entities extracted
 	 */
 	async recordEntitiesExtracted(

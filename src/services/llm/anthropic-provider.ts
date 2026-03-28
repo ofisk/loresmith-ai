@@ -1,5 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { APICallError, generateText } from "ai";
+import { APICallError, generateText, type ModelMessage } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import type {
@@ -140,14 +140,45 @@ export class AnthropicProvider implements LLMProvider {
 		const schemaInstructions = parsedSchema
 			? `\n\nYou MUST return JSON that conforms to this JSON Schema:\n${JSON.stringify(parsedSchema)}`
 			: "";
-		const finalPrompt = `Respond with valid JSON only. Do not wrap the JSON in markdown fences.\n\n${prompt}${schemaInstructions}`;
+		const jsonIntro =
+			"Respond with valid JSON only. Do not wrap the JSON in markdown fences.";
 
 		const anthropic = createAnthropic({ apiKey: this.apiKey });
 		const model = anthropic(modelId as any);
+
+		const parts = options.structuredPromptParts;
+		let messages: ModelMessage[] | undefined;
+		let singlePrompt: string | undefined;
+
+		if (parts) {
+			const cacheableFull = `${jsonIntro}\n\n${parts.cacheablePrefix}${schemaInstructions}`;
+			const userMessage: ModelMessage = {
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: cacheableFull,
+						providerOptions: {
+							anthropic: {
+								cacheControl: { type: "ephemeral" },
+							},
+						},
+					},
+					{
+						type: "text",
+						text: parts.variableSuffix,
+					},
+				],
+			};
+			messages = [userMessage];
+		} else {
+			singlePrompt = `${jsonIntro}\n\n${prompt}${schemaInstructions}`;
+		}
+
 		try {
 			const result = await generateText({
 				model,
-				prompt: finalPrompt,
+				...(messages ? { messages } : { prompt: singlePrompt as string }),
 				temperature,
 				maxOutputTokens: maxTokens,
 			});
@@ -161,11 +192,12 @@ export class AnthropicProvider implements LLMProvider {
 				throw new Error("Anthropic API returned non-JSON structured output");
 			}
 			let output: T;
+			let repairResultUsage: typeof result.usage | undefined;
 			try {
 				output = JSON.parse(jsonText) as T;
 			} catch (parseError) {
-				// Anthropic occasionally returns near-valid JSON (e.g. missing commas
-				// or malformed string escaping). Try one constrained repair pass.
+				await options.onJsonRepair?.();
+
 				const repairPrompt = [
 					"You are a JSON repair assistant.",
 					"Fix the JSON so it is strictly valid JSON and preserves semantics.",
@@ -187,6 +219,7 @@ export class AnthropicProvider implements LLMProvider {
 					temperature: 0,
 					maxOutputTokens: Math.max(maxTokens, 3000),
 				});
+				repairResultUsage = repairResult.usage;
 
 				const repairedText = extractJsonObjectText(repairResult.text || "");
 				if (!repairedText) {
@@ -197,10 +230,14 @@ export class AnthropicProvider implements LLMProvider {
 				output = JSON.parse(repairedText) as T;
 			}
 
-			const tokens = getUsageTokens(result.usage);
+			let tokens = getUsageTokens(result.usage);
+			if (repairResultUsage !== undefined) {
+				tokens += getUsageTokens(repairResultUsage);
+			}
+			const queryCount = repairResultUsage !== undefined ? 2 : 1;
 			if (tokens > 0 && options.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount: 1 },
+					{ tokens, queryCount },
 					{ username: options.username, model: modelId }
 				);
 			}

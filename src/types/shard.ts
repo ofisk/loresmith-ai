@@ -26,6 +26,8 @@ export interface ShardMetadata {
 	confidence: number;
 	originalMetadata?: Record<string, unknown>;
 	sourceRef?: ShardSourceRef;
+	/** Staging: new extraction vs update to an existing entity (shown in approval UI). */
+	shardStagingOrigin?: "new" | "update";
 	[key: string]: unknown;
 }
 

@@ -261,6 +261,9 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 			rebuildDuration,
 			dmSatisfaction,
 			changelogGrowth,
+			extractionJsonRepair,
+			shardApprovalNew,
+			shardApprovalUpdate,
 			rebuildErrors,
 			extractionErrors,
 		] = await Promise.all([
@@ -276,6 +279,15 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 			telemetryService.getTimeSeriesData("changelog_entry_count", {
 				fromDate: last7Days,
 				interval: "day",
+			}),
+			telemetryService.getAggregatedMetrics("extraction_json_repair_count", {
+				fromDate: last7Days,
+			}),
+			telemetryService.getAggregatedMetrics("shard_approval_new_count", {
+				fromDate: last7Days,
+			}),
+			telemetryService.getAggregatedMetrics("shard_approval_update_count", {
+				fromDate: last7Days,
 			}),
 			daoFactory.rebuildStatusDAO.getTopFailedErrorMessages({
 				fromDate: last7Days,
@@ -308,6 +320,9 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 				rebuildDuration,
 				dmSatisfaction,
 				changelogGrowth,
+				extractionJsonRepair,
+				shardApprovalNew,
+				shardApprovalUpdate,
 			},
 			topErrors,
 			lastUpdated: now.toISOString(),

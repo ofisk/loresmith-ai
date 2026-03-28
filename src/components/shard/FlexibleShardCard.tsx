@@ -13,6 +13,7 @@ import {
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { PropertyGrid } from "./PropertyField";
+import { ShardStagingOriginBadge } from "./ShardStagingOriginBadge";
 import type { FlexibleShard } from "./shard-type-detector";
 import {
 	getConfidenceColorClass,
@@ -469,8 +470,13 @@ export function FlexibleShardCard({
 								/>
 							</div>
 							<hr className="border-0 border-t border-neutral-700 my-2" />
-							<div className="flex items-center gap-2 text-sm text-neutral-300">
+							<div className="flex items-center gap-2 text-sm text-neutral-300 flex-wrap">
 								<span className="capitalize">{displayName}</span>
+								<ShardStagingOriginBadge
+									metadata={
+										shard.metadata as Record<string, unknown> | undefined
+									}
+								/>
 								{shard.confidence && (
 									<>
 										<span>•</span>
