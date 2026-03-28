@@ -81,6 +81,18 @@ export class GraphRebuildDirtyDAO extends BaseDAOClass {
 		);
 	}
 
+	/** Campaigns that have at least one dirty entity or relationship row (pending graph work). */
+	async listCampaignIdsWithAnyDirty(): Promise<string[]> {
+		const rows = await this.queryAll<{ campaign_id: string }>(
+			`SELECT DISTINCT campaign_id FROM (
+         SELECT campaign_id FROM graph_dirty_entities
+         UNION
+         SELECT campaign_id FROM graph_dirty_relationships
+       )`
+		);
+		return rows.map((r) => r.campaign_id);
+	}
+
 	async getDirtySnapshot(campaignId: string): Promise<DirtySnapshot> {
 		const [entityRows, relationshipRows] = await Promise.all([
 			this.queryAll<{ entity_id: string }>(

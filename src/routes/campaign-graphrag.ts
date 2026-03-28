@@ -1,5 +1,6 @@
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { campaignHasActiveDocumentProcessing } from "@/lib/campaign-document-processing";
 import {
 	getRequiredFieldsForEntityType,
 	isStubContentSufficient,
@@ -51,6 +52,16 @@ async function checkAndRunCommunityDetection(
 	}
 
 	if (!(env as any).GRAPH_REBUILD_QUEUE) {
+		return;
+	}
+
+	const processingActive = await campaignHasActiveDocumentProcessing(
+		env,
+		campaignId
+	);
+	if (processingActive) {
+		// Dirty state is already recorded; scheduled rebuild cron will call
+		// decideAndEnqueueRebuild once document and extraction pipelines finish.
 		return;
 	}
 
