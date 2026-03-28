@@ -3,6 +3,7 @@ import type { CampaignResourceRow, CampaignRow } from "@/types/campaign";
 import type { SqlParam, SqlParams } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 import type { CampaignMemberRole } from "./campaign-share-link-dao";
+import { FileDAO } from "./file/file-dao";
 
 export type { CampaignMemberRole };
 export type { CampaignResourceRow, CampaignRow } from "@/types/campaign";
@@ -442,6 +443,36 @@ export class CampaignDAO extends BaseDAOClass {
       order by cr.created_at desc
     `;
 		return await this.queryAll<CampaignResourceRow>(sql, [campaignId]);
+	}
+
+	/**
+	 * Count resources in this campaign whose library files are still in a pre-complete
+	 * pipeline state. Used with entity extraction queue depth to defer graph rebuilds.
+	 */
+	async countResourcesWithFilesStillProcessing(
+		campaignId: string
+	): Promise<number> {
+		const statuses = [
+			FileDAO.STATUS.UPLOADING,
+			FileDAO.STATUS.UPLOADED,
+			FileDAO.STATUS.SYNCING,
+			FileDAO.STATUS.PROCESSING,
+			FileDAO.STATUS.INDEXING,
+			FileDAO.STATUS.UNINDEXED,
+		];
+		const placeholders = statuses.map(() => "?").join(", ");
+		const sql = `
+      SELECT COUNT(*) AS cnt
+      FROM campaign_resources cr
+      INNER JOIN file_metadata fm ON cr.file_key = fm.file_key
+      WHERE cr.campaign_id = ?
+        AND fm.status IN (${placeholders})
+    `;
+		const row = await this.queryFirst<{ cnt: number }>(sql, [
+			campaignId,
+			...statuses,
+		]);
+		return Number(row?.cnt ?? 0);
 	}
 
 	async addCampaignResource(

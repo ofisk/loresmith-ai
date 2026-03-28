@@ -68,6 +68,21 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		};
 	}
 
+	/**
+	 * Count non-terminal entity extraction jobs for a campaign (pending, processing,
+	 * or rate_limited awaiting retry). Used to defer graph rebuilds while work may still land.
+	 */
+	async countActiveJobsForCampaign(campaignId: string): Promise<number> {
+		const sql = `
+      SELECT COUNT(*) AS cnt
+      FROM entity_extraction_queue
+      WHERE campaign_id = ?
+        AND status IN ('pending', 'processing', 'rate_limited')
+    `;
+		const row = await this.queryFirst<{ cnt: number }>(sql, [campaignId]);
+		return Number(row?.cnt ?? 0);
+	}
+
 	/** True if entity_extraction_queue has proposed_by column (migration 0002). Checked per-call for correctness across DBs. */
 	private async hasProposedByColumn(): Promise<boolean> {
 		const rows = await this.queryAll<{ name: string }>(
