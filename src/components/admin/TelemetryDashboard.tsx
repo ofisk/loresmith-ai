@@ -478,6 +478,39 @@ export function TelemetryDashboard() {
 								</div>
 							</div>
 						)}
+						{dashboard.summary.extractionJsonRepair &&
+							dashboard.summary.extractionJsonRepair.count > 0 && (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										JSON repair passes (avg per completed extraction job)
+									</div>
+									<div className="text-xl font-bold">
+										{dashboard.summary.extractionJsonRepair.avg.toFixed(2)}
+									</div>
+								</div>
+							)}
+						{dashboard.summary.shardApprovalNew &&
+							dashboard.summary.shardApprovalNew.count > 0 && (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										New shard approvals (last 7 days)
+									</div>
+									<div className="text-xl font-bold">
+										{Math.round(dashboard.summary.shardApprovalNew.sum ?? 0)}
+									</div>
+								</div>
+							)}
+						{dashboard.summary.shardApprovalUpdate &&
+							dashboard.summary.shardApprovalUpdate.count > 0 && (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										Updated shard approvals (last 7 days)
+									</div>
+									<div className="text-xl font-bold">
+										{Math.round(dashboard.summary.shardApprovalUpdate.sum ?? 0)}
+									</div>
+								</div>
+							)}
 					</div>
 				</div>
 			)}

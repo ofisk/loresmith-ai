@@ -12,6 +12,7 @@ import {
 import { EntityExtractionError, LLMProviderAPIKeyError } from "@/lib/errors";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
+import type { StructuredPromptParts } from "@/services/llm/llm-provider";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 
@@ -86,6 +87,8 @@ export interface ExtractEntitiesOptions {
 		usage: { tokens: number; queryCount: number },
 		context?: { model?: string }
 	) => void | Promise<void>;
+	/** Called when Anthropic JSON repair pass runs (after first-pass parse failure). */
+	onJsonRepair?: () => void | Promise<void>;
 }
 
 export interface ExtractedRelationship {
@@ -130,10 +133,20 @@ CONTENT START
 ${options.content}
 CONTENT END`;
 
+		const structuredPromptParts: StructuredPromptParts | undefined =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? {
+						cacheablePrefix: `${prompt}\n\nCONTENT START\n`,
+						variableSuffix: `${options.content}\nCONTENT END`,
+					}
+				: undefined;
+
 		// Use OpenAIProvider to generate structured JSON output
 		const parsed = await this.callStructuredModel(fullPrompt, apiKey, {
 			username: options.username,
 			onUsage: options.onUsage,
+			onJsonRepair: options.onJsonRepair,
+			structuredPromptParts,
 		});
 
 		if (!parsed) {
@@ -265,6 +278,8 @@ CONTENT END`;
 		usageOptions?: {
 			username?: string;
 			onUsage?: ExtractEntitiesOptions["onUsage"];
+			onJsonRepair?: ExtractEntitiesOptions["onJsonRepair"];
+			structuredPromptParts?: StructuredPromptParts;
 		}
 	): Promise<z.infer<typeof EntityExtractionSchema> | null> {
 		try {
@@ -287,6 +302,8 @@ CONTENT END`;
 				maxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
 				username: usageOptions?.username,
 				onUsage: usageOptions?.onUsage,
+				onJsonRepair: usageOptions?.onJsonRepair,
+				structuredPromptParts: usageOptions?.structuredPromptParts,
 			});
 
 			// Validate the result against our Zod schema (LLM output may be malformed)

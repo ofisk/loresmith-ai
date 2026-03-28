@@ -121,6 +121,10 @@ export class OpenAIProvider implements LLMProvider {
 		const temperature = options.temperature ?? this.defaultTemperature;
 		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 
+		const effectivePrompt = options.structuredPromptParts
+			? `${options.structuredPromptParts.cacheablePrefix}${options.structuredPromptParts.variableSuffix}`
+			: prompt;
+
 		try {
 			// Use Chat API explicitly: reasoning models (gpt-5-mini, gpt-5.2) require
 			// max_completion_tokens instead of max_tokens; the Chat provider handles this.
@@ -129,11 +133,11 @@ export class OpenAIProvider implements LLMProvider {
 
 			// OpenAI requires "json" in the message content when using response_format json_object.
 			// Always prepend an explicit instruction so it appears in the user message.
-			const lowerPrompt = prompt.toLowerCase();
+			const lowerPrompt = effectivePrompt.toLowerCase();
 			const hasJsonInstruction = lowerPrompt.includes("json");
 			const finalPrompt = hasJsonInstruction
-				? prompt
-				: `Respond with valid JSON only.\n\n${prompt}`;
+				? effectivePrompt
+				: `Respond with valid JSON only.\n\n${effectivePrompt}`;
 			const parsedSchema = parseStructuredSchema(options.schema);
 
 			let result: Awaited<ReturnType<typeof generateText>>;

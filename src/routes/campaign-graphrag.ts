@@ -1,12 +1,13 @@
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { campaignHasActiveDocumentProcessing } from "@/lib/campaign-document-processing";
 import {
 	getRequiredFieldsForEntityType,
 	isStubContentSufficient,
 } from "@/lib/entity/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
-import { getRequestLogger } from "@/lib/logger";
+import { createLogger, getRequestLogger } from "@/lib/logger";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import {
 	type ContextWithAuth,
@@ -16,6 +17,7 @@ import {
 import { getGraphServices } from "@/services/graph/graph-service-factory";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 interface DirtyRelationshipRef {
 	fromEntityId: string;
@@ -74,7 +76,13 @@ async function checkAndRunCommunityDetection(
 		queueService,
 	});
 	if (result.enqueued) {
-	} else {
+		const log = createLogger(env, "[GraphRAG]");
+		log.info("graph_rebuild_enqueued", {
+			campaignId,
+			rebuildId: result.rebuildId,
+			triggeredBy: username || "system",
+			source: "community_detection",
+		});
 	}
 }
 
@@ -267,6 +275,29 @@ export async function handleApproveShards(c: ContextWithAuth) {
 				},
 				400
 			);
+		}
+
+		let shardApprovalNewCount = 0;
+		let shardApprovalUpdateCount = 0;
+		for (const entity of validEntities) {
+			const meta = (entity.metadata as Record<string, unknown>) || {};
+			if (meta.shardStagingOrigin === "update") {
+				shardApprovalUpdateCount++;
+			} else {
+				shardApprovalNewCount++;
+			}
+		}
+		if (
+			c.env.DB &&
+			(shardApprovalNewCount > 0 || shardApprovalUpdateCount > 0)
+		) {
+			void new TelemetryService(new TelemetryDAO(c.env.DB))
+				.recordShardApprovalStagingOrigin({
+					newCount: shardApprovalNewCount,
+					updateCount: shardApprovalUpdateCount,
+					campaignId,
+				})
+				.catch(() => {});
 		}
 
 		// Batch entity updates

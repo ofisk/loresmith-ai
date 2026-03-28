@@ -8,6 +8,7 @@ import {
 } from "@/services/core/auth-service";
 import { API_CONFIG } from "@/shared-config";
 import { PropertyField } from "./PropertyField";
+import { ShardStagingOriginBadge } from "./ShardStagingOriginBadge";
 import type { StructuredShard } from "./shard-type-detector";
 import {
 	getConfidenceColorClass,
@@ -399,6 +400,9 @@ export function StructuredShardCard({
 						<hr className="border-0 border-t border-neutral-700 my-2" />
 						<div className="flex items-center gap-2 text-sm text-neutral-300 flex-wrap">
 							<span className="capitalize">{typeDisplayName}</span>
+							<ShardStagingOriginBadge
+								metadata={shard.metadata as Record<string, unknown> | undefined}
+							/>
 							{subtitleInfo.map((info: string) => (
 								<span
 									key={`${typeDisplayName}-${info}`}
