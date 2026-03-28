@@ -3,6 +3,7 @@
  */
 
 export type MetricType =
+	| "file_processing_duration_ms"
 	| "query_latency"
 	| "rebuild_duration"
 	| "rebuild_frequency"

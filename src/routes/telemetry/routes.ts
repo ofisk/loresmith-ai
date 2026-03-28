@@ -55,6 +55,14 @@ export const routeGetDashboard = createRoute({
 	responses: { 200: jsonDesc("Dashboard"), ...E401, ...E500 },
 });
 
+export const routeGetAdminTelemetryOverview = createRoute({
+	method: "get",
+	path: toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.OVERVIEW),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	responses: { 200: jsonDesc("Overview"), ...E401, ...E500 },
+});
+
 export const routeGetAlerts = createRoute({
 	method: "get",
 	path: toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.ALERTS),

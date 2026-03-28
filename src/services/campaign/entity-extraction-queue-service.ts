@@ -7,8 +7,10 @@ import {
 	EntityExtractionQueueDAO,
 	type EntityExtractionQueueItem,
 } from "@/dao/entity-extraction-queue-dao";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import type { Env } from "@/middleware/auth";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { stageEntitiesFromResource } from "./entity-staging-service";
 
 export interface EntityExtractionJobOptions {
@@ -175,6 +177,7 @@ export class EntityExtractionQueueService {
 			try {
 				// Mark as processing
 				await queueDAO.markAsProcessing(item.id);
+				const runStartedAt = Date.now();
 
 				// Get campaign details
 				const campaign =
@@ -277,6 +280,17 @@ export class EntityExtractionQueueService {
 
 				// Mark as completed
 				await queueDAO.markAsCompleted(item.id);
+
+				void new TelemetryService(new TelemetryDAO(env.DB))
+					.recordFileProcessingDuration(Date.now() - runStartedAt, {
+						campaignId: item.campaign_id,
+						metadata: {
+							pipeline: "campaign_resource",
+							username: item.username,
+							resourceId: item.resource_id,
+						},
+					})
+					.catch(() => {});
 
 				// Note: Notification is already sent by stageEntitiesFromResource
 				// No need to send duplicate notification here

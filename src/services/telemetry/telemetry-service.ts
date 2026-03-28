@@ -31,6 +31,22 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Record end-to-end file processing duration (library queue, sync queue, or campaign extraction).
+	 */
+	async recordFileProcessingDuration(
+		durationMs: number,
+		options: {
+			campaignId?: string;
+			metadata?: Record<string, unknown>;
+		} = {}
+	): Promise<void> {
+		await this.recordMetric("file_processing_duration_ms", durationMs, {
+			campaignId: options.campaignId,
+			metadata: options.metadata,
+		});
+	}
+
+	/**
 	 * Record query latency metric
 	 */
 	async recordQueryLatency(

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API_CONFIG } from "@/app-constants";
 import { AuthService } from "@/services/core/auth-service";
+import type { AdminTelemetryOverviewResponse } from "@/types/admin-analytics";
 import type {
 	AggregatedMetrics,
 	MetricType,
@@ -174,4 +175,68 @@ export function useTelemetryDashboard() {
 	}, []);
 
 	return { dashboard, loading, error };
+}
+
+export function useAdminTelemetryOverview(fromDate: string, toDate: string) {
+	const [overview, setOverview] =
+		useState<AdminTelemetryOverviewResponse | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<Error | null>(null);
+	const fetchingRef = useRef(false);
+
+	useEffect(() => {
+		const fetchOverview = async () => {
+			if (fetchingRef.current) {
+				return;
+			}
+			fetchingRef.current = true;
+			setLoading(true);
+			setError(null);
+
+			try {
+				const jwt = AuthService.getStoredJwt();
+				if (!jwt) {
+					throw new Error("Authentication required");
+				}
+
+				const params = new URLSearchParams({
+					fromDate,
+					toDate,
+				});
+				const url = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.OVERVIEW)}?${params}`;
+
+				const response = await fetch(url, {
+					headers: {
+						Authorization: `Bearer ${jwt}`,
+						"Content-Type": "application/json",
+					},
+				});
+
+				if (!response.ok) {
+					const errorText = await response.text();
+					try {
+						const errorData = JSON.parse(errorText) as { error?: string };
+						throw new Error(
+							errorData.error ||
+								`Failed to fetch overview: ${response.statusText}`
+						);
+					} catch {
+						throw new Error(`Failed to fetch overview: ${response.statusText}`);
+					}
+				}
+
+				const data = (await response.json()) as AdminTelemetryOverviewResponse;
+				setOverview(data);
+			} catch (err) {
+				setError(err instanceof Error ? err : new Error("Unknown error"));
+			} finally {
+				setLoading(false);
+				fetchingRef.current = false;
+			}
+		};
+
+		fetchOverview();
+	}, [fromDate, toDate]);
+
+	return { overview, loading, error };
 }

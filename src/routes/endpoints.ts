@@ -318,6 +318,7 @@ export const ENDPOINTS = {
 		TELEMETRY: {
 			METRICS: "/admin/telemetry/metrics",
 			DASHBOARD: "/admin/telemetry/dashboard",
+			OVERVIEW: "/admin/telemetry/overview",
 			ALERTS: "/admin/telemetry/alerts",
 		},
 	},

@@ -1,10 +1,13 @@
 import type { Context } from "hono";
+import type { AdminAnalyticsQueryOptions } from "@/dao/admin-analytics-dao";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { UserAuthenticationMissingError } from "@/lib/errors";
 import { getRequestLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
+import type { AdminTelemetryOverviewResponse } from "@/types/admin-analytics";
 import type {
 	ContextAccuracy,
 	MetricType,
@@ -172,6 +175,7 @@ export async function handleGetMetrics(c: ContextWithAuth) {
 
 		// Return all metric types if no specific type requested
 		const allMetrics: MetricType[] = [
+			"file_processing_duration_ms",
 			"query_latency",
 			"rebuild_duration",
 			"rebuild_frequency",
@@ -279,6 +283,172 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 		}
 		getRequestLogger(c).error(
 			"[handleGetDashboard] Failed to get dashboard",
+			error
+		);
+		return c.json(
+			{
+				error: error instanceof Error ? error.message : "Internal server error",
+			},
+			500
+		);
+	}
+}
+
+/**
+ * GET /api/admin/telemetry/overview
+ * Full admin analytics snapshot (admin only)
+ */
+export async function handleGetAdminTelemetryOverview(c: ContextWithAuth) {
+	try {
+		requireAdmin(c);
+	} catch (error) {
+		if (error instanceof UserAuthenticationMissingError) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
+		if (error instanceof Error && error.message === "Admin access required") {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+		throw error;
+	}
+
+	if (!c.env.DB) {
+		return c.json({ error: "Database not configured" }, 500);
+	}
+
+	const now = Date.now();
+	const defaultFrom = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+	const fromDate = c.req.query("fromDate") || defaultFrom;
+	const toDate = c.req.query("toDate") || new Date(now).toISOString();
+	const topN = Math.min(
+		50,
+		Math.max(1, Number.parseInt(c.req.query("topN") || "10", 10) || 10)
+	);
+	const sampleLimit = Math.min(
+		25,
+		Math.max(1, Number.parseInt(c.req.query("sampleLimit") || "8", 10) || 8)
+	);
+	const entityExtractionStuckMinutes = Math.min(
+		24 * 60,
+		Math.max(
+			5,
+			Number.parseInt(c.req.query("stuckExtractionMins") || "60", 10) || 60
+		)
+	);
+	const syncQueueStuckMinutes = Math.min(
+		24 * 60,
+		Math.max(5, Number.parseInt(c.req.query("stuckSyncMins") || "30", 10) || 30)
+	);
+	const rebuildStuckMinutes = Math.min(
+		24 * 60,
+		Math.max(
+			10,
+			Number.parseInt(c.req.query("stuckRebuildMins") || "120", 10) || 120
+		)
+	);
+	const fileChunkStuckMinutes = Math.min(
+		24 * 60,
+		Math.max(
+			5,
+			Number.parseInt(c.req.query("stuckChunkMins") || "45", 10) || 45
+		)
+	);
+
+	const opts: AdminAnalyticsQueryOptions = {
+		fromDate,
+		toDate,
+		topN,
+		sampleLimit,
+		entityExtractionStuckBefore: new Date(
+			now - entityExtractionStuckMinutes * 60 * 1000
+		).toISOString(),
+		syncQueueStuckBefore: new Date(
+			now - syncQueueStuckMinutes * 60 * 1000
+		).toISOString(),
+		rebuildStuckBefore: new Date(
+			now - rebuildStuckMinutes * 60 * 1000
+		).toISOString(),
+		fileChunkStuckBefore: new Date(
+			now - fileChunkStuckMinutes * 60 * 1000
+		).toISOString(),
+		entityExtractionStuckMinutes,
+		syncQueueStuckMinutes,
+		rebuildStuckMinutes,
+		fileChunkStuckMinutes,
+	};
+
+	try {
+		const dao = getDAOFactory(c.env).adminAnalyticsDAO;
+		const telemetry = new TelemetryService(new TelemetryDAO(c.env.DB));
+
+		const [
+			shards,
+			stuck,
+			rebuilds,
+			digests,
+			dedup,
+			growth,
+			library,
+			usage,
+			fileProcessingDurationMs,
+			queryLatency,
+			rebuildDuration,
+			dmSatisfaction,
+			contextAccuracy,
+			changelogEntryCount,
+		] = await Promise.all([
+			dao.getShardAnalytics(fromDate, toDate, topN),
+			dao.getStuckQueues(opts),
+			dao.getRebuildHealth(fromDate, toDate),
+			dao.getDigestFunnel(fromDate, toDate),
+			dao.getDedupAnalytics(fromDate, toDate),
+			dao.getGrowth(fromDate, toDate),
+			dao.getLibraryHealth(),
+			dao.getUsageAnalytics(fromDate, toDate, topN),
+			telemetry.getAggregatedMetrics("file_processing_duration_ms", {
+				fromDate,
+				toDate,
+			}),
+			telemetry.getAggregatedMetrics("query_latency", { fromDate, toDate }),
+			telemetry.getAggregatedMetrics("rebuild_duration", { fromDate, toDate }),
+			telemetry.getAggregatedMetrics("dm_satisfaction", { fromDate, toDate }),
+			telemetry.getAggregatedMetrics("context_accuracy", { fromDate, toDate }),
+			telemetry.getAggregatedMetrics("changelog_entry_count", {
+				fromDate,
+				toDate,
+			}),
+		]);
+
+		const body: AdminTelemetryOverviewResponse = {
+			window: { from: fromDate, to: toDate },
+			stuckThresholds: {
+				entityExtractionMinutes: entityExtractionStuckMinutes,
+				syncQueueMinutes: syncQueueStuckMinutes,
+				rebuildMinutes: rebuildStuckMinutes,
+				fileChunkMinutes: fileChunkStuckMinutes,
+			},
+			shards,
+			queues: { stuck },
+			rebuilds,
+			digests,
+			dedup,
+			growth,
+			library,
+			usage,
+			telemetry: {
+				fileProcessingDurationMs,
+				queryLatency,
+				rebuildDuration,
+				dmSatisfaction,
+				contextAccuracy,
+				changelogEntryCount,
+			},
+			lastUpdated: new Date(now).toISOString(),
+		};
+
+		return c.json(body);
+	} catch (error) {
+		getRequestLogger(c).error(
+			"[handleGetAdminTelemetryOverview] Failed",
 			error
 		);
 		return c.json(

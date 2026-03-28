@@ -3,6 +3,7 @@ import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
 import {
+	handleGetAdminTelemetryOverview,
 	handleGetAlerts,
 	handleGetDashboard,
 	handleGetMetrics,
@@ -10,6 +11,7 @@ import {
 	handleRecordSatisfactionRating,
 } from "@/routes/telemetry";
 import {
+	routeGetAdminTelemetryOverview,
 	routeGetAlerts,
 	routeGetDashboard,
 	routeGetMetrics,
@@ -30,5 +32,9 @@ export function registerTelemetryRoutes(
 	);
 	app.openapi(routeGetMetrics, handleGetMetrics as unknown as Handler);
 	app.openapi(routeGetDashboard, handleGetDashboard as unknown as Handler);
+	app.openapi(
+		routeGetAdminTelemetryOverview,
+		handleGetAdminTelemetryOverview as unknown as Handler
+	);
 	app.openapi(routeGetAlerts, handleGetAlerts as unknown as Handler);
 }
