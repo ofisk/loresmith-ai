@@ -1,6 +1,6 @@
 /**
  * Shows whether a staged shard is new vs an update (`shardStagingOrigin` in metadata).
- * If missing (e.g. legacy staging), shows “Not recorded” so the row is never ambiguous.
+ * If missing (e.g. legacy staging), shows “New entity” like known-new shards.
  */
 export function ShardStagingOriginBadge({
 	metadata,
@@ -8,19 +8,15 @@ export function ShardStagingOriginBadge({
 	metadata?: Record<string, unknown> | null;
 }) {
 	const origin = metadata?.shardStagingOrigin;
-	const isKnown = origin === "new" || origin === "update";
 
-	const label = !isKnown
-		? "Not recorded"
-		: origin === "new"
-			? "New shard"
-			: "Updated shard";
+	const label = origin === "update" ? "Updated shard" : "New entity";
 
-	const title = !isKnown
-		? "Whether this is a new entity or an update wasn’t stored for this shard (often older staging runs)."
-		: origin === "new"
-			? "New entity from this extraction"
-			: "Updates an existing entity in your library";
+	const title =
+		origin === "update"
+			? "Updates an existing entity in your library"
+			: origin === "new"
+				? "New entity from this extraction"
+				: "New entity";
 
 	return (
 		<span
