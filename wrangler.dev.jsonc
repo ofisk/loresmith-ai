@@ -99,7 +99,7 @@
 			{
 				"queue": "graph-rebuild-queue-dev",
 				"max_batch_size": 1,
-				"max_retries": 3,
+				"max_retries": 5,
 				"dead_letter_queue": "graph-rebuild-dlq-dev"
 			},
 			{

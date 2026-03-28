@@ -1,4 +1,4 @@
-import type { ExecutionContext } from "@cloudflare/workers-types";
+import type { ExecutionContext, Message } from "@cloudflare/workers-types";
 import { MODEL_CONFIG, PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
@@ -19,7 +19,11 @@ import { EntityExtractionQueueService } from "./services/campaign/entity-extract
 import { ChunkedProcessingService } from "./services/file/chunked-processing-service";
 import { SyncQueueService } from "./services/file/sync-queue-service";
 import { CommunitySummaryService } from "./services/graph/community-summary-service";
-import { RebuildQueueProcessor } from "./services/graph/rebuild-queue-processor";
+import {
+	GRAPH_REBUILD_QUEUE_MAX_ATTEMPTS,
+	graphRebuildRetryDelaySeconds,
+	RebuildQueueProcessor,
+} from "./services/graph/rebuild-queue-processor";
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
 import { ShardEmbeddingQueueProcessor } from "./services/graph/shard-embedding-queue-processor";
@@ -294,16 +298,42 @@ export async function queue(
 		try {
 			// Route to appropriate processor based on message type
 			if (isRebuildQueueMessage(message.body)) {
-				await rebuildProcessor.handleMessage(message.body);
+				const q = message as Message<RebuildQueueMessage>;
+				const result = await rebuildProcessor.processRebuild(q.body, {
+					queueAttempt: q.attempts,
+					maxAttempts: GRAPH_REBUILD_QUEUE_MAX_ATTEMPTS,
+				});
+				if (result.success) {
+					q.ack();
+				} else if (q.attempts < GRAPH_REBUILD_QUEUE_MAX_ATTEMPTS) {
+					q.retry({
+						delaySeconds: graphRebuildRetryDelaySeconds(q.attempts),
+					});
+				} else {
+					q.ack();
+				}
 			} else if (isShardEmbeddingQueueMessage(message.body)) {
 				await shardEmbeddingProcessor.handleMessage(message.body);
+				message.ack();
 			} else {
 				await fileProcessor.handleMessage(message.body as ProcessingMessage);
+				message.ack();
 			}
-			message.ack();
 		} catch (error) {
-			log.error("Failed to process message", error);
-			message.retry();
+			if (isRebuildQueueMessage(message.body)) {
+				const q = message as Message<RebuildQueueMessage>;
+				log.error("Failed to process graph rebuild message", error);
+				if (q.attempts < GRAPH_REBUILD_QUEUE_MAX_ATTEMPTS) {
+					q.retry({
+						delaySeconds: graphRebuildRetryDelaySeconds(q.attempts),
+					});
+				} else {
+					q.ack();
+				}
+			} else {
+				log.error("Failed to process message", error);
+				message.retry();
+			}
 		}
 	}
 }
@@ -693,6 +723,43 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 			} catch (error) {
 				log.error("Error checking campaign", error, { campaignId });
 				// Continue with next campaign
+			}
+		}
+
+		// Shard approve/reject marks graph_dirty_* but skips enqueue while documents are processing.
+		// Enqueue rebuilds once processing is clear and no active rebuild is running.
+		const dirtyCampaignIds =
+			await daoFactory.graphRebuildDirtyDAO.listCampaignIdsWithAnyDirty();
+		for (const dirtyCampaignId of dirtyCampaignIds) {
+			try {
+				if (await campaignHasActiveDocumentProcessing(env, dirtyCampaignId)) {
+					continue;
+				}
+				const active =
+					await daoFactory.rebuildStatusDAO.getActiveRebuildForCampaign(
+						dirtyCampaignId
+					);
+				if (active) {
+					continue;
+				}
+				const result =
+					await daoFactory.rebuildTriggerService.decideAndEnqueueRebuild({
+						campaignId: dirtyCampaignId,
+						triggeredBy: "scheduled_dirty_flush",
+						requestedRadius: 2,
+						dirtyEntitySeedIds: [],
+						queueService,
+					});
+				if (result.enqueued) {
+					log.debug("Enqueued deferred graph rebuild from dirty state", {
+						campaignId: dirtyCampaignId,
+						rebuildId: result.rebuildId,
+					});
+				}
+			} catch (error) {
+				log.error("Error flushing deferred graph rebuild", error, {
+					campaignId: dirtyCampaignId,
+				});
 			}
 		}
 	} catch (error) {

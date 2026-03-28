@@ -94,3 +94,12 @@ export interface Alert {
 	resolved?: boolean;
 	acknowledged?: boolean;
 }
+
+/** Admin dashboard: aggregated error text by source (rebuild_status, entity extraction queue, etc.). */
+export type TelemetryErrorSource = "graph_rebuild" | "entity_extraction";
+
+export interface TelemetryTopError {
+	source: TelemetryErrorSource;
+	message: string;
+	count: number;
+}

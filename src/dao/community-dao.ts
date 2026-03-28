@@ -4,6 +4,9 @@ import { BaseDAOClass } from "./base-dao";
 // D1 has a relatively small SQL parameter ceiling; keep IN() batches conservative.
 const D1_IN_CLAUSE_BATCH_SIZE = 90;
 
+/** Each community_entities row uses 2 bound parameters; SQLite limits ~999 vars per statement. */
+const COMMUNITY_ENTITIES_INSERT_CHUNK_SIZE = 400;
+
 // Raw row shape returned directly from D1 queries against the `communities` table.
 export interface CommunityRecord {
 	id: string;
@@ -87,11 +90,21 @@ export class CommunityDAO extends BaseDAOClass {
 			[communityId]
 		);
 
-		// Insert new relationships (batch insert)
-		if (entityIds.length > 0) {
-			const placeholders = entityIds.map(() => "(?, ?)").join(", ");
-			const values: string[] = [];
-			for (const entityId of entityIds) {
+		// Insert new relationships (chunked — one giant INSERT exceeds D1/SQLite bind limits)
+		for (
+			let i = 0;
+			i < entityIds.length;
+			i += COMMUNITY_ENTITIES_INSERT_CHUNK_SIZE
+		) {
+			const chunk = entityIds.slice(
+				i,
+				i + COMMUNITY_ENTITIES_INSERT_CHUNK_SIZE
+			);
+			if (chunk.length === 0) continue;
+
+			const placeholders = chunk.map(() => "(?, ?)").join(", ");
+			const values: SqlParam[] = [];
+			for (const entityId of chunk) {
 				values.push(communityId, entityId);
 			}
 

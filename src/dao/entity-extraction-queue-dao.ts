@@ -1,3 +1,4 @@
+import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
 export interface EntityExtractionQueueItem {
@@ -66,6 +67,53 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 			readyNow,
 			totalActive: pending + processing + rateLimited,
 		};
+	}
+
+	/**
+	 * Most common last_error values among failed jobs (admin telemetry).
+	 */
+	async getTopFailedErrorMessages(options: {
+		fromDate?: string;
+		toDate?: string;
+		limit?: number;
+	}): Promise<{ errorMessage: string; count: number }[]> {
+		const conditions: string[] = [
+			"status = 'failed'",
+			"last_error IS NOT NULL",
+			"TRIM(last_error) != ''",
+		];
+		const params: SqlParam[] = [];
+
+		if (options.fromDate) {
+			conditions.push("COALESCE(processed_at, updated_at) >= ?");
+			params.push(options.fromDate);
+		}
+		if (options.toDate) {
+			conditions.push("COALESCE(processed_at, updated_at) <= ?");
+			params.push(options.toDate);
+		}
+
+		const limit = Math.min(Math.max(1, options.limit ?? 15), 50);
+
+		const sql = `
+      SELECT last_error AS error_message, COUNT(*) AS cnt
+      FROM entity_extraction_queue
+      WHERE ${conditions.join(" AND ")}
+      GROUP BY last_error
+      ORDER BY cnt DESC
+      LIMIT ?
+    `;
+
+		params.push(limit);
+
+		const rows = await this.queryAll<{ error_message: string; cnt: number }>(
+			sql,
+			params
+		);
+		return rows.map((r) => ({
+			errorMessage: r.error_message,
+			count: Number(r.cnt),
+		}));
 	}
 
 	/**

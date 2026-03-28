@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import type { AdminAnalyticsQueryOptions } from "@/dao/admin-analytics-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { UserAuthenticationMissingError } from "@/lib/errors";
 import { getRequestLogger } from "@/lib/logger";
@@ -12,6 +13,7 @@ import type {
 	ContextAccuracy,
 	MetricType,
 	SatisfactionRating,
+	TelemetryTopError,
 } from "@/types/telemetry";
 
 type ContextWithAuth = Context<{ Bindings: Env }> & {
@@ -251,22 +253,54 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 		).toISOString();
 
 		// Get key metrics for dashboard
-		const [queryLatency, rebuildDuration, dmSatisfaction, changelogGrowth] =
-			await Promise.all([
-				telemetryService.getAggregatedMetrics("query_latency", {
-					fromDate: last7Days,
-				}),
-				telemetryService.getAggregatedMetrics("rebuild_duration", {
-					fromDate: last7Days,
-				}),
-				telemetryService.getAggregatedMetrics("dm_satisfaction", {
-					fromDate: last7Days,
-				}),
-				telemetryService.getTimeSeriesData("changelog_entry_count", {
-					fromDate: last7Days,
-					interval: "day",
-				}),
-			]);
+		const daoFactory = getDAOFactory(c.env);
+		const extractionQueueDao = new EntityExtractionQueueDAO(c.env.DB);
+
+		const [
+			queryLatency,
+			rebuildDuration,
+			dmSatisfaction,
+			changelogGrowth,
+			rebuildErrors,
+			extractionErrors,
+		] = await Promise.all([
+			telemetryService.getAggregatedMetrics("query_latency", {
+				fromDate: last7Days,
+			}),
+			telemetryService.getAggregatedMetrics("rebuild_duration", {
+				fromDate: last7Days,
+			}),
+			telemetryService.getAggregatedMetrics("dm_satisfaction", {
+				fromDate: last7Days,
+			}),
+			telemetryService.getTimeSeriesData("changelog_entry_count", {
+				fromDate: last7Days,
+				interval: "day",
+			}),
+			daoFactory.rebuildStatusDAO.getTopFailedErrorMessages({
+				fromDate: last7Days,
+				limit: 15,
+			}),
+			extractionQueueDao.getTopFailedErrorMessages({
+				fromDate: last7Days,
+				limit: 15,
+			}),
+		]);
+
+		const topErrors: TelemetryTopError[] = [
+			...rebuildErrors.map((row) => ({
+				source: "graph_rebuild" as const,
+				message: row.errorMessage,
+				count: row.count,
+			})),
+			...extractionErrors.map((row) => ({
+				source: "entity_extraction" as const,
+				message: row.errorMessage,
+				count: row.count,
+			})),
+		]
+			.sort((a, b) => b.count - a.count)
+			.slice(0, 20);
 
 		return c.json({
 			summary: {
@@ -275,6 +309,7 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 				dmSatisfaction,
 				changelogGrowth,
 			},
+			topErrors,
 			lastUpdated: now.toISOString(),
 		});
 	} catch (error) {
