@@ -12,6 +12,9 @@ ANTHROPIC_API_KEY=your-anthropic-api-key-here
 # Embeddings provider key
 OPENAI_API_KEY=your-openai-api-key-here
 
+# Cheap LLM chunk gate before full entity extraction (default off). Set true to skip full extraction on clearly non-substantive chunks.
+# EXTRACTION_CHUNK_GATE_ENABLED=true
+
 # JWT signing secret (required for auth - use a random string)
 JWT_SECRET=your-jwt-secret-here
 

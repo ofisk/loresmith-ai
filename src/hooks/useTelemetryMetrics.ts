@@ -29,6 +29,12 @@ export interface DashboardSummary {
 		/** Counts of approved shards that were new vs updates (last 7 days). */
 		shardApprovalNew: AggregatedMetrics | null;
 		shardApprovalUpdate: AggregatedMetrics | null;
+		/** Chunk gate: skipped full extraction (count/sum in window). */
+		extractionChunkGateSkip: AggregatedMetrics | null;
+		/** Chunk gate: ran full extraction (count/sum in window). */
+		extractionChunkGateRun: AggregatedMetrics | null;
+		/** Cheap gate LLM latency (ms) when gate ran. */
+		extractionChunkGateLatency: AggregatedMetrics | null;
 	};
 	topErrors?: TelemetryTopError[];
 	lastUpdated: string;

@@ -4,6 +4,7 @@
 import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
 import {
 	isStubContent,
 	mergeEntityContent,
@@ -29,6 +30,11 @@ import { EntityImportanceService } from "@/services/graph/entity-importance-serv
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import type { ExtractedEntity } from "@/services/rag/entity-extraction-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
+import {
+	evaluateExtractionChunkGate,
+	isExtractionChunkGateEnabled,
+} from "@/services/rag/extraction-chunk-gate";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import type { ContentExtractionProvider } from "./content-extraction-provider";
 import { DirectFileContentExtractionProvider } from "./impl/direct-file-content-extraction-provider";
@@ -455,6 +461,75 @@ export async function stageEntitiesFromResource(
 
 			try {
 				const rateLimitService = getLLMRateLimitService(env);
+				const telemetry = new TelemetryService(new TelemetryDAO(env.DB));
+				const recordTelemetry = (fn: () => Promise<void>) => {
+					void fn().catch(() => {});
+				};
+
+				const gateEnabled = await isExtractionChunkGateEnabled(env);
+				const trimmedChunk = chunk.trim();
+				if (trimmedChunk.length === 0) {
+					recordTelemetry(() =>
+						telemetry.recordExtractionChunkGateSkip({
+							campaignId,
+							metadata: { emptyChunk: true },
+						})
+					);
+					completedCount++;
+					await onChunkCheckpoint?.({
+						processedChunks: completedCount,
+						totalChunks: chunks.length,
+					});
+					return true;
+				}
+
+				if (!gateEnabled) {
+					recordTelemetry(() =>
+						telemetry.recordExtractionChunkGateRun({
+							campaignId,
+							metadata: { gateDisabled: true },
+						})
+					);
+				} else {
+					const gateResult = await evaluateExtractionChunkGate({
+						chunkText: chunk,
+						llmApiKey,
+						username,
+						campaignId,
+						onUsage: async (usage, ctx) => {
+							await rateLimitService.recordUsage(
+								username,
+								usage.tokens,
+								usage.queryCount,
+								ctx?.model
+							);
+						},
+					});
+					recordTelemetry(() =>
+						telemetry.recordExtractionChunkGateLatency(gateResult.latencyMs, {
+							campaignId,
+							metadata: gateResult.gateError ? { gateError: true } : undefined,
+						})
+					);
+					if (!gateResult.runFullExtraction) {
+						recordTelemetry(() =>
+							telemetry.recordExtractionChunkGateSkip({ campaignId })
+						);
+						completedCount++;
+						await onChunkCheckpoint?.({
+							processedChunks: completedCount,
+							totalChunks: chunks.length,
+						});
+						return true;
+					}
+					recordTelemetry(() =>
+						telemetry.recordExtractionChunkGateRun({
+							campaignId,
+							metadata: gateResult.gateError ? { gateError: true } : undefined,
+						})
+					);
+				}
+
 				const chunkEntities = await extractionService.extractEntities({
 					content: chunk,
 					sourceName: normalizedResource.file_name || normalizedResource.id,

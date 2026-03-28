@@ -1,6 +1,6 @@
 /**
- * Shows whether a staged shard is new vs an update (`shardStagingOrigin` in metadata).
- * If missing (e.g. legacy staging), shows “New entity” like known-new shards.
+ * Staging origin for a pending shard (`shardStagingOrigin` in metadata).
+ * User-facing copy is just “New” or “Update”; missing origin shows “New”.
  */
 export function ShardStagingOriginBadge({
 	metadata,
@@ -9,14 +9,14 @@ export function ShardStagingOriginBadge({
 }) {
 	const origin = metadata?.shardStagingOrigin;
 
-	const label = origin === "update" ? "Updated shard" : "New entity";
+	const label = origin === "update" ? "Update" : "New";
 
 	const title =
 		origin === "update"
-			? "Updates an existing entity in your library"
+			? "Update to an existing shard in your library"
 			: origin === "new"
-				? "New entity from this extraction"
-				: "New entity";
+				? "New shard from this extraction"
+				: "New";
 
 	return (
 		<span
