@@ -8,6 +8,7 @@ import { CommunitySummaryService } from "@/services/graph/community-summary-serv
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
+import { AdminAnalyticsDAO } from "./admin-analytics-dao";
 import { AuthUserDAO } from "./auth-user-dao";
 import { CampaignDAO } from "./campaign-dao";
 import { CampaignResourceProposalDAO } from "./campaign-resource-proposal-dao";
@@ -48,6 +49,7 @@ export interface EnvWithDb {
 }
 
 export interface DAOFactory {
+	adminAnalyticsDAO: AdminAnalyticsDAO;
 	authUserDAO: AuthUserDAO;
 	userDAO: UserDAO;
 	campaignDAO: CampaignDAO;
@@ -89,6 +91,7 @@ export interface DAOFactory {
 
 export class DAOFactoryImpl implements DAOFactory {
 	private readonly db: D1Database;
+	public readonly adminAnalyticsDAO: AdminAnalyticsDAO;
 	public readonly authUserDAO: AuthUserDAO;
 	public readonly userDAO: UserDAO;
 	public readonly campaignDAO: CampaignDAO;
@@ -125,6 +128,7 @@ export class DAOFactoryImpl implements DAOFactory {
 
 	constructor(db: D1Database) {
 		this.db = db;
+		this.adminAnalyticsDAO = new AdminAnalyticsDAO(db);
 		this.authUserDAO = new AuthUserDAO(db);
 		this.userDAO = new UserDAO(db);
 		this.campaignDAO = new CampaignDAO(db);

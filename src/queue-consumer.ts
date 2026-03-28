@@ -1,8 +1,10 @@
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import { MODEL_CONFIG, PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
+import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { IMPACT_PER_NEW_ENTITY } from "@/lib/rebuild-config";
+import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import type { Community } from "./dao/community-dao";
 import { getDAOFactory } from "./dao/dao-factory";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
@@ -150,6 +152,15 @@ export class FileProcessingQueue {
 				key,
 				processingTimeMs: processingTime,
 			});
+			void new TelemetryService(new TelemetryDAO(this.env.DB))
+				.recordFileProcessingDuration(processingTime, {
+					metadata: {
+						pipeline: "library_queue",
+						username: tenant,
+						fileKey,
+					},
+				})
+				.catch(() => {});
 		} catch (error) {
 			const processingTime = Date.now() - startTime;
 			log.error("Error processing", error, {
