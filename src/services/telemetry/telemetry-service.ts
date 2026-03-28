@@ -215,6 +215,40 @@ export class TelemetryService {
 		});
 	}
 
+	/** Chunk-level gate skipped full extraction (value 1 per chunk). */
+	async recordExtractionChunkGateSkip(
+		options: { campaignId?: string; metadata?: Record<string, unknown> } = {}
+	): Promise<void> {
+		await this.recordMetric("extraction_chunk_gate_skip_count", 1, {
+			campaignId: options.campaignId,
+			metadata: options.metadata,
+		});
+	}
+
+	/** Chunk-level gate allowed full extraction (value 1 per chunk). */
+	async recordExtractionChunkGateRun(
+		options: { campaignId?: string; metadata?: Record<string, unknown> } = {}
+	): Promise<void> {
+		await this.recordMetric("extraction_chunk_gate_run_count", 1, {
+			campaignId: options.campaignId,
+			metadata: options.metadata,
+		});
+	}
+
+	/** Latency of the cheap gate LLM call only (ms). */
+	async recordExtractionChunkGateLatency(
+		latencyMs: number,
+		options: {
+			campaignId?: string;
+			metadata?: Record<string, unknown>;
+		} = {}
+	): Promise<void> {
+		await this.recordMetric("extraction_chunk_gate_latency_ms", latencyMs, {
+			campaignId: options.campaignId,
+			metadata: options.metadata,
+		});
+	}
+
 	/**
 	 * Shard approvals by staging origin (one telemetry row per non-zero bucket per batch).
 	 */

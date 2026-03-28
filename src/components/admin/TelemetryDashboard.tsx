@@ -511,6 +511,60 @@ export function TelemetryDashboard() {
 									</div>
 								</div>
 							)}
+						{dashboard.summary.extractionChunkGateSkip &&
+							dashboard.summary.extractionChunkGateSkip.count > 0 && (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										Chunk gate: skipped full extraction (last 7 days)
+									</div>
+									<div className="text-xl font-bold">
+										{Math.round(
+											dashboard.summary.extractionChunkGateSkip.sum ?? 0
+										)}
+									</div>
+								</div>
+							)}
+						{dashboard.summary.extractionChunkGateRun &&
+							dashboard.summary.extractionChunkGateRun.count > 0 && (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										Chunk gate: ran full extraction (last 7 days)
+									</div>
+									<div className="text-xl font-bold">
+										{Math.round(
+											dashboard.summary.extractionChunkGateRun.sum ?? 0
+										)}
+									</div>
+								</div>
+							)}
+						{(() => {
+							const skipSum =
+								dashboard.summary.extractionChunkGateSkip?.sum ?? 0;
+							const runSum = dashboard.summary.extractionChunkGateRun?.sum ?? 0;
+							const denom = skipSum + runSum;
+							if (denom <= 0) return null;
+							return (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										Chunk gate: skip rate (last 7 days)
+									</div>
+									<div className="text-xl font-bold">
+										{((skipSum / denom) * 100).toFixed(1)}%
+									</div>
+								</div>
+							);
+						})()}
+						{dashboard.summary.extractionChunkGateLatency &&
+							dashboard.summary.extractionChunkGateLatency.count > 0 && (
+								<div>
+									<div className="text-sm text-neutral-600 dark:text-neutral-400">
+										Chunk gate: cheap model latency (P95, last 7 days)
+									</div>
+									<div className="text-xl font-bold">
+										{`${Math.round(dashboard.summary.extractionChunkGateLatency.p95)}ms`}
+									</div>
+								</div>
+							)}
 					</div>
 				</div>
 			)}
