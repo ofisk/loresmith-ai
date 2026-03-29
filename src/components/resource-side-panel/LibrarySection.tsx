@@ -1,5 +1,5 @@
 import { Plus } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import libraryIcon from "@/assets/library.png";
 import { CollapsibleCard } from "@/components/collapsible/CollapsibleCard";
 import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
@@ -12,13 +12,14 @@ import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { buildStagingFileKey } from "@/lib/file/file-utils";
+import { cn } from "@/lib/utils";
 import { AuthService, getStoredJwt } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 
 interface LibrarySectionProps {
 	isOpen: boolean;
 	onToggle: () => void;
-	onAddToLibrary: () => void;
+	onAddToLibrary: (initialFiles?: File[]) => void;
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
 	campaigns?: Campaign[];
@@ -166,83 +167,133 @@ export function LibrarySection({
 		return [...queuedEntries, ...files];
 	}, [files, uploadQueue?.queue]);
 
+	const fileDragDepthRef = useRef(0);
+	const [isFileDragOver, setIsFileDragOver] = useState(false);
+
+	const handleLibraryDragEnter = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+		if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+		fileDragDepthRef.current += 1;
+		setIsFileDragOver(true);
+	}, []);
+
+	const handleLibraryDragLeave = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+		fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+		if (fileDragDepthRef.current === 0) {
+			setIsFileDragOver(false);
+		}
+	}, []);
+
+	const handleLibraryDragOver = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+		if (Array.from(e.dataTransfer.types).includes("Files")) {
+			e.dataTransfer.dropEffect = "copy";
+		}
+	}, []);
+
+	const handleLibraryDrop = useCallback(
+		(e: React.DragEvent) => {
+			e.preventDefault();
+			fileDragDepthRef.current = 0;
+			setIsFileDragOver(false);
+			const files = Array.from(e.dataTransfer.files);
+			if (files.length === 0) return;
+			onAddToLibrary(files);
+		},
+		[onAddToLibrary]
+	);
+
 	return (
-		<CollapsibleCard
-			header={
-				<>
-					<img
-						src={libraryIcon}
-						alt="Library"
-						className="w-8 h-8"
-						width={32}
-						height={32}
-					/>
-					<span className="font-medium text-sm">Your resource library</span>
-				</>
-			}
-			headerSupplement={
-				processingCount > 0 ? (
-					<span
-						className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-						title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
-					>
-						{processingCount} preparing
-					</span>
-				) : undefined
-			}
-			isOpen={isOpen}
-			onToggle={onToggle}
-			tourClassName="tour-library-section"
-			className="border-t border-neutral-200 dark:border-neutral-700"
+		<section
+			aria-label="Your resource library"
+			className={cn(
+				"rounded-lg transition-shadow",
+				isFileDragOver &&
+					"ring-2 ring-blue-500/40 dark:ring-blue-400/35 ring-offset-2 ring-offset-neutral-50 dark:ring-offset-neutral-900"
+			)}
+			onDragEnter={handleLibraryDragEnter}
+			onDragLeave={handleLibraryDragLeave}
+			onDragOver={handleLibraryDragOver}
+			onDrop={handleLibraryDrop}
 		>
-			<div className="flex flex-col">
-				<div className="flex-shrink-0 p-2">
-					<button
-						type="button"
-						onClick={onAddToLibrary}
-						className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-blue-600 dark:text-blue-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
-					>
-						<Plus size={14} />
-						Add to library
-					</button>
-				</div>
-				<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
-					<div className="max-h-64 overflow-y-auto">
-						<ResourceList
-							files={displayFiles}
-							setFiles={setFiles}
-							loading={loading}
-							error={error}
-							setError={setError}
-							setLoading={setLoading}
-							fetchResources={fetchResources}
-							onAddToCampaign={onAddToCampaign}
-							onEditFile={onEditFile}
-							onOpenAddToLibrary={onAddToLibrary}
-							campaigns={campaigns}
-							campaignAdditionProgress={campaignAdditionProgress}
-							_isAddingToCampaigns={isAddingToCampaigns}
+			<CollapsibleCard
+				header={
+					<>
+						<img
+							src={libraryIcon}
+							alt="Library"
+							className="w-8 h-8"
+							width={32}
+							height={32}
 						/>
+						<span className="font-medium text-sm">Your resource library</span>
+					</>
+				}
+				headerSupplement={
+					processingCount > 0 ? (
+						<span
+							className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+							title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
+						>
+							{processingCount} preparing
+						</span>
+					) : undefined
+				}
+				isOpen={isOpen}
+				onToggle={onToggle}
+				tourClassName="tour-library-section"
+				className="border-t border-neutral-200 dark:border-neutral-700"
+			>
+				<div className="flex flex-col">
+					<div className="flex-shrink-0 p-2">
+						<button
+							type="button"
+							onClick={() => onAddToLibrary()}
+							className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-blue-600 dark:text-blue-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+						>
+							<Plus size={14} />
+							Add to library
+						</button>
 					</div>
-					<div className="flex-shrink-0">
-						<StorageTracker />
-						{uploadQueue && uploadQueue.queuedCount > 0 && (
-							<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
-								{uploadQueue.queuedCount} file
-								{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
-								when capacity is available
-							</div>
-						)}
-						<ActionQueueUI />
-						{addLocalNotification && onShowUsageLimits && (
-							<RateLimitIndicator
-								addLocalNotification={addLocalNotification}
-								onShowUsageLimits={onShowUsageLimits}
+					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
+						<div className="max-h-64 overflow-y-auto">
+							<ResourceList
+								files={displayFiles}
+								setFiles={setFiles}
+								loading={loading}
+								error={error}
+								setError={setError}
+								setLoading={setLoading}
+								fetchResources={fetchResources}
+								onAddToCampaign={onAddToCampaign}
+								onEditFile={onEditFile}
+								onOpenAddToLibrary={onAddToLibrary}
+								campaigns={campaigns}
+								campaignAdditionProgress={campaignAdditionProgress}
+								_isAddingToCampaigns={isAddingToCampaigns}
 							/>
-						)}
+						</div>
+						<div className="flex-shrink-0">
+							<StorageTracker />
+							{uploadQueue && uploadQueue.queuedCount > 0 && (
+								<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
+									{uploadQueue.queuedCount} file
+									{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
+									when capacity is available
+								</div>
+							)}
+							<ActionQueueUI />
+							{addLocalNotification && onShowUsageLimits && (
+								<RateLimitIndicator
+									addLocalNotification={addLocalNotification}
+									onShowUsageLimits={onShowUsageLimits}
+								/>
+							)}
+						</div>
 					</div>
 				</div>
-			</div>
-		</CollapsibleCard>
+			</CollapsibleCard>
+		</section>
 	);
 }

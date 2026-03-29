@@ -74,7 +74,7 @@ export interface AppShellContextValue {
 	addLocalNotification: (type: string, title: string, message: string) => void;
 
 	// Resource / file
-	onAddResource: () => void;
+	onAddResource: (initialFiles?: File[]) => void;
 	onAddToCampaign: (file: ResourceFileWithCampaigns) => void;
 	addFileToCampaigns: ReturnType<
 		typeof useAppOrchestration
@@ -330,6 +330,17 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		[setTriggerFileUpload]
 	);
 
+	const onAddResource = useCallback(
+		(initialFiles?: File[]) => {
+			if (initialFiles?.length) {
+				modalState.handleAddResourceWithDroppedFiles(initialFiles);
+			} else {
+				modalState.handleAddResource();
+			}
+		},
+		[modalState.handleAddResource, modalState.handleAddResourceWithDroppedFiles]
+	);
+
 	// biome-ignore lint/correctness/useExhaustiveDependencies: invisibleUserContentsRef.current intentionally excluded; invisibleUserContentsVersion triggers updates when ref changes
 	const value = useMemo<AppShellContextValue>(
 		() => ({
@@ -356,7 +367,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			dismissNotification,
 			clearAllNotifications,
 			addLocalNotification,
-			onAddResource: modalState.handleAddResource,
+			onAddResource,
 			onAddToCampaign: modalState.handleAddToCampaign,
 			addFileToCampaigns,
 			onEditFile: modalState.handleEditFile,
@@ -430,7 +441,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			dismissNotification,
 			clearAllNotifications,
 			addLocalNotification,
-			modalState.handleAddResource,
+			onAddResource,
 			modalState.handleAddToCampaign,
 			addFileToCampaigns,
 			modalState.handleEditFile,
