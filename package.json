@@ -69,8 +69,8 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
 		"@cloudflare/vite-plugin": "^1.27.0",
-		"@cloudflare/vitest-pool-workers": "^0.12.21",
-		"@cloudflare/workers-types": "^4.20260312.1",
+		"@cloudflare/vitest-pool-workers": "^0.13.5",
+		"@cloudflare/workers-types": "^4.20260329.1",
 		"@playwright/test": "^1.58.2",
 		"@tailwindcss/vite": "^4.1.11",
 		"@testing-library/dom": "^10.4.1",
