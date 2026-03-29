@@ -3,6 +3,8 @@
  * This file contains all shared constants used throughout the application
  */
 
+import { deriveSubscriptionTierRates } from "@/config/anthropic-org-rate-budget";
+
 // Re-export from shared-config.ts for convenience
 export {
 	API_CONFIG,
@@ -324,15 +326,17 @@ export function getGenerationModelForProvider(
 		: MODEL_CONFIG.OPENAI[tier];
 }
 
+/** Per-tier tph/qph/tpd/qpd derived from Anthropic org limits; see `src/config/anthropic-org-rate-budget.ts`. */
+const DERIVED_SUBSCRIPTION_RATES = deriveSubscriptionTierRates();
+
 // Rate limits for non-admin users (admin users bypass all limits).
-// Fallback when tier limits unavailable (e.g. UsageLimitsModal). Tuning per deployment: adjust
-// SUBSCRIPTION_TIERS tph/qph/tpd/qpd and resourcesPerCampaignPerHour (see LLMRateLimitService).
+// Fallback when tier limits unavailable (e.g. UsageLimitsModal). Aligns with Basic tier from org budget.
 export const RATE_LIMITS = {
-	NON_ADMIN_TPH: 600_000, // 10k/min * 60 = tokens per hour
-	NON_ADMIN_QPH: 600, // 10/min * 60 = queries per hour (Basic tier fallback)
-	NON_ADMIN_TPD: 500_000,
-	NON_ADMIN_QPD: 500,
-	RESOURCES_PER_CAMPAIGN_PER_HOUR: 20, // Basic tier fallback
+	NON_ADMIN_TPH: DERIVED_SUBSCRIPTION_RATES.basic.tph,
+	NON_ADMIN_QPH: DERIVED_SUBSCRIPTION_RATES.basic.qph,
+	NON_ADMIN_TPD: DERIVED_SUBSCRIPTION_RATES.basic.tpd,
+	NON_ADMIN_QPD: DERIVED_SUBSCRIPTION_RATES.basic.qpd,
+	RESOURCES_PER_CAMPAIGN_PER_HOUR: 20, // Basic tier static cap (see SUBSCRIPTION_TIERS.basic)
 } as const;
 
 export type SubscriptionTier = "free" | "basic" | "pro";
@@ -362,10 +366,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxCampaigns: 1,
 		maxFiles: 5,
 		storageBytes: 25 * 1024 * 1024, // 25MB
-		tph: 120_000,
-		qph: 300,
-		tpd: 10_000,
-		qpd: 50,
+		...DERIVED_SUBSCRIPTION_RATES.free,
 		lifetimeTokens: 150_000, // One-time trial capacity; no monthly reset
 		retriesPerFilePerDay: 2,
 		retriesPerFilePerMonth: 6,
@@ -375,10 +376,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxCampaigns: 5,
 		maxFiles: 25,
 		storageBytes: 1 * 1024 * 1024 * 1024, // 1GB
-		tph: 600_000, // was 10k/min * 60
-		qph: 600, // 10/min * 60 = queries per hour
-		tpd: 500_000,
-		qpd: 500,
+		...DERIVED_SUBSCRIPTION_RATES.basic,
 		retriesPerFilePerDay: 3,
 		retriesPerFilePerMonth: 15,
 		resourcesPerCampaignPerHour: 20,
@@ -387,10 +385,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 		maxCampaigns: 999_999, // effectively unlimited
 		maxFiles: 100,
 		storageBytes: 5 * 1024 * 1024 * 1024, // 5GB
-		tph: 1_200_000, // was 20k/min * 60
-		qph: 1_200, // 20/min * 60 = queries per hour
-		tpd: 1_000_000,
-		qpd: 1_000,
+		...DERIVED_SUBSCRIPTION_RATES.pro,
 		retriesPerFilePerDay: 5,
 		retriesPerFilePerMonth: 50,
 		resourcesPerCampaignPerHour: 50,

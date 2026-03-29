@@ -31,13 +31,13 @@ Purchased one-off credits add directly to your daily and hourly token limits. If
 
 ## Subscription tiers
 
-Defined in `SUBSCRIPTION_TIERS` in `src/app-constants.ts`:
+**TPH / QPH / TPD / QPD** are computed in `src/config/anthropic-org-rate-budget.ts` from Anthropic org limits (Console) and `expectedConcurrentActiveUsers`, then merged into `SUBSCRIPTION_TIERS` in `src/app-constants.ts`. Other columns are static in `SUBSCRIPTION_TIERS`.
 
-| Tier | Max campaigns | Max files | Storage | TPH | QPH | TPD | QPD | Trial tokens | Resources/campaign/hour | Retries/file/day | Retries/file/month |
-|------|---------------|-----------|---------|-----|-----|-----|-----|--------------|-------------------------|------------------|--------------------|
-| Free | 1 | 5 | 25 MB | 120k | 300 | 10k | 50 | 150k (one-time) | 5 | 2 | 6 |
-| Basic | 5 | 25 | 1 GB | 600k | 600 | 500k | 500 | — | 20 | 3 | 15 |
-| Pro | 999,999 | 100 | 5 GB | 1.2M | 1,200 | 1M | 1,000 | — | 50 | 5 | 50 |
+| Tier | Max campaigns | Max files | Storage | TPH / QPH / TPD / QPD | Trial tokens | Resources/campaign/hour | Retries/file/day | Retries/file/month |
+|------|---------------|-----------|---------|------------------------|--------------|-------------------------|------------------|--------------------|
+| Free | 1 | 5 | 25 MB | Derived (fraction of Basic) | 150k (one-time) | 5 | 2 | 6 |
+| Basic | 5 | 25 | 1 GB | Derived (org share ÷ concurrent users) | — | 20 | 3 | 15 |
+| Pro | 999,999 | 100 | 5 GB | Derived (2× Basic rates) | — | 50 | 5 | 50 |
 
 - **TPH** = tokens per hour  
 - **QPH** = queries per hour  
@@ -56,14 +56,14 @@ Defined in `SUBSCRIPTION_TIERS` in `src/app-constants.ts`:
 
 ## Fallback rate limits
 
-Non-admin users, when tier limits are unavailable (e.g. in usage modals), use `RATE_LIMITS` as fallbacks:
+Non-admin users, when tier limits are unavailable (e.g. in usage modals), use `RATE_LIMITS` as fallbacks (matches **Basic** tier derived values):
 
 | Limit | Value |
 |-------|-------|
-| TPH | 600,000 |
-| QPH | 600 |
-| TPD | 500,000 |
-| QPD | 500 |
+| TPH | Same as Basic `tph` from org budget |
+| QPH | Same as Basic `qph` |
+| TPD | Same as Basic `tpd` |
+| QPD | Same as Basic `qpd` |
 | Resources per campaign per hour | 20 |
 
 ## Where limits are enforced
