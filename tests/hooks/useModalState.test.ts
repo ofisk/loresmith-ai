@@ -50,6 +50,23 @@ describe("useModalState", () => {
 		expect(result.current.isAddResourceModalOpen).toBe(true);
 	});
 
+	it("handleAddResourceWithDroppedFiles opens modal and sets initial files", () => {
+		const { result } = renderHook(() => useModalState());
+		const file = new File(["x"], "note.md", { type: "text/markdown" });
+		act(() => result.current.handleAddResourceWithDroppedFiles([file]));
+		expect(result.current.isAddResourceModalOpen).toBe(true);
+		expect(result.current.addResourceInitialFiles).toEqual([file]);
+	});
+
+	it("handleAddResource clears staged initial files", () => {
+		const { result } = renderHook(() => useModalState());
+		const file = new File(["x"], "note.md", { type: "text/markdown" });
+		act(() => result.current.handleAddResourceWithDroppedFiles([file]));
+		act(() => result.current.handleAddResource());
+		expect(result.current.addResourceInitialFiles).toBeNull();
+		expect(result.current.isAddResourceModalOpen).toBe(true);
+	});
+
 	it("handleAddResourceClose clears selected campaigns", () => {
 		const { result } = renderHook(() => useModalState());
 		act(() => result.current.handleAddResource());
@@ -57,6 +74,7 @@ describe("useModalState", () => {
 		act(() => result.current.handleAddResourceClose());
 		expect(result.current.isAddResourceModalOpen).toBe(false);
 		expect(result.current.selectedCampaigns).toEqual([]);
+		expect(result.current.addResourceInitialFiles).toBeNull();
 	});
 
 	it("handleAdminDashboardOpen and handleAdminDashboardClose", () => {

@@ -21,7 +21,7 @@ interface ResourceSidePanelProps {
 	onFileUploadTriggered?: () => void;
 	onCreateCampaign?: () => void;
 	onCampaignClick?: (campaign: Campaign) => void;
-	onAddResource?: () => void;
+	onAddResource?: (initialFiles?: File[]) => void;
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
 	onEditFile?: (file: ResourceFileWithCampaigns) => void;
 	campaignAdditionProgress?: Record<string, number>;

@@ -23,6 +23,9 @@ export function useModalState() {
 	const [isCampaignDetailsModalOpen, setIsCampaignDetailsModalOpen] =
 		useState(false);
 	const [isAddResourceModalOpen, setIsAddResourceModalOpen] = useState(false);
+	const [addResourceInitialFiles, setAddResourceInitialFiles] = useState<
+		File[] | null
+	>(null);
 	const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] =
 		useState(false);
 	const [isEditFileModalOpen, setIsEditFileModalOpen] = useState(false);
@@ -80,11 +83,18 @@ export function useModalState() {
 	}, []);
 
 	const handleAddResource = useCallback(() => {
+		setAddResourceInitialFiles(null);
+		setIsAddResourceModalOpen(true);
+	}, []);
+
+	const handleAddResourceWithDroppedFiles = useCallback((files: File[]) => {
+		setAddResourceInitialFiles(Array.from(files));
 		setIsAddResourceModalOpen(true);
 	}, []);
 
 	const handleAddResourceClose = useCallback(() => {
 		setIsAddResourceModalOpen(false);
+		setAddResourceInitialFiles(null);
 		setSelectedCampaigns([]);
 	}, []);
 
@@ -182,6 +192,7 @@ export function useModalState() {
 		isCampaignDetailsModalOpen,
 		isAddResourceModalOpen,
 		setIsAddResourceModalOpen,
+		addResourceInitialFiles,
 		isAddToCampaignModalOpen,
 		isEditFileModalOpen,
 		isAdminDashboardModalOpen,
@@ -223,6 +234,7 @@ export function useModalState() {
 		handleCampaignClick,
 		handleCampaignDetailsClose,
 		handleAddResource,
+		handleAddResourceWithDroppedFiles,
 		handleAddResourceClose,
 		handleAddToCampaign,
 		handleAddToCampaignClose,

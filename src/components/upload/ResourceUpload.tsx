@@ -1,5 +1,5 @@
 import { Plus } from "@phosphor-icons/react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { UPLOAD_CONFIG } from "@/app-constants";
 import { FormButton } from "@/components/button/FormButton";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
@@ -35,6 +35,45 @@ export type OnUploadLimitReached = (
 /** Callback for validation errors (file size, unsupported type); use for toast/inline feedback */
 export type OnValidationError = (title: string, message: string) => void;
 
+/** Shared validation for picker, drag-and-drop, and initial files from the sidebar */
+export function validateResourceUploadFiles(
+	files: File[],
+	onValidationError?: OnValidationError
+): File[] {
+	const allowedExtensions =
+		/\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i;
+	const typeValidFiles = files.filter((file) => {
+		const byMime =
+			file.type === "application/pdf" ||
+			file.type === "text/plain" ||
+			file.type === "text/markdown" ||
+			file.type === "text/x-markdown" ||
+			file.type === "application/msword" ||
+			file.type ===
+				"application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+			file.type === "application/json" ||
+			file.type === "image/jpeg" ||
+			file.type === "image/jpg" ||
+			file.type === "image/png" ||
+			file.type === "image/webp";
+		const byExt = allowedExtensions.test(file.name);
+		return byMime || byExt;
+	});
+
+	return typeValidFiles.filter((file) => {
+		if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
+			const maxSizeMB = UPLOAD_CONFIG.MAX_FILE_SIZE / (1024 * 1024);
+			const fileSizeMB = file.size / (1024 * 1024);
+			onValidationError?.(
+				"File too large",
+				`"${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB.`
+			);
+			return false;
+		}
+		return true;
+	});
+}
+
 interface ResourceUploadProps {
 	onUpload: (
 		file: File,
@@ -58,6 +97,8 @@ interface ResourceUploadProps {
 	onCreateCampaign?: () => void;
 	showCampaignSelection?: boolean;
 	onUploadLimitReached?: OnUploadLimitReached;
+	/** When set (e.g. from sidebar drag-and-drop), applied into the picker; cleared when the modal closes */
+	initialFiles?: File[] | null;
 }
 
 export const ResourceUpload = ({
@@ -76,12 +117,37 @@ export const ResourceUpload = ({
 	onCreateCampaign,
 	showCampaignSelection = false,
 	onUploadLimitReached,
+	initialFiles = null,
 }: ResourceUploadProps) => {
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 	const [_isValid, setIsValid] = useState(false);
 	const [uploadSuccess, setUploadSuccess] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const fileInputId = useId();
+	const onValidationErrorRef = useRef(onValidationError);
+	onValidationErrorRef.current = onValidationError;
+
+	useEffect(() => {
+		if (initialFiles == null || initialFiles.length === 0) return;
+
+		const notify = onValidationErrorRef.current;
+		const validFiles = validateResourceUploadFiles([...initialFiles], notify);
+		if (initialFiles.length > 0 && validFiles.length === 0) {
+			notify?.(
+				"Unsupported file type",
+				"Allowed: PDF, TXT, DOC, DOCX, MD, MDX, JSON, JPG, JPEG, PNG, WEBP."
+			);
+		}
+		if (validFiles.length > 0) {
+			setSelectedFiles(validFiles);
+			setIsValid(true);
+			setUploadSuccess(false);
+		} else {
+			setSelectedFiles([]);
+			setIsValid(false);
+			setUploadSuccess(false);
+		}
+	}, [initialFiles]);
 
 	// Show progress bar if upload is in progress
 	if (uploadProgress) {
@@ -92,46 +158,8 @@ export const ResourceUpload = ({
 		);
 	}
 
-	// Helper function to validate and filter files
-	const validateAndFilterFiles = (files: File[]): File[] => {
-		// Filter by file type (must match RAG-supported types: FileExtractionService + file-upload-security ALLOWED_EXTENSIONS)
-		const allowedExtensions =
-			/\.(pdf|txt|doc|docx|md|mdx|json|jpg|jpeg|png|webp)$/i;
-		const typeValidFiles = files.filter((file) => {
-			const byMime =
-				file.type === "application/pdf" ||
-				file.type === "text/plain" ||
-				file.type === "text/markdown" ||
-				file.type === "text/x-markdown" ||
-				file.type === "application/msword" ||
-				file.type ===
-					"application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-				file.type === "application/json" ||
-				file.type === "image/jpeg" ||
-				file.type === "image/jpg" ||
-				file.type === "image/png" ||
-				file.type === "image/webp";
-			// Fallback: some browsers use generic MIME for .md/.mdx/.json or images
-			const byExt = allowedExtensions.test(file.name);
-			return byMime || byExt;
-		});
-
-		// Filter by file size (use app constant; large files use multipart and are processed in chunks)
-		const validFiles = typeValidFiles.filter((file) => {
-			if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
-				const maxSizeMB = UPLOAD_CONFIG.MAX_FILE_SIZE / (1024 * 1024);
-				const fileSizeMB = file.size / (1024 * 1024);
-				onValidationError?.(
-					"File too large",
-					`"${file.name}" is too large (${fileSizeMB.toFixed(2)}MB). Maximum file size is ${maxSizeMB}MB.`
-				);
-				return false;
-			}
-			return true;
-		});
-
-		return validFiles;
-	};
+	const validateAndFilterFiles = (files: File[]): File[] =>
+		validateResourceUploadFiles(files, onValidationError);
 
 	// Helper function to set selected files state
 	const setSelectedFilesState = (validFiles: File[]) => {

@@ -353,6 +353,7 @@ export function AppModals({
 				className="modal-size-lg"
 			>
 				<ResourceUpload
+					initialFiles={modalState.addResourceInitialFiles}
 					onValidationError={(title, message) =>
 						addLocalNotification(NOTIFICATION_TYPES.ERROR, title, message)
 					}
