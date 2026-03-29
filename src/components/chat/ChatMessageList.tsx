@@ -329,7 +329,7 @@ export function ChatMessageList({
 																										line;
 																									return (
 																										<li
-																											key={`${i}-${label.slice(0, 40)}`}
+																											key={`${label}::${line}`}
 																											className="flex items-center gap-2 [&>span]:min-w-0 [&>span]:flex-1"
 																										>
 																											<button
