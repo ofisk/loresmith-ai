@@ -1,8 +1,18 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
+import { normalizeEntityType } from "@/lib/entity/entity-types";
 import type { Env } from "@/middleware/auth";
 import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
 import { EntityEmbeddingService } from "./entity-embedding-service";
+
+/** Default semantic similarity floor for staging duplicate merge (tuned vs false merges). */
+export const DEFAULT_SEMANTIC_DUPLICATE_THRESHOLD = 0.82;
+
+/**
+ * Stricter floor when matching across Vectorize metadata types: requires near-duplicate embeddings
+ * plus exact normalized name verification on the loaded row.
+ */
+export const CROSS_TYPE_SEMANTIC_DUPLICATE_THRESHOLD = 0.88;
 
 export interface SemanticDuplicateDetectionOptions {
 	/** The text content to check for duplicates */
@@ -52,7 +62,7 @@ export interface FindDuplicateEntityOptions {
 	entityType?: string;
 	/** Entity ID to exclude (e.g. current entity being updated) */
 	excludeEntityId?: string;
-	/** Similarity threshold for semantic match (default: 0.85) */
+	/** Similarity threshold for semantic match (default: {@link DEFAULT_SEMANTIC_DUPLICATE_THRESHOLD}) */
 	threshold?: number;
 	/** Number of similar entities to check (default: 10) */
 	topK?: number;
@@ -84,7 +94,7 @@ export class SemanticDuplicateDetectionService {
 			name,
 			entityType,
 			excludeEntityId,
-			threshold = 0.85,
+			threshold = DEFAULT_SEMANTIC_DUPLICATE_THRESHOLD,
 			topK = 10,
 			env,
 			openaiApiKey,
@@ -92,6 +102,7 @@ export class SemanticDuplicateDetectionService {
 
 		const daoFactory = getDAOFactory(env);
 		const normalizedName = (name ?? "").trim();
+		const normalizedNameLower = normalizedName.toLowerCase();
 
 		if (env.VECTORIZE && content.trim()) {
 			try {
@@ -121,15 +132,58 @@ export class SemanticDuplicateDetectionService {
 						}
 					}
 				}
+
+				// Second pass: do not filter by entity type in Vectorize so a row indexed under
+				// another type (e.g. locations vs custom) can still match when name + embedding align.
+				const crossTypeSimilar = await embeddingService.findSimilarByEmbedding(
+					contentEmbedding,
+					{
+						campaignId,
+						topK,
+						excludeEntityIds: excludeEntityId ? [excludeEntityId] : [],
+					}
+				);
+				for (const similar of crossTypeSimilar) {
+					if (similar.score < CROSS_TYPE_SEMANTIC_DUPLICATE_THRESHOLD) {
+						continue;
+					}
+					const entity = await daoFactory.entityDAO.getEntityById(
+						similar.entityId
+					);
+					if (
+						entity &&
+						entity.campaignId === campaignId &&
+						(entity.name ?? "").trim().toLowerCase() === normalizedNameLower
+					) {
+						return entity;
+					}
+				}
 			} catch (_error) {}
 		}
 
-		return daoFactory.entityDAO.findDuplicateByName(
+		const typedLexical = await daoFactory.entityDAO.findDuplicateByName(
 			campaignId,
 			normalizedName,
 			entityType,
 			excludeEntityId
 		);
+		if (typedLexical) {
+			return typedLexical;
+		}
+
+		if (normalizeEntityType(entityType ?? "") === "custom") {
+			const customLexical =
+				await daoFactory.entityDAO.findCustomLexicalDuplicateByName(
+					campaignId,
+					normalizedName,
+					excludeEntityId
+				);
+			if (customLexical) {
+				return customLexical;
+			}
+		}
+
+		return null;
 	}
 
 	/**

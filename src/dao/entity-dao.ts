@@ -703,6 +703,86 @@ export class EntityDAO extends BaseDAOClass {
 	}
 
 	/**
+	 * Lexical same-name match for rows stored as canonical `custom` only (no type filter beyond that).
+	 * Used when the typed duplicate check misses because the LLM assigned different categories
+	 * across chunks but both rows normalize to `custom` in the DB.
+	 */
+	async findCustomLexicalDuplicateByName(
+		campaignId: string,
+		name: string,
+		excludeEntityId?: string
+	): Promise<Entity | null> {
+		const normalizedName = (name ?? "").trim();
+		const sql = `
+      SELECT * FROM entities
+      WHERE campaign_id = ?
+        AND LOWER(TRIM(name)) = LOWER(?)
+        AND LOWER(TRIM(entity_type)) = 'custom'
+      ORDER BY created_at DESC
+    `;
+		const records = await this.queryAll<EntityRecord>(sql, [
+			campaignId,
+			normalizedName,
+		]);
+		const entities = records.map((record) => this.mapEntityRecord(record));
+		const filtered = excludeEntityId
+			? entities.filter((e) => e.id !== excludeEntityId)
+			: entities;
+		return filtered.length > 0 ? filtered[0] : null;
+	}
+
+	/**
+	 * Groups of entities that share the same normalized name (case-insensitive trim) within a campaign.
+	 * Used for duplicate-candidate review (same display name, different rows).
+	 */
+	async listDuplicateNameGroups(
+		campaignId: string,
+		options?: { maxGroups?: number }
+	): Promise<Array<{ normalizedName: string; entities: Entity[] }>> {
+		const maxGroups = options?.maxGroups ?? 50;
+		const dupKeys = await this.queryAll<{ nk: string }>(
+			`
+      SELECT LOWER(TRIM(name)) AS nk
+      FROM entities
+      WHERE campaign_id = ?
+      GROUP BY nk
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC
+      LIMIT ?
+    `,
+			[campaignId, maxGroups]
+		);
+		if (dupKeys.length === 0) {
+			return [];
+		}
+		const keys = dupKeys.map((r) => r.nk);
+		const placeholders = keys.map(() => "?").join(", ");
+		const sql = `
+      SELECT * FROM entities
+      WHERE campaign_id = ?
+        AND LOWER(TRIM(name)) IN (${placeholders})
+      ORDER BY LOWER(TRIM(name)) ASC, created_at ASC
+    `;
+		const records = await this.queryAll<EntityRecord>(sql, [
+			campaignId,
+			...keys,
+		]);
+		const byKey = new Map<string, Entity[]>();
+		for (const record of records) {
+			const nk = record.name.trim().toLowerCase();
+			const list = byKey.get(nk) ?? [];
+			list.push(this.mapEntityRecord(record));
+			byKey.set(nk, list);
+		}
+		return keys
+			.map((nk) => ({
+				normalizedName: nk,
+				entities: byKey.get(nk) ?? [],
+			}))
+			.filter((g) => g.entities.length > 1);
+	}
+
+	/**
 	 * Create an entity with duplicate checking.
 	 * Returns information about whether a duplicate was found.
 	 * This is useful for agent-driven entity creation where the agent should

@@ -78,6 +78,8 @@ export const ENDPOINTS = {
 				`/campaigns/${campaignId}/entities/deduplication-pending`,
 			DEDUP_RESOLVE: (campaignId: string, entryId: string) =>
 				`/campaigns/${campaignId}/entities/deduplication-pending/${entryId}`,
+			DUPLICATE_NAME_CANDIDATES: (campaignId: string) =>
+				`/campaigns/${campaignId}/entities/duplicate-name-candidates`,
 			TEST_EXTRACT_FROM_R2: "/test/entities/extract-from-r2",
 		},
 		COMMUNITIES: {

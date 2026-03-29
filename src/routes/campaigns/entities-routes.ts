@@ -11,6 +11,7 @@ import {
 	handleGetEntityImportance,
 	handleGetEntityNeighbors,
 	handleGetEntityRelationships,
+	handleListDuplicateNameCandidates,
 	handleListEntities,
 	handleListPendingDeduplication,
 	handleListRelationshipTypes,
@@ -318,6 +319,23 @@ const routeResolveDeduplicationEntry = createRoute({
 	},
 });
 
+const routeListDuplicateNameCandidates = createRoute({
+	method: "get",
+	path: toApiRoutePath(
+		"/campaigns/{campaignId}/entities/duplicate-name-candidates"
+	),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	request: { params: CampaignIdParamSchema },
+	responses: {
+		200: { description: "Same-name entity groups for review" },
+		...Error401,
+		...Error403,
+		...Error404,
+		...Error500,
+	},
+});
+
 const routeTestEntityExtractionFromR2 = createRoute({
 	method: "post",
 	path: toApiRoutePath(ENDPOINTS.CAMPAIGNS.ENTITIES.TEST_EXTRACT_FROM_R2),
@@ -378,6 +396,10 @@ export function registerCampaignEntitiesRoutes(
 	app.openapi(
 		routeListPendingDeduplication,
 		handleListPendingDeduplication as unknown as Handler
+	);
+	app.openapi(
+		routeListDuplicateNameCandidates,
+		handleListDuplicateNameCandidates as unknown as Handler
 	);
 	app.openapi(
 		routeResolveDeduplicationEntry,

@@ -92,6 +92,8 @@ ${buildEntityTypeList()}
 Look for these common tabletop game elements:
 ${buildExtractionHints()}
 - Normalize names (title case), preserve dice notation and DCs.
+- Use one consistent canonical name for each recurring proper noun (people, places, factions, unique concepts) across chunks—do not invent paraphrased titles for the same entity.
+- When a concept fits multiple categories, pick the single best entity type and keep it stable across chunks so the same fiction does not flip types between extractions.
 
 CRITICAL - SUB-LOCATIONS: When you encounter numbered lists of places within a location description (e.g., "1. [Location Name]", "2. [Another Location]", "Area 12: [Chamber Name]"), or sections describing named areas within a city/dungeon/region, extract EACH numbered or named sub-location as a SEPARATE location entity. Create a "located_in" relationship from each sub-location to its parent location. For example, if "[Parent City]" contains "[District 1]" and "[District 2]", extract three entities: (1) "[Parent City]" as a location, (2) "[District 1]" as a location with relation {rel: "located_in", target_id: "[parent-city-id]"}, (3) "[District 2]" as a location with relation {rel: "located_in", target_id: "[parent-city-id]"}. Do NOT just put sub-location names in the parent's "keyed_areas" array - extract them as separate entities with relationships.
 

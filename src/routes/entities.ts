@@ -558,6 +558,24 @@ export async function handleListPendingDeduplication(c: ContextWithAuth) {
 	);
 }
 
+export async function handleListDuplicateNameCandidates(c: ContextWithAuth) {
+	return withCampaignContext(
+		c,
+		"Failed to list duplicate name candidates",
+		async ({ c: ctx, campaignId, entityDAO }) => {
+			const maxGroupsRaw = ctx.req.query("maxGroups");
+			const parsed = maxGroupsRaw ? Number(maxGroupsRaw) : NaN;
+			const maxGroups = Number.isFinite(parsed)
+				? Math.min(100, Math.max(1, Math.floor(parsed)))
+				: 50;
+			const groups = await entityDAO.listDuplicateNameGroups(campaignId, {
+				maxGroups,
+			});
+			return ctx.json({ groups });
+		}
+	);
+}
+
 export async function handleResolveDeduplicationEntry(c: ContextWithAuth) {
 	return withCampaignContext(
 		c,

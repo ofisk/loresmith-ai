@@ -807,6 +807,7 @@ export async function stageEntitiesFromResource(
 		const inRunCandidates: Array<{
 			entityId: string;
 			entityType: string;
+			normalizedName: string;
 			embedding: number[];
 		}> = [];
 		const embeddingCache = new Map<string, number[] | null>();
@@ -836,6 +837,7 @@ export async function stageEntitiesFromResource(
 		const registerInRunCandidate = (
 			entityId: string,
 			entityType: string,
+			normalizedName: string,
 			embedding: number[] | null
 		) => {
 			if (!embedding || embedding.length === 0) return;
@@ -845,9 +847,15 @@ export async function stageEntitiesFromResource(
 			if (existingCandidate) {
 				existingCandidate.embedding = embedding;
 				existingCandidate.entityType = entityType;
+				existingCandidate.normalizedName = normalizedName;
 				return;
 			}
-			inRunCandidates.push({ entityId, entityType, embedding });
+			inRunCandidates.push({
+				entityId,
+				entityType,
+				normalizedName,
+				embedding,
+			});
 		};
 
 		/** Deep equality for content; used to skip approved entities when no new information. */
@@ -1006,7 +1014,12 @@ export async function stageEntitiesFromResource(
 						metadata: rel.metadata,
 					})),
 				});
-				registerInRunCandidate(existing.id, entityType, currentEmbedding);
+				registerInRunCandidate(
+					existing.id,
+					entityType,
+					normalizedName,
+					currentEmbedding
+				);
 				continue;
 			}
 
@@ -1016,13 +1029,15 @@ export async function stageEntitiesFromResource(
 
 			if (currentEmbedding) {
 				let bestInRun: { entityId: string; score: number } | null = null;
+				const nameLower = normalizedName.toLowerCase();
 				for (const candidate of inRunCandidates) {
-					if (candidate.entityType !== entityType) continue;
 					const score = cosineSimilarity(currentEmbedding, candidate.embedding);
-					if (score >= IN_RUN_SEMANTIC_DUPLICATE_THRESHOLD) {
-						if (!bestInRun || score > bestInRun.score) {
-							bestInRun = { entityId: candidate.entityId, score };
-						}
+					if (score < IN_RUN_SEMANTIC_DUPLICATE_THRESHOLD) continue;
+					const candidateNameLower = candidate.normalizedName.toLowerCase();
+					const nameMatches = candidateNameLower === nameLower;
+					if (candidate.entityType !== entityType && !nameMatches) continue;
+					if (!bestInRun || score > bestInRun.score) {
+						bestInRun = { entityId: candidate.entityId, score };
 					}
 				}
 				if (bestInRun) {
@@ -1123,6 +1138,7 @@ export async function stageEntitiesFromResource(
 				registerInRunCandidate(
 					duplicateEntity.id,
 					entityType,
+					normalizedName,
 					currentEmbedding
 				);
 				continue;
@@ -1173,7 +1189,12 @@ export async function stageEntitiesFromResource(
 					metadata: rel.metadata,
 				})),
 			});
-			registerInRunCandidate(entityId, entityType, currentEmbedding);
+			registerInRunCandidate(
+				entityId,
+				entityType,
+				normalizedName,
+				currentEmbedding
+			);
 		}
 
 		// Pass 2: create all relationships (all entities now exist)

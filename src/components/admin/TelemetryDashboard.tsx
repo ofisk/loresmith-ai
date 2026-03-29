@@ -1,8 +1,11 @@
 import { useCallback, useState } from "react";
+import { API_CONFIG } from "@/app-constants";
 import {
 	useAdminTelemetryOverview,
 	useTelemetryDashboard,
 } from "@/hooks/useTelemetryMetrics";
+import { ENDPOINTS } from "@/routes/endpoints";
+import { AuthService } from "@/services/core/auth-service";
 import type { StuckJobSample } from "@/types/admin-analytics";
 import type { AggregatedMetrics } from "@/types/telemetry";
 
@@ -78,6 +81,15 @@ function CountRow(props: { label: string; value: number | string }) {
 	);
 }
 
+type DuplicateNameGroup = {
+	normalizedName: string;
+	entities: Array<{
+		id: string;
+		name: string;
+		entityType: string;
+	}>;
+};
+
 export function TelemetryDashboard() {
 	const [[fromDate, toDate], setWindow] = useState(() => {
 		const t = Date.now();
@@ -86,6 +98,46 @@ export function TelemetryDashboard() {
 			new Date(t).toISOString(),
 		] as const;
 	});
+
+	const [dupCampaignId, setDupCampaignId] = useState("");
+	const [dupGroups, setDupGroups] = useState<DuplicateNameGroup[] | null>(null);
+	const [dupLoading, setDupLoading] = useState(false);
+	const [dupError, setDupError] = useState<string | null>(null);
+
+	const loadDuplicateNameCandidates = useCallback(async () => {
+		const id = dupCampaignId.trim();
+		if (!id) {
+			setDupError("Enter a campaign id");
+			return;
+		}
+		setDupLoading(true);
+		setDupError(null);
+		try {
+			const jwt = AuthService.getStoredJwt();
+			if (!jwt) {
+				throw new Error("Authentication required");
+			}
+			const url = API_CONFIG.buildUrl(
+				ENDPOINTS.CAMPAIGNS.ENTITIES.DUPLICATE_NAME_CANDIDATES(id)
+			);
+			const res = await fetch(`${url}?maxGroups=40`, {
+				headers: { Authorization: `Bearer ${jwt}` },
+			});
+			if (!res.ok) {
+				const err = (await res.json().catch(() => ({}))) as {
+					error?: string;
+				};
+				throw new Error(err.error ?? `Request failed (${res.status})`);
+			}
+			const data = (await res.json()) as { groups: DuplicateNameGroup[] };
+			setDupGroups(data.groups ?? []);
+		} catch (e) {
+			setDupGroups(null);
+			setDupError(e instanceof Error ? e.message : "Request failed");
+		} finally {
+			setDupLoading(false);
+		}
+	}, [dupCampaignId]);
 
 	const applyPreset = useCallback((days: number) => {
 		const t = Date.now();
@@ -606,6 +658,68 @@ export function TelemetryDashboard() {
 						label="Resolved in window"
 						value={overview.dedup.resolvedInWindow}
 					/>
+				</div>
+				<div className="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+					<h3 className="text-base font-medium mb-2">
+						Duplicate name candidates (by campaign)
+					</h3>
+					<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+						Rows that share the same normalized name—use for manual merge
+						review.
+					</p>
+					<div className="flex flex-wrap gap-2 items-center mb-3">
+						<label className="sr-only" htmlFor="dup-campaign-id">
+							Campaign id
+						</label>
+						<input
+							id="dup-campaign-id"
+							type="text"
+							placeholder="Campaign id"
+							value={dupCampaignId}
+							onChange={(e) => setDupCampaignId(e.target.value)}
+							className="flex-1 min-w-[12rem] px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900"
+						/>
+						<button
+							type="button"
+							onClick={() => void loadDuplicateNameCandidates()}
+							disabled={dupLoading}
+							className="px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+						>
+							{dupLoading ? "Loading…" : "Load groups"}
+						</button>
+					</div>
+					{dupError && (
+						<div className="text-sm text-red-600 dark:text-red-400 mb-2">
+							{dupError}
+						</div>
+					)}
+					{dupGroups && dupGroups.length === 0 && !dupLoading && (
+						<div className="text-sm text-neutral-500">
+							No same-name groups in this campaign.
+						</div>
+					)}
+					{dupGroups && dupGroups.length > 0 && (
+						<ul className="space-y-3 text-sm max-h-64 overflow-y-auto">
+							{dupGroups.map((g) => (
+								<li
+									key={g.normalizedName}
+									className="rounded border border-neutral-200 dark:border-neutral-700 p-2 bg-neutral-50 dark:bg-neutral-900/50"
+								>
+									<div className="font-medium mb-1">{g.normalizedName}</div>
+									<ul className="space-y-1 text-neutral-600 dark:text-neutral-400">
+										{g.entities.map((e) => (
+											<li key={e.id} className="font-mono text-xs break-all">
+												{e.id}{" "}
+												<span className="text-neutral-500">
+													({e.entityType})
+												</span>
+											</li>
+										))}
+									</ul>
+								</li>
+							))}
+						</ul>
+					)}
 				</div>
 			</div>
 
