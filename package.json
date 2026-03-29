@@ -116,7 +116,7 @@
 		"hono": "^4.12.7",
 		"jose": "^6.2.1",
 		"lucide-react": "^0.577.0",
-		"mammoth": "^1.11.0",
+		"mammoth": "^1.12.0",
 		"marked": "^17.0.4",
 		"pdf-lib": "^1.17.1",
 		"pdfjs-serverless": "^1.1.0",
