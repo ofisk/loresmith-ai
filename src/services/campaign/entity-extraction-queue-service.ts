@@ -154,7 +154,7 @@ export class EntityExtractionQueueService {
 		// First, check for and reset any stuck processing items for this user
 		// (This handles cases where a job got stuck before the scheduled cleanup ran)
 		if (username) {
-			const stuckItems = await queueDAO.getStuckProcessingItems(10);
+			const stuckItems = await queueDAO.getStuckProcessingItems(60);
 			const userStuckItems = stuckItems.filter(
 				(item) => item.username === username
 			);
@@ -446,7 +446,7 @@ export class EntityExtractionQueueService {
 	 */
 	static async cleanupStuckProcessingItems(
 		env: Env,
-		timeoutMinutes: number = 10
+		timeoutMinutes: number = 60
 	): Promise<{ reset: number; items: EntityExtractionQueueItem[] }> {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
