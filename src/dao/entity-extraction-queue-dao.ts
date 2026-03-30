@@ -12,7 +12,8 @@ export interface EntityExtractionQueueItem {
 	proposed_by?: string | null;
 	status: "pending" | "processing" | "completed" | "failed" | "rate_limited";
 	retry_count: number;
-	last_error: string | null;
+	/** Failures, rate-limit notes, or `PROGRESS:a/b` checkpoints during extraction */
+	queue_message: string | null;
 	error_code: string | null;
 	next_retry_at: string | null;
 	created_at: string;
@@ -70,7 +71,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 	}
 
 	/**
-	 * Most common last_error values among failed jobs (admin telemetry).
+	 * Most common queue_message values among failed jobs (admin telemetry).
 	 */
 	async getTopFailedErrorMessages(options: {
 		fromDate?: string;
@@ -79,8 +80,8 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 	}): Promise<{ errorMessage: string; count: number }[]> {
 		const conditions: string[] = [
 			"status = 'failed'",
-			"last_error IS NOT NULL",
-			"TRIM(last_error) != ''",
+			"queue_message IS NOT NULL",
+			"TRIM(queue_message) != ''",
 		];
 		const params: SqlParam[] = [];
 
@@ -96,10 +97,10 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		const limit = Math.min(Math.max(1, options.limit ?? 15), 50);
 
 		const sql = `
-      SELECT last_error AS error_message, COUNT(*) AS cnt
+      SELECT queue_message AS error_message, COUNT(*) AS cnt
       FROM entity_extraction_queue
       WHERE ${conditions.join(" AND ")}
-      GROUP BY last_error
+      GROUP BY queue_message
       ORDER BY cnt DESC
       LIMIT ?
     `;
@@ -165,7 +166,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
         ON CONFLICT(campaign_id, resource_id) DO UPDATE SET
           status = 'pending',
           retry_count = 0,
-          last_error = NULL,
+          queue_message = NULL,
           error_code = NULL,
           next_retry_at = NULL,
           proposed_by = excluded.proposed_by,
@@ -189,7 +190,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
         ON CONFLICT(campaign_id, resource_id) DO UPDATE SET
           status = 'pending',
           retry_count = 0,
-          last_error = NULL,
+          queue_message = NULL,
           error_code = NULL,
           next_retry_at = NULL,
           updated_at = CURRENT_TIMESTAMP
@@ -269,7 +270,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		const sql = `
       UPDATE entity_extraction_queue
       SET status = 'processing',
-          last_error = ?,
+          queue_message = ?,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
@@ -283,7 +284,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		const sql = `
       UPDATE entity_extraction_queue
       SET status = 'completed',
-          last_error = NULL,
+          queue_message = NULL,
           error_code = NULL,
           next_retry_at = NULL,
           processed_at = CURRENT_TIMESTAMP,
@@ -303,7 +304,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		const sql = `
       UPDATE entity_extraction_queue
       SET status = 'pending',
-          last_error = ?,
+          queue_message = ?,
           error_code = NULL,
           next_retry_at = NULL,
           updated_at = CURRENT_TIMESTAMP
@@ -325,7 +326,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
       UPDATE entity_extraction_queue
       SET status = 'rate_limited',
           retry_count = ?,
-          last_error = ?,
+          queue_message = ?,
           error_code = 'RATE_LIMIT',
           next_retry_at = ?,
           updated_at = CURRENT_TIMESTAMP
@@ -350,7 +351,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		const sql = `
       UPDATE entity_extraction_queue
       SET status = 'failed',
-          last_error = ?,
+          queue_message = ?,
           error_code = ?,
           processed_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
@@ -460,7 +461,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		const sql = `
       UPDATE entity_extraction_queue
       SET status = 'pending',
-          last_error = ?,
+          queue_message = ?,
           error_code = 'PROCESSING_TIMEOUT',
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?

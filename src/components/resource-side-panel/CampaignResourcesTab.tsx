@@ -8,7 +8,13 @@ import {
 import { Button } from "@/components/button/Button";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { chunkProgressPercent } from "@/lib/entity-extraction-progress";
 import type { CampaignResource } from "@/types/campaign";
+
+export interface EntityExtractionChunkProgress {
+	processed: number;
+	total: number;
+}
 
 interface CampaignResourcesTabProps {
 	resources: CampaignResource[];
@@ -17,6 +23,11 @@ interface CampaignResourcesTabProps {
 	expandedResources: Set<string>;
 	onExpandedChange: (next: Set<string>) => void;
 	processingResources: Set<string>;
+	/** Parsed PROGRESS:a/b from entity extraction queue when polling */
+	extractionProgressByResourceId?: Record<
+		string,
+		EntityExtractionChunkProgress | null
+	>;
 	retryingResourceId: string | null;
 	onRetry: (resourceId: string) => void;
 	canRetryEntityExtraction?: boolean;
@@ -37,6 +48,7 @@ export function CampaignResourcesTab({
 	expandedResources,
 	onExpandedChange,
 	processingResources,
+	extractionProgressByResourceId = {},
 	retryingResourceId,
 	onRetry,
 	canRetryEntityExtraction = true,
@@ -130,6 +142,46 @@ export function CampaignResourcesTab({
 											)}
 										</button>
 									</div>
+
+									{processingResources.has(resource.id) && (
+										<div className="mt-2 w-full">
+											{(() => {
+												const prog =
+													extractionProgressByResourceId[resource.id];
+												const pct = prog
+													? chunkProgressPercent(prog.processed, prog.total)
+													: null;
+												if (pct !== null && prog) {
+													return (
+														<>
+															<div
+																className="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+																role="progressbar"
+																aria-valuenow={pct}
+																aria-valuemin={0}
+																aria-valuemax={100}
+																aria-label={`Indexing ${pct} percent`}
+															>
+																<div
+																	className="h-full rounded-full bg-blue-500/90 dark:bg-blue-400/80 transition-[width] duration-300"
+																	style={{ width: `${pct}%` }}
+																/>
+															</div>
+															<p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 tabular-nums">
+																{pct}% indexed ({prog.processed} of {prog.total}{" "}
+																chunks)
+															</p>
+														</>
+													);
+												}
+												return (
+													<p className="text-xs text-neutral-600 dark:text-neutral-400">
+														Indexing…
+													</p>
+												);
+											})()}
+										</div>
+									)}
 
 									{isExpanded && (
 										<div className="overflow-y-auto transition-opacity transition-[max-height] duration-300 ease-in-out max-h-96 opacity-100">

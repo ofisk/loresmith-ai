@@ -453,7 +453,7 @@ CREATE TABLE IF NOT EXISTS entity_extraction_queue (
   file_key text,
   status text not null default 'pending',
   retry_count integer not null default 0,
-  last_error text,
+  last_error text, -- migration 0017 renames to queue_message (run migrations after bootstrap)
   error_code text,
   next_retry_at datetime,
   created_at datetime default current_timestamp,
