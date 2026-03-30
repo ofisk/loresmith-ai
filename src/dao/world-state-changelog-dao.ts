@@ -25,6 +25,9 @@ export interface WorldStateChangelogQueryOptions {
 }
 
 export class WorldStateChangelogDAO extends BaseDAOClass {
+	/** SQLite/D1 bound-variable limit per statement is ~999; keep IN() batches small. */
+	private static readonly IN_CLAUSE_CHUNK_SIZE = 90;
+
 	async createEntry(input: CreateWorldStateChangelogInput): Promise<void> {
 		const sql = `
       INSERT INTO world_state_changelog (
@@ -110,14 +113,23 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
 	async markEntriesApplied(ids: string[]): Promise<void> {
 		if (!ids.length) return;
 
-		const placeholders = ids.map(() => "?").join(", ");
-		const sql = `
+		for (
+			let i = 0;
+			i < ids.length;
+			i += WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
+		) {
+			const chunk = ids.slice(
+				i,
+				i + WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
+			);
+			const placeholders = chunk.map(() => "?").join(", ");
+			const sql = `
       UPDATE world_state_changelog
       SET applied_to_graph = TRUE
       WHERE id IN (${placeholders})
     `;
-
-		await this.execute(sql, ids);
+			await this.execute(sql, chunk);
+		}
 	}
 
 	/**
@@ -140,13 +152,22 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
 	async deleteEntries(ids: string[]): Promise<void> {
 		if (!ids.length) return;
 
-		const placeholders = ids.map(() => "?").join(", ");
-		const sql = `
+		for (
+			let i = 0;
+			i < ids.length;
+			i += WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
+		) {
+			const chunk = ids.slice(
+				i,
+				i + WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
+			);
+			const placeholders = chunk.map(() => "?").join(", ");
+			const sql = `
       DELETE FROM world_state_changelog
       WHERE id IN (${placeholders})
     `;
-
-		await this.execute(sql, ids);
+			await this.execute(sql, chunk);
+		}
 	}
 
 	private mapRecord(

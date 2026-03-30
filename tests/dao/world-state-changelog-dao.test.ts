@@ -121,6 +121,15 @@ describe("WorldStateChangelogDAO", () => {
 			expect.stringContaining("UPDATE world_state_changelog")
 		);
 		expect(mockStatement.bind).toHaveBeenCalledWith("entry-1", "entry-2");
-		expect(mockStatement.run).toHaveBeenCalled();
+		expect(mockStatement.run).toHaveBeenCalledTimes(1);
+	});
+
+	it("chunks markEntriesApplied so large IN lists stay under D1 bind limits", async () => {
+		const ids = Array.from({ length: 95 }, (_, i) => `entry-${i}`);
+		await dao.markEntriesApplied(ids);
+
+		expect(mockStatement.run).toHaveBeenCalledTimes(2);
+		expect(mockStatement.bind).toHaveBeenNthCalledWith(1, ...ids.slice(0, 90));
+		expect(mockStatement.bind).toHaveBeenNthCalledWith(2, ...ids.slice(90));
 	});
 });
