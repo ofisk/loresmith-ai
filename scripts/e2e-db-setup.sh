@@ -11,13 +11,13 @@ DB_NAME="loresmith-db-dev"
 CONFIG="wrangler.local.jsonc"
 
 echo "[e2e-db] Running D1 bootstrap (local)..."
-wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
+npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
   --file="$SCRIPT_DIR/d1-bootstrap.sql"
 
 echo "[e2e-db] Running D1 migrations (local)..."
 for f in migrations/*.sql; do
   [ -f "$f" ] || continue
-  wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
+  npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
     --file="$f" || true
 done
 
@@ -26,7 +26,7 @@ if [ "$E2E_SEED_USER" = "1" ]; then
   E2E_SEED_USER=1 npx tsx scripts/seed-e2e-user.ts
 
   echo "[e2e-db] Cleaning E2E user data for fresh test state..."
-  wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
+  npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
     --file="$SCRIPT_DIR/e2e-cleanup.sql"
 fi
 
