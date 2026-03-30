@@ -8,6 +8,10 @@ import {
 	type EntityExtractionQueueItem,
 } from "@/dao/entity-extraction-queue-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
+import {
+	parseEntityExtractionProgress,
+	queueMessageWithProgress,
+} from "@/lib/entity-extraction-progress";
 import { getEnvVar } from "@/lib/env-utils";
 import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
@@ -86,19 +90,16 @@ function isAuthenticationError(error: unknown): boolean {
 	);
 }
 
-function parseProgressMarker(
-	value: string | null | undefined
-): { processedChunks: number; totalChunks: number } | null {
-	if (!value) return null;
-	const match = value.match(/^PROGRESS:(\d+)\/(\d+)$/);
-	if (!match) return null;
-	const processedChunks = Number.parseInt(match[1], 10);
-	const totalChunks = Number.parseInt(match[2], 10);
-	if (!Number.isFinite(processedChunks) || !Number.isFinite(totalChunks)) {
-		return null;
-	}
-	if (processedChunks < 0 || totalChunks <= 0) return null;
-	return { processedChunks, totalChunks };
+async function buildRateLimitQueueMessage(
+	queueDAO: EntityExtractionQueueDAO,
+	item: EntityExtractionQueueItem,
+	errorMessage: string
+): Promise<string> {
+	const latest = await queueDAO.getQueueItemById(item.id);
+	return queueMessageWithProgress(
+		latest?.queue_message ?? item.queue_message,
+		errorMessage
+	);
 }
 
 export class EntityExtractionQueueService {
@@ -231,8 +232,8 @@ export class EntityExtractionQueueService {
 					);
 				}
 
-				const progress = parseProgressMarker(item.queue_message);
-				const resumeFromChunk = progress?.processedChunks ?? 0;
+				const progress = parseEntityExtractionProgress(item.queue_message);
+				const resumeFromChunk = progress?.processed ?? 0;
 
 				// Process entity extraction window (checkpointed so cron CPU limits can resume)
 				const result = await stageEntitiesFromResource({
@@ -268,7 +269,7 @@ export class EntityExtractionQueueService {
 
 				if (result.completed === false) {
 					const nextChunk = result.nextChunkIndex ?? resumeFromChunk;
-					const totalChunks = result.totalChunks ?? progress?.totalChunks ?? 0;
+					const totalChunks = result.totalChunks ?? progress?.total ?? 0;
 					await queueDAO.markAsPending(
 						item.id,
 						totalChunks > 0
@@ -357,7 +358,7 @@ export class EntityExtractionQueueService {
 							item.id,
 							currentRetryCount,
 							nextRetryAt,
-							errorMessage
+							await buildRateLimitQueueMessage(queueDAO, item, errorMessage)
 						);
 					}
 				} else {
@@ -381,7 +382,7 @@ export class EntityExtractionQueueService {
 							item.id,
 							currentRetryCount,
 							nextRetryAt,
-							errorMessage
+							await buildRateLimitQueueMessage(queueDAO, item, errorMessage)
 						);
 					}
 				}

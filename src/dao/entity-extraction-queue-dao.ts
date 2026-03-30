@@ -1,3 +1,4 @@
+import { queueMessageWithProgress } from "@/lib/entity-extraction-progress";
 import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
 
@@ -460,6 +461,11 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
 		id: number,
 		errorMessage: string
 	): Promise<void> {
+		const row = await this.getQueueItemById(id);
+		const message = queueMessageWithProgress(
+			row?.queue_message ?? null,
+			errorMessage
+		);
 		const sql = `
       UPDATE entity_extraction_queue
       SET status = 'pending',
@@ -468,6 +474,6 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
-		await this.execute(sql, [errorMessage, id]);
+		await this.execute(sql, [message, id]);
 	}
 }
