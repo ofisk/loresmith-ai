@@ -25,11 +25,12 @@ fi
 
 echo "Running D1 bootstrap for $ENV ($DB_NAME)..."
 
+# npx: CI runs this script directly; node_modules/.bin is not on PATH unless via npm.
 # Main schema (tables, indexes, view)
-wrangler d1 execute "$DB_NAME" --config "$CONFIG" --remote --file="$SCRIPT_DIR/d1-bootstrap.sql"
+npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --remote --file="$SCRIPT_DIR/d1-bootstrap.sql"
 
 # Triggers (run via --command to avoid D1 semicolon-splitting issues)
-wrangler d1 execute "$DB_NAME" --config "$CONFIG" --remote --command="CREATE TRIGGER IF NOT EXISTS update_shard_registry_timestamp AFTER UPDATE ON shard_registry FOR EACH ROW BEGIN UPDATE shard_registry SET updated_at = datetime('now') WHERE shard_id = new.shard_id; END"
-wrangler d1 execute "$DB_NAME" --config "$CONFIG" --remote --command="CREATE TRIGGER IF NOT EXISTS trigger_entity_relationships_updated_at AFTER UPDATE ON entity_relationships FOR EACH ROW BEGIN UPDATE entity_relationships SET updated_at = current_timestamp WHERE id = new.id; END"
+npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --remote --command="CREATE TRIGGER IF NOT EXISTS update_shard_registry_timestamp AFTER UPDATE ON shard_registry FOR EACH ROW BEGIN UPDATE shard_registry SET updated_at = datetime('now') WHERE shard_id = new.shard_id; END"
+npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --remote --command="CREATE TRIGGER IF NOT EXISTS trigger_entity_relationships_updated_at AFTER UPDATE ON entity_relationships FOR EACH ROW BEGIN UPDATE entity_relationships SET updated_at = current_timestamp WHERE id = new.id; END"
 
 echo "Bootstrap complete. Run 'npm run migrate:dev' (or migrate:prod) to apply incremental migrations."
