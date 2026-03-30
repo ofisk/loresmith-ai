@@ -1,0 +1,13 @@
+---
+description: Escape-dismissible overlays — use useDismissibleLayer or Modal; document listeners must use capture
+globs: ["**/*.tsx", "**/*.ts"]
+alwaysApply: true
+---
+
+# Dismissible overlays
+
+Floating UI (popover, drawer, non-route modal) should close on **Escape** unless the product blocks it (**`Modal`**: `options.allowEscape: false` for blocking auth, etc.). Use **`useDismissibleLayer`** (`src/hooks/useDismissibleLayer.ts`) or **`Modal`**; don’t add one-off `document` Escape handlers.
+
+`Modal`’s dialog shell uses **`onKeyDown` + `stopPropagation`**, so **bubble-phase** listeners on `document` miss keys when focus is inside the dialog. Keep **`{ capture: true }`** on `useDismissibleLayer` and on **`Modal`’s Tab trap**; if you change that, retest with focus in inputs (e.g. Add resource).
+
+**Current wiring (update this list when you change it):** hook; `Modal` (Escape + Tab capture); Escape on `NotificationBell`, `ResourceSidePanel` user menu, `ShardOverlay`, `AppShell` via `closeMobileSidebar`. Tests: `tests/hooks/useDismissibleLayer.test.tsx` (ancestor `stopPropagation` case), `NotificationBell`, `ResourceSidePanel` user menu — extend when adding new dismissible surfaces.

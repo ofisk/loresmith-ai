@@ -2,6 +2,7 @@ import { X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/card/Card";
 import useClickOutside from "@/hooks/useClickOutside";
+import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 import { cn } from "@/lib/utils";
 
 export type ModalOptions = {
@@ -118,6 +119,12 @@ export const Modal = ({
 		};
 	}, [isOpen]);
 
+	useDismissibleLayer({
+		open: isOpen,
+		onClose,
+		enabled: allowEscape,
+	});
+
 	// Tab focus
 	// biome-ignore lint/correctness/useExhaustiveDependencies: modalRef.current is intentionally excluded - ref identity is stable, including it would not help and can cause unnecessary effect runs
 	useEffect(() => {
@@ -160,16 +167,15 @@ export const Modal = ({
 					}
 				}
 			}
-			if (e.key === "Escape" && allowEscape) {
-				onClose();
-			}
 		};
 
-		document.addEventListener("keydown", handleKeyDown);
+		// Capture phase so Tab trapping still runs when the dialog wrapper uses
+		// onKeyDown stopPropagation (same issue as Escape + useDismissibleLayer).
+		document.addEventListener("keydown", handleKeyDown, { capture: true });
 		return () => {
-			document.removeEventListener("keydown", handleKeyDown);
+			document.removeEventListener("keydown", handleKeyDown, { capture: true });
 		};
-	}, [isOpen, onClose, allowEscape]);
+	}, [isOpen]);
 
 	if (!isOpen) return null;
 

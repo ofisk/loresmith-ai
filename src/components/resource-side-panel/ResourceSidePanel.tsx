@@ -2,6 +2,7 @@ import { CaretDown, CreditCard, SignOut } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useAppShellContextOptional } from "@/contexts/AppShellContext";
 import { useCampaignManagement } from "@/hooks/useCampaignManagement";
+import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
@@ -81,6 +82,16 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 	const onShowUsageLimits = ctx?.onShowUsageLimits ?? onShowUsageLimitsProp;
 	const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 	const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
+
+	const closeUserMenu = useCallback(() => {
+		setShowUserMenu?.(false);
+	}, [setShowUserMenu]);
+
+	useDismissibleLayer({
+		open: showUserMenu,
+		onClose: closeUserMenu,
+		enabled: Boolean(setShowUserMenu),
+	});
 
 	const handleCampaignsToggle = useCallback(() => {
 		setIsCampaignsOpen((prev) => !prev);

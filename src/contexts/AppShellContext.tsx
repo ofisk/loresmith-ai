@@ -48,6 +48,8 @@ export interface AppShellContextValue {
 
 	// Layout
 	onToggleSidebar: () => void;
+	/** Close the mobile sidebar without toggling (e.g. Escape). No-op on desktop layout. */
+	closeMobileSidebar: () => void;
 	isSidebarOpen: boolean;
 
 	// Modal / auth
@@ -325,6 +327,10 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		() => setIsMobileSidebarOpen((p) => !p),
 		[setIsMobileSidebarOpen]
 	);
+	const closeMobileSidebar = useCallback(
+		() => setIsMobileSidebarOpen(false),
+		[setIsMobileSidebarOpen]
+	);
 	const onUploadFiles = useCallback(
 		() => setTriggerFileUpload(true),
 		[setTriggerFileUpload]
@@ -351,6 +357,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			tourSteps: tour.steps,
 			onJoyrideCallback: tour.handleJoyrideCallback,
 			onToggleSidebar,
+			closeMobileSidebar,
 			isSidebarOpen: isMobileSidebarOpen,
 			modalState,
 			authState,
@@ -425,6 +432,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			tour.steps,
 			tour.handleJoyrideCallback,
 			onToggleSidebar,
+			closeMobileSidebar,
 			isMobileSidebarOpen,
 			modalState,
 			authState,
