@@ -6,6 +6,7 @@ import { RelationshipUpsertError } from "@/lib/errors";
 import { incrementCampaignCacheVersion } from "@/services/search/entity-search-cache-service";
 import type { SqlParam, SqlParams } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
+import { D1_IN_LIST_CHUNK_SIZE } from "./d1-limits";
 
 /** D1 platform limit: max 100 bound params per query. We use 2×N (from + to IN), so N ≤ 49. */
 const RELATIONSHIPS_BATCH_SIZE = 49;
@@ -350,13 +351,20 @@ export class EntityDAO extends BaseDAOClass {
 
 		// Invalidate entity search cache for affected campaigns
 		const entityIds = updates.map((u) => u.entityId);
-		const placeholders = entityIds.map(() => "?").join(", ");
-		const rows = await this.queryAll<{ campaign_id: string }>(
-			`SELECT DISTINCT campaign_id FROM entities WHERE id IN (${placeholders})`,
-			entityIds
-		);
-		for (const row of rows) {
-			await incrementCampaignCacheVersion(this.db, row.campaign_id);
+		const campaignsInvalidated = new Set<string>();
+		for (let i = 0; i < entityIds.length; i += D1_IN_LIST_CHUNK_SIZE) {
+			const chunk = entityIds.slice(i, i + D1_IN_LIST_CHUNK_SIZE);
+			const placeholders = chunk.map(() => "?").join(", ");
+			const rows = await this.queryAll<{ campaign_id: string }>(
+				`SELECT DISTINCT campaign_id FROM entities WHERE id IN (${placeholders})`,
+				chunk
+			);
+			for (const row of rows) {
+				if (!campaignsInvalidated.has(row.campaign_id)) {
+					campaignsInvalidated.add(row.campaign_id);
+					await incrementCampaignCacheVersion(this.db, row.campaign_id);
+				}
+			}
 		}
 	}
 
@@ -372,10 +380,21 @@ export class EntityDAO extends BaseDAOClass {
 		if (entityIds.length === 0) {
 			return [];
 		}
-		const placeholders = entityIds.map(() => "?").join(", ");
-		const sql = `SELECT * FROM entities WHERE id IN (${placeholders})`;
-		const records = await this.queryAll<EntityRecord>(sql, entityIds);
-		return records.map((record) => this.mapEntityRecord(record));
+		const byId = new Map<string, EntityRecord>();
+		for (let i = 0; i < entityIds.length; i += D1_IN_LIST_CHUNK_SIZE) {
+			const chunk = entityIds.slice(i, i + D1_IN_LIST_CHUNK_SIZE);
+			const placeholders = chunk.map(() => "?").join(", ");
+			const sql = `SELECT * FROM entities WHERE id IN (${placeholders})`;
+			const records = await this.queryAll<EntityRecord>(sql, chunk);
+			for (const record of records) {
+				if (!byId.has(record.id)) {
+					byId.set(record.id, record);
+				}
+			}
+		}
+		return Array.from(byId.values()).map((record) =>
+			this.mapEntityRecord(record)
+		);
 	}
 
 	async listEntitiesByCampaign(

@@ -5,6 +5,7 @@ import type {
 	WorldStateChangelogRecord,
 } from "@/types/world-state";
 import { BaseDAOClass } from "./base-dao";
+import { D1_IN_LIST_CHUNK_SIZE } from "./d1-limits";
 
 export interface CreateWorldStateChangelogInput {
 	id: string;
@@ -25,9 +26,6 @@ export interface WorldStateChangelogQueryOptions {
 }
 
 export class WorldStateChangelogDAO extends BaseDAOClass {
-	/** SQLite/D1 bound-variable limit per statement is ~999; keep IN() batches small. */
-	private static readonly IN_CLAUSE_CHUNK_SIZE = 90;
-
 	async createEntry(input: CreateWorldStateChangelogInput): Promise<void> {
 		const sql = `
       INSERT INTO world_state_changelog (
@@ -113,15 +111,8 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
 	async markEntriesApplied(ids: string[]): Promise<void> {
 		if (!ids.length) return;
 
-		for (
-			let i = 0;
-			i < ids.length;
-			i += WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
-		) {
-			const chunk = ids.slice(
-				i,
-				i + WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
-			);
+		for (let i = 0; i < ids.length; i += D1_IN_LIST_CHUNK_SIZE) {
+			const chunk = ids.slice(i, i + D1_IN_LIST_CHUNK_SIZE);
 			const placeholders = chunk.map(() => "?").join(", ");
 			const sql = `
       UPDATE world_state_changelog
@@ -152,15 +143,8 @@ export class WorldStateChangelogDAO extends BaseDAOClass {
 	async deleteEntries(ids: string[]): Promise<void> {
 		if (!ids.length) return;
 
-		for (
-			let i = 0;
-			i < ids.length;
-			i += WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
-		) {
-			const chunk = ids.slice(
-				i,
-				i + WorldStateChangelogDAO.IN_CLAUSE_CHUNK_SIZE
-			);
+		for (let i = 0; i < ids.length; i += D1_IN_LIST_CHUNK_SIZE) {
+			const chunk = ids.slice(i, i + D1_IN_LIST_CHUNK_SIZE);
 			const placeholders = chunk.map(() => "?").join(", ");
 			const sql = `
       DELETE FROM world_state_changelog
