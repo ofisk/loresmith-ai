@@ -143,11 +143,7 @@ async function clearR2WithAPI() {
 
 			const data = await response.json();
 
-			if (
-				!data.result ||
-				!data.result.objects ||
-				data.result.objects.length === 0
-			) {
+			if (!data.result?.objects || data.result.objects.length === 0) {
 				hasMore = false;
 				if (deleted === 0) {
 					console.log("✅ No objects found in bucket");

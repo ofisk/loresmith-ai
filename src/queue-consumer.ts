@@ -590,8 +590,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							);
 						// Community has fallback name if no summary or summary has no valid name
 						const hasFallbackName =
-							!summary ||
-							!summary.name ||
+							!summary?.name ||
 							typeof summary.name !== "string" ||
 							summary.name.trim().length === 0;
 

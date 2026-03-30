@@ -180,11 +180,7 @@ export class LibraryRAGService extends BaseRAGService {
 			throw memoryError;
 		}
 
-		if (
-			!extractionResult ||
-			!extractionResult.text ||
-			extractionResult.text.trim().length === 0
-		) {
+		if (!extractionResult?.text || extractionResult.text.trim().length === 0) {
 			throw new Error(
 				`No text could be extracted from file "${metadata.filename}". The file may be corrupted, encrypted, image-based, or too large to process.`
 			);
@@ -316,7 +312,7 @@ export class LibraryRAGService extends BaseRAGService {
 				contentType
 			);
 
-			if (!extractionResult || !extractionResult.text) {
+			if (!extractionResult?.text) {
 				return {};
 			}
 

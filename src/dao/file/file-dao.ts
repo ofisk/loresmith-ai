@@ -799,7 +799,7 @@ export class FileDAO extends BaseDAOClass {
 			[fileKey]
 		);
 
-		if (!result || !result[0] || !result[0].processing_error) {
+		if (!result?.[0]?.processing_error) {
 			return null;
 		}
 

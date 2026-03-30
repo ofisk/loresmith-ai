@@ -5,8 +5,8 @@ import { BaseDAOClass } from "./base-dao";
 import type { CampaignMemberRole } from "./campaign-share-link-dao";
 import { FileDAO } from "./file/file-dao";
 
-export type { CampaignMemberRole };
 export type { CampaignResourceRow, CampaignRow } from "@/types/campaign";
+export type { CampaignMemberRole };
 
 /** Campaign row from DB; alias for backward compatibility */
 export type Campaign = CampaignRow;

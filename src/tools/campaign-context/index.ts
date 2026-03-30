@@ -38,36 +38,36 @@ import {
 } from "./world-state-tools";
 
 export {
-	// Character tools
-	storeCharacterInfo,
+	assessCampaignReadiness,
+	checkHouseRuleConflictTool,
+	createEntityRelationshipTool,
+	defineHouseRuleTool,
+	// Community tools
+	detectCommunitiesTool,
+	// Entity tools
+	extractEntitiesFromContentTool,
 	generateCharacterWithAITool,
+	// Recap (context recap for returning users / campaign switch)
+	generateContextRecapTool,
+	// Suggestion tools
+	getCampaignSuggestions,
+	getCommunitiesTool,
+	getCommunityHierarchyTool,
+	listAllEntities,
+	listHouseRulesTool,
+	lookupStatBlockTool,
+	// World state tools
+	recordWorldEventTool,
+	resolveRulesConflictTool,
 	// Search tools
 	searchCampaignContext,
 	searchExternalResources,
-	listAllEntities,
-	// Suggestion tools
-	getCampaignSuggestions,
-	assessCampaignReadiness,
-	// Community tools
-	detectCommunitiesTool,
-	getCommunitiesTool,
-	getCommunityHierarchyTool,
-	// Entity tools
-	extractEntitiesFromContentTool,
-	createEntityRelationshipTool,
-	defineHouseRuleTool,
-	listHouseRulesTool,
-	updateHouseRuleTool,
-	checkHouseRuleConflictTool,
 	searchRulesTool,
-	lookupStatBlockTool,
-	resolveRulesConflictTool,
-	// World state tools
-	recordWorldEventTool,
+	// Character tools
+	storeCharacterInfo,
 	updateEntityWorldStateTool,
+	updateHouseRuleTool,
 	updateRelationshipWorldStateTool,
-	// Recap (context recap for returning users / campaign switch)
-	generateContextRecapTool,
 };
 
 // Export the tools object for backward compatibility

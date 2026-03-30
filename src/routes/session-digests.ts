@@ -443,7 +443,7 @@ export async function handleRejectDigest(c: ContextWithAuth) {
 
 		const body = (await c.req.json()) as { reviewNotes: string };
 
-		if (!body.reviewNotes || !body.reviewNotes.trim()) {
+		if (!body.reviewNotes?.trim()) {
 			return c.json({ error: "Review notes are required" }, 400);
 		}
 

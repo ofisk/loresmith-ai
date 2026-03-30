@@ -11,7 +11,7 @@ import type {
 function parseStructuredSchema(
 	schema?: string
 ): Record<string, unknown> | null {
-	if (!schema || !schema.trim()) {
+	if (!schema?.trim()) {
 		return null;
 	}
 	try {

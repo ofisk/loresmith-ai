@@ -209,7 +209,7 @@ export class ChunkedProcessingService {
 				);
 			}
 
-			if (!extractionResult || !extractionResult.text) {
+			if (!extractionResult?.text) {
 				throw new Error("No text extracted from chunk");
 			}
 
