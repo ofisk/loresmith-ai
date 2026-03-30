@@ -4,9 +4,13 @@ on:
   push:
     branches: [main]
 
+# Required for deploy:
+#   CLOUDFLARE_API_TOKEN — repository secret; API token with Workers + D1 (and bindings you use)
+#   CLOUDFLARE_ACCOUNT_ID — repository secret or variable (account ID from Cloudflare dashboard)
+# Optional: environment-scoped secrets with the same names.
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
   deploy-dev:
@@ -14,6 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify Cloudflare credentials
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN}" ]; then
+            echo "::error title=Missing secret::CLOUDFLARE_API_TOKEN is not set. Add it under Repository secrets (or the deploy environment). See https://developers.cloudflare.com/fundamentals/api/get-started/create-token/"
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID}" ]; then
+            echo "::error title=Missing config::CLOUDFLARE_ACCOUNT_ID is not set. Add repository secret or variable CLOUDFLARE_ACCOUNT_ID."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -41,6 +56,17 @@ jobs:
     needs: deploy-dev
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify Cloudflare credentials
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN}" ]; then
+            echo "::error title=Missing secret::CLOUDFLARE_API_TOKEN is not set. Add it under Repository secrets."
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID}" ]; then
+            echo "::error title=Missing config::CLOUDFLARE_ACCOUNT_ID is not set. Add repository secret or variable CLOUDFLARE_ACCOUNT_ID."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
