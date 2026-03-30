@@ -292,7 +292,7 @@ export const searchRulesTool = tool({
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 		try {
 			const env = getEnvFromContext(options) as RulesReferenceToolEnv | null;
-			if (!env || !env.DB) {
+			if (!env?.DB) {
 				return createToolError(
 					"Environment not available",
 					"Direct database access is required for rules lookup.",
@@ -385,7 +385,7 @@ export const lookupStatBlockTool = tool({
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 		try {
 			const env = getEnvFromContext(options) as RulesReferenceToolEnv | null;
-			if (!env || !env.DB) {
+			if (!env?.DB) {
 				return createToolError(
 					"Environment not available",
 					"Direct database access is required for stat block lookup.",
@@ -485,7 +485,7 @@ export const resolveRulesConflictTool = tool({
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 		try {
 			const env = getEnvFromContext(options) as RulesReferenceToolEnv | null;
-			if (!env || !env.DB) {
+			if (!env?.DB) {
 				return createToolError(
 					"Environment not available",
 					"Direct database access is required for conflict resolution.",

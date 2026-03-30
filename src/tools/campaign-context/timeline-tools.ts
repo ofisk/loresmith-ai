@@ -330,7 +330,7 @@ export const buildTimelineTool = tool({
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 		try {
 			const env = getEnvFromContext(options) as TimelineToolRuntimeEnv | null;
-			if (!env || !env.DB) {
+			if (!env?.DB) {
 				return createToolError(
 					"Environment not available",
 					"Direct database access is required for timeline building.",
@@ -397,7 +397,7 @@ export const queryTimelineRangeTool = tool({
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 		try {
 			const env = getEnvFromContext(options) as TimelineToolRuntimeEnv | null;
-			if (!env || !env.DB) {
+			if (!env?.DB) {
 				return createToolError(
 					"Environment not available",
 					"Direct database access is required for timeline queries.",
@@ -465,7 +465,7 @@ export const addTimelineEventTool = tool({
 		const toolCallId = options?.toolCallId ?? crypto.randomUUID();
 		try {
 			const env = getEnvFromContext(options) as TimelineToolRuntimeEnv | null;
-			if (!env || !env.DB) {
+			if (!env?.DB) {
 				return createToolError(
 					"Environment not available",
 					"Direct database access is required for timeline updates.",

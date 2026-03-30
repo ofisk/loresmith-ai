@@ -16,13 +16,14 @@ import type {
 	ToolRecommendation,
 	UserState,
 } from "@/types/assessment";
+
 export type {
-	UserState,
+	ActionSuggestion,
 	ActivityType,
 	CampaignAwareGuidance,
 	CampaignReadinessSummary,
-	ActionSuggestion,
 	ToolRecommendation,
+	UserState,
 };
 
 /**

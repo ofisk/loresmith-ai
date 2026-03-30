@@ -17,8 +17,7 @@ expect.extend({
 			received !== undefined &&
 			typeof received === "object" &&
 			"ownerDocument" in received &&
-			received.ownerDocument &&
-			received.ownerDocument.contains(received as Node);
+			received.ownerDocument?.contains(received as Node);
 
 		if (pass) {
 			return {

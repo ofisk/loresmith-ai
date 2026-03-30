@@ -60,51 +60,51 @@ import {
 
 // Export all campaign tools
 export {
-	// Campaign core tools
-	createCampaign,
-	deleteCampaign,
-	deleteCampaigns,
-	listCampaigns,
-	showCampaignDetails,
-	updateCampaign,
-	resolveCampaignIdentifier,
-	// Campaign planning tools
-	planSession,
-	checkPlanningReadiness,
-	generateSessionHooks,
 	// Campaign resource tools
 	addResourceToCampaign,
-	proposeResourceToCampaign,
-	removeResourceFromCampaign,
-	listCampaignResources,
-	// Campaign file tools
-	getFileLibraryStats,
-	searchFileLibrary,
-	searchVisualInspirationTool,
-	uploadInspirationImageTool,
-	// File management tools for campaign operations
-	listFiles,
-	getFileStats,
 	// Campaign context capture tools
 	captureConversationalContext,
-	saveContextExplicitly,
-	recordPlanningTasks,
-	getPlanningTaskProgress,
+	checkHouseRuleConflictTool,
+	checkPlanningReadiness,
 	completePlanningTask,
-	searchCampaignContext,
+	// Campaign core tools
+	createCampaign,
+	defineHouseRuleTool,
+	deleteCampaign,
+	deleteCampaigns,
+	deleteEntityTool,
+	generateSessionHooks,
+	// Campaign file tools
+	getFileLibraryStats,
+	getFileStats,
+	getPlanningTaskProgress,
+	linkInspirationToEntityTool,
 	listAllEntities,
+	listCampaignResources,
+	listCampaigns,
+	// File management tools for campaign operations
+	listFiles,
+	listHouseRulesTool,
+	noOpTool,
+	// Campaign planning tools
+	planSession,
+	proposeResourceToCampaign,
+	recordPlanningTasks,
 	recordWorldEventTool,
-	updateEntityWorldStateTool,
-	updateRelationshipWorldStateTool,
+	removeResourceFromCampaign,
+	resolveCampaignIdentifier,
+	saveContextExplicitly,
+	searchCampaignContext,
+	searchFileLibrary,
+	searchVisualInspirationTool,
+	showCampaignDetails,
+	updateCampaign,
 	updateEntityMetadataTool,
 	updateEntityTypeTool,
-	deleteEntityTool,
-	linkInspirationToEntityTool,
-	defineHouseRuleTool,
-	listHouseRulesTool,
+	updateEntityWorldStateTool,
 	updateHouseRuleTool,
-	checkHouseRuleConflictTool,
-	noOpTool,
+	updateRelationshipWorldStateTool,
+	uploadInspirationImageTool,
 };
 
 /** Player-facing campaign tools: list, create, show, resources (list + propose), search, file library, no-op */

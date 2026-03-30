@@ -6,9 +6,6 @@ import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { createToolError, extractUsernameFromJwt } from "./tool-utils";
 
-/** Re-export for v6 tool execute signature. */
-export type { ToolExecutionOptions };
-
 /** Re-export pure tool helpers. */
 export {
 	createAuthHeaders,
@@ -16,6 +13,8 @@ export {
 	createToolSuccess,
 	extractUsernameFromJwt,
 } from "./tool-utils";
+/** Re-export for v6 tool execute signature. */
+export type { ToolExecutionOptions };
 
 /**
  * Options passed to tool execute (v6). Base agent extends with env when running in Worker/DO.

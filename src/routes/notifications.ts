@@ -18,7 +18,7 @@ export async function handleMintStreamToken(
 			c.env
 		);
 
-		if (!authResult || !authResult.username) {
+		if (!authResult?.username) {
 			return new Response("Invalid or expired token", {
 				status: 401,
 				headers: {
@@ -259,7 +259,7 @@ export async function handleNotificationPublish(
 			c.env
 		);
 
-		if (!authResult || !authResult.username) {
+		if (!authResult?.username) {
 			return new Response("Unauthorized", {
 				status: 401,
 				headers: {

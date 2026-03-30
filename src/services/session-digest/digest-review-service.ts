@@ -91,7 +91,7 @@ export class DigestReviewService {
 			);
 		}
 
-		if (!reviewNotes || !reviewNotes.trim()) {
+		if (!reviewNotes?.trim()) {
 			throw new Error("Review notes are required when rejecting a digest");
 		}
 

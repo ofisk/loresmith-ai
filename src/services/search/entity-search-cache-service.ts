@@ -126,7 +126,7 @@ export async function getCachedSearchResult(
 			.caches.default;
 		const request = new Request(cacheKey);
 		const cached = await cache.match(request);
-		if (!cached || !cached.ok) return null;
+		if (!cached?.ok) return null;
 		const body = (await cached.json()) as CachedEntitySearchResult;
 		if (!body?.entityIds || !Array.isArray(body.entityIds)) return null;
 		return {

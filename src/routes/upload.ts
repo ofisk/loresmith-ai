@@ -247,7 +247,7 @@ export async function handleGetFiles(c: ContextWithAuth) {
 	try {
 		const userAuth = (c as any).userAuth as AuthPayload;
 
-		if (!userAuth || !userAuth.username) {
+		if (!userAuth?.username) {
 			return c.json({ error: "User authentication required" }, 401);
 		}
 
@@ -311,7 +311,7 @@ export async function handleUpdateFileMetadata(c: ContextWithAuth) {
 			tagsIsArray: Array.isArray(tags),
 		});
 
-		if (!userAuth || !userAuth.username) {
+		if (!userAuth?.username) {
 			log.error("[handleUpdateFileMetadata] User authentication missing");
 			return c.json({ error: "User authentication required" }, 401);
 		}
@@ -440,7 +440,7 @@ export async function handleGetFileStatus(c: ContextWithAuth) {
 		const fileKey = requireParam(c, "fileKey");
 		if (fileKey instanceof Response) return fileKey;
 
-		if (!userAuth || !userAuth.username) {
+		if (!userAuth?.username) {
 			return c.json({ error: "User authentication required" }, 401);
 		}
 
