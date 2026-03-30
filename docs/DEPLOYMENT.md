@@ -3,20 +3,18 @@
 ### Deployment pipeline
 
 1. Developer works and tests locally.
-2. Developer may optionally deploy to dev before opening a PR: `npm run deploy:dev`
-3. Developer pushes and opens a PR; CI and sanity checks run automatically.
+2. Developer may optionally deploy to dev before opening a PR: `npm run deploy:dev` (runs bootstrap, D1 migrations for dev, and `wrangler deploy --config wrangler.dev.jsonc`).
+3. Developer pushes and opens a PR; CI and sanity checks run automatically. Optional: PR preview Workers via `.github/workflows/deploy-preview.yml` (requires GitHub Actions secrets; see below).
 4. When checks pass, developer merges the PR to `main`.
-5. On merge, the deploy workflow runs: deploy to dev first, then deploy to prod only if dev succeeds.
+5. **Production:** Cloudflare **Workers Builds** (GitHub integration on the `loresmith-ai` Worker) builds and deploys from `main`. Configure build env vars, install/build commands, and any deploy steps in the Cloudflare dashboard so they match this repo (see `package.json` scripts and previous `deploy.yml` logic for D1 migrations if you run them in CI).
 
-**Workflow (`.github/workflows/deploy.yml`):**
-- **Deploy to staging** – Migrations run against `loresmith-db-dev`, then the dev Worker deploys.
-- **Deploy to production** – Runs only after staging succeeds; migrations run against `loresmith-db`, then the production Worker deploys.
+There is **no** separate GitHub Actions `deploy.yml` for production—Cloudflare’s integration is the source of truth for prod deploys from `main`.
 
 **Prerequisites:**
 - Create `loresmith-db-dev` with `wrangler d1 create loresmith-db-dev` (or use `wrangler d1 list` to get the ID if it already exists), then update `wrangler.dev.jsonc` with the database ID.
 - Create dev queues (Cloudflare Queues allow only one consumer per queue, so dev needs its own): `wrangler queues create upload-events-dev`, `wrangler queues create file-processing-dlq-dev`, `wrangler queues create graph-rebuild-dlq-dev`, `wrangler queues create shard-embedding-dlq-dev`. Or run `./scripts/setup-dev.sh` which creates these.
 - For production, ensure DLQ queues exist: `wrangler queues create graph-rebuild-dlq` and `wrangler queues create shard-embedding-dlq` (file-processing-dlq is created with main queues).
-- For a fresh dev database, run `npm run migrate:bootstrap:dev` once, then `npm run migrate:dev` to apply incremental migrations. The deploy workflow runs bootstrap automatically before migrations for dev.
+- For a fresh dev database, run `npm run migrate:bootstrap:dev` once, then `npm run migrate:dev` to apply incremental migrations. `npm run deploy:dev` runs bootstrap before migrations for dev.
 
 ### Preview deployments (PR)
 
@@ -26,7 +24,7 @@ Each pull request can deploy a **preview Worker** so you can test the full app (
 
 **Workflow:** `.github/workflows/deploy-preview.yml` runs on `pull_request` (opened, synchronize). It generates `wrangler.preview.generated.jsonc` from the template `wrangler.preview.jsonc` (placeholders `__PREVIEW_WORKER_NAME__` and `__PREVIEW_URL__`), builds with the correct API URL, deploys, and posts/updates a comment with the link.
 
-**Required GitHub secrets (same as main deploy):**
+**Required GitHub secrets (same token/account ID as in the section below):**
 - `CLOUDFLARE_API_TOKEN` – API token with Workers and D1 deploy permissions
 - `CLOUDFLARE_ACCOUNT_ID` – Cloudflare account ID
 
@@ -37,9 +35,11 @@ Each pull request can deploy a **preview Worker** so you can test the full app (
 
 ---
 
-**Required GitHub secrets:**
+**Required GitHub secrets (for PR preview deploy only — `.github/workflows/deploy-preview.yml`):**
 - `CLOUDFLARE_API_TOKEN` – API token with Workers and D1 deploy permissions
 - `CLOUDFLARE_ACCOUNT_ID` – Cloudflare account ID
+
+Production deploy from `main` uses **Cloudflare Workers Builds** and does not need these in GitHub unless you also use the preview workflow.
 
 **How to add GitHub secrets (copy/paste):**
 
