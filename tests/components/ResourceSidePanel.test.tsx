@@ -120,6 +120,22 @@ describe("ResourceSidePanel", () => {
 		expect(screen.getByText("Logout")).toBeInTheDocument();
 	});
 
+	it("closes user menu on Escape", () => {
+		render(
+			<ResourceSidePanel
+				isAuthenticated={true}
+				campaigns={mockCampaigns}
+				showUserMenu={true}
+				setShowUserMenu={mockSetShowUserMenu}
+			/>
+		);
+
+		expect(screen.getByText("Logout")).toBeInTheDocument();
+		fireEvent.keyDown(document, { key: "Escape" });
+
+		expect(mockSetShowUserMenu).toHaveBeenCalledWith(false);
+	});
+
 	it("should call onLogout when logout button is clicked", async () => {
 		mockOnLogout.mockResolvedValue(undefined);
 		const _confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);

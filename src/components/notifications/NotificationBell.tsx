@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/button/Button";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { NotificationPayload } from "@/durable-objects/notification-hub";
+import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 
 interface NotificationBellProps {
 	notifications: NotificationPayload[];
@@ -37,6 +38,13 @@ export function NotificationBell({
 
 	// Ensure document is available for portal
 	useEffect(() => setMounted(true), []);
+
+	const closePanel = useCallback(() => setIsOpen(false), []);
+
+	useDismissibleLayer({
+		open: isOpen,
+		onClose: closePanel,
+	});
 
 	const getIcon = (type: string) => {
 		switch (type) {

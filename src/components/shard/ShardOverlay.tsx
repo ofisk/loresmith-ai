@@ -1,6 +1,7 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { UnifiedShardManager } from "@/components/chat/UnifiedShardManager";
+import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 import type { StagedShardGroup } from "@/types/shard";
 
 interface ShardOverlayProps {
@@ -67,17 +68,10 @@ export const ShardOverlay = ({
 		setIsMinimized(true);
 	}, []);
 
-	// Close on Escape key
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape" && isExpanded) {
-				setIsExpanded(false);
-			}
-		};
-
-		window.addEventListener("keydown", handleEscape);
-		return () => window.removeEventListener("keydown", handleEscape);
-	}, [isExpanded]);
+	useDismissibleLayer({
+		open: isExpanded,
+		onClose: () => setIsExpanded(false),
+	});
 
 	return (
 		<div className="fixed inset-y-0 right-0 flex justify-end items-start pt-0 md:pt-28 pb-0 md:pb-28 pointer-events-none [z-index:var(--z-modal)]">

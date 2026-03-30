@@ -4,9 +4,15 @@ import { ChatArea } from "@/components/app/ChatArea";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
 import { ShardOverlay } from "@/components/shard/ShardOverlay";
 import { useAppShellContext } from "@/contexts/AppShellContext";
+import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 
 export function AppShell() {
 	const ctx = useAppShellContext();
+
+	useDismissibleLayer({
+		open: ctx.isSidebarOpen,
+		onClose: ctx.closeMobileSidebar,
+	});
 
 	return (
 		<>
