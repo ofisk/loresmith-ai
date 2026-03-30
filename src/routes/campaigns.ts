@@ -1133,7 +1133,7 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
 	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
-		const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "10", 10);
+		const timeoutMinutes = parseInt(c.req.query("timeoutMinutes") || "60", 10);
 
 		if (!userAuth) {
 			return c.json({ error: "Authentication required" }, 401);

@@ -33,7 +33,12 @@ const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 2000; // 2 seconds
 const MAX_BACKOFF_MS = 300000; // 5 minutes
 const RATE_LIMIT_BACKOFF_MULTIPLIER = 2;
-const MAX_CHUNKS_PER_EXTRACTION_RUN = 3;
+
+/** Chunks processed per queue job invocation (bounded for Worker CPU / LLM cost). Tuned for ~10 concurrent active users. */
+const MAX_CHUNKS_PER_EXTRACTION_RUN = 12;
+
+/** Queue items run per cron tick across all users (each item runs up to MAX_CHUNKS_PER_EXTRACTION_RUN chunks). Tuned for ~10 concurrent active users. */
+const MAX_JOBS_PER_SCHEDULED_RUN = 10;
 
 /**
  * Calculate exponential backoff delay for rate limits
@@ -141,7 +146,7 @@ export class EntityExtractionQueueService {
 	static async processQueue(
 		env: Env,
 		username?: string,
-		maxItems: number = 10
+		maxItems: number = 15
 	): Promise<{ processed: number; failed: number }> {
 		const queueDAO = new EntityExtractionQueueDAO(env.DB);
 		const daoFactory = getDAOFactory(env);
@@ -149,7 +154,7 @@ export class EntityExtractionQueueService {
 		// First, check for and reset any stuck processing items for this user
 		// (This handles cases where a job got stuck before the scheduled cleanup ran)
 		if (username) {
-			const stuckItems = await queueDAO.getStuckProcessingItems(10);
+			const stuckItems = await queueDAO.getStuckProcessingItems(60);
 			const userStuckItems = stuckItems.filter(
 				(item) => item.username === username
 			);
@@ -398,7 +403,6 @@ export class EntityExtractionQueueService {
 	static async processPendingQueueItems(env: Env): Promise<void> {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
-			const MAX_JOBS_PER_SCHEDULED_RUN = 2;
 
 			// First, clean up stuck processing items
 			await EntityExtractionQueueService.cleanupStuckProcessingItems(env);
@@ -442,7 +446,7 @@ export class EntityExtractionQueueService {
 	 */
 	static async cleanupStuckProcessingItems(
 		env: Env,
-		timeoutMinutes: number = 10
+		timeoutMinutes: number = 60
 	): Promise<{ reset: number; items: EntityExtractionQueueItem[] }> {
 		try {
 			const queueDAO = new EntityExtractionQueueDAO(env.DB);
