@@ -93,6 +93,7 @@ export interface EntityStagingOptions {
 	maxChunksPerRun?: number;
 	/** Optional callback for durable chunk checkpoints. */
 	onChunkCheckpoint?: (progress: {
+		/** Cumulative chunks finished for the document (not just this invocation). */
 		processedChunks: number;
 		totalChunks: number;
 	}) => Promise<void> | void;
@@ -437,7 +438,13 @@ export async function stageEntitiesFromResource(
 		const chunkContentByRetry: Map<number, string> = new Map(); // Trimmed content for context-length retries
 		const chunksToRetry: number[] = []; // Chunks that need retrying
 		let successfulChunks = 0;
-		let completedCount = 0; // Monotonic count for onChunkCheckpoint (parallel completion)
+		let completedCount = 0; // Chunks finished in this invocation (parallel completion order)
+		const emitChunkCheckpoint = async () => {
+			await onChunkCheckpoint?.({
+				processedChunks: startChunkIndex + completedCount,
+				totalChunks: chunks.length,
+			});
+		};
 
 		// Helper function to process a single chunk
 		const processChunk = async (
@@ -476,10 +483,7 @@ export async function stageEntitiesFromResource(
 						})
 					);
 					completedCount++;
-					await onChunkCheckpoint?.({
-						processedChunks: completedCount,
-						totalChunks: chunks.length,
-					});
+					await emitChunkCheckpoint();
 					return true;
 				}
 
@@ -516,10 +520,7 @@ export async function stageEntitiesFromResource(
 							telemetry.recordExtractionChunkGateSkip({ campaignId })
 						);
 						completedCount++;
-						await onChunkCheckpoint?.({
-							processedChunks: completedCount,
-							totalChunks: chunks.length,
-						});
+						await emitChunkCheckpoint();
 						return true;
 					}
 					recordTelemetry(() =>
@@ -599,10 +600,7 @@ export async function stageEntitiesFromResource(
 					chunkRetryCounts.delete(chunkIndex);
 				}
 				completedCount++;
-				await onChunkCheckpoint?.({
-					processedChunks: completedCount,
-					totalChunks: chunks.length,
-				});
+				await emitChunkCheckpoint();
 				return true;
 			} catch (chunkError) {
 				// Log error
@@ -625,10 +623,7 @@ export async function stageEntitiesFromResource(
 				// No output from model: treat as empty chunk (0 entities), don't retry
 				if (isNoOutput) {
 					completedCount++;
-					await onChunkCheckpoint?.({
-						processedChunks: completedCount,
-						totalChunks: chunks.length,
-					});
+					await emitChunkCheckpoint();
 					return true;
 				}
 
@@ -676,10 +671,7 @@ export async function stageEntitiesFromResource(
 				}
 				failedChunks.push(chunkNumber);
 				completedCount++;
-				await onChunkCheckpoint?.({
-					processedChunks: completedCount,
-					totalChunks: chunks.length,
-				});
+				await emitChunkCheckpoint();
 				// Keep retry count so caller won't re-queue (newRetryCount >= MAX_CHUNK_RETRIES)
 				return false; // Permanently failed
 			}

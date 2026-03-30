@@ -1,6 +1,8 @@
 /**
  * Parses a `PROGRESS:processed/total` checkpoint string from `queue_message`
  * on `entity_extraction_queue` (also used for failures and rate-limit notes).
+ * `processed` is cumulative chunks finished for the resource (resume cursor / bar),
+ * not “chunks done in the current worker invocation only”.
  * Same pattern as `parseProgressMarker` in `entity-extraction-queue-service.ts`.
  */
 export function parseEntityExtractionProgress(

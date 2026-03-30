@@ -169,6 +169,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
           queue_message = NULL,
           error_code = NULL,
           next_retry_at = NULL,
+          processed_at = NULL,
           proposed_by = excluded.proposed_by,
           updated_at = CURRENT_TIMESTAMP
       `;
@@ -193,6 +194,7 @@ export class EntityExtractionQueueDAO extends BaseDAOClass {
           queue_message = NULL,
           error_code = NULL,
           next_retry_at = NULL,
+          processed_at = NULL,
           updated_at = CURRENT_TIMESTAMP
       `;
 			await this.execute(sql, [
