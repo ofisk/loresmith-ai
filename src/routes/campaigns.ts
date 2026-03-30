@@ -1109,7 +1109,7 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 			inQueue: true,
 			status: queueItem.status,
 			retryCount: queueItem.retry_count,
-			lastError: queueItem.last_error,
+			queueMessage: queueItem.queue_message,
 			errorCode: queueItem.error_code,
 			nextRetryAt: queueItem.next_retry_at,
 			createdAt: queueItem.created_at,

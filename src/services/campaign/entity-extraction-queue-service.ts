@@ -231,7 +231,7 @@ export class EntityExtractionQueueService {
 					);
 				}
 
-				const progress = parseProgressMarker(item.last_error);
+				const progress = parseProgressMarker(item.queue_message);
 				const resumeFromChunk = progress?.processedChunks ?? 0;
 
 				// Process entity extraction window (checkpointed so cron CPU limits can resume)
@@ -273,7 +273,7 @@ export class EntityExtractionQueueService {
 						item.id,
 						totalChunks > 0
 							? `PROGRESS:${nextChunk}/${totalChunks}`
-							: item.last_error
+							: item.queue_message
 					);
 					processed++;
 					continue;
