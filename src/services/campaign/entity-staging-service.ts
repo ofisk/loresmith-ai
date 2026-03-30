@@ -414,8 +414,9 @@ export async function stageEntitiesFromResource(
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 		let jsonRepairCount = 0;
 
-		const CHUNK_CONCURRENCY = 3;
-		const CHUNK_START_INTERVAL_MS = 1000; // Min interval between chunk starts to respect provider TPM
+		// Parallel chunk extraction; tuned for ~10 concurrent active users (lower TPM contention than ~100-user caps).
+		const CHUNK_CONCURRENCY = 5;
+		const CHUNK_START_INTERVAL_MS = 500; // Min interval between chunk starts to respect provider TPM
 		const MAX_CHUNK_RETRIES = 3; // Maximum retry attempts per chunk (rate limits only)
 		const INITIAL_RETRY_DELAY_MS = 2000; // Initial delay for retries (2 seconds)
 		const MAX_RETRY_DELAY_MS = 30000; // Maximum delay for retries (30 seconds)
