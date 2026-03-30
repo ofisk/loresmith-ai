@@ -232,5 +232,39 @@ describe("EntityDAO", () => {
 			);
 			expect(mockStmt.bind).toHaveBeenCalledWith("e1");
 		});
+
+		it("chunks id lists so each query stays under D1 bind limits", async () => {
+			expect.hasAssertions();
+
+			const mkRow = (id: string): EntityRecord => ({
+				id,
+				campaign_id: "c1",
+				entity_type: "npc",
+				name: id,
+				content: null,
+				metadata: null,
+				confidence: null,
+				source_type: null,
+				source_id: null,
+				embedding_id: null,
+				created_at: "2024-01-01T00:00:00Z",
+				updated_at: "2024-01-01T00:00:00Z",
+			});
+
+			const ids = Array.from({ length: 95 }, (_, i) => `e-${i}`);
+			let call = 0;
+			mockStmt.all.mockImplementation(async () => {
+				call += 1;
+				if (call === 1) {
+					return { results: ids.slice(0, 90).map(mkRow) };
+				}
+				return { results: ids.slice(90).map(mkRow) };
+			});
+
+			const result = await dao.getEntitiesByIds(ids);
+
+			expect(mockDB.prepare).toHaveBeenCalledTimes(2);
+			expect(result).toHaveLength(95);
+		});
 	});
 });

@@ -1,11 +1,11 @@
 import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
+import { D1_IN_LIST_CHUNK_SIZE, d1MultiRowValuesChunkSize } from "./d1-limits";
 
-// D1 has a relatively small SQL parameter ceiling; keep IN() batches conservative.
-const D1_IN_CLAUSE_BATCH_SIZE = 90;
+const D1_IN_CLAUSE_BATCH_SIZE = D1_IN_LIST_CHUNK_SIZE;
 
-/** Each community_entities row uses 2 bound parameters; SQLite limits ~999 vars per statement. */
-const COMMUNITY_ENTITIES_INSERT_CHUNK_SIZE = 400;
+/** Each `community_entities` row is `(?, ?)`; D1 allows max 100 binds per statement. */
+const COMMUNITY_ENTITIES_INSERT_CHUNK_SIZE = d1MultiRowValuesChunkSize(2);
 
 // Raw row shape returned directly from D1 queries against the `communities` table.
 export interface CommunityRecord {

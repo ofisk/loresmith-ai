@@ -1,5 +1,6 @@
 import type { SqlParam } from "@/types/utils";
 import { BaseDAOClass } from "./base-dao";
+import { D1_IN_LIST_CHUNK_SIZE } from "./d1-limits";
 
 // Raw row structure for the `entity_importance` table. Matches the D1 schema
 // exactly and is primarily used internally before normalization.
@@ -134,14 +135,22 @@ export class EntityImportanceDAO extends BaseDAOClass {
 			return [];
 		}
 
-		const placeholders = entityIds.map(() => "?").join(", ");
-		const sql = `
+		const byId = new Map<string, EntityImportanceRecord>();
+		for (let i = 0; i < entityIds.length; i += D1_IN_LIST_CHUNK_SIZE) {
+			const chunk = entityIds.slice(i, i + D1_IN_LIST_CHUNK_SIZE);
+			const placeholders = chunk.map(() => "?").join(", ");
+			const sql = `
       SELECT * FROM entity_importance
       WHERE entity_id IN (${placeholders})
     `;
-
-		const records = await this.queryAll<EntityImportanceRecord>(sql, entityIds);
-		return records.map((record) => this.mapRecord(record));
+			const records = await this.queryAll<EntityImportanceRecord>(sql, chunk);
+			for (const record of records) {
+				if (!byId.has(record.entity_id)) {
+					byId.set(record.entity_id, record);
+				}
+			}
+		}
+		return Array.from(byId.values()).map((record) => this.mapRecord(record));
 	}
 
 	async getImportanceForCampaign(
