@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { FormField } from "@/components/input/FormField";
 import type { SessionDigestData } from "@/types/session-digest";
 
@@ -253,23 +253,25 @@ export function SessionDigestBulkImport({
 
 			<div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 				{onCancel && (
-					<FormButton
+					<Button
+						appearance="form"
 						type="button"
 						variant="secondary"
 						onClick={onCancel}
 						disabled={isProcessing}
 					>
 						Cancel
-					</FormButton>
+					</Button>
 				)}
-				<FormButton
+				<Button
+					appearance="form"
 					type="button"
 					onClick={handleImport}
 					loading={isProcessing}
 					disabled={!notes.trim() || isProcessing}
 				>
 					{isProcessing ? "Processing..." : "Import Notes"}
-				</FormButton>
+				</Button>
 			</div>
 		</div>
 	);

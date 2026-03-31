@@ -1,6 +1,6 @@
 import { Check, DownloadSimple, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { Modal } from "@/components/modal/Modal";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { API_CONFIG } from "@/shared-config";
@@ -210,12 +210,20 @@ export function PendingProposalsSection({
 						) : null}
 					</p>
 					<div className="flex justify-end gap-2">
-						<FormButton variant="secondary" onClick={handleDownloadCancel}>
+						<Button
+							appearance="form"
+							variant="secondary"
+							onClick={handleDownloadCancel}
+						>
 							Cancel
-						</FormButton>
-						<FormButton variant="primary" onClick={handleDownloadConfirm}>
+						</Button>
+						<Button
+							appearance="form"
+							variant="primary"
+							onClick={handleDownloadConfirm}
+						>
 							I trust this sender, download
-						</FormButton>
+						</Button>
 					</div>
 				</div>
 			</Modal>

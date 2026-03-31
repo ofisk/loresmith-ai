@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
 import { BlockingAuthenticationModal } from "@/components/BlockingAuthenticationModal";
 import { QuotaWarningModal } from "@/components/billing/QuotaWarningModal";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { Modal } from "@/components/modal/Modal";
 import {
 	RateLimitReachedModal,
@@ -542,21 +542,23 @@ export function AppModals({
 						<div className="flex items-center justify-between mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 							<div className="flex gap-2">
 								{availableCampaigns.length > 0 && (
-									<FormButton
+									<Button
+										appearance="form"
 										variant="primary"
 										onClick={handleAddToCampaignConfirm}
 										loading={isAddingToCampaigns}
 										disabled={isAddingToCampaigns}
 									>
 										{isAddingToCampaigns ? "Adding…" : "Add"}
-									</FormButton>
+									</Button>
 								)}
-								<FormButton
+								<Button
+									appearance="form"
 									onClick={modalState.handleAddToCampaignClose}
 									variant="secondary"
 								>
 									Cancel
-								</FormButton>
+								</Button>
 							</div>
 						</div>
 					</div>
@@ -617,12 +619,20 @@ export function AppModals({
 						{modalState.proposalConfirmLegalNotice}
 					</p>
 					<div className="flex justify-end gap-2">
-						<FormButton variant="secondary" onClick={onProposalCancel}>
+						<Button
+							appearance="form"
+							variant="secondary"
+							onClick={onProposalCancel}
+						>
 							Cancel
-						</FormButton>
-						<FormButton variant="primary" onClick={onProposalConfirm}>
+						</Button>
+						<Button
+							appearance="form"
+							variant="primary"
+							onClick={onProposalConfirm}
+						>
 							I confirm, propose file
-						</FormButton>
+						</Button>
 					</div>
 				</div>
 			</Modal>

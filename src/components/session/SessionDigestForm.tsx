@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { ArrayInput } from "@/components/input/ArrayInput";
 import { FormField } from "@/components/input/FormField";
 import { usePlanningTasks } from "@/hooks/usePlanningTasks";
@@ -439,18 +439,19 @@ export function SessionDigestForm({
 			{/* Form Actions */}
 			<div className="flex items-center justify-end gap-3 pt-4">
 				{onCancel && (
-					<FormButton
+					<Button
+						appearance="form"
 						type="button"
 						variant="secondary"
 						onClick={onCancel}
 						disabled={isLoading}
 					>
 						Cancel
-					</FormButton>
+					</Button>
 				)}
-				<FormButton type="submit" loading={isLoading}>
+				<Button appearance="form" type="submit" loading={isLoading}>
 					{digest ? "Update digest" : "Create digest"}
-				</FormButton>
+				</Button>
 			</div>
 		</form>
 	);

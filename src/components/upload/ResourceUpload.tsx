@@ -1,7 +1,7 @@
 import { Plus } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { UPLOAD_CONFIG } from "@/app-constants";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { ProcessingProgressBar } from "@/components/progress/ProcessingProgressBar";
 import { EDIT_ROLES } from "@/constants/campaign-roles";
 import { cn } from "@/lib/utils";
@@ -478,7 +478,8 @@ export const ResourceUpload = ({
 			{/* Actions */}
 			<div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 				<div className="flex gap-2">
-					<FormButton
+					<Button
+						appearance="form"
 						variant="primary"
 						onClick={() => void handleUpload()}
 						disabled={isUploadDisabled}
@@ -506,8 +507,9 @@ export const ResourceUpload = ({
 							: selectedFiles.length === 1 && uploadSuccess
 								? "Complete"
 								: "Upload"}
-					</FormButton>
-					<FormButton
+					</Button>
+					<Button
+						appearance="form"
 						onClick={() => {
 							// Reset form state
 							setSelectedFiles([]);
@@ -519,7 +521,7 @@ export const ResourceUpload = ({
 						variant="secondary"
 					>
 						Cancel
-					</FormButton>
+					</Button>
 				</div>
 			</div>
 		</div>

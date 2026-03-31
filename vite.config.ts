@@ -16,11 +16,17 @@ function ciHtmlEntryPlugin(): Plugin {
 		enforce: "post" as const,
 		config(config: UserConfig) {
 			const root = config.root ?? process.cwd();
+			// Only the client environment may use the SPA entry — root-level
+			// build.rollupOptions is inherited by the Worker env and breaks dev/build.
 			return {
-				build: {
-					rollupOptions: {
-						...config.build?.rollupOptions,
-						input: path.resolve(root, "src/client.tsx"),
+				environments: {
+					client: {
+						build: {
+							rollupOptions: {
+								...config.environments?.client?.build?.rollupOptions,
+								input: path.resolve(root, "src/client.tsx"),
+							},
+						},
 					},
 				},
 			};
@@ -79,17 +85,12 @@ export default defineConfig({
 			build: {
 				rollupOptions: {
 					input: clientEntry,
-				},
-			},
-		},
-	},
-	build: {
-		rollupOptions: {
-			input: clientEntry,
-			external: ["cloudflare:email", "cloudflare:workers"],
-			output: {
-				manualChunks: {
-					vendor: ["react", "react-dom"],
+					external: ["cloudflare:email", "cloudflare:workers"],
+					output: {
+						manualChunks: {
+							vendor: ["react", "react-dom"],
+						},
+					},
 				},
 			},
 		},

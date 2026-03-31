@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { FormField } from "@/components/input/FormField";
 
 interface CreateCampaignModalProps {
@@ -85,21 +85,23 @@ export function CreateCampaignModal({
 				<div className="flex-1" />
 				<div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
 					{onSuggestAddResource && (
-						<FormButton
+						<Button
+							appearance="form"
 							variant="primary"
 							onClick={handleAddResource}
 							data-testid="create-campaign-add-resource"
 						>
 							Add your first resource
-						</FormButton>
+						</Button>
 					)}
-					<FormButton
+					<Button
+						appearance="form"
 						onClick={handleDone}
 						variant="secondary"
 						data-testid="create-campaign-done"
 					>
 						Done
-					</FormButton>
+					</Button>
 				</div>
 			</div>
 		);
@@ -144,7 +146,8 @@ export function CreateCampaignModal({
 			{/* Actions */}
 			<div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
 				<div className="flex items-center gap-2">
-					<FormButton
+					<Button
+						appearance="form"
 						variant="primary"
 						onClick={handleCreate}
 						disabled={!name.trim() || isSubmitting}
@@ -152,10 +155,10 @@ export function CreateCampaignModal({
 						data-testid="create-campaign-submit"
 					>
 						{isSubmitting ? "Creating…" : "Create"}
-					</FormButton>
-					<FormButton onClick={onClose} variant="secondary">
+					</Button>
+					<Button appearance="form" onClick={onClose} variant="secondary">
 						Cancel
-					</FormButton>
+					</Button>
 				</div>
 			</div>
 		</div>

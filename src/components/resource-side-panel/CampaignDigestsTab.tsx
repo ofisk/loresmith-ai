@@ -1,5 +1,5 @@
 import { Plus } from "@phosphor-icons/react";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { SessionDigestList } from "@/components/session/SessionDigestList";
 import type { SessionDigestWithData } from "@/types/session-digest";
 
@@ -35,20 +35,22 @@ export function CampaignDigestsTab({
 				</h3>
 				{canManageDigests && (
 					<div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-						<FormButton
+						<Button
+							appearance="form"
 							onClick={onBulkImport}
 							variant="secondary"
 							className="w-full sm:w-auto"
 						>
 							Bulk import
-						</FormButton>
-						<FormButton
+						</Button>
+						<Button
+							appearance="form"
 							onClick={onCreate}
 							icon={<Plus size={16} />}
 							className="w-full sm:w-auto"
 						>
 							Create digest
-						</FormButton>
+						</Button>
 					</div>
 				)}
 			</div>

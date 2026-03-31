@@ -40,6 +40,9 @@ build/Release
 
 # Dependency directories
 node_modules/
+
+# Storybook build output
+storybook-static/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
