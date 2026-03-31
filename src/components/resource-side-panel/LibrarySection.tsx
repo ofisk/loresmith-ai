@@ -210,7 +210,7 @@ export function LibrarySection({
 			className={cn(
 				"rounded-lg transition-shadow",
 				isFileDragOver &&
-					"ring-2 ring-blue-500/40 dark:ring-blue-400/35 ring-offset-2 ring-offset-neutral-50 dark:ring-offset-neutral-900"
+					"ring-2 ring-purple-500/40 dark:ring-purple-400/35 ring-offset-2 ring-offset-neutral-50 dark:ring-offset-neutral-900"
 			)}
 			onDragEnter={handleLibraryDragEnter}
 			onDragLeave={handleLibraryDragLeave}
@@ -233,7 +233,7 @@ export function LibrarySection({
 				headerSupplement={
 					processingCount > 0 ? (
 						<span
-							className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+							className="text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
 							title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
 						>
 							{processingCount} preparing
@@ -250,7 +250,7 @@ export function LibrarySection({
 						<button
 							type="button"
 							onClick={() => onAddToLibrary()}
-							className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-blue-600 dark:text-blue-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+							className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
 						>
 							<Plus size={14} />
 							Add to library

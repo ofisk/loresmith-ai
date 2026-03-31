@@ -1,0 +1,28 @@
+---
+description: Keep product accent and primary actions on the shared lavender theme and CSS tokens
+alwaysApply: true
+---
+
+# Lavender accent and primary actions
+
+The app’s **product accent** (CTAs, sidebar actions, welcome screen, primary buttons) is **lavender / purple**, aligned with `--color-accent` in `src/styles.css`. Do not swap those surfaces to **blue** utilities or to **neutral-only** primary buttons without an explicit design decision.
+
+## CSS tokens (do not regress)
+
+In `src/styles.css`:
+
+- **`@theme`**: keep `--color-primary`, `--color-primary-foreground`, and `--color-ring` defined and aligned with the lavender accent (same family as `--color-accent`, ~295 hue in oklch). Tailwind utilities `bg-primary`, `text-primary-foreground`, and `ring-ring` depend on these; if they are removed, those classes emit no CSS and controls look broken.
+- **`:root` / `.dark`**: keep `--color-ob-btn-primary-bg`, border, and hover tokens on **lavender** fills/borders, not neutral grays, for `.btn-primary`.
+- **`.btn.btn-primary`**: keep **white** label color (`color: var(--color-white)`) so dark mode stays readable (dark `--text-color-ob-inverted` is for pale gray buttons, not saturated primaries).
+
+## UI patterns
+
+- **Main chat** send/stop: use `bg-primary` / `text-primary-foreground` and a **primary-tinted** border (e.g. `border-primary/35`), not neutral-only borders without primary fill.
+- **Welcome screen** (`WelcomeMessage.tsx`): accent text, rings, and highlighted CTAs use **purple** utilities (`text-purple-*`, `border-purple-*`, `ring-purple-*`), not blue.
+- **Resource side panel** (`src/components/resource-side-panel/**`): full-width actions, badges, progress accents, and **Campaign details** tab + “View graph” treatment use **purple** accents; do not revert to `text-blue-*` / `border-blue-*` / `var(--color-link)` for those marketing-style actions (blue may still be used elsewhere for **info** UI or **focus** rings on plain inputs if that pattern already exists).
+
+## Vite note
+
+`vite.config.ts` `define` bakes `import.meta.env.VITE_API_URL` at dev server start; `npm start` defaults to local API. That is separate from theme but affects “local client vs prod API” behavior—document env in `.vars.example` when changing API wiring.
+
+When in doubt, match existing **purple CTA** blocks (e.g. `PlanningTasksPanel`, `ResourceUpload`) or the tokens above rather than introducing a new accent color.

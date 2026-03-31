@@ -58,6 +58,11 @@
 	--motion-float-y: 1.25rem;
 	--motion-float-x: 0.625rem;
 	--motion-twinkle-scale: 1.2;
+
+	/* App accent (lavender) — used by bg-primary, ring-ring, etc. */
+	--color-primary: oklch(0.55 0.2 295);
+	--color-primary-foreground: #fff;
+	--color-ring: oklch(0.55 0.18 295);
 }
 
 /* Modal size utility classes */
@@ -578,11 +583,11 @@ html {
 	--text-color-ob-destructive: var(--color-red-600);
 	--text-color-ob-inverted: var(--color-white);
 
-	/* ob-btn */
-	--color-ob-btn-primary-bg: var(--color-neutral-750);
-	--color-ob-btn-primary-bg-hover: var(--color-neutral-850);
-	--color-ob-btn-primary-border: var(--color-neutral-500);
-	--color-ob-btn-primary-border-hover: var(--color-neutral-600);
+	/* ob-btn (lavender primary, aligned with --color-accent) */
+	--color-ob-btn-primary-bg: oklch(0.52 0.19 295);
+	--color-ob-btn-primary-bg-hover: oklch(0.46 0.19 295);
+	--color-ob-btn-primary-border: oklch(0.45 0.2 295);
+	--color-ob-btn-primary-border-hover: oklch(0.4 0.2 295);
 
 	--color-ob-btn-secondary-bg: var(--color-white);
 	--color-ob-btn-secondary-bg-hover: var(--color-neutral-50);
@@ -629,10 +634,13 @@ html {
 	--text-color-ob-inverted: var(--color-neutral-900);
 
 	/* ob-btn */
-	--color-ob-btn-primary-bg: var(--color-neutral-300);
-	--color-ob-btn-primary-bg-hover: var(--color-neutral-250);
-	--color-ob-btn-primary-border: var(--color-neutral-100);
-	--color-ob-btn-primary-border-hover: var(--color-white);
+	--color-ob-btn-primary-bg: oklch(0.58 0.17 295);
+	--color-ob-btn-primary-bg-hover: oklch(0.64 0.16 295);
+	--color-ob-btn-primary-border: oklch(0.5 0.18 295);
+	--color-ob-btn-primary-border-hover: oklch(0.68 0.15 295);
+
+	--color-primary: oklch(0.62 0.17 295);
+	--color-ring: oklch(0.62 0.15 295);
 
 	--color-ob-btn-secondary-bg: var(--color-neutral-800);
 	--color-ob-btn-secondary-bg-hover: var(--color-neutral-750);
@@ -667,7 +675,7 @@ html {
 .btn.btn-primary {
 	border-color: var(--color-ob-btn-primary-border);
 	background-color: var(--color-ob-btn-primary-bg);
-	color: var(--text-color-ob-inverted);
+	color: var(--color-white);
 	box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-xs */
 }
 .btn.btn-primary:not(:disabled):hover {

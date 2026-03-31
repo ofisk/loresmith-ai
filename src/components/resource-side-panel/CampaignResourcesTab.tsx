@@ -74,7 +74,7 @@ export function CampaignResourcesTab({
 							? "Only the campaign owner or Co-GM can add resources"
 							: undefined
 					}
-					className="w-full sm:w-auto !text-blue-600 dark:!text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+					className="w-full sm:w-auto !text-purple-600 dark:!text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					<Plus size={16} weight="bold" />
 					Add resource
@@ -132,12 +132,12 @@ export function CampaignResourcesTab({
 											{isExpanded ? (
 												<CaretDownIcon
 													size={16}
-													className="text-blue-600 dark:text-blue-400"
+													className="text-purple-600 dark:text-purple-400"
 												/>
 											) : (
 												<CaretRightIcon
 													size={16}
-													className="text-blue-600 dark:text-blue-400"
+													className="text-purple-600 dark:text-purple-400"
 												/>
 											)}
 										</button>
@@ -163,7 +163,7 @@ export function CampaignResourcesTab({
 																aria-label={`Indexing ${pct} percent`}
 															>
 																<div
-																	className="h-full rounded-full bg-blue-500/90 dark:bg-blue-400/80 transition-[width] duration-300"
+																	className="h-full rounded-full bg-purple-500/90 dark:bg-purple-400/80 transition-[width] duration-300"
 																	style={{ width: `${pct}%` }}
 																/>
 															</div>
@@ -243,7 +243,7 @@ export function CampaignResourcesTab({
 																		{tags.map((tag: string) => (
 																			<span
 																				key={tag}
-																				className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded"
+																				className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded"
 																			>
 																				{tag}
 																			</span>

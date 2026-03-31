@@ -612,7 +612,7 @@ export function CampaignDetailsModal({
 							<button
 								type="button"
 								onClick={() => setIsGraphModalOpen(true)}
-								className="w-full sm:w-auto min-w-0 sm:min-w-[var(--width-tab-button)] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-[color:var(--color-link)] border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
+								className="w-full sm:w-auto min-w-0 sm:min-w-[var(--width-tab-button)] px-4 md:px-6 py-2 text-sm font-medium rounded-lg bg-neutral-700 dark:bg-neutral-800 text-purple-200 dark:text-purple-300 border border-neutral-600 dark:border-neutral-700 hover:bg-neutral-600 dark:hover:bg-neutral-700 transition-colors"
 							>
 								View graph
 							</button>
@@ -635,7 +635,7 @@ export function CampaignDetailsModal({
 								onClick={() => setActiveTab("details")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "details"
-										? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+										? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
 										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
@@ -650,7 +650,7 @@ export function CampaignDetailsModal({
 								onClick={() => setActiveTab("digests")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "digests"
-										? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+										? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
 										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
@@ -673,7 +673,7 @@ export function CampaignDetailsModal({
 									isPlayerRole
 										? "border-transparent text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
 										: activeTab === "nextSteps"
-											? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+											? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
 											: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>
@@ -688,7 +688,7 @@ export function CampaignDetailsModal({
 								onClick={() => setActiveTab("resources")}
 								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "resources"
-										? "border-[color:var(--color-link)] text-[color:var(--color-link)]"
+										? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
 										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 								}`}
 							>

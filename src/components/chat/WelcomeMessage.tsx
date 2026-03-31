@@ -31,7 +31,7 @@ export function WelcomeMessage({
 						<div className="space-y-3">
 							<div>
 								<div className="font-semibold text-base mb-2 flex items-center gap-2">
-									<span className="bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm">
+									<span className="bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
 										Build your campaign library
 									</span>
 								</div>
@@ -45,7 +45,7 @@ export function WelcomeMessage({
 
 							<div>
 								<div className="font-semibold text-base mb-2 flex items-center gap-2">
-									<span className="bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm">
+									<span className="bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
 										Organize your story
 									</span>
 								</div>
@@ -59,7 +59,7 @@ export function WelcomeMessage({
 
 							<div>
 								<div className="font-semibold text-base mb-2 flex items-center gap-2">
-									<span className="bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm">
+									<span className="bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md text-sm">
 										Start brainstorming
 									</span>
 								</div>
@@ -72,7 +72,7 @@ export function WelcomeMessage({
 							</div>
 						</div>
 
-						<p className="font-medium bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700">
+						<p className="font-medium bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 px-3 py-2 rounded-lg border border-purple-200/80 dark:border-purple-800/60">
 							{hasNoCampaigns
 								? "Start by creating a campaign to organize your story."
 								: "Ready to dive in? Pick an option below to get started:"}
@@ -83,10 +83,10 @@ export function WelcomeMessage({
 							<button
 								type="button"
 								aria-label="Create your first campaign"
-								className="flex-1 min-w-[200px] bg-white dark:bg-neutral-800 p-5 rounded-xl border-2 border-blue-500/50 dark:border-blue-400/50 backdrop-blur-sm shadow-lg hover:shadow-xl hover:scale-[1.02] hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-200 cursor-pointer text-left ring-2 ring-blue-500/20 dark:ring-blue-400/20"
+								className="flex-1 min-w-[200px] bg-white dark:bg-neutral-800 p-5 rounded-xl border-2 border-purple-500/45 dark:border-purple-400/45 backdrop-blur-sm shadow-lg hover:shadow-xl hover:scale-[1.02] hover:border-purple-500 dark:hover:border-purple-400 transition-all duration-200 cursor-pointer text-left ring-2 ring-purple-500/20 dark:ring-purple-400/20"
 								onClick={onCreateCampaign}
 							>
-								<h4 className="font-semibold text-base mb-2 flex items-center gap-2 text-blue-700 dark:text-blue-300">
+								<h4 className="font-semibold text-base mb-2 flex items-center gap-2 text-purple-700 dark:text-purple-300">
 									<img
 										src={campaignIcon}
 										alt="Campaign"
