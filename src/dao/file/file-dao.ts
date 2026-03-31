@@ -4,6 +4,7 @@ import type {
 	VectorizeIndex,
 } from "@cloudflare/workers-types";
 import { BaseDAOClass } from "@/dao/base-dao";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import type { Env } from "@/middleware/auth";
 import { LibraryRAGService } from "@/services/rag/rag-service";
 import type { SqlParam, SqlParams } from "@/types/utils";
@@ -132,18 +133,7 @@ export class FileDAO extends BaseDAOClass {
 		this.processingChunksDAO = new FileProcessingChunksDAO(db);
 	}
 
-	// File status constants
-	static readonly STATUS = {
-		// Upload flow statuses
-		UPLOADING: "uploading", // File is being uploaded to R2
-		UPLOADED: "uploaded", // File uploaded to R2, ready for indexing
-		SYNCING: "syncing", // Indexing job started
-		PROCESSING: "processing", // File is being processed
-		INDEXING: "indexing", // File is being indexed
-		COMPLETED: "completed", // File is fully indexed and searchable
-		ERROR: "error", // Error occurred at any step
-		UNINDEXED: "unindexed", // File uploaded but not indexed (legacy)
-	} as const;
+	static readonly STATUS = FILE_UPLOAD_STATUS;
 	/**
 	 * Helper function to parse tags from JSON string to array
 	 * @param tags - The tags field from the database (JSON string or null)

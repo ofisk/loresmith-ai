@@ -26,7 +26,6 @@ function CollapsiblePlayground() {
 const meta = {
 	title: "Components/Collapsible card",
 	component: CollapsiblePlayground,
-	tags: ["autodocs"],
 	parameters: {
 		layout: "centered",
 	},

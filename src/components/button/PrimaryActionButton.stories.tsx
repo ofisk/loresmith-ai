@@ -4,7 +4,6 @@ import { PrimaryActionButton } from "./PrimaryActionButton";
 const meta = {
 	title: "Components/Primary action button",
 	component: PrimaryActionButton,
-	tags: ["autodocs"],
 	args: {
 		children: "Continue",
 	},

@@ -48,7 +48,6 @@ function ModalDemo(props: {
 const meta = {
 	title: "Components/Modal",
 	component: ModalDemo,
-	tags: ["autodocs"],
 	parameters: {
 		layout: "centered",
 	},

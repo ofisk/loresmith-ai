@@ -1,14 +1,10 @@
 import type { Preview } from "@storybook/react";
-import { themes } from "@storybook/theming";
 import { TooltipProvider } from "@/providers/TooltipProvider";
 import "../src/styles.css";
 
 const preview: Preview = {
 	parameters: {
 		layout: "centered",
-		docs: {
-			theme: themes.dark,
-		},
 		backgrounds: {
 			default: "dark",
 			values: [
@@ -27,7 +23,7 @@ const preview: Preview = {
 		(Story) => (
 			<TooltipProvider>
 				<div
-					className="min-h-[120px] min-w-[200px] bg-neutral-950 p-6 font-sans text-neutral-100 antialiased"
+					className="dark min-h-[120px] min-w-[200px] bg-neutral-950 p-6 font-sans text-neutral-100 antialiased"
 					style={{
 						fontFamily:
 							'-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif',

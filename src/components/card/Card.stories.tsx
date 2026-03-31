@@ -4,7 +4,6 @@ import { Card } from "./Card";
 const meta = {
 	title: "Components/Card",
 	component: Card,
-	tags: ["autodocs"],
 	args: {
 		children: "Card body content goes here.",
 	},

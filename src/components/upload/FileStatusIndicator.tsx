@@ -8,7 +8,7 @@ import {
 import { useCallback } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Tooltip } from "@/components/tooltip/Tooltip";
-import { FileDAO } from "@/dao";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import {
 	estimateProcessingTime,
 	formatProcessingTime,
@@ -58,7 +58,7 @@ export function FileStatusIndicator({
 
 	// Determine what to show based on status
 	const statusConfig = {
-		[FileDAO.STATUS.ERROR]: {
+		[FILE_UPLOAD_STATUS.ERROR]: {
 			icon: XCircle,
 			color: "text-red-500",
 			text: "Failed",
@@ -72,35 +72,35 @@ export function FileStatusIndicator({
 			title: "Processing failed",
 			spinning: false,
 		},
-		[FileDAO.STATUS.COMPLETED]: {
+		[FILE_UPLOAD_STATUS.COMPLETED]: {
 			icon: CheckCircle,
 			color: "text-green-500",
 			text: "Ready",
 			title: "Ready for your campaigns",
 			spinning: false,
 		},
-		[FileDAO.STATUS.UPLOADING]: {
+		[FILE_UPLOAD_STATUS.UPLOADING]: {
 			icon: Spinner,
 			color: "text-blue-500",
 			text: "Uploading",
 			title: "Uploading file to storage",
 			spinning: true,
 		},
-		[FileDAO.STATUS.UPLOADED]: {
+		[FILE_UPLOAD_STATUS.UPLOADED]: {
 			icon: Spinner,
 			color: "text-blue-500",
 			text: "Queued",
 			title: "File uploaded, waiting for processing",
 			spinning: true,
 		},
-		[FileDAO.STATUS.SYNCING]: {
+		[FILE_UPLOAD_STATUS.SYNCING]: {
 			icon: Spinner,
 			color: "text-blue-500",
 			text: "Syncing",
 			title: "Preparing file",
 			spinning: true,
 		},
-		[FileDAO.STATUS.PROCESSING]: {
+		[FILE_UPLOAD_STATUS.PROCESSING]: {
 			icon: Spinner,
 			color: "text-blue-500",
 			text: timeEstimate ? `Processing (~${timeEstimate})` : "Processing",
@@ -109,7 +109,7 @@ export function FileStatusIndicator({
 				: "File is being prepared",
 			spinning: true,
 		},
-		[FileDAO.STATUS.INDEXING]: {
+		[FILE_UPLOAD_STATUS.INDEXING]: {
 			icon: Spinner,
 			color: "text-blue-500",
 			text: timeEstimate ? `Indexing (~${timeEstimate})` : "Indexing",
@@ -118,7 +118,7 @@ export function FileStatusIndicator({
 				: "File is being prepared",
 			spinning: true,
 		},
-		[FileDAO.STATUS.UNINDEXED]: {
+		[FILE_UPLOAD_STATUS.UNINDEXED]: {
 			icon: XCircle,
 			color: "text-orange-500",
 			text: "Not ready",
@@ -160,7 +160,7 @@ export function FileStatusIndicator({
 		currentStatus = "failed";
 	} else {
 		// Fall back to PROCESSING only if status is unknown
-		currentStatus = FileDAO.STATUS.PROCESSING;
+		currentStatus = FILE_UPLOAD_STATUS.PROCESSING;
 	}
 
 	const config = statusConfig[currentStatus];
@@ -192,9 +192,9 @@ export function FileStatusIndicator({
 			</div>
 
 			{/* Show retry button for failed or unindexed files, but not for memory limit errors */}
-			{(currentStatus === FileDAO.STATUS.ERROR ||
+			{(currentStatus === FILE_UPLOAD_STATUS.ERROR ||
 				currentStatus === "failed" ||
-				currentStatus === FileDAO.STATUS.UNINDEXED) &&
+				currentStatus === FILE_UPLOAD_STATUS.UNINDEXED) &&
 				fileKey &&
 				fileName &&
 				onRetry &&

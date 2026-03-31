@@ -16,7 +16,6 @@ function TogglePlayground(props: { size?: "sm" | "base" | "lg" }) {
 const meta = {
 	title: "Components/Toggle",
 	component: TogglePlayground,
-	tags: ["autodocs"],
 } satisfies Meta<typeof TogglePlayground>;
 
 export default meta;

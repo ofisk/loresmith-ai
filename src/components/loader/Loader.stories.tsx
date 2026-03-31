@@ -4,7 +4,6 @@ import { Loader } from "./Loader";
 const meta = {
 	title: "Components/Loader",
 	component: Loader,
-	tags: ["autodocs"],
 	args: {
 		size: 24,
 	},
