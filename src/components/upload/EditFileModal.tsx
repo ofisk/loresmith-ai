@@ -1,7 +1,7 @@
 import { FloppyDisk } from "@phosphor-icons/react";
 import { useCallback, useEffect, useId, useState } from "react";
 import { ERROR_MESSAGES } from "@/app-constants";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { FormField } from "@/components/input/FormField";
 import { Modal } from "@/components/modal/Modal";
 import {
@@ -238,21 +238,23 @@ export function EditFileModal({
 				{/* Actions */}
 				<div className="flex items-center justify-between mt-4 md:mt-8 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
 					<div className="flex gap-2">
-						<FormButton
+						<Button
+							appearance="form"
 							onClick={handleSave}
 							disabled={isUpdating}
 							loading={isUpdating}
 							icon={<FloppyDisk size={16} />}
 						>
 							{isUpdating ? "Saving..." : "Save changes"}
-						</FormButton>
-						<FormButton
+						</Button>
+						<Button
+							appearance="form"
 							onClick={handleCancel}
 							disabled={isUpdating}
 							variant="secondary"
 						>
 							Cancel
-						</FormButton>
+						</Button>
 					</div>
 				</div>
 			</div>

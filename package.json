@@ -21,10 +21,10 @@
 	},
 	"scripts": {
 		"start": "VITE_API_URL=http://localhost:8787 vite dev",
-		"dev": "wrangler dev --config wrangler.local.jsonc --port 8787 --local",
+		"dev": "node scripts/ensure-dist-client.mjs && wrangler dev --config wrangler.local.jsonc --port 8787 --local",
 		"dev:cloudflare": "wrangler dev --config wrangler.dev.jsonc --port 8787",
 		"dev:setup": "./scripts/setup-dev.sh",
-		"clean": "rimraf dist .wrangler/tmp .wrangler/build .wrangler/cache .wrangler/kv-assets",
+		"clean": "rimraf dist storybook-static .wrangler/tmp .wrangler/build .wrangler/cache .wrangler/kv-assets",
 		"build": "node scripts/debug-build.mjs",
 		"deploy": "npm run build && wrangler deploy --config wrangler.jsonc",
 		"deploy:dev": "VITE_API_URL=https://loresmith-ai-dev.oren-t-fisk.workers.dev npm run build && wrangler deploy --config wrangler.dev.jsonc",
@@ -54,7 +54,9 @@
 		"wiki:sync": "node scripts/sync-docs-to-wiki.js",
 		"wiki:sync:dry-run": "node scripts/sync-docs-to-wiki.js --dry-run",
 		"r2:clear": "node scripts/clear-r2.js",
-		"r2:clear:dry-run": "node scripts/clear-r2.js --dry-run"
+		"r2:clear:dry-run": "node scripts/clear-r2.js --dry-run",
+		"storybook": "STORYBOOK_DISABLE_TELEMETRY=1 storybook dev -p 6006",
+		"build-storybook": "STORYBOOK_DISABLE_TELEMETRY=1 storybook build -o storybook-static"
 	},
 	"keywords": [
 		"cloudflare",
@@ -72,6 +74,9 @@
 		"@cloudflare/vitest-pool-workers": "^0.13.5",
 		"@cloudflare/workers-types": "^4.20260329.1",
 		"@playwright/test": "^1.58.2",
+		"@storybook/addon-a11y": "^8.6.14",
+		"@storybook/addon-essentials": "^8.6.14",
+		"@storybook/react-vite": "^8.6.14",
 		"@tailwindcss/vite": "^4.1.11",
 		"@testing-library/dom": "^10.4.1",
 		"@testing-library/react": "^16.3.0",
@@ -85,6 +90,7 @@
 		"jsdom": "^28.1.0",
 		"lint-staged": "^16.4.0",
 		"rimraf": "^5.0.10",
+		"storybook": "^8.6.14",
 		"tailwindcss": "^4.1.11",
 		"tsx": "^4.20.4",
 		"typescript": "^5.8.3",

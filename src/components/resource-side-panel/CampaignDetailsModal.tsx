@@ -1,6 +1,6 @@
 import { FloppyDisk, PencilSimple, ShareNetwork } from "@phosphor-icons/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { FormButton } from "@/components/button/FormButton";
+import { Button } from "@/components/button/Button";
 import { PendingProposalsSection } from "@/components/campaign/PendingProposalsSection";
 import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
@@ -791,7 +791,8 @@ export function CampaignDetailsModal({
 							<div className="flex items-center gap-2">
 								{isEditing ? (
 									<>
-										<FormButton
+										<Button
+											appearance="form"
 											onClick={handleSave}
 											disabled={isUpdating || !editedName.trim()}
 											loading={isUpdating}
@@ -799,49 +800,53 @@ export function CampaignDetailsModal({
 											data-testid="campaign-details-save"
 										>
 											{isUpdating ? "Saving…" : "Save changes"}
-										</FormButton>
-										<FormButton
+										</Button>
+										<Button
+											appearance="form"
 											onClick={handleCancel}
 											disabled={isUpdating}
 											variant="secondary"
 										>
 											Cancel
-										</FormButton>
+										</Button>
 									</>
 								) : (
 									<>
 										{isOwner ? (
-											<FormButton
+											<Button
+												appearance="form"
 												onClick={() => setIsEditing(true)}
 												icon={<PencilSimple size={16} />}
 												data-testid="campaign-details-edit"
 											>
 												Edit
-											</FormButton>
+											</Button>
 										) : (
 											<Tooltip
 												content="Only the campaign owner can edit campaign details"
 												contentClassName="left-4"
 											>
 												<span className="inline-flex">
-													<FormButton
+													<Button
+														appearance="form"
 														disabled
 														icon={<PencilSimple size={16} />}
 														className="opacity-50 cursor-not-allowed"
 													>
 														Edit
-													</FormButton>
+													</Button>
 												</span>
 											</Tooltip>
 										)}
 										{canShare && (
-											<FormButton
+											<Button
+												appearance="form"
 												onClick={() => setIsShareModalOpen(true)}
 												icon={<ShareNetwork size={16} />}
 												variant="secondary"
 											>
 												Share
-											</FormButton>
+											</Button>
 										)}
 									</>
 								)}
@@ -972,7 +977,8 @@ export function CampaignDetailsModal({
 										`${selectedResourceKeys.size} resource${selectedResourceKeys.size === 1 ? "" : "s"} selected`}
 								</div>
 								<div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-									<FormButton
+									<Button
+										appearance="form"
 										onClick={async () => {
 											if (
 												!onAddFileToCampaign ||
@@ -1041,8 +1047,9 @@ export function CampaignDetailsModal({
 										className="w-full sm:w-auto"
 									>
 										{isAddingResources ? "Adding..." : "Add resources"}
-									</FormButton>
-									<FormButton
+									</Button>
+									<Button
+										appearance="form"
 										onClick={() => {
 											setIsAddResourceModalOpen(false);
 											setSelectedResourceKeys(new Set());
@@ -1052,7 +1059,7 @@ export function CampaignDetailsModal({
 										className="w-full sm:w-auto"
 									>
 										Cancel
-									</FormButton>
+									</Button>
 								</div>
 							</div>
 						</>

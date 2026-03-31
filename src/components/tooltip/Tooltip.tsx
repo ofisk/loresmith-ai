@@ -1,12 +1,45 @@
 import {
+	cloneElement,
 	isValidElement,
+	type ReactElement,
 	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
+import { Slot } from "@/components/slot/Slot";
 import { cn } from "@/lib/utils";
 import { useTooltip } from "@/providers/TooltipProvider";
+
+type TriggerProps = {
+	"aria-describedby"?: string;
+	onBlur?: React.FocusEventHandler;
+	onFocus?: React.FocusEventHandler;
+	onMouseEnter?: React.MouseEventHandler;
+	onMouseLeave?: React.MouseEventHandler;
+	onPointerDown?: React.PointerEventHandler;
+	onPointerUp?: React.PointerEventHandler;
+};
+
+type KnownTriggerChildProps = Partial<TriggerProps> & {
+	as?: React.ElementType;
+};
+
+function readTriggerChildProps(child: ReactElement): KnownTriggerChildProps {
+	return child.props as KnownTriggerChildProps;
+}
+
+function isInnerButtonTrigger(child: ReactElement): boolean {
+	if (typeof child.type === "string" && child.type === "button") return true;
+	if (child.type === Slot && readTriggerChildProps(child).as === "button")
+		return true;
+	if (
+		typeof child.type === "function" &&
+		(child.type as { name?: string }).name === "ButtonComponent"
+	)
+		return true;
+	return false;
+}
 
 export type TooltipProps = {
 	children: React.ReactNode;
@@ -68,20 +101,46 @@ export const Tooltip = ({
 		}
 	}, [isVisible]);
 
-	// Check if children is a button element to avoid nesting
-	const isButtonChild =
-		isValidElement(children) &&
-		(children.type === "button" ||
-			(typeof children.type === "function" &&
-				children.type.name === "ButtonComponent"));
+	// Real <button> (or Slot as="button") must stay the single interactive node — never wrap in another <button>.
+	if (isValidElement(children) && isInnerButtonTrigger(children)) {
+		const prior = readTriggerChildProps(children);
+		const triggerProps: TriggerProps = {
+			"aria-describedby": isVisible ? tooltipId : undefined,
+			onMouseEnter: (e) => {
+				prior.onMouseEnter?.(e);
+				if (isHoverAvailable) showTooltip(tooltipIdentifier, false);
+			},
+			onMouseLeave: (e) => {
+				prior.onMouseLeave?.(e);
+				hideTooltip();
+			},
+			onPointerDown: (e) => {
+				prior.onPointerDown?.(e);
+				if (e.pointerType === "mouse") setIsPointer(true);
+			},
+			onPointerUp: (e) => {
+				prior.onPointerUp?.(e);
+				setIsPointer(false);
+			},
+			onFocus: (e) => {
+				prior.onFocus?.(e);
+				if (isHoverAvailable) {
+					isPointer
+						? showTooltip(tooltipIdentifier, false)
+						: showTooltip(tooltipIdentifier, true);
+				} else {
+					hideTooltip();
+				}
+			},
+			onBlur: (e) => {
+				prior.onBlur?.(e);
+				hideTooltip();
+			},
+		};
 
-	if (isButtonChild) {
 		return (
-			<span
-				aria-describedby={isVisible ? tooltipId : undefined}
-				className={cn("relative inline-block", className)}
-			>
-				{children}
+			<span className={cn("relative inline-block", className)}>
+				{cloneElement(children, triggerProps)}
 				{isVisible && (
 					<span
 						aria-hidden={!isVisible}

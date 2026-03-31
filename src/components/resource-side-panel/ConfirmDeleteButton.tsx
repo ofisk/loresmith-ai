@@ -1,7 +1,6 @@
 import { Trash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
-import { FormButton } from "@/components/button/FormButton";
 
 const CONFIRM_DURATION_MS = 7000;
 const PROGRESS_INTERVAL_MS = 50;
@@ -77,14 +76,15 @@ export function ConfirmDeleteButton({
 
 	if (!showConfirm) {
 		return (
-			<FormButton
+			<Button
+				appearance="form"
 				onClick={handleStartConfirm}
 				disabled={disabled}
 				variant="destructive"
 				icon={<Trash size={16} />}
 			>
 				{label}
-			</FormButton>
+			</Button>
 		);
 	}
 
