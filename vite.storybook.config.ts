@@ -11,7 +11,22 @@ import { defineConfig } from "vite";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+	root: path.resolve(__dirname),
+	envDir: path.resolve(__dirname),
 	plugins: [react(), tailwindcss()],
+	server: {
+		fs: {
+			allow: [path.resolve(__dirname)],
+		},
+	},
+	optimizeDeps: {
+		include: [
+			"react",
+			"react-dom",
+			"react/jsx-runtime",
+			"react/jsx-dev-runtime",
+		],
+	},
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
