@@ -45,7 +45,7 @@ export function CampaignsSection({
 				<button
 					type="button"
 					onClick={onCreateCampaign}
-					className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-blue-600 dark:text-blue-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+					className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
 				>
 					<Plus size={14} />
 					Create campaign

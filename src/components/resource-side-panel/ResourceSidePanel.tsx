@@ -181,7 +181,7 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							aria-haspopup="menu"
 							className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
 						>
-							<span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+							<span className="w-2 h-2 bg-purple-500 rounded-full"></span>
 							<span className="truncate">
 								{AuthService.getUsernameFromStoredJwt()}
 							</span>
