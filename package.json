@@ -113,7 +113,7 @@
 		"@radix-ui/react-switch": "^1.2.5",
 		"@types/cytoscape": "^3.31.0",
 		"@types/marked": "^6.0.0",
-		"agents": "^0.7.6",
+		"agents": "^0.9.0",
 		"ai": "^6.0.67",
 		"bcryptjs": "^3.0.3",
 		"class-variance-authority": "^0.7.1",
