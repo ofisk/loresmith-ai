@@ -191,6 +191,80 @@ describe("EntityDAO", () => {
 		});
 	});
 
+	describe("listEntitiesGraphProjectionByCampaign", () => {
+		it("selects narrow columns without content", async () => {
+			expect.hasAssertions();
+
+			mockStmt.all.mockResolvedValue({ results: [] });
+
+			await dao.listEntitiesGraphProjectionByCampaign("c1", { limit: 100 });
+
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.stringMatching(
+					/SELECT id, campaign_id, entity_type, name, metadata, source_id, shard_status/
+				)
+			);
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.not.stringContaining("content")
+			);
+			expect(mockStmt.bind).toHaveBeenCalledWith("c1", 100);
+		});
+
+		it("mirrors listEntitiesByCampaign filter options", async () => {
+			expect.hasAssertions();
+
+			mockStmt.all.mockResolvedValue({ results: [] });
+
+			await dao.listEntitiesGraphProjectionByCampaign("c1", {
+				entityType: "npc",
+				resourceId: "res-1",
+				shardStatus: ["approved"],
+				limit: 50,
+			});
+
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.stringContaining("entity_type = ?")
+			);
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.stringContaining("json_extract(metadata, '$.resourceId')")
+			);
+			expect(mockStmt.bind).toHaveBeenCalledWith(
+				"c1",
+				"npc",
+				"res-1",
+				"approved",
+				50
+			);
+		});
+	});
+
+	describe("getGraphRelationshipEdgesForCampaign", () => {
+		it("queries relationships by campaign_id", async () => {
+			expect.hasAssertions();
+
+			mockStmt.all.mockResolvedValue({
+				results: [
+					{
+						from_entity_id: "a",
+						to_entity_id: "b",
+						relationship_type: "member_of",
+					},
+				],
+			});
+
+			const edges = await dao.getGraphRelationshipEdgesForCampaign("c1");
+
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.stringContaining("WHERE campaign_id = ?")
+			);
+			expect(mockStmt.bind).toHaveBeenCalledWith("c1");
+			expect(edges).toHaveLength(1);
+			expect(edges[0].fromEntityId).toBe("a");
+			expect(edges[0].toEntityId).toBe("b");
+			expect(edges[0].relationshipType).toBe("member_of");
+		});
+	});
+
 	describe("getEntitiesByIds", () => {
 		it("returns empty array for empty input", async () => {
 			expect.hasAssertions();

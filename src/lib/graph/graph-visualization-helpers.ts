@@ -1,6 +1,10 @@
 import type { Community } from "@/dao/community-dao";
 import type { CommunitySummary } from "@/dao/community-summary-dao";
-import type { Entity, EntityRelationship } from "@/dao/entity-dao";
+import type {
+	Entity,
+	EntityRelationship,
+	GraphRelationshipEdge,
+} from "@/dao/entity-dao";
 import type { CommunityGraphData } from "@/types/graph-visualization";
 import type { ShardStatus } from "@/types/shard";
 import { toCommunityNode } from "./community-utils";
@@ -184,6 +188,32 @@ export function buildRelationshipMap(
 				type: rel.relationshipType,
 			}))
 		);
+	}
+	return map;
+}
+
+/**
+ * Build {@link RelationshipMap} from campaign-wide edges, restricted to the given entity ids
+ * (e.g. non-stub entities). Matches semantics of {@link buildRelationshipMap} from batched DAO results.
+ */
+export function buildRelationshipMapFromEdges(
+	edges: GraphRelationshipEdge[],
+	entityIds: Set<string>
+): RelationshipMap {
+	const map: RelationshipMap = new Map();
+	for (const id of entityIds) {
+		map.set(id, []);
+	}
+	for (const edge of edges) {
+		const type = edge.relationshipType;
+		if (entityIds.has(edge.fromEntityId)) {
+			const list = map.get(edge.fromEntityId)!;
+			list.push({ toId: edge.toEntityId, type });
+		}
+		if (entityIds.has(edge.toEntityId)) {
+			const list = map.get(edge.toEntityId)!;
+			list.push({ toId: edge.fromEntityId, type });
+		}
 	}
 	return map;
 }

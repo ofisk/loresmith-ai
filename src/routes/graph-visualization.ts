@@ -15,7 +15,7 @@ import {
 import {
 	applyGraphFilters,
 	buildCommunityGraphNodes,
-	buildRelationshipMap,
+	buildRelationshipMapFromEdges,
 	computeOrphanNodes,
 	type GraphFilters,
 } from "@/lib/graph/graph-visualization-helpers";
@@ -85,9 +85,32 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 					.filter(Boolean)
 			: undefined;
 
-		// Load all communities
-		const communities =
-			await daoFactory.communityDAO.listCommunitiesByCampaign(campaignId);
+		const entityListOptions = {
+			limit: 10000,
+			entityType:
+				entityTypes && entityTypes.length === 1 ? entityTypes[0] : undefined,
+			resourceId:
+				resourceIds && resourceIds.length === 1 ? resourceIds[0] : undefined,
+			shardStatus:
+				approvalStatuses && approvalStatuses.length > 0
+					? approvalStatuses
+					: undefined,
+		};
+
+		const [communities, allEntities, relationshipEdges, communitySummaryMap] =
+			await Promise.all([
+				daoFactory.communityDAO.listCommunitiesByCampaign(campaignId),
+				daoFactory.entityDAO.listEntitiesGraphProjectionByCampaign(
+					campaignId,
+					entityListOptions
+				),
+				daoFactory.entityDAO.getGraphRelationshipEdgesForCampaign(campaignId),
+				daoFactory.communitySummaryDAO
+					? daoFactory.communitySummaryDAO.getLatestSummariesMapByCampaign(
+							campaignId
+						)
+					: Promise.resolve(new Map<string, CommunitySummary>()),
+			]);
 
 		if (communities.length === 0) {
 			return c.json({
@@ -96,21 +119,7 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 			});
 		}
 
-		// Load all entities for the campaign to check filters (exclude stubs so they are not rendered)
-		const allEntities = await daoFactory.entityDAO.listEntitiesByCampaign(
-			campaignId,
-			{
-				limit: 10000,
-				entityType:
-					entityTypes && entityTypes.length === 1 ? entityTypes[0] : undefined,
-				resourceId:
-					resourceIds && resourceIds.length === 1 ? resourceIds[0] : undefined,
-				shardStatus:
-					approvalStatuses && approvalStatuses.length > 0
-						? approvalStatuses
-						: undefined,
-			}
-		);
+		// Exclude stubs so they are not rendered
 		const nonStubEntities = allEntities.filter((e) => !isEntityStub(e));
 
 		// Create entity map for quick lookup (stubs excluded)
@@ -119,13 +128,11 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 			entityMap.set(entity.id, entity);
 		}
 
-		// Batch load relationships for all entities (used for filters and edges)
-		const allEntityIds = nonStubEntities.map((e) => e.id);
-		const relationshipsByEntity =
-			allEntityIds.length > 0
-				? await daoFactory.entityDAO.getRelationshipsForEntities(allEntityIds)
-				: new Map();
-		const relationshipMap = buildRelationshipMap(relationshipsByEntity);
+		const nonStubEntityIds = new Set(nonStubEntities.map((e) => e.id));
+		const relationshipMap = buildRelationshipMapFromEdges(
+			relationshipEdges,
+			nonStubEntityIds
+		);
 
 		const filters: GraphFilters = {
 			entityTypes,
@@ -141,25 +148,6 @@ export async function handleGetGraphVisualization(c: ContextWithAuth) {
 			filters,
 			relationshipMap
 		);
-
-		// Load community summaries (including natural language names)
-		const communitySummaryMap = new Map<string, CommunitySummary>();
-		if (daoFactory.communitySummaryDAO) {
-			for (const community of filteredCommunities) {
-				try {
-					const summary =
-						await daoFactory.communitySummaryDAO.getSummaryByCommunityId(
-							community.id,
-							campaignId
-						);
-					if (summary) {
-						communitySummaryMap.set(community.id, summary);
-					}
-				} catch {
-					// Ignore errors loading summaries
-				}
-			}
-		}
 
 		// Build community nodes
 		const communityNodes = buildCommunityGraphNodes(

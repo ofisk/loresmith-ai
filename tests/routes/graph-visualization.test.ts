@@ -15,8 +15,8 @@ const mockCommunityDAO = {
 	listCommunitiesByCampaign: vi.fn(),
 };
 const mockEntityDAO = {
-	listEntitiesByCampaign: vi.fn(),
-	getRelationshipsForEntities: vi.fn(),
+	listEntitiesGraphProjectionByCampaign: vi.fn(),
+	getGraphRelationshipEdgesForCampaign: vi.fn(),
 };
 
 (getDAOFactory as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -55,8 +55,8 @@ describe("graph-visualization routes", () => {
 			username: "user1",
 		});
 		mockCommunityDAO.listCommunitiesByCampaign.mockResolvedValue([]);
-		mockEntityDAO.listEntitiesByCampaign.mockResolvedValue([]);
-		mockEntityDAO.getRelationshipsForEntities.mockResolvedValue(new Map());
+		mockEntityDAO.listEntitiesGraphProjectionByCampaign.mockResolvedValue([]);
+		mockEntityDAO.getGraphRelationshipEdgesForCampaign.mockResolvedValue([]);
 	});
 
 	it("returns 401 when userAuth is missing", async () => {
@@ -103,5 +103,19 @@ describe("graph-visualization routes", () => {
 				edges: [],
 			})
 		);
+	});
+
+	it("loads graph projection and campaign relationship edges in parallel", async () => {
+		const c = createContext();
+		await handleGetGraphVisualization(c);
+		expect(
+			mockEntityDAO.listEntitiesGraphProjectionByCampaign
+		).toHaveBeenCalledWith(
+			"campaign-1",
+			expect.objectContaining({ limit: 10000 })
+		);
+		expect(
+			mockEntityDAO.getGraphRelationshipEdgesForCampaign
+		).toHaveBeenCalledWith("campaign-1");
 	});
 });
