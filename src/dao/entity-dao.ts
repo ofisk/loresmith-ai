@@ -24,6 +24,26 @@ function sanitizeLikeTerm(input: string): string {
 		.slice(0, MAX_LIKE_TERM_LENGTH);
 }
 
+/** Narrow row for graph visualization: avoids loading `content` and other heavy columns. */
+export interface EntityGraphProjectionRecord {
+	id: string;
+	campaign_id: string;
+	entity_type: string;
+	name: string;
+	metadata: string | null;
+	source_id: string | null;
+	shard_status: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/** Minimal relationship row for campaign-wide graph edges (single D1 query). */
+export interface GraphRelationshipEdge {
+	fromEntityId: string;
+	toEntityId: string;
+	relationshipType: RelationshipType;
+}
+
 // Raw row shape returned directly from D1 queries against the `entities` table.
 // All fields mirror the database column names and use snake_case to match D1 results.
 export interface EntityRecord {
@@ -480,6 +500,116 @@ export class EntityDAO extends BaseDAOClass {
 
 		const records = await this.queryAll<EntityRecord>(sql, params);
 		return records.map((record) => this.mapEntityRecord(record));
+	}
+
+	/**
+	 * List entities with columns needed for graph visualization only (no `content`).
+	 * Same filter options as {@link listEntitiesByCampaign}.
+	 */
+	async listEntitiesGraphProjectionByCampaign(
+		campaignId: string,
+		options: {
+			entityType?: string;
+			sourceId?: string;
+			resourceId?: string;
+			entityIds?: string[];
+			shardStatus?: string | string[];
+			excludeShardStatuses?: string[];
+			limit?: number;
+			offset?: number;
+			orderBy?: "updated_at" | "name";
+		} = {}
+	): Promise<Entity[]> {
+		const conditions = ["campaign_id = ?"];
+		const params: SqlParam[] = [campaignId];
+
+		if (options.entityType) {
+			conditions.push("entity_type = ?");
+			params.push(options.entityType);
+		}
+
+		if (options.sourceId) {
+			conditions.push("source_id = ?");
+			params.push(options.sourceId);
+		}
+
+		if (options.resourceId) {
+			conditions.push("json_extract(metadata, '$.resourceId') = ?");
+			params.push(options.resourceId);
+		}
+
+		if (options.entityIds && options.entityIds.length > 0) {
+			conditions.push("id IN (SELECT value FROM json_each(?))");
+			params.push(JSON.stringify(options.entityIds));
+		}
+
+		if (options.shardStatus) {
+			const statuses = Array.isArray(options.shardStatus)
+				? options.shardStatus
+				: [options.shardStatus];
+			if (statuses.length > 0) {
+				const placeholders = statuses.map(() => "?").join(", ");
+				conditions.push(`shard_status IN (${placeholders})`);
+				params.push(...statuses);
+			}
+		}
+
+		if (
+			options.excludeShardStatuses &&
+			options.excludeShardStatuses.length > 0
+		) {
+			const placeholders = options.excludeShardStatuses
+				.map(() => "?")
+				.join(", ");
+			conditions.push(
+				`(shard_status IS NULL OR shard_status NOT IN (${placeholders}))`
+			);
+			params.push(...options.excludeShardStatuses);
+		}
+
+		const orderBy =
+			options.orderBy === "name"
+				? "LOWER(TRIM(name)) ASC, id ASC"
+				: "updated_at DESC";
+		let sql = `
+      SELECT id, campaign_id, entity_type, name, metadata, source_id, shard_status, created_at, updated_at
+      FROM entities
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY ${orderBy}
+    `;
+
+		if (typeof options.limit === "number") {
+			sql += " LIMIT ?";
+			params.push(options.limit);
+		}
+
+		if (typeof options.offset === "number") {
+			sql += " OFFSET ?";
+			params.push(options.offset);
+		}
+
+		const records = await this.queryAll<EntityGraphProjectionRecord>(
+			sql,
+			params
+		);
+		return records.map((record) => this.mapEntityGraphProjection(record));
+	}
+
+	mapEntityGraphProjection(record: EntityGraphProjectionRecord): Entity {
+		return {
+			id: record.id,
+			campaignId: record.campaign_id,
+			entityType: record.entity_type,
+			name: record.name,
+			metadata: record.metadata
+				? this.safeParseJson(record.metadata)
+				: undefined,
+			sourceType: undefined,
+			sourceId: record.source_id,
+			shardStatus: record.shard_status ?? undefined,
+			createdAt: record.created_at,
+			updatedAt: record.updated_at,
+		};
 	}
 
 	/**
@@ -1020,6 +1150,30 @@ export class EntityDAO extends BaseDAOClass {
 			toEntityId: record.to_entity_id,
 			strength: record.strength,
 			metadata: record.metadata,
+		}));
+	}
+
+	/**
+	 * All relationship edges for a campaign in one query (replaces batched getRelationshipsForEntities for graph viz).
+	 */
+	async getGraphRelationshipEdgesForCampaign(
+		campaignId: string
+	): Promise<GraphRelationshipEdge[]> {
+		const sql = `
+      SELECT from_entity_id, to_entity_id, relationship_type
+      FROM entity_relationships
+      WHERE campaign_id = ?
+    `;
+		const records = await this.queryAll<{
+			from_entity_id: string;
+			to_entity_id: string;
+			relationship_type: string;
+		}>(sql, [campaignId]);
+
+		return records.map((record) => ({
+			fromEntityId: record.from_entity_id,
+			toEntityId: record.to_entity_id,
+			relationshipType: normalizeRelationshipType(record.relationship_type),
 		}));
 	}
 

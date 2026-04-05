@@ -153,6 +153,53 @@ export class CommunitySummaryDAO extends BaseDAOClass {
 		return records.map((record) => this.mapSummaryRecord(record));
 	}
 
+	/**
+	 * Latest summary per community (same as getSummaryByCommunityId per id, one round-trip).
+	 */
+	async getLatestSummariesMapByCampaign(
+		campaignId: string
+	): Promise<Map<string, CommunitySummary>> {
+		const sql = `
+      SELECT
+        ranked.id,
+        ranked.community_id,
+        ranked.level,
+        ranked.name,
+        ranked.summary_text,
+        ranked.key_entities,
+        ranked.metadata,
+        ranked.generated_at,
+        ranked.updated_at
+      FROM (
+        SELECT
+          cs.id,
+          cs.community_id,
+          cs.level,
+          cs.name,
+          cs.summary_text,
+          cs.key_entities,
+          cs.metadata,
+          cs.generated_at,
+          cs.updated_at,
+          ROW_NUMBER() OVER (PARTITION BY cs.community_id ORDER BY cs.updated_at DESC) AS rn
+        FROM community_summaries cs
+        INNER JOIN communities c ON cs.community_id = c.id
+        WHERE c.campaign_id = ?
+      ) ranked
+      WHERE ranked.rn = 1
+    `;
+
+		const records = await this.queryAll<CommunitySummaryRecord>(sql, [
+			campaignId,
+		]);
+		const map = new Map<string, CommunitySummary>();
+		for (const record of records) {
+			const summary = this.mapSummaryRecord(record);
+			map.set(summary.communityId, summary);
+		}
+		return map;
+	}
+
 	async listSummariesByLevel(
 		campaignId: string,
 		level: number
