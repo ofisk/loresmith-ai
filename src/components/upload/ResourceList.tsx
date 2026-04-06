@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import { FileDAO } from "@/dao";
@@ -8,6 +8,7 @@ import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useRetryLimitStatus } from "@/hooks/useRetryLimitStatus";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { logger } from "@/lib/logger";
+import { matchesResourceSearch } from "@/lib/resource-tags";
 import {
 	authenticatedFetchWithExpiration,
 	getStoredJwt,
@@ -31,6 +32,8 @@ interface ResourceListProps {
 	campaigns?: Campaign[];
 	campaignAdditionProgress?: Record<string, number>;
 	_isAddingToCampaigns?: boolean;
+	/** Client-side filter for sidebar library search */
+	searchQuery?: string;
 }
 
 /**
@@ -51,6 +54,7 @@ export function ResourceList({
 	campaigns = [],
 	campaignAdditionProgress = {},
 	_isAddingToCampaigns = false,
+	searchQuery = "",
 }: ResourceListProps) {
 	const handleDeleteFile = useCallback(
 		async (fileKey: string) => {
@@ -81,6 +85,11 @@ export function ResourceList({
 		Record<string, number>
 	>({});
 	const authReady = useAuthReady();
+
+	const visibleFiles = useMemo(() => {
+		if (!searchQuery.trim()) return files;
+		return files.filter((f) => matchesResourceSearch(f, searchQuery));
+	}, [files, searchQuery]);
 
 	// File event handling - manages progress state internally and via prop setter
 	useResourceFileEvents({
@@ -301,10 +310,20 @@ export function ResourceList({
 		);
 	}
 
+	if (visibleFiles.length === 0 && searchQuery.trim()) {
+		return (
+			<div className="text-center py-8 px-2">
+				<p className="text-sm text-muted-foreground">
+					No resources match your search
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="h-full overflow-y-auto">
 			<div className="space-y-3">
-				{files.map((file) => (
+				{visibleFiles.map((file) => (
 					<ResourceFileItem
 						key={file.file_key}
 						file={file}
