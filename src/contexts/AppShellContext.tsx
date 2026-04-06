@@ -7,6 +7,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import type { EventHandler } from "react-joyride";
 import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { useAppEventHandlers } from "@/hooks/useAppEventHandlers";
@@ -35,16 +36,10 @@ export interface AppShellContextValue {
 		target: string;
 		content: React.ReactNode;
 		placement?: "center" | "top" | "bottom" | "left" | "right";
-		disableBeacon?: boolean;
+		skipBeacon?: boolean;
 		locale?: { next?: string };
 	}>;
-	onJoyrideCallback: (data: {
-		action?: string;
-		index?: number;
-		status?: string;
-		type?: string;
-		lifecycle?: string;
-	}) => void;
+	onJoyrideCallback: EventHandler;
 
 	// Layout
 	onToggleSidebar: () => void;

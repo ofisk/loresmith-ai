@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
+import type { EventData } from "react-joyride";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTourState } from "@/hooks/useTourState";
+
+const ev = (partial: Partial<EventData>) => partial as EventData;
 
 describe("useTourState", () => {
 	beforeEach(() => {
@@ -25,7 +28,9 @@ describe("useTourState", () => {
 			getStoredJwt: vi.fn(() => "jwt"),
 		};
 		const { result } = renderHook(() => useTourState({ authState }));
-		act(() => result.current.handleJoyrideCallback({ action: "close" }));
+		act(() =>
+			result.current.handleJoyrideCallback(ev({ action: "close" }), {} as never)
+		);
 		expect(result.current.runTour).toBe(false);
 		expect(localStorage.getItem("loresmith-tour-completed")).toBe("true");
 	});
@@ -36,7 +41,12 @@ describe("useTourState", () => {
 			getStoredJwt: vi.fn(() => "jwt"),
 		};
 		const { result } = renderHook(() => useTourState({ authState }));
-		act(() => result.current.handleJoyrideCallback({ status: "finished" }));
+		act(() =>
+			result.current.handleJoyrideCallback(
+				ev({ status: "finished" }),
+				{} as never
+			)
+		);
 		expect(result.current.runTour).toBe(false);
 	});
 
@@ -47,11 +57,14 @@ describe("useTourState", () => {
 		};
 		const { result } = renderHook(() => useTourState({ authState }));
 		act(() =>
-			result.current.handleJoyrideCallback({
-				action: "next",
-				index: 0,
-				type: "step:after",
-			})
+			result.current.handleJoyrideCallback(
+				ev({
+					action: "next",
+					index: 0,
+					type: "step:after",
+				}),
+				{} as never
+			)
 		);
 		expect(result.current.stepIndex).toBe(1);
 	});
@@ -63,11 +76,14 @@ describe("useTourState", () => {
 		};
 		const { result } = renderHook(() => useTourState({ authState }));
 		act(() =>
-			result.current.handleJoyrideCallback({
-				action: "prev",
-				index: 2,
-				type: "step:after",
-			})
+			result.current.handleJoyrideCallback(
+				ev({
+					action: "prev",
+					index: 2,
+					type: "step:after",
+				}),
+				{} as never
+			)
 		);
 		expect(result.current.stepIndex).toBe(1);
 	});
