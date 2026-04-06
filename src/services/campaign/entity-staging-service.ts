@@ -5,6 +5,7 @@ import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
+import { prettifyLibraryImageFilename } from "@/lib/display-name-utils";
 import {
 	isStubContent,
 	mergeEntityContent,
@@ -15,13 +16,6 @@ import {
 	chunkTextByPages,
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
-
-/** Base filename without image extension for shard titles */
-function visualInspirationDisplayName(fileName: string): string {
-	const base = fileName.split(/[/\\]/).pop() ?? fileName;
-	const trimmed = base.replace(/\.(jpg|jpeg|png|webp)$/i, "").trim();
-	return trimmed.length > 0 ? trimmed : "Visual inspiration";
-}
 
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
@@ -284,7 +278,7 @@ export async function stageEntitiesFromResource(
 				normalizedResource.file_name ||
 				(normalizedResource as { display_name?: string }).display_name ||
 				"Visual inspiration";
-			let displayName = visualInspirationDisplayName(String(nameSource));
+			let displayName = prettifyLibraryImageFilename(String(nameSource));
 			let titleSource: "llm" | "filename" = "filename";
 
 			if (llmApiKey) {

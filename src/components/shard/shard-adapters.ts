@@ -42,6 +42,8 @@ export function convertShardCandidateToShard(candidate: ShardCandidate): Shard {
 			text: candidate.text,
 			metadata: candidate.metadata,
 			sourceRef: candidate.sourceRef,
+			...(candidate.name ? { name: candidate.name } : {}),
+			...(candidate.title ? { title: candidate.title } : {}),
 		} as FlexibleShard;
 	} catch (_error) {
 		// If JSON parsing fails, treat as flexible shard
@@ -52,6 +54,8 @@ export function convertShardCandidateToShard(candidate: ShardCandidate): Shard {
 			text: candidate.text,
 			metadata: candidate.metadata,
 			sourceRef: candidate.sourceRef,
+			...(candidate.name ? { name: candidate.name } : {}),
+			...(candidate.title ? { title: candidate.title } : {}),
 		} as FlexibleShard;
 	}
 }

@@ -54,6 +54,9 @@ export interface ShardCandidate {
 	text: string;
 	metadata: ShardMetadata;
 	sourceRef: ShardSourceRef;
+	/** Set when serving staged entities from GraphRAG (human-readable title) */
+	name?: string;
+	title?: string;
 }
 
 /**

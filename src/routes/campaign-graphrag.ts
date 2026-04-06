@@ -14,6 +14,7 @@ import {
 	requireParam,
 	verifyCampaignAccess,
 } from "@/lib/route-utils";
+import { resolveStagedShardDisplayTitle } from "@/lib/shard/staged-entity-display-title";
 import { getGraphServices } from "@/services/graph/graph-service-factory";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -162,8 +163,12 @@ export async function handleGetStagedShards(c: ContextWithAuth) {
 			}
 
 			// Convert entity to shard format for UI compatibility (UI uses "shard" terminology)
-			// Use metadata.title if available (for conversational shards), otherwise use entity name
-			const shardTitle = (metadata.title as string) || entity.name;
+			const shardTitle = resolveStagedShardDisplayTitle({
+				name: entity.name,
+				entityType: entity.entityType,
+				content: entity.content,
+				metadata,
+			});
 			const shard = {
 				id: entity.id,
 				name: shardTitle, // Include name so UI doesn't fall back to showing the ID
