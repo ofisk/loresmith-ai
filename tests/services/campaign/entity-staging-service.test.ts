@@ -144,4 +144,49 @@ describe("entity-staging-service context-length retry", () => {
 			expect(result.failedChunks.length).toBeGreaterThan(0);
 		}
 	});
+
+	it("stages a single visual_inspiration entity when extraction marks visual inspiration", async () => {
+		const createEntity = vi.fn().mockResolvedValue(undefined);
+		(getDAOFactory as any).mockReturnValue({
+			entityDAO: { createEntity },
+			entityImportanceDAO: {},
+		});
+
+		const contentProvider: ContentExtractionProvider = {
+			extractContent: async () => ({
+				success: true,
+				content: "Visual inspiration reference\n\nMoody fog and amber light.",
+				metadata: {
+					isVisualInspiration: true,
+					contentType: "image/png",
+				},
+			}),
+		};
+
+		const result = await stageEntitiesFromResource({
+			env: mockEnv,
+			username: "user-1",
+			campaignId: "campaign-1",
+			campaignName: "Test Campaign",
+			resource: {
+				...mockResource,
+				file_name: "mood_ref.png",
+				file_key: "library/u/mood_ref.png",
+			},
+			campaignRagBasePath: "/rag",
+			llmApiKey: "test-key",
+			contentExtractionProvider: contentProvider,
+		});
+
+		expect(result.success).toBe(true);
+		expect(result.entityCount).toBe(1);
+		expect(result.stagedEntities?.[0]?.entityType).toBe("visual_inspiration");
+		expect(result.stagedEntities?.[0]?.name).toBe("mood_ref");
+		expect(createEntity).toHaveBeenCalledTimes(1);
+		const arg = createEntity.mock.calls[0][0];
+		expect(arg.entityType).toBe("visual_inspiration");
+		expect(arg.content).toEqual({
+			text: "Visual inspiration reference\n\nMoody fog and amber light.",
+		});
+	});
 });

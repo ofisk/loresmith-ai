@@ -15,6 +15,14 @@ import {
 	chunkTextByPages,
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
+
+/** Base filename without image extension for shard titles */
+function visualInspirationDisplayName(fileName: string): string {
+	const base = fileName.split(/[/\\]/).pop() ?? fileName;
+	const trimmed = base.replace(/\.(jpg|jpeg|png|webp)$/i, "").trim();
+	return trimmed.length > 0 ? trimmed : "Visual inspiration";
+}
+
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
 import {
@@ -262,6 +270,68 @@ export async function stageEntitiesFromResource(
 
 		const fileContent = extractionResult.content;
 		const isPDF = extractionResult.metadata?.isPDF || false;
+
+		const isVisualInspiration =
+			extractionResult.metadata?.isVisualInspiration === true ||
+			fileContent.trimStart().startsWith("Visual inspiration reference");
+
+		if (isVisualInspiration) {
+			const daoFactory = getDAOFactory(env);
+			const baseId = crypto.randomUUID();
+			const entityId = `${campaignId}_${baseId}`;
+			const nameSource =
+				normalizedResource.file_name ||
+				(normalizedResource as { display_name?: string }).display_name ||
+				"Visual inspiration";
+			const displayName = visualInspirationDisplayName(String(nameSource));
+
+			const contentPayload = { text: fileContent };
+
+			const finalMetadata: Record<string, unknown> = {
+				shardStatus: "staging",
+				staged: true,
+				shardStagingOrigin: "new",
+				resourceId: normalizedResource.id,
+				resourceName: normalizedResource.file_name || normalizedResource.id,
+				fileKey: normalizedResource.file_key || normalizedResource.id,
+				visualInspiration: true,
+				...(extractionResult.metadata?.contentType && {
+					sourceImageContentType: extractionResult.metadata.contentType,
+				}),
+				...(attribution && {
+					proposedBy: attribution.proposedBy,
+					approvedBy: attribution.approvedBy,
+				}),
+			};
+
+			await daoFactory.entityDAO.createEntity({
+				id: entityId,
+				campaignId,
+				entityType: "visual_inspiration",
+				name: displayName,
+				content: contentPayload,
+				shardStatus: "staging",
+				metadata: finalMetadata,
+				sourceType: "file_upload",
+				sourceId: normalizedResource.id,
+				confidence: 1,
+			});
+
+			return {
+				success: true,
+				entityCount: 1,
+				stagedEntities: [
+					{
+						id: entityId,
+						entityType: "visual_inspiration",
+						name: displayName,
+						content: contentPayload,
+						metadata: finalMetadata,
+						relations: [],
+					},
+				],
+			};
+		}
 
 		// Check if this is a character sheet before normal entity extraction
 		try {

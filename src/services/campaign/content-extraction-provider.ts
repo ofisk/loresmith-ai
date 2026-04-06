@@ -15,6 +15,8 @@ export interface ContentExtractionResult {
 	metadata?: {
 		isPDF?: boolean;
 		contentType?: string;
+		/** Set when content came from image vision analysis (campaign staging uses this). */
+		isVisualInspiration?: boolean;
 	};
 }
 

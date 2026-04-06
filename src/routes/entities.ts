@@ -664,6 +664,53 @@ export async function handleTestEntityExtractionFromR2(
 		const fileContent = extractionResult.content;
 		const isPDF = extractionResult.metadata?.isPDF || false;
 
+		const isVisualInspiration =
+			extractionResult.metadata?.isVisualInspiration === true ||
+			fileContent.trimStart().startsWith("Visual inspiration reference");
+
+		if (isVisualInspiration) {
+			const baseId = crypto.randomUUID();
+			const entityId = `${campaignId}_${baseId}`;
+			const displayName =
+				(sourceName.split(/[/\\]/).pop() ?? sourceName)
+					.replace(/\.(jpg|jpeg|png|webp)$/i, "")
+					.trim() || "Visual inspiration";
+			const contentPayload = { text: fileContent };
+			const finalMetadata: Record<string, unknown> = {
+				shardStatus: "staging",
+				staged: true,
+				shardStagingOrigin: "new",
+				resourceId: fileKey,
+				resourceName: sourceName,
+				fileKey,
+				visualInspiration: true,
+				...(extractionResult.metadata?.contentType && {
+					sourceImageContentType: extractionResult.metadata.contentType,
+				}),
+			};
+			return c.json({
+				success: true,
+				entityCount: 1,
+				stagedEntities: [
+					{
+						id: entityId,
+						entityType: "visual_inspiration",
+						name: displayName,
+						content: contentPayload,
+						metadata: finalMetadata,
+						relations: [],
+					},
+				],
+				metadata: {
+					fileKey,
+					sourceName,
+					chunkCount: 1,
+					isPDF: false,
+					isVisualInspiration: true,
+				},
+			});
+		}
+
 		// Chunk content same way as staging service does
 		const CHARS_PER_TOKEN = 4;
 		const PROMPT_TOKENS_ESTIMATE = 3000;

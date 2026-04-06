@@ -46,6 +46,7 @@ export const STRUCTURED_ENTITY_TYPES = [
 	"maps", // Maps and cartography
 	"handouts", // Player handouts and props
 	"puzzles", // Riddles and puzzles
+	"visual_inspiration", // Mood/tone reference from uploaded images (vision description)
 
 	// Timelines & campaign glue
 	"timelines", // Campaign timelines and clocks
@@ -84,7 +85,7 @@ export const ENTITY_TYPE_CATEGORIES = {
 		"downtime",
 	],
 	"Reference & generators": ["tables", "encounter_tables", "treasure_tables"],
-	Assets: ["maps", "handouts", "puzzles"],
+	Assets: ["maps", "handouts", "puzzles", "visual_inspiration"],
 	"Campaign glue": ["timelines", "travel"],
 	Custom: ["custom"],
 } as const;
@@ -125,6 +126,7 @@ const ENTITY_TYPE_ALIASES: Record<string, StructuredEntityType> = {
 	map: "maps",
 	handout: "handouts",
 	puzzle: "puzzles",
+	visual: "visual_inspiration",
 	timeline: "timelines",
 	travel: "travel",
 	house_rules: "house_rule",
@@ -179,6 +181,7 @@ export function getEntityTypeDisplayName(type: StructuredEntityType): string {
 		maps: "Maps",
 		handouts: "Handouts",
 		puzzles: "Puzzles",
+		visual_inspiration: "Visual inspiration",
 		timelines: "Timelines",
 		travel: "Travel Routes",
 		custom: "Custom Content",
@@ -241,4 +244,6 @@ export const ENTITY_TYPE_EXTRACTION_HINTS: Partial<
 	tables: "a dice column (d20/d100), range → result rows",
 	encounter_tables: "a dice column (d20/d100), range → result rows",
 	treasure_tables: "a dice column (d20/d100), range → result rows",
+	visual_inspiration:
+		"mood, atmosphere, palette, and tone from an image-derived description (campaign visual reference, not mechanics)",
 };
