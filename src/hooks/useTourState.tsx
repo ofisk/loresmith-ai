@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { EventHandler } from "react-joyride";
 
 const TOUR_STEPS_COUNT = 12;
 const TOUR_STORAGE_KEYS = {
@@ -11,7 +12,7 @@ export interface TourStep {
 	target: string;
 	content: ReactNode;
 	placement?: "center" | "top" | "bottom" | "left" | "right";
-	disableBeacon?: boolean;
+	skipBeacon?: boolean;
 	locale?: { next?: string };
 }
 
@@ -29,54 +30,45 @@ export function useTourState(options: UseTourStateOptions) {
 		typeof window !== "undefined" &&
 		localStorage.getItem(TOUR_STORAGE_KEYS.completed) === "true";
 
-	const handleJoyrideCallback = useCallback(
-		(data: {
-			action?: string;
-			index?: number;
-			status?: string;
-			type?: string;
-			lifecycle?: string;
-		}) => {
-			const {
-				action = "",
-				index = 0,
-				status = "",
-				type = "",
-				lifecycle = "",
-			} = data;
+	const handleJoyrideCallback = useCallback<EventHandler>((data, _controls) => {
+		const {
+			action = "",
+			index = 0,
+			status = "",
+			type = "",
+			lifecycle = "",
+		} = data;
 
-			if (type === "step:after" || type === "step:before") {
-				localStorage.setItem(TOUR_STORAGE_KEYS.step, String(index));
-			}
+		if (type === "step:after" || type === "step:before") {
+			localStorage.setItem(TOUR_STORAGE_KEYS.step, String(index));
+		}
 
-			if (
-				action === "close" ||
-				action === "skip" ||
-				status === "finished" ||
-				status === "skipped"
-			) {
+		if (
+			action === "close" ||
+			action === "skip" ||
+			status === "finished" ||
+			status === "skipped"
+		) {
+			setRunTour(false);
+			localStorage.setItem(TOUR_STORAGE_KEYS.completed, "true");
+			localStorage.removeItem(TOUR_STORAGE_KEYS.step);
+			return;
+		}
+
+		if (lifecycle === "tooltip" && type === "error:target_not_found") {
+			if (index + 1 >= TOUR_STEPS_COUNT) {
 				setRunTour(false);
 				localStorage.setItem(TOUR_STORAGE_KEYS.completed, "true");
-				localStorage.removeItem(TOUR_STORAGE_KEYS.step);
-				return;
+			} else {
+				setStepIndex(index + 1);
 			}
+			return;
+		}
 
-			if (lifecycle === "tooltip" && type === "error:target_not_found") {
-				if (index + 1 >= TOUR_STEPS_COUNT) {
-					setRunTour(false);
-					localStorage.setItem(TOUR_STORAGE_KEYS.completed, "true");
-				} else {
-					setStepIndex(index + 1);
-				}
-				return;
-			}
-
-			if (type === "step:after" || type === "target:before") {
-				setStepIndex(index + (action === "prev" ? -1 : 1));
-			}
-		},
-		[]
-	);
+		if (type === "step:after") {
+			setStepIndex(index + (action === "prev" ? -1 : 1));
+		}
+	}, []);
 
 	const runTourRef = useRef(runTour);
 	useEffect(() => {
@@ -129,19 +121,13 @@ export function useTourState(options: UseTourStateOptions) {
 	}, []);
 
 	const steps = useMemo(
-		(): Array<{
-			target: string;
-			content: ReactNode;
-			placement?: "center" | "top" | "bottom" | "left" | "right";
-			disableBeacon?: boolean;
-			locale?: { next?: string };
-		}> => [
+		(): Array<TourStep> => [
 			{
 				target: "body",
 				content:
 					"Welcome to LoreSmith. This short tour will show you how to forge, explore, and refine your lore.",
 				placement: "center",
-				disableBeacon: true,
+				skipBeacon: true,
 				locale: { next: "Start tour" },
 			},
 			{
@@ -245,7 +231,7 @@ export function useTourState(options: UseTourStateOptions) {
 				target: ".tour-notifications",
 				content:
 					"Notifications: shows real-time updates (e.g. when shards are ready to review) on file processing and other campaign activity.",
-				disableBeacon: true,
+				skipBeacon: true,
 			},
 		],
 		[]

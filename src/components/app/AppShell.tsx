@@ -1,4 +1,4 @@
-import Joyride from "react-joyride";
+import { Joyride } from "react-joyride";
 import { AppHeader } from "@/components/app/AppHeader";
 import { ChatArea } from "@/components/app/ChatArea";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
@@ -21,11 +21,18 @@ export function AppShell() {
 				steps={ctx.tourSteps}
 				run={ctx.runTour}
 				continuous
-				showSkipButton
-				disableCloseOnEsc={false}
-				disableScrolling={false}
-				spotlightClicks={false}
-				callback={ctx.onJoyrideCallback}
+				onEvent={ctx.onJoyrideCallback}
+				options={{
+					buttons: ["back", "close", "primary", "skip"],
+					dismissKeyAction: "close",
+					skipScroll: false,
+					blockTargetInteraction: false,
+					zIndex: 10000,
+					arrowColor: "#262626",
+					backgroundColor: "#262626",
+					primaryColor: "#c084fc",
+					textColor: "#e5e5e5",
+				}}
 				locale={{
 					next: "Next",
 					last: "Done",
@@ -33,13 +40,6 @@ export function AppShell() {
 					back: "Back",
 				}}
 				styles={{
-					options: {
-						zIndex: 10000,
-						arrowColor: "#262626",
-						backgroundColor: "#262626",
-						primaryColor: "#c084fc",
-						textColor: "#e5e5e5",
-					},
 					tooltip: {
 						backgroundColor: "#262626",
 						borderRadius: "0.5rem",
@@ -53,7 +53,7 @@ export function AppShell() {
 					tooltipContent: {
 						padding: "0.5rem 0",
 					},
-					buttonNext: {
+					buttonPrimary: {
 						backgroundColor: "transparent",
 						color: "#c084fc",
 						fontSize: "0.875rem",
