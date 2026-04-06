@@ -1,5 +1,7 @@
-// Simple chat agent base class that doesn't depend on the agents package
-// This avoids the nanoid hoisting issues while providing the core functionality we need
+// Base for chat Durable Objects: must extend cloudflare:workers `DurableObject` so
+// `routeAgentRequest` (agents package) can use RPC stubs against the Chat binding.
+
+import { DurableObject } from "cloudflare:workers";
 
 export interface SimpleChatAgentEnv {
 	Chat: DurableObjectNamespace;
@@ -17,15 +19,8 @@ export interface ChatMessage {
 
 export abstract class SimpleChatAgent<
 	T extends SimpleChatAgentEnv = SimpleChatAgentEnv,
-> {
-	protected ctx: DurableObjectState;
-	protected env: T;
+> extends DurableObject<T> {
 	protected messages: ChatMessage[] = [];
-
-	constructor(ctx: DurableObjectState, env: T) {
-		this.ctx = ctx;
-		this.env = env;
-	}
 
 	/**
 	 * Add a message to the conversation
