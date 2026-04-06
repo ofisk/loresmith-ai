@@ -1,7 +1,8 @@
-// Base for chat Durable Objects: must extend cloudflare:workers `DurableObject` so
-// `routeAgentRequest` (agents package) can use RPC stubs against the Chat binding.
+// Chat DOs must extend partyserver `Server` (extends DurableObject). `routeAgentRequest`
+// → `routePartykitRequest` calls stub._initAndFetch(name, props, req) over RPC; plain
+// DurableObject does not implement that method.
 
-import { DurableObject } from "cloudflare:workers";
+import { Server } from "partyserver";
 
 export interface SimpleChatAgentEnv {
 	Chat: DurableObjectNamespace;
@@ -18,8 +19,8 @@ export interface ChatMessage {
 }
 
 export abstract class SimpleChatAgent<
-	T extends SimpleChatAgentEnv = SimpleChatAgentEnv,
-> extends DurableObject<T> {
+	_T extends SimpleChatAgentEnv = SimpleChatAgentEnv,
+> extends Server<any> {
 	protected messages: ChatMessage[] = [];
 
 	/**
@@ -44,10 +45,9 @@ export abstract class SimpleChatAgent<
 	}
 
 	/**
-	 * Handle HTTP requests to the durable object
+	 * Non-WebSocket HTTP to the DO (after Server.fetch sets name / init).
 	 */
-	async fetch(_request: Request): Promise<Response> {
-		// Default implementation - subclasses can override
+	async onRequest(_request: Request): Promise<Response> {
 		return new Response("Method not implemented", { status: 501 });
 	}
 

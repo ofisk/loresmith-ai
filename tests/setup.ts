@@ -13,6 +13,19 @@ vi.mock("cloudflare:workers", () => ({
 	},
 }));
 
+// partyserver imports `cloudflare:workers` at module load; stub it for Node (same as DurableObject mock).
+vi.mock("partyserver", () => ({
+	Server: class Server {
+		ctx!: DurableObjectState;
+		env!: unknown;
+		static options = { hibernate: false };
+		constructor(ctx: DurableObjectState, env?: unknown) {
+			this.ctx = ctx;
+			this.env = env;
+		}
+	},
+}));
+
 // Custom matchers (since jest-dom may not be available)
 declare module "vitest" {
 	interface Assertion<T = any> {

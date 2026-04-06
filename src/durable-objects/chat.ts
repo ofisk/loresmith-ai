@@ -158,9 +158,9 @@ export class Chat extends SimpleChatAgent<Env> {
 	}
 
 	/**
-	 * Handle HTTP requests to the Chat durable object
+	 * Handle HTTP requests to the Chat durable object (PartyServer onRequest hook).
 	 */
-	async fetch(request: Request): Promise<Response> {
+	async onRequest(request: Request): Promise<Response> {
 		const authHeader = request.headers.get("Authorization");
 		const jwtToken = extractJwtFromHeader(authHeader);
 		if (jwtToken) {
@@ -248,7 +248,7 @@ export class Chat extends SimpleChatAgent<Env> {
 				return response;
 			} catch (err) {
 				createLogger(this.env as Record<string, unknown>, "[ChatDO]").error(
-					"fetch: preload/onChatMessage failed",
+					"onRequest: preload/onChatMessage failed",
 					err
 				);
 				return new Response(
@@ -260,7 +260,7 @@ export class Chat extends SimpleChatAgent<Env> {
 			}
 		}
 
-		return super.fetch(request);
+		return super.onRequest(request);
 	}
 
 	/**
