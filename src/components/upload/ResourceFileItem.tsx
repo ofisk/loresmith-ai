@@ -44,6 +44,10 @@ export function ResourceFileItem({
 	campaigns = [],
 	retryLimitStatus,
 }: ResourceFileItemProps) {
+	const isImageLibraryFile = /\.(jpe?g|png|webp)$/i.test(
+		file.file_name || file.display_name || ""
+	);
+
 	const progressPercentage = (() => {
 		// Check for campaign addition progress first
 		if (typeof campaignProgress === "number") {
@@ -114,19 +118,26 @@ export function ResourceFileItem({
 			)}
 			<div className="flex flex-col h-full">
 				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2 flex-1 mr-3 min-w-0">
-						<h4
-							className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[var(--width-truncate-sm)] sm:max-w-[var(--width-truncate-md)]"
-							onClick={(e) => e.stopPropagation()}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									e.stopPropagation();
-								}
-							}}
-						>
-							{getDisplayName(file)}
-						</h4>
+					<div className="flex items-start gap-2 flex-1 mr-3 min-w-0">
+						<div className="min-w-0 flex-1">
+							<h4
+								className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[var(--width-truncate-sm)] sm:max-w-[var(--width-truncate-md)]"
+								onClick={(e) => e.stopPropagation()}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										e.stopPropagation();
+									}
+								}}
+							>
+								{getDisplayName(file)}
+							</h4>
+							{isImageLibraryFile ? (
+								<p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+									Visual inspiration
+								</p>
+							) : null}
+						</div>
 						{AuthService.getUsernameFromStoredJwt() && (
 							<FileStatusIndicator
 								tenant={AuthService.getUsernameFromStoredJwt()!}

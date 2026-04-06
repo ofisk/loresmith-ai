@@ -2,6 +2,7 @@
 // Reads files directly from R2 and extracts text content
 
 import { PDFExtractionError } from "@/lib/errors";
+import { getExtension } from "@/lib/file/file-upload-security";
 // biome-ignore lint/style/useImportType: R2Helper is used as both type and class (methods called on instance)
 import { R2Helper } from "@/lib/r2";
 import type { Env } from "@/middleware/auth";
@@ -10,6 +11,7 @@ import type {
 	ContentExtractionProvider,
 	ContentExtractionResult,
 } from "@/services/campaign/content-extraction-provider";
+import { FileExtractionService } from "@/services/file/file-extraction-service";
 
 /**
  * Direct file content extraction provider
@@ -19,7 +21,7 @@ export class DirectFileContentExtractionProvider
 	implements ContentExtractionProvider
 {
 	constructor(
-		_env: Env,
+		private readonly env: Env,
 		private r2Helper: R2Helper
 	) {}
 
@@ -78,12 +80,44 @@ export class DirectFileContentExtractionProvider
 				} catch {
 					extractedText = text;
 				}
-			} else if (this.isImageType(contentType)) {
-				// Placeholder for future image/vision API support
+			} else if (
+				this.isImageResource(contentType, resource.file_name ?? undefined)
+			) {
+				const effectiveType = this.resolveImageContentType(
+					contentType,
+					resource.file_name ?? undefined
+				);
+				if (!effectiveType) {
+					return {
+						content: "",
+						success: false,
+						error: `Could not determine image type for: ${resource.file_key}`,
+					};
+				}
+				const openAIApiKey =
+					typeof this.env.OPENAI_API_KEY === "string"
+						? this.env.OPENAI_API_KEY
+						: undefined;
+				const extractionService = new FileExtractionService(openAIApiKey);
+				const imageResult = await extractionService.extractText(
+					fileBuffer,
+					effectiveType
+				);
+				if (!imageResult?.text?.trim()) {
+					return {
+						content: "",
+						success: false,
+						error: `No text could be produced from image: ${resource.file_key}`,
+					};
+				}
 				return {
-					content: "",
-					success: false,
-					error: `Image extraction not yet implemented. Content type: ${contentType}`,
+					content: imageResult.text,
+					success: true,
+					metadata: {
+						isPDF: false,
+						contentType: effectiveType,
+						isVisualInspiration: true,
+					},
 				};
 			} else {
 				// Try to decode as text for unknown types
@@ -172,21 +206,49 @@ export class DirectFileContentExtractionProvider
 	}
 
 	/**
-	 * Check if content type is an image
-	 * Placeholder for future vision API support
+	 * True when R2 metadata or filename indicates an image we support for vision.
 	 */
-	private isImageType(contentType: string | null): boolean {
-		if (!contentType) {
-			return false;
+	private isImageResource(
+		contentType: string | null,
+		fileName?: string
+	): boolean {
+		if (contentType && this.isImageContentTypeHeader(contentType)) {
+			return true;
 		}
+		const ext = fileName ? getExtension(fileName) : "";
+		return ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "webp";
+	}
+
+	private isImageContentTypeHeader(contentType: string): boolean {
+		const normalized = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
 		return (
-			contentType.startsWith("image/") ||
-			contentType.includes("image") ||
-			/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(contentType)
+			normalized.startsWith("image/") ||
+			/\.(jpg|jpeg|png|webp)$/i.test(contentType)
 		);
 	}
 
-	// TODO: Add extractFromImage() method when implementing OpenAI Vision API support
-	// This will use OpenAI's vision API to extract text and context from images
-	// Useful for campaign planning inspiration images
+	/**
+	 * MIME type for FileExtractionService (must match vision-supported types).
+	 */
+	private resolveImageContentType(
+		contentType: string | null,
+		fileName?: string
+	): string | null {
+		if (contentType && this.isImageContentTypeHeader(contentType)) {
+			const base = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+			if (base === "image/jpg") return "image/jpeg";
+			if (
+				base === "image/jpeg" ||
+				base === "image/png" ||
+				base === "image/webp"
+			) {
+				return base;
+			}
+		}
+		const ext = fileName ? getExtension(fileName) : "";
+		if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+		if (ext === "png") return "image/png";
+		if (ext === "webp") return "image/webp";
+		return null;
+	}
 }

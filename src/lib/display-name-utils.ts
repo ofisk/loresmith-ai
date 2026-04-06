@@ -25,3 +25,13 @@ export function getDisplayName(resource: {
 	}
 	return "Unknown file";
 }
+
+/**
+ * Filename base without common image extensions, for shard titles when the stored
+ * name is missing or id-like (e.g. visual inspiration from library uploads).
+ */
+export function prettifyLibraryImageFilename(fileName: string): string {
+	const base = fileName.split(/[/\\]/).pop() ?? fileName;
+	const trimmed = base.replace(/\.(jpe?g|png|webp)$/i, "").trim();
+	return trimmed.length > 0 ? trimmed : "Visual inspiration";
+}

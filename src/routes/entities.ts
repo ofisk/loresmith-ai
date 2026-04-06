@@ -18,10 +18,12 @@ import {
 	requireParam,
 } from "@/lib/route-utils";
 import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
+import { generateVisualInspirationTitle } from "@/services/campaign/visual-inspiration-title";
 import type { AuthPayload } from "@/services/core/auth-service";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
@@ -663,6 +665,79 @@ export async function handleTestEntityExtractionFromR2(
 
 		const fileContent = extractionResult.content;
 		const isPDF = extractionResult.metadata?.isPDF || false;
+
+		const isVisualInspiration =
+			extractionResult.metadata?.isVisualInspiration === true ||
+			fileContent.trimStart().startsWith("Visual inspiration reference");
+
+		if (isVisualInspiration) {
+			const baseId = crypto.randomUUID();
+			const entityId = `${campaignId}_${baseId}`;
+			let displayName =
+				(sourceName.split(/[/\\]/).pop() ?? sourceName)
+					.replace(/\.(jpg|jpeg|png|webp)$/i, "")
+					.trim() || "Visual inspiration";
+			let titleSource: "llm" | "filename" = "filename";
+			try {
+				const rateLimitService = getLLMRateLimitService(c.env);
+				const generated = await generateVisualInspirationTitle({
+					descriptionText: fileContent,
+					apiKey: llmApiKey,
+					onUsage: async (usage) => {
+						await rateLimitService.recordUsage(
+							userAuth.username,
+							usage.tokens,
+							usage.queryCount
+						);
+					},
+				});
+				if (generated.trim()) {
+					displayName = generated.trim();
+					titleSource = "llm";
+				}
+			} catch {
+				// Keep filename-based displayName
+			}
+
+			const contentPayload = {
+				text: fileContent,
+				title: displayName,
+			};
+			const finalMetadata: Record<string, unknown> = {
+				shardStatus: "staging",
+				staged: true,
+				shardStagingOrigin: "new",
+				resourceId: fileKey,
+				resourceName: sourceName,
+				fileKey,
+				visualInspiration: true,
+				visualInspirationTitleSource: titleSource,
+				...(extractionResult.metadata?.contentType && {
+					sourceImageContentType: extractionResult.metadata.contentType,
+				}),
+			};
+			return c.json({
+				success: true,
+				entityCount: 1,
+				stagedEntities: [
+					{
+						id: entityId,
+						entityType: "visual_inspiration",
+						name: displayName,
+						content: contentPayload,
+						metadata: finalMetadata,
+						relations: [],
+					},
+				],
+				metadata: {
+					fileKey,
+					sourceName,
+					chunkCount: 1,
+					isPDF: false,
+					isVisualInspiration: true,
+				},
+			});
+		}
 
 		// Chunk content same way as staging service does
 		const CHARS_PER_TOKEN = 4;

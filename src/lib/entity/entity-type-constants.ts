@@ -60,6 +60,7 @@ export const ENTITY_TYPE_TREASURE_TABLES = ENTITY_TYPES.treasure_tables;
 export const ENTITY_TYPE_MAPS = ENTITY_TYPES.maps;
 export const ENTITY_TYPE_HANDOUTS = ENTITY_TYPES.handouts;
 export const ENTITY_TYPE_PUZZLES = ENTITY_TYPES.puzzles;
+export const ENTITY_TYPE_VISUAL_INSPIRATION = ENTITY_TYPES.visual_inspiration;
 
 // Timelines & campaign glue
 export const ENTITY_TYPE_TIMELINES = ENTITY_TYPES.timelines;

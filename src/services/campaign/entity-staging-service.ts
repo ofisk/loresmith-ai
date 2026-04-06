@@ -5,6 +5,7 @@ import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
+import { prettifyLibraryImageFilename } from "@/lib/display-name-utils";
 import {
 	isStubContent,
 	mergeEntityContent,
@@ -15,6 +16,7 @@ import {
 	chunkTextByPages,
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
+
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
 import {
@@ -38,6 +40,7 @@ import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import type { ContentExtractionProvider } from "./content-extraction-provider";
 import { DirectFileContentExtractionProvider } from "./impl/direct-file-content-extraction-provider";
+import { generateVisualInspirationTitle } from "./visual-inspiration-title";
 
 export interface EntityStagingResult {
 	success: boolean;
@@ -262,6 +265,96 @@ export async function stageEntitiesFromResource(
 
 		const fileContent = extractionResult.content;
 		const isPDF = extractionResult.metadata?.isPDF || false;
+
+		const isVisualInspiration =
+			extractionResult.metadata?.isVisualInspiration === true ||
+			fileContent.trimStart().startsWith("Visual inspiration reference");
+
+		if (isVisualInspiration) {
+			const daoFactory = getDAOFactory(env);
+			const baseId = crypto.randomUUID();
+			const entityId = `${campaignId}_${baseId}`;
+			const nameSource =
+				normalizedResource.file_name ||
+				(normalizedResource as { display_name?: string }).display_name ||
+				"Visual inspiration";
+			let displayName = prettifyLibraryImageFilename(String(nameSource));
+			let titleSource: "llm" | "filename" = "filename";
+
+			if (llmApiKey) {
+				try {
+					const rateLimitService = getLLMRateLimitService(env);
+					const generated = await generateVisualInspirationTitle({
+						descriptionText: fileContent,
+						apiKey: llmApiKey,
+						onUsage: async (usage) => {
+							await rateLimitService.recordUsage(
+								username,
+								usage.tokens,
+								usage.queryCount
+							);
+						},
+					});
+					if (generated.trim()) {
+						displayName = generated.trim();
+						titleSource = "llm";
+					}
+				} catch (_err) {
+					// Keep filename-based displayName
+				}
+			}
+
+			const contentPayload = {
+				text: fileContent,
+				title: displayName,
+			};
+
+			const finalMetadata: Record<string, unknown> = {
+				shardStatus: "staging",
+				staged: true,
+				shardStagingOrigin: "new",
+				resourceId: normalizedResource.id,
+				resourceName: normalizedResource.file_name || normalizedResource.id,
+				fileKey: normalizedResource.file_key || normalizedResource.id,
+				visualInspiration: true,
+				visualInspirationTitleSource: titleSource,
+				...(extractionResult.metadata?.contentType && {
+					sourceImageContentType: extractionResult.metadata.contentType,
+				}),
+				...(attribution && {
+					proposedBy: attribution.proposedBy,
+					approvedBy: attribution.approvedBy,
+				}),
+			};
+
+			await daoFactory.entityDAO.createEntity({
+				id: entityId,
+				campaignId,
+				entityType: "visual_inspiration",
+				name: displayName,
+				content: contentPayload,
+				shardStatus: "staging",
+				metadata: finalMetadata,
+				sourceType: "file_upload",
+				sourceId: normalizedResource.id,
+				confidence: 1,
+			});
+
+			return {
+				success: true,
+				entityCount: 1,
+				stagedEntities: [
+					{
+						id: entityId,
+						entityType: "visual_inspiration",
+						name: displayName,
+						content: contentPayload,
+						metadata: finalMetadata,
+						relations: [],
+					},
+				],
+			};
+		}
 
 		// Check if this is a character sheet before normal entity extraction
 		try {
