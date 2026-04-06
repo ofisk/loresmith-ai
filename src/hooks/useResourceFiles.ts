@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/app-constants";
 import { FileDAO } from "@/dao";
+import { parseTags } from "@/lib/resource-tags";
 import {
 	authenticatedFetchWithExpiration,
 	getStoredJwt,
@@ -116,27 +117,6 @@ export function useResourceFiles(
 						}
 					}
 				}
-
-				// Helper to safely parse tags from JSON string or return as-is
-				const parseTags = (tags: string | string[] | undefined): string[] => {
-					if (!tags) return [];
-					if (Array.isArray(tags)) return tags;
-					if (typeof tags === "string") {
-						try {
-							const parsed = JSON.parse(tags);
-							if (Array.isArray(parsed)) {
-								return parsed;
-							}
-						} catch {
-							// Not valid JSON, treat as comma-separated string
-							return tags
-								.split(",")
-								.map((t) => t.trim())
-								.filter((t) => t.length > 0);
-						}
-					}
-					return [];
-				};
 
 				// Map files with campaigns and parse tags from JSON strings
 				const filesWithCampaigns: ResourceFileWithCampaigns[] =

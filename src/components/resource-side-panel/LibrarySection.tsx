@@ -1,5 +1,12 @@
-import { Plus } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MagnifyingGlass, Plus } from "@phosphor-icons/react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import libraryIcon from "@/assets/library.png";
 import { CollapsibleCard } from "@/components/collapsible/CollapsibleCard";
 import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
@@ -169,6 +176,8 @@ export function LibrarySection({
 
 	const fileDragDepthRef = useRef(0);
 	const [isFileDragOver, setIsFileDragOver] = useState(false);
+	const [librarySearchQuery, setLibrarySearchQuery] = useState("");
+	const librarySearchInputId = useId();
 
 	const handleLibraryDragEnter = useCallback((e: React.DragEvent) => {
 		e.preventDefault();
@@ -246,7 +255,7 @@ export function LibrarySection({
 				className="border-t border-neutral-200 dark:border-neutral-700"
 			>
 				<div className="flex flex-col">
-					<div className="flex-shrink-0 p-2">
+					<div className="flex-shrink-0 p-2 space-y-2">
 						<button
 							type="button"
 							onClick={() => onAddToLibrary()}
@@ -255,6 +264,24 @@ export function LibrarySection({
 							<Plus size={14} />
 							Add to library
 						</button>
+						<div className="relative">
+							<label htmlFor={librarySearchInputId} className="sr-only">
+								Search library
+							</label>
+							<MagnifyingGlass
+								className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-neutral-500 dark:text-neutral-400"
+								aria-hidden
+							/>
+							<input
+								id={librarySearchInputId}
+								type="search"
+								value={librarySearchQuery}
+								onChange={(e) => setLibrarySearchQuery(e.target.value)}
+								placeholder="Search library"
+								autoComplete="off"
+								className="w-full rounded-md border border-neutral-300 bg-neutral-100 py-1.5 pl-8 pr-2 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:ring-neutral-500"
+							/>
+						</div>
 					</div>
 					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
 						<div className="max-h-64 overflow-y-auto">
@@ -272,6 +299,7 @@ export function LibrarySection({
 								campaigns={campaigns}
 								campaignAdditionProgress={campaignAdditionProgress}
 								_isAddingToCampaigns={isAddingToCampaigns}
+								searchQuery={librarySearchQuery}
 							/>
 						</div>
 						<div className="flex-shrink-0">

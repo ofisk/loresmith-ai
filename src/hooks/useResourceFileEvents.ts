@@ -3,6 +3,7 @@ import { FileDAO } from "@/dao";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import type { FileUploadEvent } from "@/lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "@/lib/event-bus";
+import { parseTags } from "@/lib/resource-tags";
 import {
 	AuthService,
 	authenticatedFetchWithExpiration,
@@ -23,29 +24,6 @@ interface UseResourceFileEventsOptions {
 interface UseResourceFileEventsReturn {
 	progressByFileKey: Record<string, number>;
 	refreshAllFileStatuses: () => Promise<void>;
-}
-
-/**
- * Helper to safely parse tags from JSON string or return as-is
- */
-function parseTags(tags: string | string[] | undefined): string[] {
-	if (!tags) return [];
-	if (Array.isArray(tags)) return tags;
-	if (typeof tags === "string") {
-		try {
-			const parsed = JSON.parse(tags);
-			if (Array.isArray(parsed)) {
-				return parsed;
-			}
-		} catch {
-			// Not valid JSON, treat as comma-separated string
-			return tags
-				.split(",")
-				.map((t) => t.trim())
-				.filter((t) => t.length > 0);
-		}
-	}
-	return [];
 }
 
 /**
