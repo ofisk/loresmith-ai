@@ -18,10 +18,12 @@ import {
 	requireParam,
 } from "@/lib/route-utils";
 import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
+import { generateVisualInspirationTitle } from "@/services/campaign/visual-inspiration-title";
 import type { AuthPayload } from "@/services/core/auth-service";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
 import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
@@ -671,11 +673,36 @@ export async function handleTestEntityExtractionFromR2(
 		if (isVisualInspiration) {
 			const baseId = crypto.randomUUID();
 			const entityId = `${campaignId}_${baseId}`;
-			const displayName =
+			let displayName =
 				(sourceName.split(/[/\\]/).pop() ?? sourceName)
 					.replace(/\.(jpg|jpeg|png|webp)$/i, "")
 					.trim() || "Visual inspiration";
-			const contentPayload = { text: fileContent };
+			let titleSource: "llm" | "filename" = "filename";
+			try {
+				const rateLimitService = getLLMRateLimitService(c.env);
+				const generated = await generateVisualInspirationTitle({
+					descriptionText: fileContent,
+					apiKey: llmApiKey,
+					onUsage: async (usage) => {
+						await rateLimitService.recordUsage(
+							userAuth.username,
+							usage.tokens,
+							usage.queryCount
+						);
+					},
+				});
+				if (generated.trim()) {
+					displayName = generated.trim();
+					titleSource = "llm";
+				}
+			} catch {
+				// Keep filename-based displayName
+			}
+
+			const contentPayload = {
+				text: fileContent,
+				title: displayName,
+			};
 			const finalMetadata: Record<string, unknown> = {
 				shardStatus: "staging",
 				staged: true,
@@ -684,6 +711,7 @@ export async function handleTestEntityExtractionFromR2(
 				resourceName: sourceName,
 				fileKey,
 				visualInspiration: true,
+				visualInspirationTitleSource: titleSource,
 				...(extractionResult.metadata?.contentType && {
 					sourceImageContentType: extractionResult.metadata.contentType,
 				}),

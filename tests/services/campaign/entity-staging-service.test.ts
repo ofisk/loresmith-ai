@@ -54,6 +54,12 @@ vi.mock("@/services/character-sheet/character-sheet-detection-service", () => ({
 	}),
 }));
 
+vi.mock("@/services/campaign/visual-inspiration-title", () => ({
+	generateVisualInspirationTitle: vi
+		.fn()
+		.mockResolvedValue("Ritual battle under a red moon"),
+}));
+
 import { getDAOFactory } from "@/dao/dao-factory";
 
 describe("entity-staging-service context-length retry", () => {
@@ -181,12 +187,20 @@ describe("entity-staging-service context-length retry", () => {
 		expect(result.success).toBe(true);
 		expect(result.entityCount).toBe(1);
 		expect(result.stagedEntities?.[0]?.entityType).toBe("visual_inspiration");
-		expect(result.stagedEntities?.[0]?.name).toBe("mood_ref");
+		expect(result.stagedEntities?.[0]?.name).toBe(
+			"Ritual battle under a red moon"
+		);
 		expect(createEntity).toHaveBeenCalledTimes(1);
 		const arg = createEntity.mock.calls[0][0];
 		expect(arg.entityType).toBe("visual_inspiration");
+		expect(arg.name).toBe("Ritual battle under a red moon");
+		expect(
+			(arg.metadata as { visualInspirationTitleSource?: string })
+				.visualInspirationTitleSource
+		).toBe("llm");
 		expect(arg.content).toEqual({
 			text: "Visual inspiration reference\n\nMoody fog and amber light.",
+			title: "Ritual battle under a red moon",
 		});
 	});
 });

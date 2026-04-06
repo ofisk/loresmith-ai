@@ -46,6 +46,7 @@ import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import type { ContentExtractionProvider } from "./content-extraction-provider";
 import { DirectFileContentExtractionProvider } from "./impl/direct-file-content-extraction-provider";
+import { generateVisualInspirationTitle } from "./visual-inspiration-title";
 
 export interface EntityStagingResult {
 	success: boolean;
@@ -283,9 +284,36 @@ export async function stageEntitiesFromResource(
 				normalizedResource.file_name ||
 				(normalizedResource as { display_name?: string }).display_name ||
 				"Visual inspiration";
-			const displayName = visualInspirationDisplayName(String(nameSource));
+			let displayName = visualInspirationDisplayName(String(nameSource));
+			let titleSource: "llm" | "filename" = "filename";
 
-			const contentPayload = { text: fileContent };
+			if (llmApiKey) {
+				try {
+					const rateLimitService = getLLMRateLimitService(env);
+					const generated = await generateVisualInspirationTitle({
+						descriptionText: fileContent,
+						apiKey: llmApiKey,
+						onUsage: async (usage) => {
+							await rateLimitService.recordUsage(
+								username,
+								usage.tokens,
+								usage.queryCount
+							);
+						},
+					});
+					if (generated.trim()) {
+						displayName = generated.trim();
+						titleSource = "llm";
+					}
+				} catch (_err) {
+					// Keep filename-based displayName
+				}
+			}
+
+			const contentPayload = {
+				text: fileContent,
+				title: displayName,
+			};
 
 			const finalMetadata: Record<string, unknown> = {
 				shardStatus: "staging",
@@ -295,6 +323,7 @@ export async function stageEntitiesFromResource(
 				resourceName: normalizedResource.file_name || normalizedResource.id,
 				fileKey: normalizedResource.file_key || normalizedResource.id,
 				visualInspiration: true,
+				visualInspirationTitleSource: titleSource,
 				...(extractionResult.metadata?.contentType && {
 					sourceImageContentType: extractionResult.metadata.contentType,
 				}),
