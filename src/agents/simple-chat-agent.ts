@@ -1,5 +1,8 @@
-// Simple chat agent base class that doesn't depend on the agents package
-// This avoids the nanoid hoisting issues while providing the core functionality we need
+// Chat DOs must extend partyserver `Server` (extends DurableObject). `routeAgentRequest`
+// → `routePartykitRequest` calls stub._initAndFetch(name, props, req) over RPC; plain
+// DurableObject does not implement that method.
+
+import { Server } from "partyserver";
 
 export interface SimpleChatAgentEnv {
 	Chat: DurableObjectNamespace;
@@ -16,16 +19,9 @@ export interface ChatMessage {
 }
 
 export abstract class SimpleChatAgent<
-	T extends SimpleChatAgentEnv = SimpleChatAgentEnv,
-> {
-	protected ctx: DurableObjectState;
-	protected env: T;
+	_T extends SimpleChatAgentEnv = SimpleChatAgentEnv,
+> extends Server<any> {
 	protected messages: ChatMessage[] = [];
-
-	constructor(ctx: DurableObjectState, env: T) {
-		this.ctx = ctx;
-		this.env = env;
-	}
 
 	/**
 	 * Add a message to the conversation
@@ -49,10 +45,9 @@ export abstract class SimpleChatAgent<
 	}
 
 	/**
-	 * Handle HTTP requests to the durable object
+	 * Non-WebSocket HTTP to the DO (after Server.fetch sets name / init).
 	 */
-	async fetch(_request: Request): Promise<Response> {
-		// Default implementation - subclasses can override
+	async onRequest(_request: Request): Promise<Response> {
 		return new Response("Method not implemented", { status: 501 });
 	}
 

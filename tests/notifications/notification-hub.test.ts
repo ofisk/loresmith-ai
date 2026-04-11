@@ -1,16 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationHub } from "../../src/durable-objects/notification-hub";
 
-// Mock the Cloudflare DurableObject base to avoid constructor state checks in Node
-vi.mock("cloudflare:workers", () => ({
-	DurableObject: class {
-		ctx: DurableObjectState;
-		constructor(ctx: DurableObjectState, _env: any) {
-			this.ctx = ctx;
-		}
-	},
-}));
-
 // Mock Durable Object environment (unused, keep underscore to satisfy linter)
 const _mockEnv = {
 	NOTIFICATIONS: {

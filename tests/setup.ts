@@ -1,5 +1,30 @@
 import { cleanup } from "@testing-library/react";
-import { afterEach, expect } from "vitest";
+import { afterEach, expect, vi } from "vitest";
+
+// Node tests import agents/DO code paths; real `cloudflare:workers` is not available.
+vi.mock("cloudflare:workers", () => ({
+	DurableObject: class {
+		ctx!: DurableObjectState;
+		env!: unknown;
+		constructor(ctx: DurableObjectState, env?: unknown) {
+			this.ctx = ctx;
+			this.env = env;
+		}
+	},
+}));
+
+// partyserver imports `cloudflare:workers` at module load; stub it for Node (same as DurableObject mock).
+vi.mock("partyserver", () => ({
+	Server: class Server {
+		ctx!: DurableObjectState;
+		env!: unknown;
+		static options = { hibernate: false };
+		constructor(ctx: DurableObjectState, env?: unknown) {
+			this.ctx = ctx;
+			this.env = env;
+		}
+	},
+}));
 
 // Custom matchers (since jest-dom may not be available)
 declare module "vitest" {
