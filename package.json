@@ -101,8 +101,8 @@
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.69",
-		"@ai-sdk/openai": "^3.0.52",
-		"@ai-sdk/react": "^3.0.160",
+		"@ai-sdk/openai": "^3.0.53",
+		"@ai-sdk/react": "^3.0.163",
 		"@ai-sdk/ui-utils": "^1.2.11",
 		"@hono/swagger-ui": "^0.6.1",
 		"@hono/zod-openapi": "^1.2.4",
