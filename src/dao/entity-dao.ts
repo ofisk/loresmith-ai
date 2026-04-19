@@ -1,3 +1,6 @@
+import { validateAndNormalizePcContent } from "@/lib/campaign/game-systems/validate-pc-content";
+import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
+import { normalizeEntityType } from "@/lib/entity/entity-types";
 import {
 	normalizeRelationshipType,
 	type RelationshipType,
@@ -223,6 +226,21 @@ export interface UpdateEntityDeduplicationInput {
 
 export class EntityDAO extends BaseDAOClass {
 	async createEntity(entity: CreateEntityInput): Promise<void> {
+		const normalizedEntityType = normalizeEntityType(entity.entityType);
+		let contentForInsert = entity.content;
+		if (normalizedEntityType === ENTITY_TYPE_PCS) {
+			const validated = await validateAndNormalizePcContent(
+				this.db,
+				entity.campaignId,
+				contentForInsert
+			);
+			if (!validated.ok) {
+				throw new Error(
+					validated.errors?.join("; ") ?? "Invalid player character content"
+				);
+			}
+			contentForInsert = validated.normalizedContent;
+		}
 		const metadataShardStatus = this.extractShardStatusFromMetadata(
 			entity.metadata
 		);
@@ -250,9 +268,9 @@ export class EntityDAO extends BaseDAOClass {
 		await this.execute(sql, [
 			entity.id,
 			entity.campaignId,
-			entity.entityType,
+			normalizedEntityType,
 			entity.name,
-			entity.content ? JSON.stringify(entity.content) : null,
+			contentForInsert ? JSON.stringify(contentForInsert) : null,
 			entity.metadata ? JSON.stringify(entity.metadata) : null,
 			entity.confidence ?? null,
 			entity.sourceType ?? null,
@@ -267,57 +285,98 @@ export class EntityDAO extends BaseDAOClass {
 		entityId: string,
 		updates: UpdateEntityInput
 	): Promise<void> {
+		const existing = await this.getEntityById(entityId);
+		if (!existing) {
+			throw new Error(`Entity not found: ${entityId}`);
+		}
+
+		const nextEntityType =
+			updates.entityType !== undefined
+				? normalizeEntityType(updates.entityType)
+				: normalizeEntityType(existing.entityType);
+
+		let patchedUpdates = updates;
+		if (nextEntityType === ENTITY_TYPE_PCS && updates.content !== undefined) {
+			const validated = await validateAndNormalizePcContent(
+				this.db,
+				existing.campaignId,
+				updates.content
+			);
+			if (!validated.ok) {
+				throw new Error(
+					validated.errors?.join("; ") ?? "Invalid player character content"
+				);
+			}
+			patchedUpdates = {
+				...updates,
+				content: validated.normalizedContent,
+				entityType: ENTITY_TYPE_PCS,
+			};
+		} else if (updates.entityType !== undefined) {
+			patchedUpdates = {
+				...updates,
+				entityType: nextEntityType,
+			};
+		}
+
 		const setClauses: string[] = [];
 		const values: SqlParam[] = [];
 
-		if (updates.name !== undefined) {
+		if (patchedUpdates.name !== undefined) {
 			setClauses.push("name = ?");
-			values.push(updates.name);
+			values.push(patchedUpdates.name);
 		}
 
-		if (updates.content !== undefined) {
+		if (patchedUpdates.content !== undefined) {
 			setClauses.push("content = ?");
-			values.push(updates.content ? JSON.stringify(updates.content) : null);
+			values.push(
+				patchedUpdates.content ? JSON.stringify(patchedUpdates.content) : null
+			);
 		}
 
-		if (updates.metadata !== undefined) {
+		if (patchedUpdates.metadata !== undefined) {
 			setClauses.push("metadata = ?");
-			values.push(updates.metadata ? JSON.stringify(updates.metadata) : null);
+			values.push(
+				patchedUpdates.metadata ? JSON.stringify(patchedUpdates.metadata) : null
+			);
 		}
 
-		if (updates.confidence !== undefined) {
+		if (patchedUpdates.confidence !== undefined) {
 			setClauses.push("confidence = ?");
-			values.push(updates.confidence);
+			values.push(patchedUpdates.confidence);
 		}
 
-		if (updates.sourceType !== undefined) {
+		if (patchedUpdates.sourceType !== undefined) {
 			setClauses.push("source_type = ?");
-			values.push(updates.sourceType);
+			values.push(patchedUpdates.sourceType);
 		}
 
-		if (updates.sourceId !== undefined) {
+		if (patchedUpdates.sourceId !== undefined) {
 			setClauses.push("source_id = ?");
-			values.push(updates.sourceId);
+			values.push(patchedUpdates.sourceId);
 		}
 
-		if (updates.shardStatus !== undefined) {
+		if (patchedUpdates.shardStatus !== undefined) {
 			setClauses.push("shard_status = ?");
-			values.push(updates.shardStatus);
+			values.push(patchedUpdates.shardStatus);
 		}
 
-		if (updates.embeddingId !== undefined) {
+		if (patchedUpdates.embeddingId !== undefined) {
 			setClauses.push("embedding_id = ?");
-			values.push(updates.embeddingId);
+			values.push(patchedUpdates.embeddingId);
 		}
 
-		if (updates.entityType !== undefined) {
+		if (patchedUpdates.entityType !== undefined) {
 			setClauses.push("entity_type = ?");
-			values.push(updates.entityType);
+			values.push(patchedUpdates.entityType);
 		}
 
-		if (updates.metadata !== undefined && updates.shardStatus === undefined) {
+		if (
+			patchedUpdates.metadata !== undefined &&
+			patchedUpdates.shardStatus === undefined
+		) {
 			const metadataShardStatus = this.extractShardStatusFromMetadata(
-				updates.metadata
+				patchedUpdates.metadata
 			);
 			if (metadataShardStatus !== undefined) {
 				setClauses.push("shard_status = ?");

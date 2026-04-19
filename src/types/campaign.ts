@@ -10,6 +10,11 @@ export interface CampaignRow {
 	description?: string;
 	campaignRagBasePath?: string;
 	metadata?: string | null;
+	/** Freeform label for the table’s rules / engine (default `generic` when unset). */
+	game_system?: string;
+	game_system_version?: string | null;
+	/** 1 when self-claims start as pending until a GM approves */
+	pc_claim_requires_gm_approval?: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -36,6 +41,8 @@ export function mapCampaignRow(row: CampaignRow): {
 	description?: string;
 	campaignRagBasePath?: string;
 	metadata?: string | null;
+	gameSystem?: string;
+	gameSystemVersion?: string | null;
 	createdAt: string;
 	updatedAt: string;
 } {
@@ -46,6 +53,8 @@ export function mapCampaignRow(row: CampaignRow): {
 		description: row.description,
 		campaignRagBasePath: row.campaignRagBasePath,
 		metadata: row.metadata,
+		gameSystem: row.game_system,
+		gameSystemVersion: row.game_system_version ?? null,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -82,6 +91,11 @@ export interface CampaignData {
 	campaignRagBasePath?: string;
 	createdAt: string;
 	updatedAt: string;
+	/** Freeform rules / engine label for the table (any string; optional UI presets only). */
+	gameSystem?: string;
+	gameSystemVersion?: string | null;
+	/** When true, player self-claims require GM approval before they are active */
+	pcClaimRequiresGmApproval?: boolean;
 	resources?: CampaignResource[];
 	/** User's role in this campaign (owner or from membership) */
 	role?: CampaignRole;

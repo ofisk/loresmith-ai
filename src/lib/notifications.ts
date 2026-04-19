@@ -446,6 +446,30 @@ export async function notifyCampaignMembers(
 	);
 }
 
+/** Notify campaign members that the player character roster changed (claim/assign/clear). */
+export async function notifyPartyRosterUpdated(
+	env: Env,
+	campaignId: string,
+	campaignName: string,
+	message: string,
+	excludeUsernames: string[] = []
+): Promise<void> {
+	try {
+		await notifyCampaignMembers(
+			env,
+			campaignId,
+			campaignName,
+			() => ({
+				type: NOTIFICATION_TYPES.PARTY_ROSTER_UPDATED,
+				title: "Party roster updated",
+				message,
+				data: { campaignId, campaignName },
+			}),
+			excludeUsernames
+		);
+	} catch (_e) {}
+}
+
 /**
  * Publish an entity rejection notification
  * This function name is kept for UI compatibility

@@ -13,6 +13,7 @@ import {
 	buildResourceRemovalResponse,
 } from "@/lib/api/response-builders";
 import { extractJwtFromContext } from "@/lib/auth-utils";
+import { sanitizeCampaignGameSystemId } from "@/lib/campaign/game-systems/constants";
 import {
 	addResourceToCampaign,
 	checkResourceExists,
@@ -105,9 +106,18 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 	const log = getRequestLogger(c);
 	try {
 		const userAuth = (c as any).userAuth;
-		const { name, description } = await getBody<{
+		const {
+			name,
+			description,
+			gameSystem,
+			gameSystemVersion,
+			pcClaimRequiresGmApproval,
+		} = await getBody<{
 			name?: string;
 			description?: string;
+			gameSystem?: string;
+			gameSystemVersion?: string | null;
+			pcClaimRequiresGmApproval?: boolean;
 		}>(c);
 
 		if (!name) {
@@ -135,6 +145,12 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 			username: userAuth.username,
 			name,
 			description,
+			gameSystem:
+				gameSystem !== undefined
+					? sanitizeCampaignGameSystemId(gameSystem)
+					: undefined,
+			gameSystemVersion: gameSystemVersion ?? undefined,
+			pcClaimRequiresGmApproval,
 		});
 
 		// Sync campaign title and description as searchable context
@@ -282,6 +298,9 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 			name?: string;
 			description?: string;
 			metadata?: Record<string, unknown>;
+			gameSystem?: string;
+			gameSystemVersion?: string | null;
+			pcClaimRequiresGmApproval?: boolean;
 		}>(c);
 
 		log.debug(`[Server] PUT /campaigns/${campaignId} - starting request`);
@@ -331,6 +350,9 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 			name?: string;
 			description?: string;
 			metadata?: Record<string, unknown>;
+			game_system?: string;
+			game_system_version?: string | null;
+			pc_claim_requires_gm_approval?: number;
 		} = {};
 
 		// Only include fields that are being updated
@@ -340,6 +362,20 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 
 		if (body.description !== undefined) {
 			updateData.description = body.description;
+		}
+
+		if (body.gameSystem !== undefined) {
+			updateData.game_system = sanitizeCampaignGameSystemId(body.gameSystem);
+		}
+
+		if (body.gameSystemVersion !== undefined) {
+			updateData.game_system_version = body.gameSystemVersion;
+		}
+
+		if (body.pcClaimRequiresGmApproval !== undefined) {
+			updateData.pc_claim_requires_gm_approval = body.pcClaimRequiresGmApproval
+				? 1
+				: 0;
 		}
 
 		// Always include metadata if it was provided, or if we have merged metadata to save

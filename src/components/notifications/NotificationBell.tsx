@@ -60,6 +60,8 @@ export function NotificationBell({
 				return "❌";
 			case NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED:
 				return "📁";
+			case NOTIFICATION_TYPES.PARTY_ROSTER_UPDATED:
+				return "👥";
 			case NOTIFICATION_TYPES.PROPOSAL_APPROVED:
 				return "✅";
 			case NOTIFICATION_TYPES.PROPOSAL_REJECTED:
@@ -87,6 +89,8 @@ export function NotificationBell({
 				return "bg-red-900/20 border-red-700/30 text-red-300";
 			case NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED:
 				return "bg-blue-900/20 border-blue-700/30 text-blue-300";
+			case NOTIFICATION_TYPES.PARTY_ROSTER_UPDATED:
+				return "bg-neutral-800/30 border-neutral-600/40 text-neutral-200";
 			case NOTIFICATION_TYPES.PROPOSAL_APPROVED:
 				return "bg-green-900/20 border-green-700/30 text-green-300";
 			case NOTIFICATION_TYPES.PROPOSAL_REJECTED:

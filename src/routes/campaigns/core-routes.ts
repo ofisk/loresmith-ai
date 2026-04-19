@@ -67,11 +67,28 @@ const CampaignIdResourceIdParams = z
 	})
 	.openapi("CampaignIdResourceIdParams");
 
+const GameSystemSchema = z.string().trim().max(80).openapi({
+	description:
+		"Freeform game or rules label (e.g. homebrew, Mothership). Not limited to built-in presets.",
+});
+
 const CreateCampaignBodySchema = z
-	.object({ name: z.string(), description: z.string().optional() })
+	.object({
+		name: z.string(),
+		description: z.string().optional(),
+		gameSystem: GameSystemSchema.nullish(),
+		gameSystemVersion: z.string().nullable().optional(),
+		pcClaimRequiresGmApproval: z.boolean().optional(),
+	})
 	.openapi("CreateCampaignBody");
 const UpdateCampaignBodySchema = z
-	.object({ name: z.string().optional(), description: z.string().optional() })
+	.object({
+		name: z.string().optional(),
+		description: z.string().optional(),
+		gameSystem: GameSystemSchema.nullish(),
+		gameSystemVersion: z.string().nullable().optional(),
+		pcClaimRequiresGmApproval: z.boolean().optional(),
+	})
 	.openapi("UpdateCampaignBody");
 
 const routeGetCampaigns = createRoute({

@@ -158,10 +158,14 @@ export const ENDPOINTS = {
 			`/campaigns/${campaignId}/player-character-claim/options`,
 		PLAYER_CHARACTER_CLAIM: (campaignId: string) =>
 			`/campaigns/${campaignId}/player-character-claim`,
+		PLAYER_CHARACTER_ROSTER: (campaignId: string) =>
+			`/campaigns/${campaignId}/player-character-roster`,
 		PLAYER_CHARACTER_CLAIMS: (campaignId: string) =>
 			`/campaigns/${campaignId}/player-character-claims`,
 		PLAYER_CHARACTER_CLAIM_ASSIGN: (campaignId: string, username: string) =>
 			`/campaigns/${campaignId}/player-character-claims/${encodeURIComponent(username)}`,
+		PLAYER_CHARACTER_CLAIM_APPROVE: (campaignId: string, username: string) =>
+			`/campaigns/${campaignId}/player-character-claims/${encodeURIComponent(username)}/approve`,
 		RESOURCE_PROPOSALS: (campaignId: string) =>
 			`/campaigns/${campaignId}/resource-proposals`,
 		RESOURCE_PROPOSAL_APPROVE: (campaignId: string, id: string) =>

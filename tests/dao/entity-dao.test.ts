@@ -28,12 +28,13 @@ describe("EntityDAO", () => {
 			});
 
 			expect(mockDB.prepare).toHaveBeenCalled();
-			expect(mockStmt.bind).toHaveBeenCalledWith(
+			expect(mockStmt.bind).toHaveBeenNthCalledWith(
+				1,
 				"e1",
 				"c1",
-				"npc",
+				"npcs",
 				"Gandalf",
-				expect.any(String),
+				JSON.stringify({ description: "A wizard" }),
 				null,
 				null,
 				null,
@@ -41,6 +42,8 @@ describe("EntityDAO", () => {
 				null,
 				null
 			);
+			expect(mockStmt.bind).toHaveBeenNthCalledWith(2, "c1");
+			expect(mockStmt.bind).toHaveBeenCalledTimes(2);
 			expect(mockStmt.run).toHaveBeenCalled();
 		});
 

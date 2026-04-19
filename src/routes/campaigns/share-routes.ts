@@ -11,11 +11,13 @@ import {
 	handleRejectResourceProposal,
 } from "@/routes/campaign-resource-proposals";
 import {
+	handleApprovePlayerCharacterClaim,
 	handleAssignPlayerCharacterClaim,
 	handleClearPlayerCharacterClaim,
 	handleCreatePlayerCharacterClaim,
 	handleCreateShareLink,
 	handleGetPlayerCharacterClaimOptions,
+	handleGetPlayerCharacterRoster,
 	handleListPlayerCharacterClaims,
 	handleListShareLinks,
 	handleRevokeShareLink,
@@ -183,6 +185,23 @@ const routeListPlayerCharacterClaims = createRoute({
 	},
 });
 
+const routeGetPlayerCharacterRoster = createRoute({
+	method: "get",
+	path: toApiRoutePath(
+		ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_ROSTER("{campaignId}")
+	),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	request: { params: CampaignIdParamSchema },
+	responses: {
+		200: { description: "Player character roster (all campaign members)" },
+		...Error401,
+		...Error403,
+		...Error404,
+		...Error500,
+	},
+});
+
 const routeAssignPlayerCharacterClaim = createRoute({
 	method: "put",
 	path: toApiRoutePath(
@@ -215,6 +234,23 @@ const routeClearPlayerCharacterClaim = createRoute({
 	request: { params: CampaignIdUsernameParams },
 	responses: {
 		200: { description: "Player character claim cleared" },
+		...Error401,
+		...Error403,
+		...Error404,
+		...Error500,
+	},
+});
+
+const routeApprovePlayerCharacterClaim = createRoute({
+	method: "post",
+	path: toApiRoutePath(
+		"/campaigns/{campaignId}/player-character-claims/{username}/approve"
+	),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	request: { params: CampaignIdUsernameParams },
+	responses: {
+		200: { description: "Player character claim approved" },
 		...Error401,
 		...Error403,
 		...Error404,
@@ -333,12 +369,20 @@ export function registerCampaignShareRoutes(
 		handleListPlayerCharacterClaims as unknown as Handler
 	);
 	app.openapi(
+		routeGetPlayerCharacterRoster,
+		handleGetPlayerCharacterRoster as unknown as Handler
+	);
+	app.openapi(
 		routeAssignPlayerCharacterClaim,
 		handleAssignPlayerCharacterClaim as unknown as Handler
 	);
 	app.openapi(
 		routeClearPlayerCharacterClaim,
 		handleClearPlayerCharacterClaim as unknown as Handler
+	);
+	app.openapi(
+		routeApprovePlayerCharacterClaim,
+		handleApprovePlayerCharacterClaim as unknown as Handler
 	);
 	app.openapi(
 		routeCreateResourceProposal,

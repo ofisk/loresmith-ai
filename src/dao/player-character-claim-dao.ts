@@ -5,6 +5,7 @@ export interface PlayerCharacterClaimRecord {
 	username: string;
 	entity_id: string;
 	assigned_by: string;
+	claim_status?: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -14,6 +15,8 @@ export interface PlayerCharacterClaim {
 	username: string;
 	entityId: string;
 	assignedBy: string;
+	/** `pending` until GM approves when campaign requires approval for self-claims */
+	claimStatus: "approved" | "pending";
 	createdAt: string;
 	updatedAt: string;
 }
@@ -38,7 +41,7 @@ export class PlayerCharacterClaimDAO extends BaseDAOClass {
 		if (!(await this.hasClaimsTable())) return null;
 
 		const sql = `
-      SELECT campaign_id, username, entity_id, assigned_by, created_at, updated_at
+      SELECT campaign_id, username, entity_id, assigned_by, claim_status, created_at, updated_at
       FROM campaign_player_character_claims
       WHERE campaign_id = ? AND username = ?
     `;
@@ -55,7 +58,7 @@ export class PlayerCharacterClaimDAO extends BaseDAOClass {
 		if (!(await this.hasClaimsTable())) return [];
 
 		const sql = `
-      SELECT campaign_id, username, entity_id, assigned_by, created_at, updated_at
+      SELECT campaign_id, username, entity_id, assigned_by, claim_status, created_at, updated_at
       FROM campaign_player_character_claims
       WHERE campaign_id = ?
       ORDER BY username ASC
@@ -110,7 +113,8 @@ export class PlayerCharacterClaimDAO extends BaseDAOClass {
 		campaignId: string,
 		username: string,
 		entityId: string,
-		assignedBy: string
+		assignedBy: string,
+		options?: { claimStatus?: "pending" | "approved" }
 	): Promise<void> {
 		if (!(await this.hasClaimsTable())) {
 			throw new Error("Player character claims are not available");
@@ -138,17 +142,58 @@ export class PlayerCharacterClaimDAO extends BaseDAOClass {
 			throw new Error("Selected entity must be a player character");
 		}
 
+		const claimStatus = options?.claimStatus ?? "approved";
+
 		const sql = `
       INSERT INTO campaign_player_character_claims (
-        campaign_id, username, entity_id, assigned_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        campaign_id, username, entity_id, assigned_by, claim_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT(campaign_id, username)
       DO UPDATE SET
         entity_id = excluded.entity_id,
         assigned_by = excluded.assigned_by,
+        claim_status = excluded.claim_status,
         updated_at = CURRENT_TIMESTAMP
     `;
-		await this.execute(sql, [campaignId, username, entityId, assignedBy]);
+		await this.execute(sql, [
+			campaignId,
+			username,
+			entityId,
+			assignedBy,
+			claimStatus,
+		]);
+	}
+
+	/** Approve a pending self-claim; returns false if no pending row was updated */
+	async approvePendingClaim(
+		campaignId: string,
+		targetUsername: string,
+		approvedByUsername: string
+	): Promise<boolean> {
+		if (!(await this.hasClaimsTable())) return false;
+
+		const before = await this.queryFirst<{ claim_status: string | null }>(
+			`
+      SELECT claim_status FROM campaign_player_character_claims
+      WHERE campaign_id = ? AND username = ?
+    `,
+			[campaignId, targetUsername]
+		);
+		if (!before || before.claim_status !== "pending") {
+			return false;
+		}
+
+		await this.execute(
+			`
+      UPDATE campaign_player_character_claims
+      SET claim_status = 'approved',
+          assigned_by = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE campaign_id = ? AND username = ? AND claim_status = 'pending'
+    `,
+			[approvedByUsername, campaignId, targetUsername]
+		);
+		return true;
 	}
 
 	async clearClaim(campaignId: string, username: string): Promise<void> {
@@ -163,11 +208,15 @@ export class PlayerCharacterClaimDAO extends BaseDAOClass {
 	}
 
 	private mapClaim(row: PlayerCharacterClaimRecord): PlayerCharacterClaim {
+		const raw = row.claim_status ?? "approved";
+		const claimStatus: "approved" | "pending" =
+			raw === "pending" ? "pending" : "approved";
 		return {
 			campaignId: row.campaign_id,
 			username: row.username,
 			entityId: row.entity_id,
 			assignedBy: row.assigned_by,
+			claimStatus,
 			createdAt: row.created_at,
 			updatedAt: row.updated_at,
 		};
