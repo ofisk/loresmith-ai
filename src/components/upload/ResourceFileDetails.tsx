@@ -6,6 +6,13 @@ import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import type { Campaign } from "@/types/campaign";
 
+const LIBRARY_DISCOVERY_LABEL: Record<string, string> = {
+	pending: "Pending",
+	processing: "Processing",
+	complete: "Complete",
+	failed: "Failed",
+};
+
 interface ResourceFileDetailsProps {
 	file: ResourceFileWithCampaigns;
 	onAddToCampaign?: (file: ResourceFileWithCampaigns) => void;
@@ -121,6 +128,19 @@ export function ResourceFileDetails({
 						MB
 					</span>
 				</div>
+				{file.status === FileDAO.STATUS.COMPLETED &&
+					file.library_entity_discovery_status && (
+						<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+							<span className="text-neutral-600 dark:text-neutral-400">
+								Entity discovery:
+							</span>
+							<span className="font-medium text-neutral-900 dark:text-neutral-100">
+								{LIBRARY_DISCOVERY_LABEL[
+									file.library_entity_discovery_status
+								] ?? file.library_entity_discovery_status}
+							</span>
+						</div>
+					)}
 			</div>
 
 			{file.description && (
