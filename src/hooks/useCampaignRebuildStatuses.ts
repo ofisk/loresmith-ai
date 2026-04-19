@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RebuildStatus } from "@/dao/rebuild-status-dao";
 import { API_CONFIG } from "@/shared-config";
 import { useAuthenticatedRequest } from "./useAuthenticatedRequest";
@@ -77,32 +77,41 @@ export function useCampaignRebuildStatuses({
 		}
 	}, [campaignIds, makeRequestWithData]);
 
-	// Auto-polling when enabled and there are active rebuilds
+	const hasActiveRebuilds = useMemo(
+		() =>
+			Array.from(rebuildStatuses.values()).some(
+				(rebuild) =>
+					rebuild &&
+					(rebuild.status === "pending" || rebuild.status === "in_progress")
+			),
+		[rebuildStatuses]
+	);
+
+	const campaignIdsKey = useMemo(() => campaignIds.join("\0"), [campaignIds]);
+
+	// Initial / list-change fetch only — never tie this to `rebuildStatuses` or every
+	// poll creates a new Map and retriggers an immediate fetch storm.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `campaignIdsKey` encodes the full id set (length alone misses swaps); `fetchAllRebuildStatuses` already depends on `campaignIds`.
 	useEffect(() => {
-		if (!enabled) {
+		if (!enabled || campaignIds.length === 0) {
+			return;
+		}
+		void fetchAllRebuildStatuses();
+	}, [enabled, campaignIdsKey, fetchAllRebuildStatuses]);
+
+	// Interval keyed off a boolean summary so Map identity does not restart the loop.
+	useEffect(() => {
+		if (!enabled || campaignIds.length === 0) {
 			return;
 		}
 
-		// Initial fetch
-		fetchAllRebuildStatuses();
-
-		// Check if any rebuilds are active
-		const hasActiveRebuilds = Array.from(rebuildStatuses.values()).some(
-			(rebuild) =>
-				rebuild &&
-				(rebuild.status === "pending" || rebuild.status === "in_progress")
-		);
-
 		if (hasActiveRebuilds) {
 			pollIntervalRef.current = setInterval(() => {
-				fetchAllRebuildStatuses();
+				void fetchAllRebuildStatuses();
 			}, pollInterval);
-		} else {
-			// Clear polling when no active rebuilds
-			if (pollIntervalRef.current) {
-				clearInterval(pollIntervalRef.current);
-				pollIntervalRef.current = null;
-			}
+		} else if (pollIntervalRef.current) {
+			clearInterval(pollIntervalRef.current);
+			pollIntervalRef.current = null;
 		}
 
 		return () => {
@@ -111,7 +120,13 @@ export function useCampaignRebuildStatuses({
 				pollIntervalRef.current = null;
 			}
 		};
-	}, [enabled, rebuildStatuses, pollInterval, fetchAllRebuildStatuses]);
+	}, [
+		enabled,
+		campaignIds.length,
+		hasActiveRebuilds,
+		pollInterval,
+		fetchAllRebuildStatuses,
+	]);
 
 	return {
 		rebuildStatuses,

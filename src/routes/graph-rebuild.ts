@@ -1,5 +1,6 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { RebuildType } from "@/dao/rebuild-status-dao";
+import { getRequestLogger } from "@/lib/logger";
 import {
 	type ContextWithAuth,
 	ensureCampaignAccess,
@@ -241,6 +242,18 @@ export async function handleGetActiveRebuilds(c: ContextWithAuth) {
 		const daoFactory = getDAOFactory(c.env);
 		const activeRebuilds =
 			await daoFactory.rebuildStatusDAO.getActiveRebuilds(campaignId);
+
+		// info: visible under default LOG_LEVEL in wrangler tail (debug is often filtered).
+		getRequestLogger(c).info("graph_rebuild_active", {
+			campaignId,
+			username: auth.username,
+			count: activeRebuilds.length,
+			rebuilds: activeRebuilds.map((r) => ({
+				id: r.id,
+				status: r.status,
+				rebuildType: r.rebuildType,
+			})),
+		});
 
 		return c.json({ rebuilds: activeRebuilds });
 	} catch (_error) {
