@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { E2E_UI_TIMEOUT_MS } from "../env";
 
 /** Page object for the login form (auth modal or sign-in page). */
 export class LoginPage {
@@ -23,7 +24,7 @@ export class LoginPage {
 	}
 
 	/** Wait for the sign in / sign up button to be visible (auth UI loaded). */
-	async waitForAuthUI(timeout = 10_000): Promise<void> {
+	async waitForAuthUI(timeout = E2E_UI_TIMEOUT_MS): Promise<void> {
 		await this.openAuthButton.waitFor({ state: "visible", timeout });
 	}
 
@@ -36,7 +37,7 @@ export class LoginPage {
 
 	/** Navigate to root and wait for auth UI. */
 	async goto(baseURL = "http://localhost:8787"): Promise<void> {
-		await this.page.goto(baseURL);
+		await this.page.goto(baseURL, { waitUntil: "domcontentloaded" });
 		await this.waitForAuthUI();
 	}
 }

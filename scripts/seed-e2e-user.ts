@@ -37,11 +37,13 @@ VALUES (
   datetime('now')
 );
 `;
+	const wranglerConfig =
+		process.env.E2E_WRANGLER_CONFIG ?? "wrangler.e2e.jsonc";
 	const tmpFile = path.join(__dirname, ".seed-e2e-user.sql");
 	fs.writeFileSync(tmpFile, sql.trim());
 	try {
 		execSync(
-			`wrangler d1 execute loresmith-db-dev --config wrangler.local.jsonc --local --file=${tmpFile}`,
+			`wrangler d1 execute loresmith-db-dev --config ${wranglerConfig} --local --file=${tmpFile}`,
 			{ cwd: path.join(__dirname, ".."), stdio: "inherit" }
 		);
 		console.log("[seed-e2e] User seeded:", E2E_USERNAME);

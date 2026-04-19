@@ -1,0 +1,141 @@
+/**
+ * Playwright / CI: same as wrangler.local.jsonc but without remote Cloudflare bindings.
+ * GitHub Actions has no CF API token; remote D1/R2/Vectorize/AI would hang or fail and
+ * the SPA never becomes interactive in time for e2e.
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "loresmith-ai",
+	"main": "src/server.ts",
+	"compatibility_date": "2025-05-07",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"nodejs_compat_populate_process_env"
+	],
+	"assets": {
+		"directory": "dist/client",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/auth/*"]
+	},
+	"vars": {
+		"VITE_API_URL": "http://localhost:8787",
+		"CORS_ALLOWED_ORIGINS": "http://localhost:8787,http://localhost:5173,http://localhost:5174",
+		"MAX_INDEX_FILE_BYTES": "4194304",
+		"STAGING_PREFIX": "staging",
+		"READINESS_TIMEOUT_SEC": "600",
+		"READINESS_BACKOFF_MS": "2000"
+	},
+	"secrets_store_secrets": [],
+	"durable_objects": {
+		"bindings": [
+			{ "name": "CHAT", "class_name": "Chat" },
+			{ "name": "UPLOAD_SESSION", "class_name": "UploadSessionDO" },
+			{ "name": "NOTIFICATIONS", "class_name": "NotificationHub" }
+		]
+	},
+	"r2_buckets": [
+		{
+			"binding": "R2",
+			"bucket_name": "loresmith-files",
+			"preview_bucket_name": "loresmith-files"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "loresmith-db-dev",
+			"database_id": "c86ddb04-d6c2-47f5-a584-1279c0391ae3",
+			"preview_database_id": "c86ddb04-d6c2-47f5-a584-1279c0391ae3"
+		}
+	],
+	"vectorize": [
+		{
+			"binding": "VECTORIZE",
+			"index_name": "loresmith-embeddings"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"queues": {
+		"producers": [
+			{
+				"queue": "upload-events-dev",
+				"binding": "FILE_PROCESSING_QUEUE"
+			},
+			{
+				"queue": "file-processing-dlq-dev",
+				"binding": "FILE_PROCESSING_DLQ"
+			},
+			{
+				"queue": "graph-rebuild-queue-dev",
+				"binding": "GRAPH_REBUILD_QUEUE"
+			},
+			{
+				"queue": "shard-embedding-queue-dev",
+				"binding": "SHARD_EMBEDDING_QUEUE"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "upload-events-dev",
+				"max_batch_size": 1,
+				"max_retries": 5
+			},
+			{
+				"queue": "graph-rebuild-queue-dev",
+				"max_batch_size": 1,
+				"max_retries": 5,
+				"dead_letter_queue": "graph-rebuild-dlq-dev"
+			},
+			{
+				"queue": "shard-embedding-queue-dev",
+				"max_batch_size": 10,
+				"max_retries": 3,
+				"dead_letter_queue": "shard-embedding-dlq-dev"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["Chat", "UserFileTracker"]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["CampaignManager"]
+		},
+		{
+			"tag": "v3",
+			"new_sqlite_classes": []
+		},
+		{
+			"tag": "v4",
+			"deleted_classes": ["CampaignManager"]
+		},
+		{
+			"tag": "v5",
+			"new_classes": ["UploadSessionDO"]
+		},
+		{
+			"tag": "v6",
+			"new_classes": []
+		},
+		{
+			"tag": "v7",
+			"new_classes": ["NotificationHub"]
+		},
+		{
+			"tag": "v8",
+			"deleted_classes": ["UserFileTracker"]
+		},
+		{
+			"tag": "v9",
+			"new_classes": [],
+			"deleted_classes": []
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}
