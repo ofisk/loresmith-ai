@@ -14,7 +14,7 @@
     "cloudflare": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "9f7a0866bc627b095f738558b594ac4246bda6ff895f1feb78037f8bd98a01d9"
+      "computedHash": "f87ea54de1ad7d8197a21640888af6ccb2e912682710658a9bafb5df0093df61"
     },
     "find-skills": {
       "source": "vercel-labs/skills",
@@ -49,7 +49,7 @@
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
-      "computedHash": "43ca6c197f8ec13055079da7053232d477068b03ca443f9ac1bc819b95cdd432"
+      "computedHash": "ca7b0c0c6e5f2750043f7f0cd72d16ac4e2abc48f9b5500d047a4b77a2506212"
     },
     "vitest": {
       "source": "antfu/skills",
@@ -64,7 +64,7 @@
     "wrangler": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "32d0a62081ce8743cf51b2a5bae364a56fae09b99af86986b3e7de068ecd4d8f"
+      "computedHash": "a27fded44ce73b7ef69b1b52fcdf0cdde9c2b17f345b761bf11ca32d37da2220"
     }
   }
 }
