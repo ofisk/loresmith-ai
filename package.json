@@ -75,7 +75,7 @@
 		"@cloudflare/vitest-pool-workers": "^0.14.6",
 		"@cloudflare/workers-types": "^4.20260414.1",
 		"@playwright/test": "^1.59.0",
-		"@storybook/addon-a11y": "8.6.18",
+		"@storybook/addon-a11y": "10.3.5",
 		"@storybook/addon-essentials": "8.6.18",
 		"@storybook/react-vite": "8.6.18",
 		"@tailwindcss/vite": "^4.2.2",
