@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { E2E_UI_TIMEOUT_MS } from "../env";
 
 export const E2E_USERNAME = "e2e-test-user";
 export const E2E_PASSWORD = "e2e-test-password";
@@ -22,14 +23,14 @@ export async function loginAsE2EUser(
 	if (!token) {
 		throw new Error("Login response missing token");
 	}
-	await page.goto(baseURL);
+	await page.goto(baseURL, { waitUntil: "domcontentloaded" });
 	await page.evaluate((t) => {
 		localStorage.setItem("loresmith-jwt", t);
 		// Skip the onboarding tour so it doesn't block interactions (e.g. Upload button)
 		localStorage.setItem("loresmith-tour-completed", "true");
 	}, token);
-	await page.reload();
+	await page.reload({ waitUntil: "domcontentloaded" });
 	await page
 		.getByTestId("app-main")
-		.waitFor({ state: "visible", timeout: 15_000 });
+		.waitFor({ state: "visible", timeout: E2E_UI_TIMEOUT_MS });
 }

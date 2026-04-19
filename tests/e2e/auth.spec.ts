@@ -1,3 +1,4 @@
+import { E2E_UI_TIMEOUT_MS } from "./env";
 import { E2E_PASSWORD, E2E_USERNAME, loginAsE2EUser } from "./helpers/auth";
 import { expect, test } from "./lib/test";
 import { AppShellPage } from "./pages/app-shell.page";
@@ -14,7 +15,7 @@ test.describe("auth flow", () => {
 
 		await expect(
 			page.getByRole("button", { name: /sign in|sign up/i })
-		).not.toBeVisible({ timeout: 10_000 });
+		).not.toBeVisible({ timeout: E2E_UI_TIMEOUT_MS });
 
 		await appShell.waitForReady();
 	});

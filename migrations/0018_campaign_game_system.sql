@@ -1,6 +1,7 @@
 -- Campaign-level game system for unified PC sheet validation
--- Idempotent: bootstrap may already include game_system / game_system_version. Rebuild
--- campaigns with explicit PRIMARY KEY (CREATE TABLE AS SELECT drops constraints).
+-- Idempotent: rebuild campaigns with explicit PRIMARY KEY (CREATE TABLE AS SELECT drops constraints).
+-- INSERT must not read game_system / game_system_version / pc_claim_requires_gm_approval from the
+-- backup table: fresh bootstrap omits those columns (they are added by this migration and 0019).
 
 PRAGMA foreign_keys=OFF;
 
@@ -46,9 +47,9 @@ SELECT
   status,
   metadata,
   campaignRagBasePath,
-  COALESCE(game_system, 'generic'),
-  game_system_version,
-  pc_claim_requires_gm_approval,
+  'generic',
+  NULL,
+  0,
   created_at,
   updated_at
 FROM campaigns__m18_bak;
