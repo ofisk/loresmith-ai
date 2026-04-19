@@ -9,6 +9,9 @@ export interface CreateCampaignOptions {
 	username: string;
 	name: string;
 	description?: string;
+	gameSystem?: string;
+	gameSystemVersion?: string | null;
+	pcClaimRequiresGmApproval?: boolean;
 }
 
 export interface AddResourceOptions {
@@ -22,7 +25,15 @@ export interface AddResourceOptions {
 
 // Create a new campaign with RAG initialization
 export async function createCampaign(options: CreateCampaignOptions) {
-	const { env, username, name, description = "" } = options;
+	const {
+		env,
+		username,
+		name,
+		description = "",
+		gameSystem,
+		gameSystemVersion,
+		pcClaimRequiresGmApproval,
+	} = options;
 
 	const campaignId = crypto.randomUUID();
 	const campaignRagBasePath = `campaigns/${campaignId}`;
@@ -35,7 +46,10 @@ export async function createCampaign(options: CreateCampaignOptions) {
 		name,
 		username,
 		description,
-		campaignRagBasePath
+		campaignRagBasePath,
+		gameSystem,
+		gameSystemVersion,
+		pcClaimRequiresGmApproval
 	);
 
 	const newCampaign = {
@@ -45,6 +59,9 @@ export async function createCampaign(options: CreateCampaignOptions) {
 		campaignRagBasePath,
 		createdAt: now,
 		updatedAt: now,
+		gameSystem: gameSystem ?? "generic",
+		gameSystemVersion: gameSystemVersion ?? null,
+		pcClaimRequiresGmApproval: !!pcClaimRequiresGmApproval,
 	};
 
 	// Notify campaign creation

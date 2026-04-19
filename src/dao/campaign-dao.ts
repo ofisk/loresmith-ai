@@ -53,11 +53,14 @@ export class CampaignDAO extends BaseDAOClass {
 		name: string,
 		username: string,
 		description?: string,
-		campaignRagBasePath?: string
+		campaignRagBasePath?: string,
+		gameSystem?: string,
+		gameSystemVersion?: string | null,
+		pcClaimRequiresGmApproval?: boolean
 	): Promise<void> {
 		const sql = `
-      insert into campaigns (id, name, username, description, campaignRagBasePath, created_at, updated_at)
-      values (?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+      insert into campaigns (id, name, username, description, campaignRagBasePath, game_system, game_system_version, pc_claim_requires_gm_approval, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
 		await this.execute(sql, [
 			id,
@@ -65,6 +68,9 @@ export class CampaignDAO extends BaseDAOClass {
 			username,
 			description,
 			campaignRagBasePath,
+			gameSystem ?? "generic",
+			gameSystemVersion ?? null,
+			pcClaimRequiresGmApproval ? 1 : 0,
 		]);
 	}
 
@@ -182,6 +188,9 @@ export class CampaignDAO extends BaseDAOClass {
 		createdAt: string;
 		updatedAt: string;
 		metadata?: string | null;
+		gameSystem?: string;
+		gameSystemVersion?: string | null;
+		pcClaimRequiresGmApproval?: boolean;
 	} | null> {
 		// Check owner first
 		const ownerSql = `
@@ -192,7 +201,10 @@ export class CampaignDAO extends BaseDAOClass {
         campaignRagBasePath, 
         created_at as createdAt, 
         updated_at as updatedAt,
-        metadata
+        metadata,
+        game_system as gameSystem,
+        game_system_version as gameSystemVersion,
+        CASE WHEN pc_claim_requires_gm_approval = 1 THEN 1 ELSE 0 END as pcClaimRequiresGmApproval
       from campaigns 
       where id = ? and username = ?
     `;
@@ -204,12 +216,20 @@ export class CampaignDAO extends BaseDAOClass {
 			createdAt: string;
 			updatedAt: string;
 			metadata?: string | null;
+			gameSystem?: string;
+			gameSystemVersion?: string | null;
+			pcClaimRequiresGmApproval?: number | boolean;
 		};
 		const asOwner = await this.queryFirst<CampaignWithMapping>(ownerSql, [
 			campaignId,
 			username,
 		]);
-		if (asOwner) return asOwner;
+		if (asOwner) {
+			return {
+				...asOwner,
+				pcClaimRequiresGmApproval: !!asOwner.pcClaimRequiresGmApproval,
+			};
+		}
 
 		// Check campaign_members when table exists (migration 0001)
 		if (!(await this.hasCampaignMembersTable())) return null;
@@ -222,15 +242,23 @@ export class CampaignDAO extends BaseDAOClass {
         c.campaignRagBasePath, 
         c.created_at as createdAt, 
         c.updated_at as updatedAt,
-        c.metadata
+        c.metadata,
+        c.game_system as gameSystem,
+        c.game_system_version as gameSystemVersion,
+        CASE WHEN c.pc_claim_requires_gm_approval = 1 THEN 1 ELSE 0 END as pcClaimRequiresGmApproval
       from campaigns c
       join campaign_members cm on c.id = cm.campaign_id
       where c.id = ? and cm.username = ?
     `;
-		return await this.queryFirst<CampaignWithMapping>(memberSql, [
+		const asMember = await this.queryFirst<CampaignWithMapping>(memberSql, [
 			campaignId,
 			username,
 		]);
+		if (!asMember) return null;
+		return {
+			...asMember,
+			pcClaimRequiresGmApproval: !!asMember.pcClaimRequiresGmApproval,
+		};
 	}
 
 	/** Returns 'owner' | editor_gm | readonly_gm | editor_player | readonly_player | null */
@@ -271,6 +299,12 @@ export class CampaignDAO extends BaseDAOClass {
 		username: string
 	): Promise<void> {
 		if (!(await this.hasCampaignMembersTable())) return;
+		if (await this.hasTable("campaign_player_character_claims")) {
+			await this.execute(
+				`delete from campaign_player_character_claims where campaign_id = ? and username = ?`,
+				[campaignId, username]
+			);
+		}
 		const sql = `delete from campaign_members where campaign_id = ? and username = ?`;
 		await this.execute(sql, [campaignId, username]);
 	}
@@ -322,7 +356,16 @@ export class CampaignDAO extends BaseDAOClass {
 
 	async updateCampaign(
 		campaignId: string,
-		updates: Partial<Pick<CampaignRow, "name" | "description">> & {
+		updates: Partial<
+			Pick<
+				CampaignRow,
+				| "name"
+				| "description"
+				| "game_system"
+				| "game_system_version"
+				| "pc_claim_requires_gm_approval"
+			>
+		> & {
 			metadata?: Record<string, unknown> | string | null;
 		}
 	): Promise<void> {

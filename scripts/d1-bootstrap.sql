@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
   status text default 'active',
   metadata text, -- json metadata
   campaignRagBasePath text, -- base path for campaign-specific RAG storage
+  game_system text not null default 'generic',
+  game_system_version text,
+  pc_claim_requires_gm_approval integer not null default 0,
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp
 );

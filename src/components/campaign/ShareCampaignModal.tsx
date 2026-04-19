@@ -18,6 +18,7 @@ interface PlayerCharacterClaim {
 	entityName: string;
 	assignedBy: string;
 	updatedAt: string;
+	claimStatus?: "approved" | "pending";
 }
 
 interface UnclaimedOption {
@@ -61,6 +62,9 @@ export function ShareCampaignModal({
 	const [claimError, setClaimError] = useState<string | null>(null);
 	const [savingClaimFor, setSavingClaimFor] = useState<string | null>(null);
 	const [clearingClaimFor, setClearingClaimFor] = useState<string | null>(null);
+	const [approvingClaimFor, setApprovingClaimFor] = useState<string | null>(
+		null
+	);
 	const [claimSaveErrorByUser, setClaimSaveErrorByUser] = useState<
 		Record<string, string>
 	>({});
@@ -190,6 +194,39 @@ export function ShareCampaignModal({
 			}));
 		} finally {
 			setSavingClaimFor(null);
+		}
+	};
+
+	const handleApproveClaim = async (username: string) => {
+		if (!campaign?.campaignId) return;
+		setApprovingClaimFor(username);
+		setClaimSaveErrorByUser((prev) => ({ ...prev, [username]: "" }));
+		try {
+			const res = await makeRequest(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM_APPROVE(
+						campaign.campaignId,
+						username
+					)
+				),
+				{ method: "POST" }
+			);
+			const data = (await res.json()) as { error?: string };
+			if (res.ok) {
+				await fetchClaims();
+			} else {
+				setClaimSaveErrorByUser((prev) => ({
+					...prev,
+					[username]: data.error ?? "Failed to approve player character claim",
+				}));
+			}
+		} catch {
+			setClaimSaveErrorByUser((prev) => ({
+				...prev,
+				[username]: "Failed to approve player character claim",
+			}));
+		} finally {
+			setApprovingClaimFor(null);
 		}
 	};
 
@@ -480,6 +517,7 @@ export function ShareCampaignModal({
 								];
 								const isSavingThisRow = savingClaimFor === claim.username;
 								const isClearingThisRow = clearingClaimFor === claim.username;
+								const isApprovingThisRow = approvingClaimFor === claim.username;
 								const hasSelectionChanged =
 									selectedEntityId &&
 									selectedEntityId.length > 0 &&
@@ -493,8 +531,13 @@ export function ShareCampaignModal({
 											<span className="font-medium">{claim.username}</span>
 											{" · "}
 											<span>{claim.entityName}</span>
+											{claim.claimStatus === "pending" ? (
+												<span className="ml-2 rounded border border-amber-600/50 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-200">
+													Pending approval
+												</span>
+											) : null}
 										</div>
-										<div className="flex items-center gap-2">
+										<div className="flex flex-wrap items-center gap-2">
 											<select
 												value={selectedEntityId}
 												onChange={(e) =>
@@ -503,7 +546,7 @@ export function ShareCampaignModal({
 														e.target.value
 													)
 												}
-												className="flex-1 rounded border border-neutral-600 bg-neutral-800 px-3 py-2 text-neutral-100"
+												className="flex-1 min-w-[10rem] rounded border border-neutral-600 bg-neutral-800 px-3 py-2 text-neutral-100"
 											>
 												{options.map((opt) => (
 													<option key={opt.id} value={opt.id}>
@@ -511,12 +554,27 @@ export function ShareCampaignModal({
 													</option>
 												))}
 											</select>
+											{claim.claimStatus === "pending" ? (
+												<PrimaryActionButton
+													onClick={() =>
+														void handleApproveClaim(claim.username)
+													}
+													disabled={
+														isSavingThisRow ||
+														isClearingThisRow ||
+														isApprovingThisRow
+													}
+												>
+													{isApprovingThisRow ? "Approving…" : "Approve"}
+												</PrimaryActionButton>
+											) : null}
 											<PrimaryActionButton
 												onClick={() => handleSaveClaim(claim.username)}
 												disabled={
 													!hasSelectionChanged ||
 													isSavingThisRow ||
-													isClearingThisRow
+													isClearingThisRow ||
+													isApprovingThisRow
 												}
 											>
 												{isSavingThisRow ? "Saving…" : "Save"}
@@ -524,7 +582,11 @@ export function ShareCampaignModal({
 											<button
 												type="button"
 												onClick={() => handleClearClaim(claim.username)}
-												disabled={isSavingThisRow || isClearingThisRow}
+												disabled={
+													isSavingThisRow ||
+													isClearingThisRow ||
+													isApprovingThisRow
+												}
 												className="rounded border border-red-700/50 bg-red-900/20 px-3 py-2 text-sm text-red-200 hover:bg-red-900/30 disabled:cursor-not-allowed disabled:opacity-50"
 											>
 												{isClearingThisRow ? "Clearing…" : "Clear claim"}

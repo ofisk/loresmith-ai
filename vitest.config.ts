@@ -163,6 +163,8 @@ export default defineConfig({
 				"**/lib/file/pdf-utils.ts",
 				"**/lib/file/large-file-upload-helper.ts",
 				"**/lib/file/split.ts",
+				// Campaign game-system registry — thin exports / Zod schemas; covered via integration
+				"**/lib/campaign/game-systems/**",
 			],
 			thresholds: {
 				lines: 75,

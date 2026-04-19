@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { PendingProposalsSection } from "@/components/campaign/PendingProposalsSection";
 import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
+import { PlayerCharacterRosterPanel } from "@/components/campaign/PlayerCharacterRosterPanel";
 import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
 import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationModal";
 import { Modal } from "@/components/modal/Modal";
@@ -82,7 +83,7 @@ export function CampaignDetailsModal({
 	);
 	const [isUpdating, setIsUpdating] = useState(false);
 	const [activeTab, setActiveTab] = useState<
-		"details" | "digests" | "nextSteps" | "resources"
+		"details" | "party" | "digests" | "nextSteps" | "resources"
 	>("details");
 	const [isDigestModalOpen, setIsDigestModalOpen] = useState(false);
 	const [editingDigest, setEditingDigest] =
@@ -120,6 +121,7 @@ export function CampaignDetailsModal({
 		campaign?.role === CAMPAIGN_ROLES.OWNER ||
 		campaign?.role === CAMPAIGN_ROLES.EDITOR_GM;
 	const canApproveProposals = canShare;
+	const canManagePcClaims = canShare;
 
 	// Fetch available library files
 	const { files: libraryFiles, fetchResources: fetchLibraryFiles } =
@@ -644,6 +646,21 @@ export function CampaignDetailsModal({
 							<button
 								type="button"
 								role="tab"
+								aria-selected={activeTab === "party"}
+								aria-controls="tabpanel-party"
+								id="tab-party"
+								onClick={() => setActiveTab("party")}
+								className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+									activeTab === "party"
+										? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
+										: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
+								}`}
+							>
+								Party
+							</button>
+							<button
+								type="button"
+								role="tab"
 								aria-selected={activeTab === "digests"}
 								aria-controls="tabpanel-digests"
 								id="tab-digests"
@@ -713,6 +730,25 @@ export function CampaignDetailsModal({
 									descriptionId={descriptionId}
 									onNameChange={setEditedName}
 									onDescriptionChange={setEditedDescription}
+								/>
+							</div>
+						)}
+
+						{activeTab === "party" && (
+							<div
+								role="tabpanel"
+								id="tabpanel-party"
+								aria-labelledby="tab-party"
+								className="space-y-4"
+							>
+								<p className="text-sm text-neutral-600 dark:text-neutral-400">
+									Player characters and who claimed them. GMs can approve
+									pending self-claims or manage assignments from the share
+									campaign dialog as well.
+								</p>
+								<PlayerCharacterRosterPanel
+									campaignId={campaign.campaignId}
+									canManageClaims={canManagePcClaims}
 								/>
 							</div>
 						)}

@@ -3,9 +3,10 @@ import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { CampaignMemberRole } from "@/dao/campaign-share-link-dao";
 import { type DAOFactory, getDAOFactory } from "@/dao/dao-factory";
+import { publicPcSheetSummary } from "@/lib/campaign/game-systems/validate-pc-content";
 import { getRequestLogger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
-import { notifyUser } from "@/lib/notifications";
+import { notifyPartyRosterUpdated, notifyUser } from "@/lib/notifications";
 import {
 	ensureCampaignAccess,
 	getCampaignRole,
@@ -428,17 +429,56 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 		}
 
 		const daoFactory = getDAOFactory(c.env);
+		const campaignRow =
+			await daoFactory.campaignDAO.getCampaignById(campaignId);
+		const requireApproval =
+			(campaignRow?.pc_claim_requires_gm_approval ?? 0) === 1;
+		const claimStatus = requireApproval ? "pending" : "approved";
+
 		await daoFactory.playerCharacterClaimDAO.upsertClaim(
 			campaignId,
 			auth.username,
 			body.entityId,
-			auth.username
+			auth.username,
+			{ claimStatus }
 		);
 
 		const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
 			campaignId,
 			auth.username
 		);
+
+		if (campaignRow) {
+			if (claimStatus === "pending") {
+				const managers = await getCampaignManagerUsernames(
+					daoFactory,
+					campaignId
+				);
+				void Promise.allSettled(
+					managers
+						.filter((u) => u !== auth.username)
+						.map((u) =>
+							notifyUser(c.env, u, {
+								type: NOTIFICATION_TYPES.PARTY_ROSTER_UPDATED,
+								title: "Player character claim pending",
+								message: `${auth.username} requested to claim a player character in "${campaignRow.name}".`,
+								data: {
+									campaignId,
+									campaignName: campaignRow.name,
+								},
+							})
+						)
+				);
+			} else {
+				void notifyPartyRosterUpdated(
+					c.env,
+					campaignId,
+					campaignRow.name,
+					`${auth.username} claimed a player character.`,
+					[auth.username]
+				);
+			}
+		}
 
 		return c.json({ success: true, claim });
 	} catch (error) {
@@ -530,13 +570,27 @@ export async function handleAssignPlayerCharacterClaim(c: ContextWithAuth) {
 			campaignId,
 			targetUsername,
 			body.entityId,
-			auth.username
+			auth.username,
+			{ claimStatus: "approved" }
 		);
 
 		const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
 			campaignId,
 			targetUsername
 		);
+
+		const campaignRow =
+			await daoFactory.campaignDAO.getCampaignById(campaignId);
+		if (campaignRow) {
+			void notifyPartyRosterUpdated(
+				c.env,
+				campaignId,
+				campaignRow.name,
+				`${auth.username} assigned a player character to ${targetUsername}.`,
+				[auth.username]
+			);
+		}
+
 		return c.json({ success: true, claim });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown error";
@@ -583,9 +637,146 @@ export async function handleClearPlayerCharacterClaim(c: ContextWithAuth) {
 			campaignId,
 			targetUsername
 		);
+
+		const auth = getUserAuth(c);
+		const campaignRow =
+			await daoFactory.campaignDAO.getCampaignById(campaignId);
+		if (campaignRow) {
+			void notifyPartyRosterUpdated(
+				c.env,
+				campaignId,
+				campaignRow.name,
+				`${auth.username} cleared the player character for ${targetUsername}.`,
+				[auth.username]
+			);
+		}
+
 		return c.json({ success: true, username: targetUsername });
 	} catch (error) {
 		log.error("[handleClearPlayerCharacterClaim] Failed to clear claim", error);
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** POST /campaigns/:campaignId/player-character-claims/:username/approve */
+export async function handleApprovePlayerCharacterClaim(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
+	try {
+		const auth = getUserAuth(c);
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const targetUsername = requireParam(c, "username");
+		if (targetUsername instanceof Response) return targetUsername;
+		await requireCanEdit(c, campaignId);
+
+		const daoFactory = getDAOFactory(c.env);
+		const ok = await daoFactory.playerCharacterClaimDAO.approvePendingClaim(
+			campaignId,
+			targetUsername,
+			auth.username
+		);
+		if (!ok) {
+			return c.json(
+				{ error: "No pending character claim found for that player" },
+				404
+			);
+		}
+
+		const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+			campaignId,
+			targetUsername
+		);
+
+		const campaignRow =
+			await daoFactory.campaignDAO.getCampaignById(campaignId);
+		if (campaignRow) {
+			void notifyPartyRosterUpdated(
+				c.env,
+				campaignId,
+				campaignRow.name,
+				`${auth.username} approved ${targetUsername}'s player character claim.`,
+				[auth.username]
+			);
+		}
+
+		return c.json({ success: true, claim });
+	} catch (error) {
+		log.error(
+			"[handleApprovePlayerCharacterClaim] Failed to approve claim",
+			error
+		);
+		return c.json({ error: "Internal server error" }, 500);
+	}
+}
+
+/** GET /campaigns/:campaignId/player-character-roster — roster for all members */
+export async function handleGetPlayerCharacterRoster(c: ContextWithAuth) {
+	const log = getRequestLogger(c);
+	try {
+		const auth = getUserAuth(c);
+		const campaignId = requireParam(c, "campaignId");
+		if (campaignId instanceof Response) return campaignId;
+		const hasAccess = await ensureCampaignAccess(c, campaignId, auth.username);
+		if (!hasAccess) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
+
+		const daoFactory = getDAOFactory(c.env);
+		const campaign = await daoFactory.campaignDAO.getCampaignById(campaignId);
+		if (!campaign) {
+			return c.json({ error: "Campaign not found" }, 404);
+		}
+
+		const role = await getCampaignRole(c, campaignId, auth.username);
+		const canManageRosterPrivacy =
+			role === CAMPAIGN_ROLES.OWNER || role === CAMPAIGN_ROLES.EDITOR_GM;
+
+		const [pcEntities, claims] = await Promise.all([
+			daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
+				entityType: "pcs",
+				orderBy: "name",
+			}),
+			daoFactory.playerCharacterClaimDAO.listClaimsForCampaign(campaignId),
+		]);
+
+		const claimByEntityId = new Map(
+			claims.map((row) => [row.entityId, row] as const)
+		);
+
+		const characters = pcEntities.map((e) => {
+			const claim = claimByEntityId.get(e.id) ?? null;
+			const sheet = publicPcSheetSummary(e.content);
+			const pending = claim?.claimStatus === "pending";
+			const isSubject = claim?.username === auth.username;
+			const hideForPending = pending && !canManageRosterPrivacy && !isSubject;
+			return {
+				entityId: e.id,
+				name: e.name,
+				displayName: sheet.displayName,
+				subtitle: sheet.subtitle,
+				unclaimed: !claim,
+				claim: claim
+					? {
+							username: hideForPending ? null : claim.username,
+							assignedBy: hideForPending ? null : claim.assignedBy,
+							claimStatus: claim.claimStatus,
+							updatedAt: claim.updatedAt,
+						}
+					: null,
+			};
+		});
+
+		return c.json({
+			campaignId,
+			gameSystem: campaign.game_system ?? "generic",
+			gameSystemVersion: campaign.game_system_version ?? null,
+			pcClaimRequiresGmApproval:
+				(campaign.pc_claim_requires_gm_approval ?? 0) === 1,
+			characters,
+			claimCount: claims.length,
+		});
+	} catch (error) {
+		log.error("[handleGetPlayerCharacterRoster] Failed to load roster", error);
 		return c.json({ error: "Internal server error" }, 500);
 	}
 }

@@ -25,6 +25,7 @@ export const NOTIFICATION_TYPES = {
 	// Campaign-related notifications
 	CAMPAIGN_CREATED: "campaign_created",
 	CAMPAIGN_DELETED: "campaign_deleted",
+	PARTY_ROSTER_UPDATED: "party_roster_updated",
 
 	// Next steps / planning tasks
 	NEXT_STEPS_CREATED: "next_steps_created",

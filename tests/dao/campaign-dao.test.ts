@@ -33,7 +33,10 @@ describe("CampaignDAO", () => {
 				"My Campaign",
 				"user1",
 				"A great game",
-				null
+				null,
+				"generic",
+				null,
+				0
 			);
 			expect(mockStmt.run).toHaveBeenCalled();
 		});
