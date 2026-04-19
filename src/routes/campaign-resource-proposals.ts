@@ -26,6 +26,7 @@ import {
 } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
+import { tryCopyLibraryEntitiesToCampaign } from "@/services/campaign/library-entity-copy-to-campaign-service";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { ResourceAddRateLimitService } from "@/services/resource-add-rate-limit-service";
 
@@ -317,18 +318,43 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			).catch(() => {});
 		}
 
-		// Trigger entity extraction (queue uses server OpenAI key)
-		// Pass proposedBy so shards show "co-authored by proposer and approver"
+		// Library copy when discovery is complete; else queue extraction (server OpenAI key).
+		// Pass proposedBy on queue path so shards show "co-authored by proposer and approver".
 		try {
-			await EntityExtractionQueueService.queueEntityExtraction({
+			const campaignRow =
+				await daoFactory.campaignDAO.getCampaignById(campaignId);
+			const campaignNameResolved = campaignRow?.name ?? "Campaign";
+
+			const attribution =
+				proposal.proposed_by && proposal.proposed_by !== userAuth.username
+					? {
+							proposedBy: proposal.proposed_by,
+							approvedBy: userAuth.username,
+						}
+					: undefined;
+
+			const copied = await tryCopyLibraryEntitiesToCampaign({
 				env: c.env,
 				username: userAuth.username,
 				campaignId,
+				campaignName: campaignNameResolved,
 				resourceId,
-				resourceName: proposal.file_name,
 				fileKey: proposal.file_key,
-				proposedBy: proposal.proposed_by,
+				fileName: proposal.file_name,
+				attribution,
 			});
+
+			if (!copied) {
+				await EntityExtractionQueueService.queueEntityExtraction({
+					env: c.env,
+					username: userAuth.username,
+					campaignId,
+					resourceId,
+					resourceName: proposal.file_name,
+					fileKey: proposal.file_key,
+					proposedBy: proposal.proposed_by,
+				});
+			}
 		} catch (queueError) {
 			log.warn(
 				"[handleApproveResourceProposal] Entity extraction queue failed",

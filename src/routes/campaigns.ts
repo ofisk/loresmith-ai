@@ -44,6 +44,7 @@ import { getSubscriptionService } from "@/services/billing/subscription-service"
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
 import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
+import { tryCopyLibraryEntitiesToCampaign } from "@/services/campaign/library-entity-copy-to-campaign-service";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { ResourceAddRateLimitService } from "@/services/resource-add-rate-limit-service";
@@ -763,37 +764,57 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			c.env
 		);
 
-		// 5) Queue entity extraction for the newly added resource (asynchronous)
+		// 5) Copy pre-discovered library entities when available; otherwise queue per-campaign extraction.
+		// Fallback (queueEntityExtraction): migrations not applied yet, discovery pending/processing/failed,
+		// empty candidate set, or file fingerprint drifted vs library_entity_discovery.content_fingerprint.
 		try {
 			log.debug(
-				`[Server] Queueing entity extraction for campaign: ${campaignId}`
+				`[Server] Entity staging for campaign: ${campaignId} (library copy or queue)`
 			);
 
-			const campaignRagBasePath = await getCampaignRagBasePath(
-				userAuth.username,
-				campaignId,
+			const campaignRow = await getDAOFactory(
 				c.env
-			);
-			if (!campaignRagBasePath) {
-				log.warn(
-					`[Server] Campaign RAG not initialized for campaign: ${campaignId}`
-				);
-				// Continue without entity extraction
-			} else {
-				// Queue entity extraction asynchronously
-				// This allows multiple files to be added in quick succession without overloading the backend
-				await EntityExtractionQueueService.queueEntityExtraction({
-					env: c.env,
-					username: userAuth.username,
-					campaignId,
-					resourceId,
-					resourceName: name || id,
-					fileKey: id,
-				});
+			).campaignDAO.getCampaignById(campaignId);
+			const campaignNameResolved = campaignRow?.name ?? "Campaign";
 
+			const copied = await tryCopyLibraryEntitiesToCampaign({
+				env: c.env,
+				username: userAuth.username,
+				campaignId,
+				campaignName: campaignNameResolved,
+				resourceId,
+				fileKey: id,
+				fileName: name || fileName,
+			});
+
+			if (copied) {
 				log.debug(
-					`[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
+					`[Server] Library entities copied for resource ${resourceId} in campaign ${campaignId}`
 				);
+			} else {
+				const campaignRagBasePath = await getCampaignRagBasePath(
+					userAuth.username,
+					campaignId,
+					c.env
+				);
+				if (!campaignRagBasePath) {
+					log.warn(
+						`[Server] Campaign RAG not initialized for campaign: ${campaignId}`
+					);
+				} else {
+					await EntityExtractionQueueService.queueEntityExtraction({
+						env: c.env,
+						username: userAuth.username,
+						campaignId,
+						resourceId,
+						resourceName: name || id,
+						fileKey: id,
+					});
+
+					log.debug(
+						`[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
+					);
+				}
 			}
 		} catch (queueError) {
 			log.error(

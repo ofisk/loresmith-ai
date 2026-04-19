@@ -21,6 +21,9 @@ export interface ResourceFile {
 	created_at: string;
 	updated_at: string;
 	processing_error?: string; // JSON string containing error code and metadata
+	/** From GET /library/files when library entity discovery migration is applied */
+	library_entity_discovery_status?: string;
+	library_entity_discovery_queue_message?: string | null;
 }
 
 export interface ResourceFileWithCampaigns extends ResourceFile {

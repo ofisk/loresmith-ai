@@ -2,6 +2,10 @@ import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { Context } from "hono";
 import { UPLOAD_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
+import {
+	LibraryEntityDAO,
+	type LibraryEntityDiscoveryRow,
+} from "@/dao/library-entity-dao";
 import { extractJwtFromContext } from "@/lib/auth-utils";
 import { UploadSessionActions } from "@/lib/durable-object-helpers";
 import {
@@ -254,7 +258,25 @@ export async function handleGetFiles(c: ContextWithAuth) {
 		const fileDAO = getDAOFactory(c.env).fileDAO;
 		const files = await fileDAO.getFilesByUser(userAuth.username);
 
-		return c.json({ files: files || [] });
+		const libDao = new LibraryEntityDAO(c.env.DB);
+		let discoveryByFile = new Map<string, LibraryEntityDiscoveryRow>();
+		if (await libDao.isSchemaReady()) {
+			const rows = await libDao.listDiscoveryForUsername(userAuth.username);
+			discoveryByFile = new Map(rows.map((r) => [r.file_key, r]));
+		}
+
+		const enriched = (files || []).map((f) => {
+			const d = discoveryByFile.get(f.file_key);
+			return {
+				...f,
+				...(d && {
+					library_entity_discovery_status: d.status,
+					library_entity_discovery_queue_message: d.queue_message,
+				}),
+			};
+		});
+
+		return c.json({ files: enriched });
 	} catch (error) {
 		log.error("Error fetching files", error);
 		return c.json({ error: "Internal server error" }, 500);

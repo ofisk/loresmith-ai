@@ -16,7 +16,7 @@ import {
 	chunkTextByPages,
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
-
+import { getLibrarySyntheticCampaignId } from "@/lib/library-entity-id";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
 import {
@@ -102,6 +102,14 @@ export interface EntityStagingOptions {
 	}) => Promise<void> | void;
 }
 
+/** Options for {@link stageLibraryEntitiesFromFile} (indexed library file only; no campaign graph writes). */
+export type StageLibraryEntitiesFromFileOptions = Omit<
+	EntityStagingOptions,
+	"campaignId" | "campaignName"
+> & {
+	fileKey: string;
+};
+
 const IN_RUN_SEMANTIC_DUPLICATE_THRESHOLD = 0.9;
 
 function buildSemanticCandidateText(name: string, content: unknown): string {
@@ -183,7 +191,27 @@ async function notifyZeroEntitiesFound(
 }
 
 /**
- * Extract entities from file content and stage them for approval.
+ * Indexed-library file only: run the same extraction/chunking as campaign staging but return
+ * merged entities for `library_entity_*` persistence — no `entities` table writes or campaign notifications.
+ */
+export async function stageLibraryEntitiesFromFile(
+	options: StageLibraryEntitiesFromFileOptions
+): Promise<EntityStagingResult> {
+	const syntheticCampaignId = getLibrarySyntheticCampaignId(options.fileKey);
+	const normalized = normalizeResourceForShardGeneration(options.resource);
+	const campaignName = normalized.file_name || options.fileKey;
+	return stageEntitiesFromResourceImpl(
+		{
+			...options,
+			campaignId: syntheticCampaignId,
+			campaignName,
+		},
+		{ fileKey: options.fileKey }
+	);
+}
+
+/**
+ * Extract entities from file content and stage them for approval (campaign graph).
  * Entities are stored with shardStatus='staging' in metadata (UI uses "shard" terminology).
  *
  * Content extraction is handled by a ContentExtractionProvider (defaults to DirectFileContentExtractionProvider).
@@ -191,6 +219,13 @@ async function notifyZeroEntitiesFound(
  */
 export async function stageEntitiesFromResource(
 	options: EntityStagingOptions
+): Promise<EntityStagingResult> {
+	return stageEntitiesFromResourceImpl(options, null);
+}
+
+async function stageEntitiesFromResourceImpl(
+	options: EntityStagingOptions,
+	libraryScope: null | { fileKey: string }
 ): Promise<EntityStagingResult> {
 	const {
 		env,
@@ -207,6 +242,7 @@ export async function stageEntitiesFromResource(
 		maxChunksPerRun,
 		onChunkCheckpoint,
 	} = options;
+	const libraryMode = libraryScope !== null;
 
 	try {
 		// Validate and normalize resource
@@ -220,15 +256,18 @@ export async function stageEntitiesFromResource(
 		});
 
 		if (!llmApiKey) {
-			const normalizedResource = normalizeResourceForShardGeneration(resource);
-			await notifyZeroEntitiesFound(
-				env,
-				campaignId,
-				campaignName,
-				normalizedResource.id,
-				normalizedResource.file_name || normalizedResource.id,
-				`${MODEL_CONFIG.PROVIDER.DEFAULT} API key was not configured.`
-			);
+			const normalizedResourceEarly =
+				normalizeResourceForShardGeneration(resource);
+			if (!libraryMode) {
+				await notifyZeroEntitiesFound(
+					env,
+					campaignId,
+					campaignName,
+					normalizedResourceEarly.id,
+					normalizedResourceEarly.file_name || normalizedResourceEarly.id,
+					`${MODEL_CONFIG.PROVIDER.DEFAULT} API key was not configured.`
+				);
+			}
 			return {
 				success: true,
 				entityCount: 0,
@@ -237,6 +276,10 @@ export async function stageEntitiesFromResource(
 		}
 
 		const normalizedResource = normalizeResourceForShardGeneration(resource);
+		const libraryFileKey =
+			libraryScope?.fileKey ??
+			normalizedResource.file_key ??
+			normalizedResource.id;
 
 		// Use content extraction provider (defaults to DirectFileContentExtractionProvider if not provided)
 		const provider =
@@ -248,14 +291,16 @@ export async function stageEntitiesFromResource(
 		});
 
 		if (!extractionResult.success || !extractionResult.content) {
-			await notifyZeroEntitiesFound(
-				env,
-				campaignId,
-				campaignName,
-				normalizedResource.id,
-				normalizedResource.file_name || normalizedResource.id,
-				"The file content could not be extracted (e.g. PDF parsing failed or the document is empty)."
-			);
+			if (!libraryMode) {
+				await notifyZeroEntitiesFound(
+					env,
+					campaignId,
+					campaignName,
+					normalizedResource.id,
+					normalizedResource.file_name || normalizedResource.id,
+					"The file content could not be extracted (e.g. PDF parsing failed or the document is empty)."
+				);
+			}
 			return {
 				success: true,
 				entityCount: 0,
@@ -271,7 +316,6 @@ export async function stageEntitiesFromResource(
 			fileContent.trimStart().startsWith("Visual inspiration reference");
 
 		if (isVisualInspiration) {
-			const daoFactory = getDAOFactory(env);
 			const baseId = crypto.randomUUID();
 			const entityId = `${campaignId}_${baseId}`;
 			const nameSource =
@@ -327,22 +371,26 @@ export async function stageEntitiesFromResource(
 				}),
 			};
 
-			await daoFactory.entityDAO.createEntity({
-				id: entityId,
-				campaignId,
-				entityType: "visual_inspiration",
-				name: displayName,
-				content: contentPayload,
-				shardStatus: "staging",
-				metadata: finalMetadata,
-				sourceType: "file_upload",
-				sourceId: normalizedResource.id,
-				confidence: 1,
-			});
+			if (!libraryMode) {
+				const daoFactory = getDAOFactory(env);
+				await daoFactory.entityDAO.createEntity({
+					id: entityId,
+					campaignId,
+					entityType: "visual_inspiration",
+					name: displayName,
+					content: contentPayload,
+					shardStatus: "staging",
+					metadata: finalMetadata,
+					sourceType: "file_upload",
+					sourceId: normalizedResource.id,
+					confidence: 1,
+				});
+			}
 
 			return {
 				success: true,
 				entityCount: 1,
+				completed: true,
 				stagedEntities: [
 					{
 						id: entityId,
@@ -382,14 +430,47 @@ export async function stageEntitiesFromResource(
 					detectionResult.characterName || undefined
 				);
 
-				// Create PC entity from parsed character data
-				const daoFactory = getDAOFactory(env);
 				const characterName =
 					characterData.name ||
 					detectionResult.characterName ||
 					"Unknown Character";
 				const baseId = crypto.randomUUID();
 				const pcEntityId = `${campaignId}_${baseId}`;
+
+				if (libraryMode) {
+					const finalMetadata: Record<string, unknown> = {
+						shardStatus: "staging",
+						staged: true,
+						shardStagingOrigin: "new",
+						resourceId: normalizedResource.id,
+						resourceName: normalizedResource.file_name || normalizedResource.id,
+						fileKey: libraryFileKey,
+						isCharacterSheet: true,
+						detectedGameSystem: detectionResult.detectedGameSystem,
+						...(attribution && {
+							proposedBy: attribution.proposedBy,
+							approvedBy: attribution.approvedBy,
+						}),
+					};
+					return {
+						success: true,
+						entityCount: 1,
+						completed: true,
+						stagedEntities: [
+							{
+								id: pcEntityId,
+								entityType: "pcs",
+								name: characterName,
+								content: characterData,
+								metadata: finalMetadata,
+								relations: [],
+							},
+						],
+					};
+				}
+
+				// Create PC entity from parsed character data (campaign graph)
+				const daoFactory = getDAOFactory(env);
 
 				// Check for duplicate by name and type before creating
 				const existingPC = await daoFactory.entityDAO.findEntityByNameAndType(
@@ -852,14 +933,16 @@ export async function stageEntitiesFromResource(
 				failedChunks.length > 0
 					? "Some parts of the file could not be processed. You can retry to process the remaining content."
 					: undefined;
-			await notifyZeroEntitiesFound(
-				env,
-				campaignId,
-				campaignName,
-				normalizedResource.id,
-				normalizedResource.file_name || normalizedResource.id,
-				notificationDetail
-			);
+			if (!libraryMode) {
+				await notifyZeroEntitiesFound(
+					env,
+					campaignId,
+					campaignName,
+					normalizedResource.id,
+					normalizedResource.file_name || normalizedResource.id,
+					notificationDetail
+				);
+			}
 			return {
 				success: true,
 				entityCount: 0,
@@ -985,6 +1068,73 @@ export async function stageEntitiesFromResource(
 				}
 				return { ...rel, targetId };
 			});
+		}
+
+		if (libraryMode) {
+			if (hasMoreChunks) {
+				return {
+					success: true,
+					entityCount: 0,
+					stagedEntities: [],
+					completed: false,
+					nextChunkIndex: endChunkExclusive,
+					totalChunks: chunks.length,
+					jsonRepairCount,
+				};
+			}
+			const stagedForLib: NonNullable<EntityStagingResult["stagedEntities"]> =
+				[];
+			for (const ex of extractedEntities) {
+				const entityType = normalizeEntityType(ex.entityType ?? "");
+				const normalizedName = (ex.name ?? "").trim();
+				const entityMetadata: Record<string, unknown> = {
+					...ex.metadata,
+					shardStatus: "staging",
+					staged: true,
+					resourceId: normalizedResource.id,
+					resourceName: normalizedResource.file_name || normalizedResource.id,
+					fileKey: libraryFileKey,
+					libraryExtraction: true,
+					pendingRelations: ex.relations.map((rel) => ({
+						relationshipType: rel.relationshipType,
+						targetId: rel.targetId,
+						strength: rel.strength,
+						metadata: rel.metadata,
+					})),
+					...(attribution && {
+						proposedBy: attribution.proposedBy,
+						approvedBy: attribution.approvedBy,
+					}),
+				};
+				stagedForLib.push({
+					id: ex.id,
+					entityType,
+					name: normalizedName,
+					content: ex.content,
+					metadata: entityMetadata,
+					relations: ex.relations.map((rel) => ({
+						relationshipType: rel.relationshipType,
+						targetId: rel.targetId,
+						strength: rel.strength,
+						metadata: rel.metadata,
+					})),
+				});
+			}
+			return {
+				success: true,
+				entityCount: stagedForLib.length,
+				stagedEntities: stagedForLib,
+				completed: true,
+				totalChunks: chunks.length,
+				jsonRepairCount,
+				...(failedChunks.length > 0
+					? {
+							warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,
+							failedChunks,
+							successfulChunks,
+						}
+					: {}),
+			};
 		}
 
 		// Pass 1: create or update all entities only; collect relationship payloads
