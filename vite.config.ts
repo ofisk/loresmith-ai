@@ -87,8 +87,14 @@ export default defineConfig({
 					input: clientEntry,
 					external: ["cloudflare:email", "cloudflare:workers"],
 					output: {
-						manualChunks: {
-							vendor: ["react", "react-dom"],
+						// Rolldown expects a function here; object form breaks CI (e2e webServer).
+						manualChunks(id: string) {
+							if (
+								id.includes("/node_modules/react-dom/") ||
+								id.includes("/node_modules/react/")
+							) {
+								return "vendor";
+							}
 						},
 					},
 				},
