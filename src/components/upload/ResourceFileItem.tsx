@@ -6,6 +6,7 @@ import { getDisplayName } from "@/lib/display-name-utils";
 import { cn } from "@/lib/utils";
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
+import { LibraryEntityIndexingProgress } from "./LibraryEntityIndexingProgress";
 import { ResourceFileDetails } from "./ResourceFileDetails";
 
 interface ResourceFileItemProps {
@@ -137,6 +138,10 @@ export function ResourceFileItem({
 									Visual inspiration
 								</p>
 							) : null}
+							<LibraryEntityIndexingProgress
+								queueMessage={file.library_entity_discovery_queue_message}
+								status={file.library_entity_discovery_status}
+							/>
 						</div>
 						{AuthService.getUsernameFromStoredJwt() && (
 							<FileStatusIndicator
