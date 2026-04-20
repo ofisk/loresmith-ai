@@ -29,6 +29,13 @@ describe("messageHistoryInjectionFlags", () => {
 		expect(r.historyResearch).toBe(true);
 	});
 
+	it("detects scan ... chat history (pregen retry prompt)", () => {
+		const r = messageHistoryInjectionFlags(
+			"scan back through the relevant chat history and retry the save for each of the pregens"
+		);
+		expect(r.historyResearch).toBe(true);
+	});
+
 	it("does not flag routine campaign questions", () => {
 		const r = messageHistoryInjectionFlags(
 			"Add Brother Anselm as a PC entity with cleric stats"
