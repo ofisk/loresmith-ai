@@ -70,21 +70,16 @@ const getMessageHistorySchema = z.object({
  * Agents can use this to fetch relevant conversation history when needed
  */
 export const getMessageHistory = tool({
-	description: `Retrieve message history from persistent storage. Use this tool when you need to reference previous conversation context, such as:
-- Understanding follow-up questions (e.g., "the first one" referring to a previous list)
-- Recalling what was discussed earlier in the conversation
-- Finding context about a topic mentioned in previous messages
-- Understanding references to earlier parts of the conversation
+	description: `Retrieve persisted message history for this chat session from storage (not everything is in the model's live context). Use it whenever the user asks to search, extract, summarize, or recall earlier turns, including time windows (afterDate/beforeDate in ISO 8601), keywords (searchQuery), or pagination (limit up to 100, offset for older batches).
 
-The tool supports filtering by:
-- Session ID (optional - will be auto-detected from context if not provided)
-- Campaign ID (optional, to filter messages for a specific campaign)
-- Role (user, assistant, system)
-- Date range (before/after specific dates)
-- Search query (search within message content)
-- Limit and offset for pagination
+Typical uses:
+- Follow-ups like "the first one" or "that option" where you need prior assistant/user text
+- Explicit requests: "last N days of chat", "search history for X", "what did we say about Y"
+- Extracting themes or entities mentioned in older messages before saving to the campaign
 
-Only retrieve message history when you actually need it - don't fetch it preemptively.`,
+Filters: session ID (usually from context), optional campaignId, role, beforeDate, afterDate, searchQuery, limit, offset.
+
+When the user requests a broad scan, make multiple calls with increasing offset until batches are empty or you have enough to answer.`,
 	inputSchema: getMessageHistorySchema,
 	execute: async (
 		input: z.infer<typeof getMessageHistorySchema>,

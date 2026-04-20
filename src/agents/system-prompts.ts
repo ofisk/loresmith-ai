@@ -101,7 +101,18 @@ You are focused, efficient, conversational, and always prioritize helping users 
 }
 
 /** Rule injected on-demand when user message suggests ambiguous references. Only for agents with getMessageHistory. */
-export const MESSAGE_HISTORY_REFERENCE_RULE = `**CRITICAL - Follow-up Questions and Conversational References: When users make ambiguous references (e.g., 'the next one', 'the first one', 'move to the next X', 'that one', 'these', 'those options'), you MUST use getMessageHistory to retrieve recent conversation history to understand what they're referring to. Search for messages containing keywords related to the reference (e.g., if user says 'the next faction', search for 'faction' in recent messages). Only retrieve the most recent relevant messages (limit: 10-20) to keep the context focused.**`;
+export const MESSAGE_HISTORY_REFERENCE_RULE = `**CRITICAL - Follow-up Questions and Conversational References: When users make ambiguous references (e.g., 'the next one', 'the first one', 'move to the next X', 'that one', 'these', 'those options'), you MUST use getMessageHistory to retrieve recent conversation history to understand what they're referring to. Search for messages containing keywords related to the reference (e.g., if user says 'the next faction', search for 'faction' in recent messages). Use a modest limit (e.g., 10-30) unless you need more to resolve the reference.**`;
+
+/** Rule injected when the user asks to search, extract, or review persisted chat over time or topics. */
+export const MESSAGE_HISTORY_RESEARCH_RULE = `**CRITICAL - Searching persisted chat (getMessageHistory): When the user asks to search, scroll, extract, summarize, or recall content from earlier in this chat session (including a time range like 'last 3 days' or topic keywords), you MUST use getMessageHistory before saying nothing was found or that you only have the visible thread.
+
+How to call the tool:
+- Pass **afterDate** / **beforeDate** as ISO 8601 strings when the user gives a window (e.g., last 3 days: set afterDate to three days ago from now, UTC or same zone implied by the user).
+- Use **searchQuery** for distinctive terms (e.g., pregen, PC, character names). Run additional calls with different queries if needed.
+- Use **limit** up to 100 and **offset** 0, then increase offset by the prior limit until a batch returns fewer messages than the limit or you have enough to answer (stop around a few hundred messages unless the user asks for exhaustive export).
+- Prefer **campaignId** from context when the question is campaign-scoped and the tool supports it.
+
+Do not invent quotes or character sheets that did not appear in retrieved messages or campaign files. After retrieval, summarize what was actually stored and what was not.**`;
 
 /**
  * Common tool mapping format for consistency

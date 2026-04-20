@@ -13,6 +13,7 @@ import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { createLogger } from "@/lib/logger";
+import { messageHistoryInjectionFlags } from "@/lib/message-history-injection";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
 import { createStatusInjectingTransform } from "@/lib/stream-status-injector";
 import {
@@ -30,7 +31,10 @@ import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
-import { MESSAGE_HISTORY_REFERENCE_RULE } from "./system-prompts";
+import {
+	MESSAGE_HISTORY_REFERENCE_RULE,
+	MESSAGE_HISTORY_RESEARCH_RULE,
+} from "./system-prompts";
 
 interface Env {
 	Chat: DurableObjectNamespace;
@@ -64,10 +68,6 @@ const RULES_AWARE_AGENT_TYPES = new Set([
 	"session-digest",
 	"rules-reference",
 ]);
-
-/** Patterns that suggest the user is making an ambiguous reference (e.g. "the next one", "that one") */
-const AMBIGUOUS_REFERENCE_PATTERN =
-	/\b(the next one|that one|these|those|the first one|move to the next)\b/i;
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
 function writeTextChunks(
@@ -550,7 +550,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		// references ("these", "that", "try again"). Conversation is keyed by userId+campaignId.
 		// Keep only user/assistant messages for Anthropic compatibility.
 
-		const MAX_CONTEXT_MESSAGES = 20;
+		const MAX_CONTEXT_MESSAGES = 32;
 
 		const userAssistantMessages = this.messages.filter(
 			(msg) => msg.role === "user" || msg.role === "assistant"
@@ -605,7 +605,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			}
 		}
 
-		// On-demand: inject getMessageHistory rule only when user message suggests ambiguous references
+		// On-demand: inject getMessageHistory rules when follow-ups or explicit history research
 		const getToolsForRoleForCheck = (
 			this as unknown as {
 				getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
@@ -621,10 +621,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			typeof lastUserMessage?.content === "string"
 				? lastUserMessage.content
 				: "";
-		const hasAmbiguousRef = AMBIGUOUS_REFERENCE_PATTERN.test(userContent);
-		if (hasMessageHistory && hasAmbiguousRef) {
+		const { ambiguousReference, historyResearch } =
+			messageHistoryInjectionFlags(userContent);
+		if (hasMessageHistory && (ambiguousReference || historyResearch)) {
+			const sections: string[] = [];
+			if (ambiguousReference) {
+				sections.push(MESSAGE_HISTORY_REFERENCE_RULE);
+			}
+			if (historyResearch) {
+				sections.push(MESSAGE_HISTORY_RESEARCH_RULE);
+			}
 			supplementalSystemContext.push(
-				`## On-demand rule (ambiguous reference detected):\n${MESSAGE_HISTORY_REFERENCE_RULE}`
+				`## On-demand rules (message history tools):\n${sections.join("\n\n")}`
 			);
 		}
 
