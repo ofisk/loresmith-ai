@@ -21,9 +21,9 @@ import {
 const historyScopeSchema = z
 	.enum(["current_session", "campaign", "account"])
 	.optional()
-	.default("current_session")
+	.default("campaign")
 	.describe(
-		"current_session: this chat thread only (default). campaign: all persisted messages you sent for the selected campaign across every LoreSmith chat session. account: your messages across all campaigns and sessions; requires afterDate, beforeDate, or searchQuery to keep the query bounded."
+		"campaign (default): all persisted messages you sent for the selected campaign across every LoreSmith chat session. current_session: this durable thread only, when no campaign is available or the user means only this tab. account: your messages across all campaigns; requires afterDate, beforeDate, or searchQuery."
 	);
 
 const getMessageHistorySchema = z.object({
@@ -38,7 +38,7 @@ const getMessageHistorySchema = z.object({
 		.optional()
 		.nullable()
 		.describe(
-			"Campaign ID filter. Required when historyScope is campaign. Ignored for account scope."
+			"Campaign id for campaign-wide history (usually the selected campaign). If missing, scope falls back to current_session."
 		),
 	historyScope: historyScopeSchema,
 	role: z
@@ -100,8 +100,8 @@ export const getMessageHistory = tool({
 	description: `Retrieve persisted chat messages you are allowed to see (same user as the JWT). Not everything is in the model's live context.
 
 historyScope:
-- **current_session** (default): this durable chat thread only; sessionId is filled from context if omitted.
-- **campaign**: every message you stored for the **selected campaign** across all sessions (new tab, refresh, or past days). Pass campaignId or rely on the selected campaign from the app. Use this when the user asks for "my chat history" for this campaign regardless of session.
+- **campaign** (default): every message you stored for the **selected campaign** across all LoreSmith chat sessions. Prefer this; session-only history is rarely what users want.
+- **current_session**: this durable thread only, when there is no campaign id or the user clearly means this tab only. sessionId is filled from context when needed.
 - **account**: your messages across **all** campaigns and sessions. You MUST pass at least one of afterDate, beforeDate, or searchQuery so the query stays bounded.
 
 Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset for paging. Each row includes sessionId so you can cite which thread it came from.`,
@@ -122,7 +122,7 @@ Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset 
 			afterDate,
 			jwt,
 		} = input;
-		const historyScope: MessageHistoryScope =
+		let historyScope: MessageHistoryScope =
 			normalizeMessageHistoryScope(historyScopeRaw);
 		const toolCallId = options?.toolCallId ?? "unknown";
 
@@ -148,9 +148,17 @@ Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset 
 				finalSessionId = opts.sessionId;
 			}
 
+			const cid =
+				typeof campaignId === "string" && campaignId.length > 0
+					? campaignId
+					: "";
+			if (historyScope === "campaign" && !cid) {
+				historyScope = "current_session";
+			}
+
 			if (historyScope === "current_session" && !finalSessionId) {
 				return createToolError(
-					"Session ID is required for current_session scope.",
+					"Session ID is required when falling back to current_session (no campaign id).",
 					"Missing session ID",
 					AUTH_CODES.ERROR,
 					toolCallId
@@ -158,18 +166,7 @@ Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset 
 			}
 
 			if (historyScope === "campaign") {
-				const cid =
-					typeof campaignId === "string" && campaignId.length > 0
-						? campaignId
-						: "";
-				if (!cid) {
-					return createToolError(
-						"historyScope campaign requires a campaignId (select a campaign in the app).",
-						"Missing campaign ID",
-						AUTH_CODES.ERROR,
-						toolCallId
-					);
-				}
+				// cid is non-empty after coercion branch
 				const ownershipCheck = await validateCampaignOwnership(
 					cid,
 					username,
@@ -224,7 +221,7 @@ Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset 
 					historyScope === "current_session" ? finalSessionId : undefined,
 				campaignId:
 					historyScope === "campaign"
-						? (campaignId as string)
+						? cid
 						: historyScope === "current_session"
 							? campaignId
 							: undefined,
@@ -255,7 +252,7 @@ Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset 
 					historyScope === "current_session" ? finalSessionId : undefined,
 				campaignId:
 					historyScope === "campaign"
-						? (campaignId as string)
+						? cid
 						: historyScope === "current_session"
 							? campaignId
 							: undefined,

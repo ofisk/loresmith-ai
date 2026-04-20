@@ -106,10 +106,10 @@ export const MESSAGE_HISTORY_REFERENCE_RULE = `**CRITICAL - Follow-up Questions 
 /** Rule injected when the user asks to search, extract, or review persisted chat over time or topics. */
 export const MESSAGE_HISTORY_RESEARCH_RULE = `**CRITICAL - Searching persisted chat (getMessageHistory): When the user asks to search, scroll, extract, summarize, or recall chat they had with LoreSmith (including other sessions, tabs, or past days), you MUST call getMessageHistory before claiming you cannot access history or that you only see the current window.
 
-Use **historyScope**:
-- **campaign** (default for campaign-scoped questions): set historyScope to **campaign** so messages are loaded for this user and the **selected campaign across all chat sessions**, not only the current durable session. Still pass **afterDate** / **beforeDate** / **searchQuery** when the user gives a window or topic.
+Use **historyScope** (the tool defaults to **campaign**):
+- **campaign**: messages for this user and the **selected campaign across all chat sessions** (this is the normal default; do not claim you only see the current thread). Still pass **afterDate** / **beforeDate** / **searchQuery** when the user gives a window or topic.
 - **account**: only when they explicitly want **all campaigns**; requires **afterDate**, **beforeDate**, or **searchQuery** (bounded query).
-- **current_session**: only when they clearly mean **this thread only**.
+- **current_session**: only when they clearly mean **this tab/thread only**, or when no campaign is selected.
 
 Also pass **afterDate** / **beforeDate** as ISO 8601 when they give a window (e.g., last 3 days: afterDate = three days ago from now). Use **searchQuery** for keywords (pregen, PC, names). Use **limit** up to 100 and increase **offset** to page until batches shrink or you have enough.
 

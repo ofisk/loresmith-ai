@@ -2,13 +2,17 @@ import type { GetMessagesOptions } from "@/dao/message-history-dao";
 
 export type MessageHistoryScope = "current_session" | "campaign" | "account";
 
+/** Default is campaign-wide history (all sessions for that campaign). */
 export function normalizeMessageHistoryScope(
 	raw: string | undefined
 ): MessageHistoryScope {
-	if (raw === "campaign" || raw === "account") {
-		return raw;
+	if (raw === "current_session") {
+		return "current_session";
 	}
-	return "current_session";
+	if (raw === "account") {
+		return "account";
+	}
+	return "campaign";
 }
 
 /** Build DAO options; omit campaignId when unset so SQL does not add `campaign_id IS NULL`. */

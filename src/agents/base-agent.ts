@@ -724,7 +724,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			selectedCampaignId,
 			{ isStaleCommand },
 			toolsToUse,
-			{ triggerUserMessageText: userContent },
+			{},
 			claimedPlayerContext
 		);
 
@@ -985,11 +985,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		selectedCampaignId: string | null,
 		staleGuard?: { isStaleCommand?: boolean },
 		toolsOverride?: Record<string, any>,
-		options?: {
-			onToolStart?: (toolName: string) => void;
-			/** Last user turn text (for getMessageHistory scope heuristics). */
-			triggerUserMessageText?: string;
-		},
+		options?: { onToolStart?: (toolName: string) => void },
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null
 	): Record<string, any> {
 		const log = createLogger(
@@ -1080,19 +1076,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 										sessionId?: string;
 										campaignId?: string | null;
 									};
-									const research = messageHistoryInjectionFlags(
-										options?.triggerUserMessageText ?? ""
-									).historyResearch;
-									if (
-										research &&
-										selectedCampaignId &&
-										ghArgs.historyScope === undefined
-									) {
-										ghArgs.historyScope = "campaign";
-									}
-									const historyScope = normalizeMessageHistoryScope(
+									let historyScope = normalizeMessageHistoryScope(
 										ghArgs.historyScope
 									);
+									const hasCampaign = Boolean(
+										selectedCampaignId ||
+											(typeof ghArgs.campaignId === "string" &&
+												ghArgs.campaignId.length > 0)
+									);
+									if (historyScope === "campaign" && !hasCampaign) {
+										ghArgs.historyScope = "current_session";
+										historyScope = "current_session";
+									}
 									if (
 										historyScope === "current_session" &&
 										!enhancedArgs.sessionId

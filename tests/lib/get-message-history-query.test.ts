@@ -5,15 +5,18 @@ import {
 } from "@/lib/get-message-history-query";
 
 describe("normalizeMessageHistoryScope", () => {
-	it("defaults unknown values to current_session", () => {
-		expect(normalizeMessageHistoryScope(undefined)).toBe("current_session");
-		expect(normalizeMessageHistoryScope("")).toBe("current_session");
-		expect(normalizeMessageHistoryScope("invalid")).toBe("current_session");
+	it("defaults omitted or unknown values to campaign", () => {
+		expect(normalizeMessageHistoryScope(undefined)).toBe("campaign");
+		expect(normalizeMessageHistoryScope("")).toBe("campaign");
+		expect(normalizeMessageHistoryScope("invalid")).toBe("campaign");
 	});
 
-	it("accepts campaign and account", () => {
+	it("accepts explicit scopes", () => {
 		expect(normalizeMessageHistoryScope("campaign")).toBe("campaign");
 		expect(normalizeMessageHistoryScope("account")).toBe("account");
+		expect(normalizeMessageHistoryScope("current_session")).toBe(
+			"current_session"
+		);
 	});
 });
 
