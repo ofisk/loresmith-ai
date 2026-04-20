@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS entities (
   embedding_id text,
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp,
+  shard_status text, -- shard pipeline state (migration 0006 is backfill/index-only for idempotency)
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
