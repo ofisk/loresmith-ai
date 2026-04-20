@@ -38,6 +38,8 @@
 		"migrate:dev": "wrangler d1 migrations apply loresmith-db-dev --config wrangler.dev.jsonc --remote",
 		"migrate:prod": "./scripts/migrate.sh production",
 		"migrate:prod:apply": "wrangler d1 migrations apply loresmith-db --config wrangler.jsonc --remote",
+		"migrate:prod:apply:resilient": "node scripts/d1-migrations-apply-resilient.mjs --config wrangler.jsonc --database loresmith-db --remote",
+		"migrate:dev:apply:resilient": "node scripts/d1-migrations-apply-resilient.mjs --config wrangler.dev.jsonc --database loresmith-db-dev --remote",
 		"migrate:all": "npm run migrate:local:full && npm run migrate:dev && npm run migrate:prod:apply",
 		"d1:explain-audit": "./scripts/d1-explain-audit.sh",
 		"test": "npx vitest run",

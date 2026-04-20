@@ -1,5 +1,6 @@
 // Entity graph management tools bundle
 
+import { getMessageHistory } from "@/tools/message-history-tools";
 import {
 	detectCommunitiesTool,
 	getCommunitiesTool,
@@ -20,4 +21,5 @@ export const entityGraphTools = {
 	getCommunitiesTool,
 	getCommunityHierarchyTool,
 	searchCampaignContext,
+	getMessageHistory,
 };

@@ -31,6 +31,7 @@ import {
 import { noOpTool } from "@/tools/common/no-op-tool";
 // Import file management tools for campaign operations
 import { getFileStats, listFiles } from "@/tools/file/index";
+import { getMessageHistory } from "@/tools/message-history-tools";
 import {
 	createCampaign,
 	deleteCampaign,
@@ -77,6 +78,7 @@ export {
 	// Campaign file tools
 	getFileLibraryStats,
 	getFileStats,
+	getMessageHistory,
 	getPlanningTaskProgress,
 	linkInspirationToEntityTool,
 	listAllEntities,
@@ -123,6 +125,7 @@ export const playerCampaignTools = {
 	getFileLibraryStats,
 	listFiles,
 	getFileStats,
+	getMessageHistory,
 	resolveCampaignIdentifier,
 	noOpTool,
 };
@@ -156,6 +159,7 @@ export const campaignTools = {
 	recordPlanningTasks,
 	getPlanningTaskProgress,
 	completePlanningTask,
+	getMessageHistory,
 	searchCampaignContext,
 	listAllEntities,
 	recordWorldEventTool,

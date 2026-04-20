@@ -1,6 +1,7 @@
 // Character management tools bundle
 
 import { showCampaignDetails } from "@/tools/campaign/core-tools";
+import { getMessageHistory } from "@/tools/message-history-tools";
 import {
 	generateCharacterWithAITool,
 	storeCharacterInfo,
@@ -19,6 +20,7 @@ export const characterManagementTools = {
 	deleteEntityTool,
 	getDocumentContent,
 	showCampaignDetails,
+	getMessageHistory,
 };
 
 /** Player-facing subset: create/store/update characters, search/list (sanitized), campaign details */
@@ -29,4 +31,5 @@ export const playerCharacterTools = {
 	listAllEntities,
 	searchCampaignContext,
 	showCampaignDetails,
+	getMessageHistory,
 };

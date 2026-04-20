@@ -100,8 +100,24 @@ ${workflowGuidelines}${importantNotes}${specialization}
 You are focused, efficient, conversational, and always prioritize helping users effectively through natural dialogue.`;
 }
 
-/** Rule injected on-demand when user message suggests ambiguous references. Only for agents with getMessageHistory. */
-export const MESSAGE_HISTORY_REFERENCE_RULE = `**CRITICAL - Follow-up Questions and Conversational References: When users make ambiguous references (e.g., 'the next one', 'the first one', 'move to the next X', 'that one', 'these', 'those options'), you MUST use getMessageHistory to retrieve recent conversation history to understand what they're referring to. Search for messages containing keywords related to the reference (e.g., if user says 'the next faction', search for 'faction' in recent messages). Only retrieve the most recent relevant messages (limit: 10-20) to keep the context focused.**`;
+/**
+ * Injected once per turn whenever the role's toolset includes `getMessageHistory`
+ * (see BaseAgent). Keeps one shared definition instead of repeating per agent.
+ */
+export const MESSAGE_HISTORY_CAPABILITY_RULE = `**Persisted LoreSmith chat:** This turn's tools include **getMessageHistory**. Use it whenever your task needs this user's stored LoreSmith messages (not only the messages in this request). Default **historyScope** is **campaign** (this campaign across sessions for this user). Before saying you cannot see other sessions, an earlier tab, or that there is no chat archive, call the tool; if it returns no rows, say the archive had no matches. Pass **searchQuery**, **afterDate**/**beforeDate**, **limit**, and **offset** as needed (see the tool description).**`;
+
+/** Extra nudge when the user uses vague referents; paired with {@link MESSAGE_HISTORY_CAPABILITY_RULE}. */
+export const MESSAGE_HISTORY_REFERENCE_RULE = `**Vague follow-ups** ("the next one", "that one", "these options"): call **getMessageHistory** with a modest **limit** and a **searchQuery** tied to the topic so you resolve what they mean.**`;
+
+/** Extra nudge when the user asks to search or recall chat across time; paired with {@link MESSAGE_HISTORY_CAPABILITY_RULE}. */
+export const MESSAGE_HISTORY_RESEARCH_RULE = `**Scan, summarize, or recall across time or topics:** call **getMessageHistory** with the right **historyScope**:
+- **campaign** (default): still pass **afterDate** / **beforeDate** / **searchQuery** when the user gives a window or topic.
+- **account**: only when they explicitly want **all campaigns**; requires **afterDate**, **beforeDate**, or **searchQuery** (bounded query).
+- **current_session**: only when they clearly mean **this tab/thread only**, or when no campaign is selected.
+
+Use **afterDate** / **beforeDate** as ISO 8601 when they give a window (e.g., last 3 days: **afterDate** = three days ago from now). Use **searchQuery** for keywords. Use **limit** up to 100 and increase **offset** to page until batches shrink or you have enough.
+
+Do not invent quotes or character sheets that did not appear in retrieved messages or campaign files. After retrieval, summarize what was actually stored and what was not.**`;
 
 /**
  * Common tool mapping format for consistency

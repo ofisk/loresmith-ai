@@ -12,7 +12,9 @@ import {
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
+import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
 import { createLogger } from "@/lib/logger";
+import { messageHistoryInjectionFlags } from "@/lib/message-history-injection";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
 import { createStatusInjectingTransform } from "@/lib/stream-status-injector";
 import {
@@ -30,7 +32,11 @@ import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
-import { MESSAGE_HISTORY_REFERENCE_RULE } from "./system-prompts";
+import {
+	MESSAGE_HISTORY_CAPABILITY_RULE,
+	MESSAGE_HISTORY_REFERENCE_RULE,
+	MESSAGE_HISTORY_RESEARCH_RULE,
+} from "./system-prompts";
 
 interface Env {
 	Chat: DurableObjectNamespace;
@@ -64,10 +70,6 @@ const RULES_AWARE_AGENT_TYPES = new Set([
 	"session-digest",
 	"rules-reference",
 ]);
-
-/** Patterns that suggest the user is making an ambiguous reference (e.g. "the next one", "that one") */
-const AMBIGUOUS_REFERENCE_PATTERN =
-	/\b(the next one|that one|these|those|the first one|move to the next)\b/i;
 
 /** Write a single text message as UI stream chunks (text-start, text-delta, text-end). */
 function writeTextChunks(
@@ -550,7 +552,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		// references ("these", "that", "try again"). Conversation is keyed by userId+campaignId.
 		// Keep only user/assistant messages for Anthropic compatibility.
 
-		const MAX_CONTEXT_MESSAGES = 20;
+		const MAX_CONTEXT_MESSAGES = 32;
 
 		const userAssistantMessages = this.messages.filter(
 			(msg) => msg.role === "user" || msg.role === "assistant"
@@ -605,7 +607,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			}
 		}
 
-		// On-demand: inject getMessageHistory rule only when user message suggests ambiguous references
+		// Shared persisted-chat guidance whenever this role's tools include getMessageHistory
 		const getToolsForRoleForCheck = (
 			this as unknown as {
 				getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
@@ -621,11 +623,24 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			typeof lastUserMessage?.content === "string"
 				? lastUserMessage.content
 				: "";
-		const hasAmbiguousRef = AMBIGUOUS_REFERENCE_PATTERN.test(userContent);
-		if (hasMessageHistory && hasAmbiguousRef) {
+		const { ambiguousReference, historyResearch } =
+			messageHistoryInjectionFlags(userContent);
+		if (hasMessageHistory) {
 			supplementalSystemContext.push(
-				`## On-demand rule (ambiguous reference detected):\n${MESSAGE_HISTORY_REFERENCE_RULE}`
+				`## Persisted LoreSmith chat\n${MESSAGE_HISTORY_CAPABILITY_RULE}`
 			);
+			if (ambiguousReference || historyResearch) {
+				const sections: string[] = [];
+				if (ambiguousReference) {
+					sections.push(MESSAGE_HISTORY_REFERENCE_RULE);
+				}
+				if (historyResearch) {
+					sections.push(MESSAGE_HISTORY_RESEARCH_RULE);
+				}
+				supplementalSystemContext.push(
+					`## On-demand rules (message history):\n${sections.join("\n\n")}`
+				);
+			}
 		}
 
 		log.debug("Built minimal message context", {
@@ -1060,10 +1075,43 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 							const hasSessionIdParam = !!shape && "sessionId" in shape;
 
-							if (hasSessionIdParam && !enhancedArgs.sessionId) {
-								// Inject sessionId from durable object ID
-								const sessionId = this.ctx.id.toString();
-								enhancedArgs.sessionId = sessionId;
+							if (hasSessionIdParam) {
+								if (toolName === "getMessageHistory") {
+									const ghArgs = enhancedArgs as {
+										historyScope?: string;
+										sessionId?: string;
+										campaignId?: string | null;
+									};
+									let historyScope = normalizeMessageHistoryScope(
+										ghArgs.historyScope
+									);
+									const hasCampaign = Boolean(
+										selectedCampaignId ||
+											(typeof ghArgs.campaignId === "string" &&
+												ghArgs.campaignId.length > 0)
+									);
+									if (historyScope === "campaign" && !hasCampaign) {
+										ghArgs.historyScope = "current_session";
+										historyScope = "current_session";
+									}
+									if (
+										historyScope === "current_session" &&
+										!enhancedArgs.sessionId
+									) {
+										enhancedArgs.sessionId = this.ctx.id.toString();
+									}
+									if (
+										historyScope === "campaign" ||
+										historyScope === "account"
+									) {
+										delete enhancedArgs.sessionId;
+									}
+									if (historyScope === "account") {
+										delete enhancedArgs.campaignId;
+									}
+								} else if (!enhancedArgs.sessionId) {
+									enhancedArgs.sessionId = this.ctx.id.toString();
+								}
 							}
 
 							const claimedEntity = claimedPlayerContext?.entity;

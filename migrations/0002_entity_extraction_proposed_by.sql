@@ -6,6 +6,7 @@
 -- and re-run migrate:prod:apply. To mark 0002 applied without re-deploy, insert into
 -- d1_migrations with the next id after SELECT MAX(id) FROM d1_migrations (see Cloudflare D1 docs).
 
+-- Match bootstrap + migration 0014 index set (IF NOT EXISTS for replay safety).
 CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_status ON entity_extraction_queue(status);
 CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_next_retry ON entity_extraction_queue(next_retry_at);
 CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_campaign ON entity_extraction_queue(campaign_id);

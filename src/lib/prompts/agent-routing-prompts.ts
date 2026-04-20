@@ -26,6 +26,7 @@ User message: "${userMessage}"
 ${recentContext ? `Recent context: "${recentContext}"` : ""}
 
 Routing rules:
+- **Persisted LoreSmith chat (this campaign):** Route to **"campaign-context"** when fulfilling the request requires searching, recalling, summarizing, or paging through prior messages stored for this campaign in LoreSmith (any topic or downstream task). Prefer **"campaign-context"** over **"entity-graph"** whenever that archival chat work is part of the task, even if the user also mentions entities, PCs, or the graph.
 - File operations (upload, processing, indexing, file key, metadata, ingestion) → "resources"
 - Campaign management (create, list, update, delete campaigns) → "campaign"
 - Campaign analysis (assess campaign, campaign readiness, campaign suggestions, how ready is my campaign) → "campaign-analysis"
