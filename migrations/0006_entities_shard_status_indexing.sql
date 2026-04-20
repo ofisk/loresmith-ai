@@ -1,9 +1,12 @@
--- Backfill shard_status on entities + indexes (column: new installs via bootstrap;
--- legacy DBs already have it from an earlier schema/migration).
+-- Add shard_status on entities for SQL-level filtering (non-destructive: ALTER only).
+-- Preserves entity ids and all FKs referencing entities.id.
+-- New installs via bootstrap may already include the column; legacy DBs may have it from an earlier migration.
 --
 -- Wrangler cannot skip a failed migration automatically. If ALTER ADD shard_status failed
 -- with duplicate column, the column is already present: deploy this version (no ALTER here)
 -- and re-run migrate:prod:apply.
+
+ALTER TABLE entities ADD COLUMN shard_status TEXT;
 
 UPDATE entities
 SET shard_status = COALESCE(
