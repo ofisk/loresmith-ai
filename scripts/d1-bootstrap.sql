@@ -457,6 +457,7 @@ CREATE TABLE IF NOT EXISTS entity_extraction_queue (
   last_error text, -- migration 0017 renames to queue_message (run migrations after bootstrap)
   error_code text,
   next_retry_at datetime,
+  proposed_by text, -- proposal-attributed shards (migration 0002 is index-only for idempotency)
   created_at datetime default current_timestamp,
   processed_at datetime,
   updated_at datetime,
