@@ -19,7 +19,6 @@ import { useRetryLimitStatus } from "@/hooks/useRetryLimitStatus";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getDisplayName } from "@/lib/display-name-utils";
-import { parseEntityExtractionProgress } from "@/lib/entity-extraction-progress";
 import { API_CONFIG } from "@/shared-config";
 import type { Campaign, CampaignResource } from "@/types/campaign";
 import type {
@@ -100,9 +99,6 @@ export function CampaignDetailsModal({
 	const [processingResources, setProcessingResources] = useState<Set<string>>(
 		new Set()
 	);
-	/** Chunk progress from queue `queue_message` PROGRESS:a/b; keyed by resource id */
-	const [extractionProgressByResourceId, setExtractionProgressByResourceId] =
-		useState<Record<string, { processed: number; total: number } | null>>({});
 	// Track expanded resources
 	const [expandedResources, setExpandedResources] = useState<Set<string>>(
 		new Set()
@@ -328,21 +324,8 @@ export function CampaignDetailsModal({
 							next.delete(resourceId);
 							return next;
 						});
-						setExtractionProgressByResourceId((prev) => {
-							const next = { ...prev };
-							delete next[resourceId];
-							return next;
-						});
 						return;
 					}
-
-					const progress = parseEntityExtractionProgress(
-						data.queueMessage ?? null
-					);
-					setExtractionProgressByResourceId((prev) => ({
-						...prev,
-						[resourceId]: progress,
-					}));
 
 					// If in queue and processing, add to processing set
 					if (
@@ -394,11 +377,6 @@ export function CampaignDetailsModal({
 				setProcessingResources((prev) => {
 					const next = new Set(prev);
 					next.delete(resourceId);
-					return next;
-				});
-				setExtractionProgressByResourceId((prev) => {
-					const next = { ...prev };
-					delete next[resourceId];
 					return next;
 				});
 			}
@@ -489,7 +467,6 @@ export function CampaignDetailsModal({
 			// Reset initial status check tracking when campaign changes
 			initialStatusCheckedRef.current.clear();
 			setProcessingResources(new Set());
-			setExtractionProgressByResourceId({});
 			if (isOpen && activeTab === "digests") {
 				fetchSessionDigests.execute(campaign.campaignId);
 			}
@@ -805,9 +782,6 @@ export function CampaignDetailsModal({
 									expandedResources={expandedResources}
 									onExpandedChange={setExpandedResources}
 									processingResources={processingResources}
-									extractionProgressByResourceId={
-										extractionProgressByResourceId
-									}
 									retryingResourceId={retryingResourceId}
 									onRetry={handleRetryEntityExtraction}
 									canRetryEntityExtraction={isOwner}

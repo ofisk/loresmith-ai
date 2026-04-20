@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import { FileDAO } from "@/dao";
@@ -90,6 +90,24 @@ export function ResourceList({
 		if (!searchQuery.trim()) return files;
 		return files.filter((f) => matchesResourceSearch(f, searchQuery));
 	}, [files, searchQuery]);
+
+	const needsLibraryDiscoveryPoll = useMemo(
+		() =>
+			files.some(
+				(f) =>
+					f.library_entity_discovery_status === "pending" ||
+					f.library_entity_discovery_status === "processing"
+			),
+		[files]
+	);
+
+	useEffect(() => {
+		if (!needsLibraryDiscoveryPoll) return;
+		const id = window.setInterval(() => {
+			void fetchResources();
+		}, 20000);
+		return () => window.clearInterval(id);
+	}, [needsLibraryDiscoveryPoll, fetchResources]);
 
 	// File event handling - manages progress state internally and via prop setter
 	useResourceFileEvents({
