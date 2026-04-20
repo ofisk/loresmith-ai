@@ -4,10 +4,42 @@ import { fileURLToPath } from "node:url";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import type { OutputBundle, OutputChunk } from "rollup";
 import { defineConfig, type Plugin, type UserConfig } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** Shapes used by {@link ciHtmlEntryPlugin} generateBundle (Vite 8 uses Rolldown; avoid importing `rollup`). */
+interface OutputChunkEntry {
+	readonly type: "chunk";
+	readonly fileName: string;
+	readonly isEntry?: boolean;
+}
+
+interface OutputAssetEntry {
+	readonly type: "asset";
+	readonly fileName: string;
+}
+
+type OutputBundleLike = Record<
+	string,
+	OutputChunkEntry | OutputAssetEntry | { type: string }
+>;
+
+type BundleModule = OutputBundleLike[string];
+
+function isEntryChunk(o: BundleModule): o is OutputChunkEntry {
+	if (o.type !== "chunk") return false;
+	return (o as OutputChunkEntry).isEntry === true;
+}
+
+function isCssAsset(o: BundleModule): o is OutputAssetEntry {
+	return (
+		o.type === "asset" &&
+		"fileName" in o &&
+		typeof (o as OutputAssetEntry).fileName === "string" &&
+		(o as OutputAssetEntry).fileName.endsWith(".css")
+	);
+}
 
 /** Use JS entry and emit index.html in bundle to avoid vite:build-html load/transform InvalidArg on CI. */
 function ciHtmlEntryPlugin(): Plugin {
@@ -31,24 +63,13 @@ function ciHtmlEntryPlugin(): Plugin {
 				},
 			};
 		},
-		generateBundle(_outputOptions, bundle: OutputBundle) {
-			const entryChunk = Object.values(bundle).find(
-				(o): o is OutputChunk =>
-					o.type === "chunk" && (o as OutputChunk).isEntry === true
-			);
+		generateBundle(_outputOptions, bundle: OutputBundleLike) {
+			const entryChunk = Object.values(bundle).find(isEntryChunk);
 			if (!entryChunk) return;
 			const scriptHref = `/${entryChunk.fileName}`;
 			// Find the main stylesheet so we can inject it into HTML (ensures CSS loads in production)
-			const cssEntry = Object.entries(bundle).find(
-				([_, o]) =>
-					o.type === "asset" &&
-					"fileName" in o &&
-					typeof (o as { fileName: string }).fileName === "string" &&
-					(o as { fileName: string }).fileName.endsWith(".css")
-			);
-			const cssHref = cssEntry
-				? `/${(cssEntry[1] as { fileName: string }).fileName}`
-				: null;
+			const cssAsset = Object.values(bundle).find(isCssAsset);
+			const cssHref = cssAsset ? `/${cssAsset.fileName}` : null;
 			const indexPath = path.join(process.cwd(), "index.html");
 			let html = fs.readFileSync(indexPath, "utf8");
 			html = html.replace(
