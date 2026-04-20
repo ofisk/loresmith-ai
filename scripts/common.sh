@@ -92,12 +92,16 @@ db_has_tables() {
     [ "$count" != "0" ]
 }
 
-# List database tables
+# List database tables (optional 3rd arg: --config path, e.g. wrangler.jsonc)
 list_db_tables() {
     local db_name="$1"
     local remote_flag="$2"
-    
-    wrangler d1 execute "$db_name" --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" $remote_flag
+    local config_path="${3:-}"
+    local config_args=()
+    if [ -n "$config_path" ]; then
+        config_args=(--config "$config_path")
+    fi
+    wrangler d1 execute "$db_name" "${config_args[@]}" --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" $remote_flag
 }
 
 # Execute migration file with error handling
@@ -129,7 +133,9 @@ execute_migration() {
     fi
 }
 
-# Run all migrations
+# Run every SQL file with `d1 execute` (does NOT read d1_migrations). Unsafe for
+# incremental schema: destructive migrations can re-run. Prefer
+# `wrangler d1 migrations apply` (see migrate.sh) or migrate:prod:apply:resilient.
 run_migrations() {
     local db_name="$1"
     local remote_flag="$2"
