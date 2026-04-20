@@ -104,13 +104,14 @@ You are focused, efficient, conversational, and always prioritize helping users 
 export const MESSAGE_HISTORY_REFERENCE_RULE = `**CRITICAL - Follow-up Questions and Conversational References: When users make ambiguous references (e.g., 'the next one', 'the first one', 'move to the next X', 'that one', 'these', 'those options'), you MUST use getMessageHistory to retrieve recent conversation history to understand what they're referring to. Search for messages containing keywords related to the reference (e.g., if user says 'the next faction', search for 'faction' in recent messages). Use a modest limit (e.g., 10-30) unless you need more to resolve the reference.**`;
 
 /** Rule injected when the user asks to search, extract, or review persisted chat over time or topics. */
-export const MESSAGE_HISTORY_RESEARCH_RULE = `**CRITICAL - Searching persisted chat (getMessageHistory): When the user asks to search, scroll, extract, summarize, or recall content from earlier in this chat session (including a time range like 'last 3 days' or topic keywords), you MUST use getMessageHistory before saying nothing was found or that you only have the visible thread.
+export const MESSAGE_HISTORY_RESEARCH_RULE = `**CRITICAL - Searching persisted chat (getMessageHistory): When the user asks to search, scroll, extract, summarize, or recall chat they had with LoreSmith (including other sessions, tabs, or past days), you MUST call getMessageHistory before claiming you cannot access history or that you only see the current window.
 
-How to call the tool:
-- Pass **afterDate** / **beforeDate** as ISO 8601 strings when the user gives a window (e.g., last 3 days: set afterDate to three days ago from now, UTC or same zone implied by the user).
-- Use **searchQuery** for distinctive terms (e.g., pregen, PC, character names). Run additional calls with different queries if needed.
-- Use **limit** up to 100 and **offset** 0, then increase offset by the prior limit until a batch returns fewer messages than the limit or you have enough to answer (stop around a few hundred messages unless the user asks for exhaustive export).
-- Prefer **campaignId** from context when the question is campaign-scoped and the tool supports it.
+Use **historyScope**:
+- **campaign** (default for campaign-scoped questions): set historyScope to **campaign** so messages are loaded for this user and the **selected campaign across all chat sessions**, not only the current durable session. Still pass **afterDate** / **beforeDate** / **searchQuery** when the user gives a window or topic.
+- **account**: only when they explicitly want **all campaigns**; requires **afterDate**, **beforeDate**, or **searchQuery** (bounded query).
+- **current_session**: only when they clearly mean **this thread only**.
+
+Also pass **afterDate** / **beforeDate** as ISO 8601 when they give a window (e.g., last 3 days: afterDate = three days ago from now). Use **searchQuery** for keywords (pregen, PC, names). Use **limit** up to 100 and increase **offset** to page until batches shrink or you have enough.
 
 Do not invent quotes or character sheets that did not appear in retrieved messages or campaign files. After retrieval, summarize what was actually stored and what was not.**`;
 

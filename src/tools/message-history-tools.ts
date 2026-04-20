@@ -5,6 +5,11 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import { validateCampaignOwnership } from "@/lib/campaign-operations";
 import { EnvironmentRequiredError } from "@/lib/errors";
 import {
+	buildMessageHistoryDaoOptions,
+	type MessageHistoryScope,
+	normalizeMessageHistoryScope,
+} from "@/lib/get-message-history-query";
+import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
@@ -13,20 +18,29 @@ import {
 	type ToolExecuteOptions,
 } from "./utils";
 
+const historyScopeSchema = z
+	.enum(["current_session", "campaign", "account"])
+	.optional()
+	.default("current_session")
+	.describe(
+		"current_session: this chat thread only (default). campaign: all persisted messages you sent for the selected campaign across every LoreSmith chat session. account: your messages across all campaigns and sessions; requires afterDate, beforeDate, or searchQuery to keep the query bounded."
+	);
+
 const getMessageHistorySchema = z.object({
 	sessionId: z
 		.string()
 		.optional()
 		.describe(
-			"The chat session ID. If not provided, will be auto-detected from the durable object context."
+			"Chat session ID. Used when historyScope is current_session; otherwise omit and rely on historyScope plus filters."
 		),
 	campaignId: z
 		.string()
 		.optional()
 		.nullable()
 		.describe(
-			"Optional campaign ID to filter messages for a specific campaign"
+			"Campaign ID filter. Required when historyScope is campaign. Ignored for account scope."
 		),
+	historyScope: historyScopeSchema,
 	role: z
 		.enum(["user", "assistant", "system"])
 		.optional()
@@ -65,21 +79,32 @@ const getMessageHistorySchema = z.object({
 	jwt: commonSchemas.jwt,
 });
 
+function accountScopeHasBound(
+	searchQuery: string | undefined,
+	afterDate: string | undefined,
+	beforeDate: string | undefined
+): boolean {
+	const q = searchQuery?.trim();
+	return Boolean(
+		(q && q.length > 0) ||
+			(afterDate && afterDate.trim().length > 0) ||
+			(beforeDate && beforeDate.trim().length > 0)
+	);
+}
+
 /**
  * Tool to retrieve message history from persistent storage
  * Agents can use this to fetch relevant conversation history when needed
  */
 export const getMessageHistory = tool({
-	description: `Retrieve persisted message history for this chat session from storage (not everything is in the model's live context). Use it whenever the user asks to search, extract, summarize, or recall earlier turns, including time windows (afterDate/beforeDate in ISO 8601), keywords (searchQuery), or pagination (limit up to 100, offset for older batches).
+	description: `Retrieve persisted chat messages you are allowed to see (same user as the JWT). Not everything is in the model's live context.
 
-Typical uses:
-- Follow-ups like "the first one" or "that option" where you need prior assistant/user text
-- Explicit requests: "last N days of chat", "search history for X", "what did we say about Y"
-- Extracting themes or entities mentioned in older messages before saving to the campaign
+historyScope:
+- **current_session** (default): this durable chat thread only; sessionId is filled from context if omitted.
+- **campaign**: every message you stored for the **selected campaign** across all sessions (new tab, refresh, or past days). Pass campaignId or rely on the selected campaign from the app. Use this when the user asks for "my chat history" for this campaign regardless of session.
+- **account**: your messages across **all** campaigns and sessions. You MUST pass at least one of afterDate, beforeDate, or searchQuery so the query stays bounded.
 
-Filters: session ID (usually from context), optional campaignId, role, beforeDate, afterDate, searchQuery, limit, offset.
-
-When the user requests a broad scan, make multiple calls with increasing offset until batches are empty or you have enough to answer.`,
+Use afterDate/beforeDate (ISO 8601), searchQuery, limit (up to 100), and offset for paging. Each row includes sessionId so you can cite which thread it came from.`,
 	inputSchema: getMessageHistorySchema,
 	execute: async (
 		input: z.infer<typeof getMessageHistorySchema>,
@@ -88,6 +113,7 @@ When the user requests a broad scan, make multiple calls with increasing offset 
 		const {
 			sessionId,
 			campaignId,
+			historyScope: historyScopeRaw,
 			role,
 			limit = 20,
 			offset = 0,
@@ -96,6 +122,8 @@ When the user requests a broad scan, make multiple calls with increasing offset 
 			afterDate,
 			jwt,
 		} = input;
+		const historyScope: MessageHistoryScope =
+			normalizeMessageHistoryScope(historyScopeRaw);
 		const toolCallId = options?.toolCallId ?? "unknown";
 
 		try {
@@ -120,17 +148,59 @@ When the user requests a broad scan, make multiple calls with increasing offset 
 				finalSessionId = opts.sessionId;
 			}
 
-			if (!finalSessionId) {
+			if (historyScope === "current_session" && !finalSessionId) {
 				return createToolError(
-					"Session ID is required. It should be auto-detected from context, but if not available, please provide it explicitly.",
+					"Session ID is required for current_session scope.",
 					"Missing session ID",
 					AUTH_CODES.ERROR,
 					toolCallId
 				);
 			}
 
-			// Validate campaign ownership if campaignId is provided
-			if (campaignId) {
+			if (historyScope === "campaign") {
+				const cid =
+					typeof campaignId === "string" && campaignId.length > 0
+						? campaignId
+						: "";
+				if (!cid) {
+					return createToolError(
+						"historyScope campaign requires a campaignId (select a campaign in the app).",
+						"Missing campaign ID",
+						AUTH_CODES.ERROR,
+						toolCallId
+					);
+				}
+				const ownershipCheck = await validateCampaignOwnership(
+					cid,
+					username,
+					env
+				);
+				if (!ownershipCheck.valid) {
+					return createToolError(
+						"Campaign not found or access denied",
+						"You don't have access to this campaign",
+						AUTH_CODES.ERROR,
+						toolCallId
+					);
+				}
+			}
+
+			if (historyScope === "account") {
+				if (!accountScopeHasBound(searchQuery, afterDate, beforeDate)) {
+					return createToolError(
+						"historyScope account requires at least one of: afterDate, beforeDate, or searchQuery.",
+						"Unbounded account history",
+						AUTH_CODES.ERROR,
+						toolCallId
+					);
+				}
+			}
+
+			if (
+				historyScope !== "account" &&
+				typeof campaignId === "string" &&
+				campaignId.length > 0
+			) {
 				const ownershipCheck = await validateCampaignOwnership(
 					campaignId,
 					username,
@@ -148,37 +218,47 @@ When the user requests a broad scan, make multiple calls with increasing offset 
 
 			const daoFactory = getDAOFactory(env);
 
-			// Verify that the session has messages from this user (security check)
-			// This prevents users from accessing other users' sessions by guessing sessionIds
-			const sessionCheck = await daoFactory.messageHistoryDAO.getMessages({
-				sessionId: finalSessionId,
-				username, // Only get messages from this user
-				limit: 1, // Just check if any exist
+			const probeOpts = buildMessageHistoryDaoOptions({
+				username,
+				sessionId:
+					historyScope === "current_session" ? finalSessionId : undefined,
+				campaignId:
+					historyScope === "campaign"
+						? (campaignId as string)
+						: historyScope === "current_session"
+							? campaignId
+							: undefined,
+				role,
+				limit: 1,
+				offset: 0,
+				searchQuery,
+				beforeDate,
+				afterDate,
 			});
 
-			if (sessionCheck.length === 0) {
-				// No messages found for this user in this session
-				// This could mean:
-				// 1. The session doesn't exist
-				// 2. The session belongs to a different user
-				// 3. The session has no messages yet
-				// Return empty result rather than error to avoid leaking session existence
+			const probe = await daoFactory.messageHistoryDAO.getMessages(probeOpts);
+			if (probe.length === 0) {
 				return createToolSuccess(
-					"No message history found for this session.",
+					"No message history found for the requested filters.",
 					{
 						messages: [],
 						total: 0,
+						historyScope,
 					},
 					toolCallId
 				);
 			}
 
-			// Now fetch the actual messages with all filters
-			// The username filter ensures users can only see their own messages
-			const messages = await daoFactory.messageHistoryDAO.getMessages({
-				sessionId: finalSessionId,
-				username, // CRITICAL: Always filter by username to prevent cross-user access
-				campaignId: campaignId || null,
+			const listOpts = buildMessageHistoryDaoOptions({
+				username,
+				sessionId:
+					historyScope === "current_session" ? finalSessionId : undefined,
+				campaignId:
+					historyScope === "campaign"
+						? (campaignId as string)
+						: historyScope === "current_session"
+							? campaignId
+							: undefined,
 				role,
 				limit,
 				offset,
@@ -187,7 +267,8 @@ When the user requests a broad scan, make multiple calls with increasing offset 
 				afterDate,
 			});
 
-			// Parse message data JSON strings back to objects
+			const messages = await daoFactory.messageHistoryDAO.getMessages(listOpts);
+
 			const messagesWithParsedData = messages.map((msg) => {
 				let parsedData: Record<string, unknown> | null = null;
 				if (msg.messageData) {
@@ -203,10 +284,11 @@ When the user requests a broad scan, make multiple calls with increasing offset 
 			});
 
 			return createToolSuccess(
-				`Retrieved ${messagesWithParsedData.length} message(s) from history.`,
+				`Retrieved ${messagesWithParsedData.length} message(s) from history (${historyScope}).`,
 				{
 					messages: messagesWithParsedData,
 					total: messagesWithParsedData.length,
+					historyScope,
 				},
 				toolCallId
 			);

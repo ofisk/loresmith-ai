@@ -12,6 +12,7 @@ import {
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
+import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
 import { createLogger } from "@/lib/logger";
 import { messageHistoryInjectionFlags } from "@/lib/message-history-injection";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
@@ -723,7 +724,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			selectedCampaignId,
 			{ isStaleCommand },
 			toolsToUse,
-			{},
+			{ triggerUserMessageText: userContent },
 			claimedPlayerContext
 		);
 
@@ -984,7 +985,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		selectedCampaignId: string | null,
 		staleGuard?: { isStaleCommand?: boolean },
 		toolsOverride?: Record<string, any>,
-		options?: { onToolStart?: (toolName: string) => void },
+		options?: {
+			onToolStart?: (toolName: string) => void;
+			/** Last user turn text (for getMessageHistory scope heuristics). */
+			triggerUserMessageText?: string;
+		},
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null
 	): Record<string, any> {
 		const log = createLogger(
@@ -1068,10 +1073,44 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 							const hasSessionIdParam = !!shape && "sessionId" in shape;
 
-							if (hasSessionIdParam && !enhancedArgs.sessionId) {
-								// Inject sessionId from durable object ID
-								const sessionId = this.ctx.id.toString();
-								enhancedArgs.sessionId = sessionId;
+							if (hasSessionIdParam) {
+								if (toolName === "getMessageHistory") {
+									const ghArgs = enhancedArgs as {
+										historyScope?: string;
+										sessionId?: string;
+										campaignId?: string | null;
+									};
+									const research = messageHistoryInjectionFlags(
+										options?.triggerUserMessageText ?? ""
+									).historyResearch;
+									if (
+										research &&
+										selectedCampaignId &&
+										ghArgs.historyScope === undefined
+									) {
+										ghArgs.historyScope = "campaign";
+									}
+									const historyScope = normalizeMessageHistoryScope(
+										ghArgs.historyScope
+									);
+									if (
+										historyScope === "current_session" &&
+										!enhancedArgs.sessionId
+									) {
+										enhancedArgs.sessionId = this.ctx.id.toString();
+									}
+									if (
+										historyScope === "campaign" ||
+										historyScope === "account"
+									) {
+										delete enhancedArgs.sessionId;
+									}
+									if (historyScope === "account") {
+										delete enhancedArgs.campaignId;
+									}
+								} else if (!enhancedArgs.sessionId) {
+									enhancedArgs.sessionId = this.ctx.id.toString();
+								}
 							}
 
 							const claimedEntity = claimedPlayerContext?.entity;
