@@ -33,6 +33,7 @@ import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
 import {
+	MESSAGE_HISTORY_CAPABILITY_RULE,
 	MESSAGE_HISTORY_REFERENCE_RULE,
 	MESSAGE_HISTORY_RESEARCH_RULE,
 } from "./system-prompts";
@@ -606,7 +607,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			}
 		}
 
-		// On-demand: inject getMessageHistory rules when follow-ups or explicit history research
+		// Shared persisted-chat guidance whenever this role's tools include getMessageHistory
 		const getToolsForRoleForCheck = (
 			this as unknown as {
 				getToolsForRole?: (r: CampaignRole | null) => Record<string, any>;
@@ -624,17 +625,22 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				: "";
 		const { ambiguousReference, historyResearch } =
 			messageHistoryInjectionFlags(userContent);
-		if (hasMessageHistory && (ambiguousReference || historyResearch)) {
-			const sections: string[] = [];
-			if (ambiguousReference) {
-				sections.push(MESSAGE_HISTORY_REFERENCE_RULE);
-			}
-			if (historyResearch) {
-				sections.push(MESSAGE_HISTORY_RESEARCH_RULE);
-			}
+		if (hasMessageHistory) {
 			supplementalSystemContext.push(
-				`## On-demand rules (message history tools):\n${sections.join("\n\n")}`
+				`## Persisted LoreSmith chat\n${MESSAGE_HISTORY_CAPABILITY_RULE}`
 			);
+			if (ambiguousReference || historyResearch) {
+				const sections: string[] = [];
+				if (ambiguousReference) {
+					sections.push(MESSAGE_HISTORY_REFERENCE_RULE);
+				}
+				if (historyResearch) {
+					sections.push(MESSAGE_HISTORY_RESEARCH_RULE);
+				}
+				supplementalSystemContext.push(
+					`## On-demand rules (message history):\n${sections.join("\n\n")}`
+				);
+			}
 		}
 
 		log.debug("Built minimal message context", {
