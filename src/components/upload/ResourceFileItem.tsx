@@ -3,6 +3,7 @@ import { FileStatusIndicator } from "@/components/upload/FileStatusIndicator";
 import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 import { cn } from "@/lib/utils";
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
@@ -49,6 +50,14 @@ export function ResourceFileItem({
 		file.file_name || file.display_name || ""
 	);
 
+	const libraryDiscoveryInFlight = isLibraryEntityDiscoveryInFlight(
+		file.library_entity_discovery_status
+	);
+	const statusForDisplayProgress =
+		file.status === FileDAO.STATUS.COMPLETED && libraryDiscoveryInFlight
+			? FileDAO.STATUS.INDEXING
+			: file.status;
+
 	const progressPercentage = (() => {
 		// Check for campaign addition progress first
 		if (typeof campaignProgress === "number") {
@@ -61,7 +70,7 @@ export function ResourceFileItem({
 		}
 
 		// Progress based on status
-		switch (file.status) {
+		switch (statusForDisplayProgress) {
 			case FileDAO.STATUS.UPLOADING:
 				return 20;
 			case FileDAO.STATUS.UPLOADED:
@@ -147,6 +156,9 @@ export function ResourceFileItem({
 							<FileStatusIndicator
 								tenant={AuthService.getUsernameFromStoredJwt()!}
 								initialStatus={file.status}
+								libraryEntityDiscoveryStatus={
+									file.library_entity_discovery_status
+								}
 								fileKey={file.file_key}
 								fileName={file.file_name}
 								fileSize={file.file_size}

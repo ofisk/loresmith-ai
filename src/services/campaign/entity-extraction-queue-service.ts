@@ -17,6 +17,7 @@ import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { stageEntitiesFromResource } from "./entity-staging-service";
+import { tryCopyLibraryEntitiesToCampaign } from "./library-entity-copy-to-campaign-service";
 
 export interface EntityExtractionJobOptions {
 	env: Env;
@@ -182,10 +183,6 @@ export class EntityExtractionQueueService {
 
 		for (const item of queueItems) {
 			try {
-				// Mark as processing
-				await queueDAO.markAsProcessing(item.id);
-				const runStartedAt = Date.now();
-
 				// Get campaign details
 				const campaign =
 					await daoFactory.campaignDAO.getCampaignByIdWithMapping(
@@ -210,6 +207,32 @@ export class EntityExtractionQueueService {
 						`Resource not found: ${item.resource_id} in campaign ${item.campaign_id}`
 					);
 				}
+
+				// If library discovery finished after this was queued, copy and skip duplicate LLM extraction
+				if (item.file_key) {
+					const copied = await tryCopyLibraryEntitiesToCampaign({
+						env,
+						username: item.username,
+						campaignId: item.campaign_id,
+						campaignName: campaign.name,
+						resourceId: item.resource_id,
+						fileKey: item.file_key,
+						fileName: resource.file_name ?? item.resource_name,
+						attribution:
+							item.proposed_by != null
+								? { proposedBy: item.proposed_by, approvedBy: item.username }
+								: undefined,
+					});
+					if (copied) {
+						await queueDAO.markAsCompleted(item.id);
+						processed++;
+						continue;
+					}
+				}
+
+				// Mark as processing
+				await queueDAO.markAsProcessing(item.id);
+				const runStartedAt = Date.now();
 
 				const providerKeyEnvVar =
 					MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"

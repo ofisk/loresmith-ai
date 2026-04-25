@@ -13,6 +13,7 @@ import {
 	estimateProcessingTime,
 	formatProcessingTime,
 } from "@/lib/file/processing-time-estimator";
+import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 
 interface FileStatusIndicatorProps {
 	className?: string;
@@ -29,6 +30,8 @@ interface FileStatusIndicatorProps {
 	retryLimitDisabled?: boolean;
 	/** Tooltip text when retry is disabled due to limit */
 	retryLimitTooltip?: string;
+	/** When RAG is `completed` but library entity discovery is still running, show as processing */
+	libraryEntityDiscoveryStatus?: string | null;
 }
 
 export function FileStatusIndicator({
@@ -44,6 +47,7 @@ export function FileStatusIndicator({
 	onRetry,
 	retryLimitDisabled = false,
 	retryLimitTooltip,
+	libraryEntityDiscoveryStatus,
 }: FileStatusIndicatorProps) {
 	// No local error timeout; rely on SSE-driven updates and server state
 
@@ -152,8 +156,13 @@ export function FileStatusIndicator({
 	// Get current status - use initialStatus if it exists in statusConfig, otherwise default to PROCESSING
 	let currentStatus: keyof typeof statusConfig;
 
-	// Check if initialStatus is a valid key in statusConfig
-	if (initialStatus && initialStatus in statusConfig) {
+	// RAG can be "completed" while library entity + shard discovery is still running
+	if (
+		initialStatus === FILE_UPLOAD_STATUS.COMPLETED &&
+		isLibraryEntityDiscoveryInFlight(libraryEntityDiscoveryStatus)
+	) {
+		currentStatus = FILE_UPLOAD_STATUS.PROCESSING;
+	} else if (initialStatus && initialStatus in statusConfig) {
 		currentStatus = initialStatus as keyof typeof statusConfig;
 	} else if (initialStatus === "failed") {
 		// Handle legacy "failed" status
