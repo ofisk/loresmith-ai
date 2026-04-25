@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/app-constants";
 import { FileDAO } from "@/dao";
+import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 import { parseTags } from "@/lib/resource-tags";
 import {
 	authenticatedFetchWithExpiration,
@@ -187,7 +188,13 @@ export function useResourceFiles(
 	}, [fetchResourceCampaigns, campaigns]);
 
 	const processingCount = useMemo(
-		() => files.filter((f) => PROCESSING_STATUSES.has(f.status)).length,
+		() =>
+			files.filter(
+				(f) =>
+					PROCESSING_STATUSES.has(f.status) ||
+					(f.status === FileDAO.STATUS.COMPLETED &&
+						isLibraryEntityDiscoveryInFlight(f.library_entity_discovery_status))
+			).length,
 		[files]
 	);
 

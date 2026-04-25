@@ -1,6 +1,8 @@
 import type { Context } from "hono";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
+import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import {
 	addResourceToCampaign,
 	checkResourceExists,
@@ -9,6 +11,7 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
+import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 import { getRequestLogger } from "@/lib/logger";
 import {
 	notifyProposalApproved,
@@ -285,6 +288,38 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 				},
 				429
 			);
+		}
+
+		const fileRecord = await daoFactory.fileDAO.getFileForRag(
+			proposal.file_key,
+			userAuth.username
+		);
+		if (!fileRecord) {
+			return c.json({ error: "File not found in library" }, 404);
+		}
+		if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
+			return c.json(
+				{
+					error: "File is not yet indexed",
+					status: fileRecord.status,
+				},
+				400
+			);
+		}
+		const libEntityDao = new LibraryEntityDAO(c.env.DB);
+		if (await libEntityDao.isSchemaReady()) {
+			const discovery = await libEntityDao.getDiscovery(proposal.file_key);
+			if (discovery && isLibraryEntityDiscoveryInFlight(discovery.status)) {
+				return c.json(
+					{
+						error:
+							"Entity indexing is still in progress. Try again when the library shows ready.",
+						code: "LIBRARY_DISCOVERY_IN_PROGRESS",
+						libraryEntityDiscoveryStatus: discovery.status,
+					},
+					409
+				);
+			}
 		}
 
 		const resourceId = crypto.randomUUID();

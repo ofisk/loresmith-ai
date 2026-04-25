@@ -273,6 +273,31 @@ export function useCampaignAddition(
 								// Fall through to throw
 							}
 						}
+						if (response.status === 409) {
+							try {
+								const errBody = JSON.parse(errorText) as {
+									code?: string;
+									error?: string;
+								};
+								if (errBody.code === "LIBRARY_DISCOVERY_IN_PROGRESS") {
+									addLocalNotification(
+										NOTIFICATION_TYPES.ERROR,
+										"File not ready",
+										errBody.error ??
+											"Entity indexing is still in progress. Try again when the library shows ready."
+									);
+									setCampaignAdditionProgress((prev) => {
+										const next = { ...prev };
+										delete next[fileKey];
+										return next;
+									});
+									setIsAddingToCampaigns(false);
+									return;
+								}
+							} catch {
+								// fall through
+							}
+						}
 						const { parseErrorResponse, formatErrorForNotification } =
 							await import("@/lib/error-parsing");
 						const parsedError = parseErrorResponse(errorText, response.status);

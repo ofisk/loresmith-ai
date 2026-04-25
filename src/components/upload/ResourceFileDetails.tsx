@@ -4,6 +4,10 @@ import { Button } from "@/components/button/Button";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import {
+	isFileReadyForCampaignAdd,
+	isLibraryEntityDiscoveryInFlight,
+} from "@/lib/library-entity-pipeline";
 import type { Campaign } from "@/types/campaign";
 
 const LIBRARY_DISCOVERY_LABEL: Record<string, string> = {
@@ -42,6 +46,7 @@ export function ResourceFileDetails({
 	retryLimitDisabled = false,
 	retryLimitTooltip,
 }: ResourceFileDetailsProps) {
+	const canAddToCampaign = isFileReadyForCampaignAdd(file);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const handleRetryIndexing = async () => {
 		await onRetryIndexing(file.file_key);
@@ -271,11 +276,15 @@ export function ResourceFileDetails({
 						variant="secondary"
 						size="sm"
 						className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
-						disabled={file.status !== FileDAO.STATUS.COMPLETED}
+						disabled={!canAddToCampaign}
 					>
-						{file.status === FileDAO.STATUS.COMPLETED
+						{canAddToCampaign
 							? "Add to campaign"
-							: "File Not Ready"}
+							: isLibraryEntityDiscoveryInFlight(
+										file.library_entity_discovery_status
+									)
+								? "Indexing entities…"
+								: "File not ready"}
 					</Button>
 				)}
 				<Button

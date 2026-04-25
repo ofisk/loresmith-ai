@@ -4,6 +4,7 @@ import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
+import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import {
 	buildBulkDeletionResponse,
 	buildCampaignCreationResponse,
@@ -26,6 +27,7 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
+import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 import { getRequestLogger } from "@/lib/logger";
 import {
 	getBlockedExtensionsDescription,
@@ -684,6 +686,22 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 				},
 				400
 			);
+		}
+
+		const libEntityDao = new LibraryEntityDAO(c.env.DB);
+		if (await libEntityDao.isSchemaReady()) {
+			const discovery = await libEntityDao.getDiscovery(id);
+			if (discovery && isLibraryEntityDiscoveryInFlight(discovery.status)) {
+				return c.json(
+					{
+						error:
+							"Entity indexing is still in progress. Try again when the library shows ready.",
+						code: "LIBRARY_DISCOVERY_IN_PROGRESS",
+						libraryEntityDiscoveryStatus: discovery.status,
+					},
+					409
+				);
+			}
 		}
 
 		log.debug(
