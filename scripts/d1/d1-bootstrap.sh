@@ -1,12 +1,12 @@
 #!/bin/bash
 # One-time D1 bootstrap: creates base schema (tables, indexes, view, triggers).
 # Run before wrangler d1 migrations apply on a fresh database.
-# Usage: ./scripts/d1-bootstrap.sh [local|dev|prod]
+# Usage: ./scripts/d1/d1-bootstrap.sh [local|dev|prod]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV="${1:-dev}"

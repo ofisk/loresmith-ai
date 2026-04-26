@@ -7,7 +7,10 @@ set -e
 
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+cd "$ROOT_DIR"
 
 check_wrangler
 
@@ -23,7 +26,7 @@ echo "🔄 Starting production data clearing process..."
 
 # Step 1: Run the database migration to clear all data
 echo "📊 Clearing database data..."
-if ! wrangler d1 execute "$DB_NAME" --file=./scripts/clear_production_data.sql --remote; then
+if ! wrangler d1 execute "$DB_NAME" --file=./scripts/maintenance/clear_production_data.sql --remote; then
     echo "❌ Failed to clear database data"
     exit 1
 fi
@@ -32,10 +35,10 @@ echo "✅ Database data cleared successfully"
 # Step 2: Clear R2 storage files
 echo ""
 echo "🗂️  Clearing R2 storage files..."
-if [ -f "./scripts/clear-r2.js" ]; then
-    node ./scripts/clear-r2.js || echo "⚠️  R2 cleanup script failed or requires credentials"
-elif [ -f "./scripts/clear-r2-simple.sh" ]; then
-    ./scripts/clear-r2-simple.sh || echo "⚠️  R2 cleanup script failed or requires credentials"
+if [ -f "./scripts/storage/clear-r2.js" ]; then
+    node ./scripts/storage/clear-r2.js || echo "⚠️  R2 cleanup script failed or requires credentials"
+elif [ -f "./scripts/storage/clear-r2-simple.sh" ]; then
+    ./scripts/storage/clear-r2-simple.sh || echo "⚠️  R2 cleanup script failed or requires credentials"
 else
     echo "⚠️  R2 cleanup script not found, skipping R2 cleanup"
 fi

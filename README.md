@@ -90,7 +90,7 @@ cp .dev.vars.template .dev.vars
 # Edit .dev.vars with your credentials
 
 # Set up local database
-./scripts/migrate-local.sh
+./scripts/dev/migrate-local.sh
 
 # Build frontend (first time only)
 npm run build

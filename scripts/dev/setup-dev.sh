@@ -6,7 +6,7 @@
 set -e
 
 # Source common utilities
-source "$(dirname "$0")/common.sh"
+source "$(dirname "$0")/../lib/common.sh"
 
 echo "🚀 Setting up LoreSmith AI Development Environment"
 echo "=================================================="

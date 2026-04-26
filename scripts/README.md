@@ -1,8 +1,25 @@
-# Cloudflare Infrastructure Recreation Scripts
+# Scripts
 
-This directory contains scripts for managing Cloudflare infrastructure for the LoreSmith AI project.
+Repo automation and operational helpers for LoreSmith AI. Run shell scripts from the **repository root** unless noted.
+
+## Layout
+
+| Directory | Purpose |
+|-----------|---------|
+| `lib/` | Shared shell helpers (`common.sh`, embedding dimension probe) |
+| `d1/` | D1 bootstrap, migrations wrapper, resilient apply, explain audit, table counts |
+| `dev/` | Local dev setup, validation, `migrate-local.sh`, import standardizer |
+| `build/` | Vite debug build, ensure `dist/client` before Wrangler dev |
+| `check/` | Import path checks (`check-import-paths.mjs`) |
+| `skills/` | `postinstall` skills installer |
+| `wiki/` | Sync `docs/` to GitHub Wiki |
+| `storage/` | R2 clear utilities |
+| `e2e/` | Playwright / E2E D1 bootstrap and seed |
+| `maintenance/` | Production reset, clean slate, infrastructure recreation, Vectorize |
 
 ## recreate-infrastructure.sh
+
+**Path:** `maintenance/recreate-infrastructure.sh`. Full teardown and recreation of Cloudflare resources, plus related database and wiki notes below.
 
 A comprehensive script that tears down and recreates all Cloudflare infrastructure including:
 
@@ -17,10 +34,10 @@ A comprehensive script that tears down and recreates all Cloudflare infrastructu
 
 ```bash
 # Interactive mode (will prompt for confirmation)
-./scripts/recreate-infrastructure.sh
+./scripts/maintenance/recreate-infrastructure.sh
 
 # Non-interactive mode (auto-confirms)
-yes | ./scripts/recreate-infrastructure.sh
+yes | ./scripts/maintenance/recreate-infrastructure.sh
 ```
 
 ### Prerequisites
@@ -182,13 +199,13 @@ The project uses a migration system for database schema changes:
 
 ```bash
 # Run all migrations (production)
-./scripts/migrate.sh
+./scripts/d1/migrate.sh
 
 # Run all migrations (local development)
-./scripts/migrate-local.sh  # Wrapper that calls migrate.sh local
+./scripts/dev/migrate-local.sh  # Wrapper that calls migrate.sh local
 # Or use directly:
-./scripts/migrate.sh local
-./scripts/migrate.sh production
+./scripts/d1/migrate.sh local
+./scripts/d1/migrate.sh production
 ```
 
 #### Migration Files
@@ -207,7 +224,7 @@ The project uses a migration system for database schema changes:
 
 ### Wiki Sync Script
 
-**`sync-docs-to-wiki.sh` / `sync-docs-to-wiki.js`**
+**`wiki/sync-docs-to-wiki.sh` / `wiki/sync-docs-to-wiki.js`**
 
 Sync documentation files from the `docs/` directory to the GitHub Wiki.
 
@@ -227,10 +244,10 @@ npm run wiki:sync
 npm run wiki:sync:dry-run
 
 # Using bash script directly
-./scripts/sync-docs-to-wiki.sh
+./scripts/wiki/sync-docs-to-wiki.sh
 
 # Using Node.js script directly
-node scripts/sync-docs-to-wiki.js [--dry-run]
+node scripts/wiki/sync-docs-to-wiki.js [--dry-run]
 ```
 
 **What it does:**

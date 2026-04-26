@@ -3,7 +3,7 @@
 # Default wrangler.e2e.jsonc (no remote bindings — CI has no Cloudflare API token).
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 export E2E_WRANGLER_CONFIG="${E2E_WRANGLER_CONFIG:-wrangler.e2e.jsonc}"
@@ -15,7 +15,7 @@ rm -rf "$ROOT_DIR/.wrangler/state"
 
 echo "[e2e-db] Running D1 bootstrap (local)..."
 npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
-  --file="$SCRIPT_DIR/d1-bootstrap.sql"
+  --file="$SCRIPT_DIR/../d1/d1-bootstrap.sql"
 
 echo "[e2e-db] Running D1 migrations (local)..."
 for f in migrations/*.sql; do
@@ -26,7 +26,7 @@ done
 
 if [ "$E2E_SEED_USER" = "1" ]; then
   echo "[e2e-db] Seeding E2E user..."
-  E2E_SEED_USER=1 npx tsx scripts/seed-e2e-user.ts
+  E2E_SEED_USER=1 npx tsx scripts/e2e/seed-e2e-user.ts
 
   echo "[e2e-db] Cleaning E2E user data for fresh test state..."
   npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \

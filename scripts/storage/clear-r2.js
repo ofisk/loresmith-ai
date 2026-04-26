@@ -6,7 +6,7 @@
  * This script uses the Cloudflare API to delete all objects in an R2 bucket.
  *
  * Usage:
- *   node scripts/clear-r2.js [--dry-run] [--bucket-name <name>]
+ *   node scripts/storage/clear-r2.js [--dry-run] [--bucket-name <name>]
  *
  * Environment Variables:
  *   CLOUDFLARE_API_TOKEN: Cloudflare API token with R2 read/write permissions

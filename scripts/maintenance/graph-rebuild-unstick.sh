@@ -4,7 +4,7 @@
 # Usage:
 #   export LORESMITH_JWT="eyJ..."   # Browser: localStorage key "loresmith-jwt" (while logged in)
 #   export LORESMITH_CAMPAIGN_ID="uuid"
-#   ./scripts/graph-rebuild-unstick.sh
+#   ./scripts/maintenance/graph-rebuild-unstick.sh
 #
 # Optional:
 #   LORESMITH_API_BASE   default https://loresmith.ai

@@ -5,14 +5,14 @@
 # For production recovery when a migration must be skipped, use:
 #   npm run migrate:prod:apply:resilient
 #
-# Usage: ./scripts/migrate.sh [local|production]
+# Usage: ./scripts/d1/migrate.sh [local|production]
 
 set -e
 
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-source "$SCRIPT_DIR/common.sh"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
 
 ENVIRONMENT="${1:-local}"
 

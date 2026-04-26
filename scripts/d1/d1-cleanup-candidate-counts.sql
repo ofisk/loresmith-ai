@@ -1,15 +1,15 @@
 -- One row, one column per table: row counts (scalar subqueries; no compound UNION).
 -- Run against your D1 (e.g. dev or prod) after you are logged in to Wrangler, or with CLOUDFLARE_API_TOKEN.
 --
--- Run via scripts/run-d1-table-counts.sh, or with --file inlined as --command (see script).
+-- Run via scripts/d1/run-d1-table-counts.sh, or with --file inlined as --command (see script).
 -- Wrangler often omits the result row for --file; the script uses --command so you see counts.
--- Dev:  ./scripts/run-d1-table-counts.sh
--- Prod: ./scripts/run-d1-table-counts.sh loresmith-db wrangler.jsonc
+-- Dev:  ./scripts/d1/run-d1-table-counts.sh
+-- Prod: ./scripts/d1/run-d1-table-counts.sh loresmith-db wrangler.jsonc
 --
 -- If a subquery errors with "no such table", that table is missing from this database (or typo).
 -- file_metadata_fts* FTS5 shadow tables are NOT included here: many D1s never created the
---   virtual table (file search still uses file_metadata). See scripts/d1-fts-shadow-counts.sql
--- If sqlite_sequence is missing, see scripts/d1-legacy-optional-counts.sql
+--   virtual table (file search still uses file_metadata). See scripts/d1/d1-fts-shadow-counts.sql
+-- If sqlite_sequence is missing, see scripts/d1/d1-legacy-optional-counts.sql
 SELECT
   (SELECT COUNT(*) FROM campaign_characters) AS campaign_characters,
   (SELECT COUNT(*) FROM campaign_checklist_status) AS campaign_checklist_status,

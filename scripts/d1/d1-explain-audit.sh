@@ -1,13 +1,13 @@
 #!/bin/bash
 # Run EXPLAIN QUERY PLAN on hot D1 query paths (issue #490).
-# Usage: ./scripts/d1-explain-audit.sh [dev|local|prod]
+# Usage: ./scripts/d1/d1-explain-audit.sh [dev|local|prod]
 # Output: docs/database/explain-results.md
 # Requires: migrations 0014 and 0015 applied (for performance indexes). Run npm run migrate:dev first.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCS_DIR="$ROOT_DIR/docs/database"
 OUTPUT="$DOCS_DIR/explain-results.md"
 

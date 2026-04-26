@@ -44,13 +44,13 @@ npm run wiki:sync:dry-run
 
 ```bash
 # Using the Node.js script (cross-platform)
-node scripts/sync-docs-to-wiki.js
+node scripts/wiki/sync-docs-to-wiki.js
 
 # Using the bash script (Unix/macOS/Linux)
-./scripts/sync-docs-to-wiki.sh
+./scripts/wiki/sync-docs-to-wiki.sh
 
 # Dry run to preview changes
-node scripts/sync-docs-to-wiki.js --dry-run
+node scripts/wiki/sync-docs-to-wiki.js --dry-run
 ```
 
 ## What Gets Synced

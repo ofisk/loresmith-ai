@@ -7,7 +7,7 @@
  * and pushes changes back to GitHub.
  *
  * Usage:
- *   node scripts/sync-docs-to-wiki.js [--dry-run] [--wiki-url <url>]
+ *   node scripts/wiki/sync-docs-to-wiki.js [--dry-run] [--wiki-url <url>]
  *
  * Environment Variables:
  *   GITHUB_TOKEN: Personal access token with repo scope (optional, uses git auth if not set)

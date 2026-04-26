@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Common utilities and constants for LoreSmith AI scripts
-# Source this file in other scripts: source ./scripts/common.sh
+# Source this file in other scripts: source ./scripts/lib/common.sh
 
 # =============================================================================
 # Constants

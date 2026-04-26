@@ -7,14 +7,14 @@
 # Safety: set CONFIRM_DROP_UNREFERENCED_D1_TABLES=1
 #
 # Usage (production):
-#   CONFIRM_DROP_UNREFERENCED_D1_TABLES=1 ./scripts/d1-one-time-apply-prod-drop-dead-tables.sh
+#   CONFIRM_DROP_UNREFERENCED_D1_TABLES=1 ./scripts/d1/d1-one-time-apply-prod-drop-dead-tables.sh
 #
 # Remote dev (same migration file):
-#   CONFIRM_DROP_UNREFERENCED_D1_TABLES=1 ./scripts/d1-one-time-apply-prod-drop-dead-tables.sh loresmith-db-dev wrangler.local.jsonc
+#   CONFIRM_DROP_UNREFERENCED_D1_TABLES=1 ./scripts/d1/d1-one-time-apply-prod-drop-dead-tables.sh loresmith-db-dev wrangler.local.jsonc
 #
 # For preview D1, add --preview to the wrangler command in this file or run npm run migrate:* locally.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 if [[ -z "${CONFIRM_DROP_UNREFERENCED_D1_TABLES:-}" ]]; then
 	echo "Set CONFIRM_DROP_UNREFERENCED_D1_TABLES=1 after reviewing migrations/0021_drop_unreferenced_d1_tables.sql" >&2

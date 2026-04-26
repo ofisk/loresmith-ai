@@ -12,7 +12,7 @@ There is **no** separate GitHub Actions `deploy.yml` for production—Cloudflare
 
 **Prerequisites:**
 - Create `loresmith-db-dev` with `wrangler d1 create loresmith-db-dev` (or use `wrangler d1 list` to get the ID if it already exists), then update `wrangler.dev.jsonc` with the database ID.
-- Create dev queues (Cloudflare Queues allow only one consumer per queue, so dev needs its own): `wrangler queues create upload-events-dev`, `wrangler queues create file-processing-dlq-dev`, `wrangler queues create graph-rebuild-dlq-dev`, `wrangler queues create shard-embedding-dlq-dev`. Or run `./scripts/setup-dev.sh` which creates these.
+- Create dev queues (Cloudflare Queues allow only one consumer per queue, so dev needs its own): `wrangler queues create upload-events-dev`, `wrangler queues create file-processing-dlq-dev`, `wrangler queues create graph-rebuild-dlq-dev`, `wrangler queues create shard-embedding-dlq-dev`. Or run `./scripts/dev/setup-dev.sh` which creates these.
 - For production, ensure DLQ queues exist: `wrangler queues create graph-rebuild-dlq` and `wrangler queues create shard-embedding-dlq` (file-processing-dlq is created with main queues).
 - For a fresh dev database, run `npm run migrate:bootstrap:dev` once, then `npm run migrate:dev` to apply incremental migrations. `npm run deploy:dev` runs bootstrap before migrations for dev.
 

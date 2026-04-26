@@ -1,7 +1,7 @@
 /**
  * Codemod: convert cross-directory relative imports (../) to @/ aliases.
  * Same-directory imports (./) are left unchanged.
- * Run from project root: node scripts/standardize-imports.mjs
+ * Run from project root: node scripts/dev/standardize-imports.mjs
  */
 import fs from "node:fs";
 import path from "node:path";

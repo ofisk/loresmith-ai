@@ -7,7 +7,10 @@ set -e
 
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+cd "$ROOT_DIR"
 
 ENVIRONMENT="${1:-local}"  # 'local' or 'production'
 
@@ -36,7 +39,7 @@ echo "🔄 Starting $ENV_LABEL database reset process..."
 
 # Step 1: Drop all tables
 echo "📊 Dropping all existing tables..."
-wrangler d1 execute "$DB_NAME" --file=./scripts/reset-to-clean-slate.sql $REMOTE_FLAG || {
+wrangler d1 execute "$DB_NAME" --file=./scripts/maintenance/reset-to-clean-slate.sql $REMOTE_FLAG || {
     echo "⚠️  Some tables may not have existed (this is OK if database is already empty)"
 }
 
@@ -54,10 +57,10 @@ echo "✅ Clean slate migration applied successfully"
 if [ "$ENVIRONMENT" == "production" ]; then
     echo ""
     echo "🗂️  Clearing R2 storage files..."
-    if [ -f "./scripts/clear-r2.js" ]; then
-        node ./scripts/clear-r2.js || echo "⚠️  R2 cleanup script failed or requires credentials"
-    elif [ -f "./scripts/clear-r2-simple.sh" ]; then
-        ./scripts/clear-r2-simple.sh || echo "⚠️  R2 cleanup script failed or requires credentials"
+    if [ -f "./scripts/storage/clear-r2.js" ]; then
+        node ./scripts/storage/clear-r2.js || echo "⚠️  R2 cleanup script failed or requires credentials"
+    elif [ -f "./scripts/storage/clear-r2-simple.sh" ]; then
+        ./scripts/storage/clear-r2-simple.sh || echo "⚠️  R2 cleanup script failed or requires credentials"
     else
         echo "⚠️  R2 cleanup script not found, skipping R2 cleanup"
     fi

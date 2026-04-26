@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Script to reset specific Cloudflare resources without full recreation
-# Usage: ./scripts/reset-specific-resource.sh [worker|queues|d1|r2|vectorize|all]
+# Usage: ./scripts/maintenance/reset-specific-resource.sh [worker|queues|d1|r2|vectorize|all]
 
 RESOURCE="${1:-all}"
 read -p "Enter your Cloudflare Account ID: " ACCOUNT_ID

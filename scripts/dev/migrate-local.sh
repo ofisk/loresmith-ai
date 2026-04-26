@@ -4,5 +4,5 @@
 # This calls the unified migrate.sh script with 'local' argument
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$SCRIPT_DIR/migrate.sh" local
+exec "$SCRIPT_DIR/../d1/migrate.sh" local
 

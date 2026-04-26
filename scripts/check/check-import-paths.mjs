@@ -1,13 +1,13 @@
 /**
  * CI check: fail if src/ contains cross-directory relative imports (../).
- * Use @/ aliases instead. Run: node scripts/check-import-paths.mjs
+ * Use @/ aliases instead. Run: node scripts/check/check-import-paths.mjs
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "../..");
 const SRC = path.join(ROOT, "src");
 
 const REL_IMPORT_RE = /from\s+["']\.\.\//;

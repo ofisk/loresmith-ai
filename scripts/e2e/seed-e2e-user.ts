@@ -1,6 +1,6 @@
 /**
  * Seed E2E test user for Playwright tests.
- * Run with: E2E_SEED_USER=1 npx tsx scripts/seed-e2e-user.ts
+ * Run with: E2E_SEED_USER=1 npx tsx scripts/e2e/seed-e2e-user.ts
  * Or call from e2e-db-setup.sh when E2E_SEED_USER=1
  */
 import { execSync } from "node:child_process";

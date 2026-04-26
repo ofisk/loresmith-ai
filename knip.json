@@ -14,7 +14,7 @@
 		"tests/**/*.test.{ts,tsx}",
 		"tests/**/*.spec.{ts,tsx}",
 		"src/**/*.stories.{ts,tsx}",
-		"scripts/postinstall-skills.mjs"
+		"scripts/skills/postinstall-skills.mjs"
 	],
 	"project": [
 		"{src,tests,scripts}/**/*.{ts,tsx,js,mjs,cjs}",

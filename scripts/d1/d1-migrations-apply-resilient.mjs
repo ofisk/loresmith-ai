@@ -16,8 +16,8 @@
  * - Inspect failures and fix SQL or repair the DB before re-running.
  *
  * Usage:
- *   node scripts/d1-migrations-apply-resilient.mjs --config wrangler.jsonc --database loresmith-db --remote
- *   node scripts/d1-migrations-apply-resilient.mjs --config wrangler.local.jsonc --database loresmith-db-dev --local
+ *   node scripts/d1/d1-migrations-apply-resilient.mjs --config wrangler.jsonc --database loresmith-db --remote
+ *   node scripts/d1/d1-migrations-apply-resilient.mjs --config wrangler.local.jsonc --database loresmith-db-dev --local
  */
 
 import { spawnSync } from "node:child_process";
@@ -26,7 +26,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const ROOT = resolve(__dirname, "..");
+const ROOT = resolve(__dirname, "../..");
 const DEFAULT_MIGRATIONS_DIR = join(ROOT, "migrations");
 
 function parseArgs(argv) {
@@ -50,7 +50,7 @@ function parseArgs(argv) {
 		else if (a === "--migrations-dir" && argv[i + 1])
 			out.migrationsDir = resolve(ROOT, argv[++i]);
 		else if (a === "-h" || a === "--help") {
-			console.log(`Usage: node scripts/d1-migrations-apply-resilient.mjs \\
+			console.log(`Usage: node scripts/d1/d1-migrations-apply-resilient.mjs \\
   [--config wrangler.jsonc] [--database loresmith-db] [--remote|--local|--preview] \\
   [--migrations-dir migrations] [--dry-run]`);
 			process.exit(0);

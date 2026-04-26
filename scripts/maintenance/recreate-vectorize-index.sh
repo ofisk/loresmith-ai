@@ -1,7 +1,7 @@
 #!/bin/bash
 # Recreate Vectorize index with correct dimensions (from OpenAIEmbeddingService.EXPECTED_DIMENSIONS)
 
-source "$(dirname "$0")/common.sh"
+source "$(dirname "$0")/../lib/common.sh"
 
 ENVIRONMENT="${1:-production}"
 REMOTE_FLAG=""
