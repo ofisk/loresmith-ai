@@ -1,0 +1,47 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": [
+		"index.html",
+		"src/client.tsx",
+		"src/server.ts",
+		"vite.config.ts",
+		"vite.storybook.config.ts",
+		"vitest.config.ts",
+		"playwright.config.ts",
+		".storybook/main.ts",
+		".storybook/preview.tsx",
+		"tests/setup.ts",
+		"tests/**/*.test.{ts,tsx}",
+		"tests/**/*.spec.{ts,tsx}",
+		"src/**/*.stories.{ts,tsx}",
+		"scripts/postinstall-skills.mjs"
+	],
+	"project": [
+		"{src,tests,scripts}/**/*.{ts,tsx,js,mjs,cjs}",
+		".storybook/**/*.{ts,tsx,js,mjs,cjs}"
+	],
+	"ignore": [
+		"scripts/**",
+		"tests/e2e/**",
+		"migrations/**",
+		"docs/**",
+		".claude/**",
+		"src/node-polyfills.ts",
+		"src/lib/feature-flags.ts",
+		"src/lib/feature-flags-react.ts",
+		"src/durable-objects/notification-hub.ts"
+	],
+	"ignoreDependencies": [
+		"storybook",
+		"tailwindcss",
+		"@storybook/react",
+		"@storybook/manager-api",
+		"@storybook/theming",
+		"@storybook/test",
+		"@cloudflare/vitest-pool-workers",
+		"@types/bcryptjs",
+		"@types/cytoscape",
+		"cloudflare:workers"
+	],
+	"ignoreBinaries": ["biome", "playwright", "rimraf", "wrangler"]
+}

@@ -41,7 +41,7 @@ check_wrangler
 
 cd "$ROOT_DIR"
 # -y: non-interactive (CI); Cloudflare records applied migrations and rolls back a failed migration batch.
-npx wrangler d1 migrations apply "$DB_NAME" --config "$CONFIG" $REMOTE_FLAG -y
+npx wrangler d1 migrations apply "$DB_NAME" --config "$CONFIG" $REMOTE_FLAG
 
 echo ""
 echo "📋 Current database tables:"

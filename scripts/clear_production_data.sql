@@ -4,9 +4,6 @@
 -- Clear all data from all existing tables (in dependency order to avoid foreign key constraints)
 
 
--- Clear campaign context chunks data
-delete from campaign_context_chunks;
-
 -- Clear campaign characters data
 delete from campaign_characters;
 

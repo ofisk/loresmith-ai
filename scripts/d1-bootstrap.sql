@@ -376,27 +376,6 @@ CREATE TABLE IF NOT EXISTS campaign_characters (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- Create campaign planning sessions table
-CREATE TABLE IF NOT EXISTS campaign_planning_sessions (
-  id text primary key,
-  campaign_id text not null,
-  session_type text not null,
-  session_data text not null, -- json string containing session info
-  created_at datetime default current_timestamp,
-  foreign key (campaign_id) references campaigns(id) on delete cascade
-);
-
--- Create campaign context chunks table
-CREATE TABLE IF NOT EXISTS campaign_context_chunks (
-  id text primary key,
-  context_id text not null,
-  chunk_text text not null,
-  chunk_index integer not null,
-  embedding_id text, -- vectorize id (nullable for now)
-  created_at datetime default current_timestamp,
-  foreign key (context_id) references campaign_context(id) on delete cascade
-);
-
 -- Create character sheets table
 CREATE TABLE IF NOT EXISTS character_sheets (
   id text primary key,
@@ -579,17 +558,6 @@ CREATE TABLE IF NOT EXISTS user_openai_keys (
   api_key text not null,
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp
-);
-
--- Create user notifications table
-CREATE TABLE IF NOT EXISTS user_notifications (
-  id text primary key,
-  username text not null,
-  notification_type text not null,
-  title text not null,
-  message text not null,
-  is_read boolean default false,
-  created_at datetime default current_timestamp
 );
 
 -- One-time indexing credits (0009) - extends free-tier monthly token cap

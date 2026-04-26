@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolResult } from "../../src/shared";
+import type { ToolResult } from "@/app-constants";
 
 // Mock the character sheet tools module
 vi.mock("../../src/tools/character-sheet/upload-tools", () => ({
