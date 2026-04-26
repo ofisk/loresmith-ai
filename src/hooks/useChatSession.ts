@@ -691,65 +691,49 @@ export function useChatSession(options: UseChatSessionOptions) {
 		return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 	}, []);
 
+	const submitAgentMessage = useCallback(() => {
+		if (!(agentInput ?? "").trim()) return;
+
+		updateActivity();
+
+		const jwt = authState.getStoredJwt();
+
+		append({
+			role: "user",
+			content: agentInput ?? "",
+			data: jwt
+				? { jwt, campaignId: selectedCampaignId ?? null }
+				: { campaignId: selectedCampaignId ?? null },
+		});
+		setInput("");
+		setTextareaHeight("auto");
+		scrollToBottom();
+	}, [
+		agentInput,
+		updateActivity,
+		authState.getStoredJwt,
+		selectedCampaignId,
+		append,
+		setTextareaHeight,
+		scrollToBottom,
+	]);
+
 	const handleFormSubmit = useCallback(
 		(e: React.FormEvent) => {
 			e.preventDefault();
-			if (!(agentInput ?? "").trim()) return;
-
-			updateActivity();
-
-			const jwt = authState.getStoredJwt();
-
-			append({
-				role: "user",
-				content: agentInput ?? "",
-				data: jwt
-					? { jwt, campaignId: selectedCampaignId ?? null }
-					: { campaignId: selectedCampaignId ?? null },
-			});
-			setInput("");
-			setTextareaHeight("auto");
-			scrollToBottom();
+			submitAgentMessage();
 		},
-		[
-			agentInput,
-			updateActivity,
-			authState.getStoredJwt,
-			selectedCampaignId,
-			append,
-			setTextareaHeight,
-			scrollToBottom,
-		]
+		[submitAgentMessage]
 	);
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
 			if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
 				e.preventDefault();
-				if (!(agentInput ?? "").trim()) return;
-
-				const jwt = authState.getStoredJwt();
-
-				append({
-					role: "user",
-					content: agentInput ?? "",
-					data: jwt
-						? { jwt, campaignId: selectedCampaignId ?? null }
-						: { campaignId: selectedCampaignId ?? null },
-				});
-				setInput("");
-				setTextareaHeight("auto");
-				scrollToBottom();
+				submitAgentMessage();
 			}
 		},
-		[
-			agentInput,
-			authState.getStoredJwt,
-			selectedCampaignId,
-			append,
-			setTextareaHeight,
-			scrollToBottom,
-		]
+		[submitAgentMessage]
 	);
 
 	return {

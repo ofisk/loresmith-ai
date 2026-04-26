@@ -4,6 +4,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { getRequestLogger } from "@/lib/logger";
+import { getValidatedJsonBody, getValidatedQuery } from "@/lib/route-utils";
 import type { Env } from "@/routes/env";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -50,17 +51,6 @@ function getOrigin(env: Env, req?: Request): string {
 }
 
 type ContextWithAuth = Context<{ Bindings: Env }>;
-
-function getBody<T>(c: ContextWithAuth): Promise<T> {
-	const req = c.req as { valid?: (k: string) => unknown };
-	const v = req.valid?.("json");
-	return v ? Promise.resolve(v as T) : c.req.json();
-}
-
-function getQuery<T>(c: ContextWithAuth): T {
-	const req = c.req as { valid?: (k: string) => unknown };
-	return (req.valid?.("query") ?? {}) as T;
-}
 
 function getUserAuth(
 	c: ContextWithAuth
@@ -261,7 +251,7 @@ export async function handleBillingQuotaStatus(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const query = getQuery<{ estimatedTokens?: number }>(c);
+	const query = getValidatedQuery<{ estimatedTokens?: number }>(c);
 	const estimatedTokens = Math.min(
 		100_000,
 		Math.max(0, query.estimatedTokens ?? 5000)
@@ -300,7 +290,7 @@ export async function handleBillingCheckoutCredits(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const body = await getBody<{ amount?: number }>(c);
+	const body = await getValidatedJsonBody<{ amount?: number }>(c);
 	const amount = body?.amount;
 	if (
 		typeof amount !== "number" ||
@@ -394,7 +384,7 @@ export async function handleRetryLimitStatus(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const query = getQuery<{ fileKeys?: string }>(c);
+	const query = getValidatedQuery<{ fileKeys?: string }>(c);
 	const fileKeysParam = query.fileKeys;
 	const fileKeys = fileKeysParam
 		? fileKeysParam
@@ -433,7 +423,7 @@ export async function handleBillingCheckout(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const body = await getBody<{
+	const body = await getValidatedJsonBody<{
 		tier?: string;
 		interval?: string;
 	}>(c);
@@ -513,7 +503,7 @@ export async function handleBillingChangePlan(c: ContextWithAuth) {
 		return c.json({ error: "Unauthorized" }, 401);
 	}
 
-	const body = await getBody<{ tier?: string }>(c);
+	const body = await getValidatedJsonBody<{ tier?: string }>(c);
 	const tier = body?.tier;
 	if (tier !== "basic" && tier !== "pro") {
 		return c.json({ error: "Invalid tier. Use basic or pro." }, 400);

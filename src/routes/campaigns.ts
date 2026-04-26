@@ -36,6 +36,7 @@ import {
 import {
 	ensureCampaignAccess,
 	getCampaignRole,
+	getValidatedJsonBody,
 	requireCampaignOwner,
 	requireCanEdit,
 	requireCanSeeSpoilers,
@@ -56,12 +57,6 @@ import { RetryLimitService } from "@/services/retry-limit-service";
 type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
 };
-
-function getBody<T>(c: ContextWithAuth): Promise<T> {
-	const req = c.req as { valid?: (k: string) => unknown };
-	const v = req.valid?.("json");
-	return v ? Promise.resolve(v as T) : c.req.json();
-}
 
 // Get all campaigns for user
 export async function handleGetCampaigns(c: ContextWithAuth) {
@@ -115,7 +110,7 @@ export async function handleCreateCampaign(c: ContextWithAuth) {
 			gameSystem,
 			gameSystemVersion,
 			pcClaimRequiresGmApproval,
-		} = await getBody<{
+		} = await getValidatedJsonBody<{
 			name?: string;
 			description?: string;
 			gameSystem?: string;
@@ -297,7 +292,7 @@ export async function handleUpdateCampaign(c: ContextWithAuth) {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
-		const body = await getBody<{
+		const body = await getValidatedJsonBody<{
 			name?: string;
 			description?: string;
 			metadata?: Record<string, unknown>;
@@ -549,7 +544,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		const userAuth = (c as any).userAuth;
 		const campaignId = requireParam(c, "campaignId");
 		if (campaignId instanceof Response) return campaignId;
-		const { type, id, name } = await getBody<{
+		const { type, id, name } = await getValidatedJsonBody<{
 			type?: string;
 			id?: string;
 			name?: string;

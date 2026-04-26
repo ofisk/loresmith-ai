@@ -22,6 +22,24 @@ export type ContextWithAuth = Context<{ Bindings: Env }> & {
 	userAuth?: AuthPayload;
 };
 
+/**
+ * OpenAPI-validated JSON body when `valid("json")` ran; otherwise `req.json()`.
+ * Uses a narrow cast so callers may pass any Hono `Context` variant.
+ */
+export function getValidatedJsonBody<T>(c: Context): Promise<T> {
+	const req = c.req as { valid?: (k: string) => unknown };
+	const v = req.valid?.("json");
+	return v ? Promise.resolve(v as T) : (c.req.json() as Promise<T>);
+}
+
+/**
+ * OpenAPI-validated query when `valid("query")` ran; otherwise `{}`.
+ */
+export function getValidatedQuery<T>(c: Context): T {
+	const req = c.req as { valid?: (k: string) => unknown };
+	return (req.valid?.("query") ?? {}) as T;
+}
+
 type ParamContext = {
 	req: { param: (key: string) => string | undefined };
 	json: (body: unknown, status?: number) => Response;

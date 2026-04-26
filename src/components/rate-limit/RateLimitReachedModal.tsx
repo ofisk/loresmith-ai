@@ -1,25 +1,11 @@
 import { Modal } from "@/components/modal/Modal";
+import { formatRateLimitResetTime } from "@/lib/format-reset-time";
 
 interface RateLimitReachedModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	nextResetAt: string | null;
 	reason?: string;
-}
-
-function formatResetTime(iso: string): string {
-	try {
-		const d = new Date(iso.replace(" ", "T"));
-		return d.toLocaleString(undefined, {
-			weekday: "short",
-			month: "short",
-			day: "numeric",
-			hour: "numeric",
-			minute: "2-digit",
-		});
-	} catch {
-		return iso;
-	}
 }
 
 const TIER_BENEFITS = {
@@ -34,7 +20,9 @@ export function RateLimitReachedModal({
 	nextResetAt,
 	reason,
 }: RateLimitReachedModalProps) {
-	const formattedReset = nextResetAt ? formatResetTime(nextResetAt) : null;
+	const formattedReset = nextResetAt
+		? formatRateLimitResetTime(nextResetAt)
+		: null;
 
 	return (
 		<Modal isOpen={isOpen} onClose={onClose} className="modal-size-sm">

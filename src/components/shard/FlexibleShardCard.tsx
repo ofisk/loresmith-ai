@@ -6,22 +6,19 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ImportanceCalculationError } from "@/lib/errors";
-import {
-	authenticatedFetchWithExpiration,
-	getStoredJwt,
-} from "@/services/core/auth-service";
-import { API_CONFIG } from "@/shared-config";
 import { PropertyGrid } from "./PropertyField";
 import { ShardStagingOriginBadge } from "./ShardStagingOriginBadge";
+import {
+	getShardImportanceLevelFromMetadata,
+	patchShardEntityImportance,
+	type ShardImportanceLevel,
+} from "./shard-importance";
 import type { FlexibleShard } from "./shard-type-detector";
 import {
 	getConfidenceColorClass,
 	getEditableProperties,
 	getShardTypeDisplayName,
 } from "./shard-type-detector";
-
-type ImportanceLevel = "high" | "medium" | "low" | null;
 
 interface FlexibleShardCardProps {
 	shard: FlexibleShard;
@@ -47,87 +44,36 @@ export function FlexibleShardCard({
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [importanceLoading, setImportanceLoading] = useState(false);
 
-	// Get importance from metadata
-	const importanceScore = (shard.metadata as any)?.importanceScore as
-		| number
-		| undefined;
-	const importanceOverride = (shard.metadata as any)?.importanceOverride as
-		| ImportanceLevel
-		| undefined;
+	const importanceScore = (
+		shard.metadata as Record<string, unknown> | undefined
+	)?.importanceScore as number | undefined;
 
-	// Determine current importance level from score or override
-	const getImportanceLevel = useMemo((): ImportanceLevel => {
-		if (importanceOverride !== undefined) {
-			return importanceOverride;
-		}
-		if (importanceScore !== undefined) {
-			if (importanceScore >= 80) return "high";
-			if (importanceScore >= 60) return "medium";
-			return "low";
-		}
-		return null;
-	}, [importanceScore, importanceOverride]);
+	const derivedImportanceLevel = useMemo(
+		() => getShardImportanceLevelFromMetadata(shard.metadata),
+		[shard.metadata]
+	);
 
 	const [currentImportance, setCurrentImportance] =
-		useState<ImportanceLevel>(getImportanceLevel);
+		useState<ShardImportanceLevel>(derivedImportanceLevel);
 
-	// Update local state when shard metadata changes
 	useEffect(() => {
-		setCurrentImportance(getImportanceLevel);
-	}, [getImportanceLevel]);
+		setCurrentImportance(derivedImportanceLevel);
+	}, [derivedImportanceLevel]);
 
-	const handleImportanceChange = async (newLevel: ImportanceLevel) => {
+	const handleImportanceChange = async (newLevel: ShardImportanceLevel) => {
 		if (!campaignId) {
 			return;
 		}
 
 		setImportanceLoading(true);
 		try {
-			const jwt = getStoredJwt();
-			if (!jwt) {
-				throw new Error("No authentication token available");
-			}
-
-			const { response, jwtExpired } = await authenticatedFetchWithExpiration(
-				API_CONFIG.buildUrl(
-					API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.IMPORTANCE(
-						campaignId,
-						shard.id
-					)
-				),
-				{
-					method: "PATCH",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${jwt}`,
-					},
-					body: JSON.stringify({ importanceLevel: newLevel }),
-				}
-			);
-
-			if (jwtExpired) {
-				throw new Error("Session expired. Please refresh the page.");
-			}
-
-			if (!response.ok) {
-				const errorData = (await response.json().catch(() => ({}))) as {
-					error?: string;
-				};
-				throw new ImportanceCalculationError(
-					errorData.error || `Failed to update importance`,
-					response.status
-				);
-			}
-
-			const result = (await response.json()) as {
-				entity?: {
-					metadata?: Record<string, unknown>;
-				};
-			};
-			if (result.entity) {
-				// Update local state
+			const result = await patchShardEntityImportance({
+				campaignId,
+				entityId: shard.id,
+				newLevel,
+			});
+			if (result) {
 				setCurrentImportance(newLevel);
-				// Notify parent component if onEdit is provided
 				if (onEdit) {
 					const currentMetadata =
 						typeof shard.metadata === "object" && shard.metadata !== null
@@ -137,7 +83,7 @@ export function FlexibleShardCard({
 						metadata: {
 							...currentMetadata,
 							importanceOverride: newLevel,
-							importanceScore: (result.entity.metadata as any)?.importanceScore,
+							importanceScore: result.importanceScore,
 						},
 					} as Partial<FlexibleShard>);
 				}
@@ -146,8 +92,7 @@ export function FlexibleShardCard({
 			alert(
 				error instanceof Error ? error.message : "Failed to update importance"
 			);
-			// Revert to previous value on error
-			setCurrentImportance(getImportanceLevel);
+			setCurrentImportance(derivedImportanceLevel);
 		} finally {
 			setImportanceLoading(false);
 		}
@@ -600,7 +545,7 @@ export function FlexibleShardCard({
 								onChange={(e) => {
 									const value = e.target.value;
 									handleImportanceChange(
-										value === "" ? null : (value as ImportanceLevel)
+										value === "" ? null : (value as ShardImportanceLevel)
 									);
 								}}
 								disabled={importanceLoading}
