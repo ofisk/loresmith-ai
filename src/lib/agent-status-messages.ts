@@ -32,7 +32,6 @@ const TOOL_STATUS_MESSAGES: Record<string, string> = {
 	detectCommunitiesTool: "Detecting entity communities...",
 	getCommunitiesTool: "Fetching community data...",
 	getCommunityHierarchyTool: "Building community hierarchy...",
-	extractEntitiesFromContentTool: "Extracting entities from content...",
 	createEntityRelationshipTool: "Creating entity relationship...",
 	recordWorldEventTool: "Recording world event...",
 	updateEntityWorldStateTool: "Updating entity world state...",

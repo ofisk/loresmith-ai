@@ -50,11 +50,15 @@ export function ResourceFileItem({
 		file.file_name || file.display_name || ""
 	);
 
-	const libraryDiscoveryInFlight = isLibraryEntityDiscoveryInFlight(
-		file.library_entity_discovery_status
-	);
+	const stillWorkingOnLibraryPipeline =
+		file.status === FileDAO.STATUS.COMPLETED &&
+		(file.library_pipeline_ready === false ||
+			(file.library_pipeline_ready === undefined &&
+				isLibraryEntityDiscoveryInFlight(
+					file.library_entity_discovery_status
+				)));
 	const statusForDisplayProgress =
-		file.status === FileDAO.STATUS.COMPLETED && libraryDiscoveryInFlight
+		file.status === FileDAO.STATUS.COMPLETED && stillWorkingOnLibraryPipeline
 			? FileDAO.STATUS.INDEXING
 			: file.status;
 
@@ -148,6 +152,8 @@ export function ResourceFileItem({
 								</p>
 							) : null}
 							<LibraryEntityIndexingProgress
+								fileStatus={file.status}
+								ingestionChunkStats={file.ingestion_chunk_stats}
 								queueMessage={file.library_entity_discovery_queue_message}
 								status={file.library_entity_discovery_status}
 							/>
@@ -156,6 +162,7 @@ export function ResourceFileItem({
 							<FileStatusIndicator
 								tenant={AuthService.getUsernameFromStoredJwt()!}
 								initialStatus={file.status}
+								libraryPipelineReady={file.library_pipeline_ready}
 								libraryEntityDiscoveryStatus={
 									file.library_entity_discovery_status
 								}

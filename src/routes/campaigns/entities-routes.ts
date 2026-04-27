@@ -3,7 +3,6 @@ import { createRoute, z } from "@hono/zod-openapi";
 import type { Handler } from "hono";
 import type { RequestLogger } from "@/lib/logger";
 import { requireUserJwt } from "@/routes/auth";
-import { ENDPOINTS } from "@/routes/endpoints";
 import {
 	handleCreateEntityRelationship,
 	handleDeleteEntityRelationship,
@@ -16,9 +15,7 @@ import {
 	handleListRelationshipTypes,
 	handleListTopEntitiesByImportance,
 	handleResolveDeduplicationEntry,
-	handleTestEntityExtractionFromR2,
 	handleTriggerEntityDeduplication,
-	handleTriggerEntityExtraction,
 	handleUpdateEntityImportance,
 } from "@/routes/entities";
 import type { Env } from "@/routes/env";
@@ -254,21 +251,6 @@ const routeDeleteEntityRelationship = createRoute({
 	},
 });
 
-const routeTriggerEntityExtraction = createRoute({
-	method: "post",
-	path: toApiRoutePath("/campaigns/{campaignId}/entities/extract"),
-	middleware: [requireUserJwt],
-	security: [{ bearerAuth: [] }],
-	request: { params: CampaignIdParamSchema },
-	responses: {
-		200: { description: "Entity extraction triggered" },
-		...Error401,
-		...Error403,
-		...Error404,
-		...Error500,
-	},
-});
-
 const routeTriggerEntityDeduplication = createRoute({
 	method: "post",
 	path: toApiRoutePath("/campaigns/{campaignId}/entities/deduplicate"),
@@ -318,18 +300,6 @@ const routeResolveDeduplicationEntry = createRoute({
 	},
 });
 
-const routeTestEntityExtractionFromR2 = createRoute({
-	method: "post",
-	path: toApiRoutePath(ENDPOINTS.CAMPAIGNS.ENTITIES.TEST_EXTRACT_FROM_R2),
-	middleware: [requireUserJwt],
-	security: [{ bearerAuth: [] }],
-	responses: {
-		200: { description: "Test extraction complete" },
-		...Error401,
-		...Error500,
-	},
-});
-
 export function registerCampaignEntitiesRoutes(
 	app: OpenAPIHono<{ Bindings: Env; Variables: { logger: RequestLogger } }>
 ) {
@@ -368,10 +338,6 @@ export function registerCampaignEntitiesRoutes(
 		handleDeleteEntityRelationship as unknown as Handler
 	);
 	app.openapi(
-		routeTriggerEntityExtraction,
-		handleTriggerEntityExtraction as unknown as Handler
-	);
-	app.openapi(
 		routeTriggerEntityDeduplication,
 		handleTriggerEntityDeduplication as unknown as Handler
 	);
@@ -382,9 +348,5 @@ export function registerCampaignEntitiesRoutes(
 	app.openapi(
 		routeResolveDeduplicationEntry,
 		handleResolveDeduplicationEntry as unknown as Handler
-	);
-	app.openapi(
-		routeTestEntityExtractionFromR2,
-		handleTestEntityExtractionFromR2 as unknown as Handler
 	);
 }

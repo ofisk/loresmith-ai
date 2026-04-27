@@ -25,6 +25,16 @@ export interface ResourceFile {
 	/** From GET /library/files when library entity discovery migration is applied */
 	library_entity_discovery_status?: string;
 	library_entity_discovery_queue_message?: string | null;
+	/** True when indexing completed and library entity discovery completed (or schema absent) */
+	library_pipeline_ready?: boolean;
+	/** Populated when the file was processed with per-chunk vectorization */
+	ingestion_chunk_stats?: {
+		total: number;
+		completed: number;
+		failed: number;
+		pending: number;
+		processing: number;
+	} | null;
 }
 
 export interface ResourceFileWithCampaigns extends ResourceFile {
@@ -189,12 +199,15 @@ export function useResourceFiles(
 
 	const processingCount = useMemo(
 		() =>
-			files.filter(
-				(f) =>
-					PROCESSING_STATUSES.has(f.status) ||
-					(f.status === FileDAO.STATUS.COMPLETED &&
-						isLibraryEntityDiscoveryInFlight(f.library_entity_discovery_status))
-			).length,
+			files.filter((f) => {
+				if (PROCESSING_STATUSES.has(f.status)) return true;
+				if (f.status !== FileDAO.STATUS.COMPLETED) return false;
+				if (f.library_pipeline_ready === true) return false;
+				if (f.library_pipeline_ready === false) return true;
+				return isLibraryEntityDiscoveryInFlight(
+					f.library_entity_discovery_status
+				);
+			}).length,
 		[files]
 	);
 

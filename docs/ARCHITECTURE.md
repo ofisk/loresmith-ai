@@ -271,6 +271,8 @@ graph LR
     F -->|Search| H[Semantic Queries]
 ```
 
+**Library-first discovery:** Extraction for uploaded files runs **once per library file** (`library_entity_discovery` + queue consumer), not once per campaign. Ingestion (chunking / indexing) and discovery together define **library pipeline readiness** exposed on `GET /api/library/files`. When a file is added to a campaign, the worker **copies** staged library entities into that campaign (or marks the resource `pending_library` until discovery completes). Campaign-scoped **`entity_extraction_queue`** was removed in favor of this model. Details: [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md).
+
 ### Context Assembly Process
 
 ```mermaid
@@ -416,5 +418,6 @@ Cloudflare Account
 For specific implementation details, see:
 
 - [GraphRAG Integration](GRAPHRAG_INTEGRATION.md)
+- [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md)
 - [Storage Strategy](STORAGE_STRATEGY.md)
 - [Authentication Flow](AUTHENTICATION_FLOW.md)

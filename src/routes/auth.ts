@@ -7,6 +7,7 @@ import { getEnvVar } from "@/lib/env-utils";
 import type { RequestLogger } from "@/lib/logger";
 import { createLogger, getRequestLogger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { getValidatedJsonBody, getValidatedQuery } from "@/lib/route-utils";
 import { getAuthService, LibraryRAGService } from "@/lib/service-factory";
 import type { Env } from "@/routes/env";
 import type { AuthPayload } from "@/services/core/auth-service";
@@ -23,17 +24,6 @@ type AuthContext = Context<{
 	Bindings: Env;
 	Variables: { logger: RequestLogger };
 }>;
-
-function getBody<T>(c: AuthContext): Promise<T> {
-	const req = c.req as { valid?: (k: string) => unknown };
-	const v = req.valid?.("json");
-	return v ? Promise.resolve(v as T) : c.req.json();
-}
-
-function getQuery(c: AuthContext): { token?: string } {
-	const req = c.req as { valid?: (k: string) => unknown };
-	return (req.valid?.("query") ?? {}) as { token?: string };
-}
 
 // Helper to set user auth context
 export function setUserAuth(c: Context, payload: AuthPayload) {
@@ -305,7 +295,7 @@ const OAUTH_USERNAME_PREFIX = "google_";
 export async function handleGoogleCompleteSignup(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = await getBody<{
+		const body = await getValidatedJsonBody<{
 			pendingToken: string;
 			username: string;
 		}>(c);
@@ -377,7 +367,7 @@ export async function handleGoogleCompleteSignup(c: AuthContext) {
 export async function handleRegister(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = await getBody<{
+		const body = await getValidatedJsonBody<{
 			username: string;
 			password: string;
 			email: string;
@@ -463,7 +453,10 @@ export async function handleRegister(c: AuthContext) {
 export async function handleLogin(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = await getBody<{ username: string; password: string }>(c);
+		const body = await getValidatedJsonBody<{
+			username: string;
+			password: string;
+		}>(c);
 		const { username, password } = body;
 		const dao = getDAOFactory(c.env);
 		const user = await dao.authUserDAO.getUserByUsername(username.trim());
@@ -508,7 +501,7 @@ export async function handleVerifyEmail(c: AuthContext) {
 	const log = getRequestLogger(c);
 	const redirectOrigin = new URL(c.req.url).origin;
 	try {
-		const query = getQuery(c);
+		const query = getValidatedQuery<{ token?: string }>(c);
 		const token = query.token ?? c.req.query("token") ?? undefined;
 		if (!token) {
 			return c.redirect(`${redirectOrigin}#verify=missing_token`);
@@ -541,7 +534,10 @@ export async function handleVerifyEmail(c: AuthContext) {
 export async function handleResendVerification(c: AuthContext) {
 	const log = getRequestLogger(c);
 	try {
-		const body = await getBody<{ email?: string; username?: string }>(c);
+		const body = await getValidatedJsonBody<{
+			email?: string;
+			username?: string;
+		}>(c);
 		const email = body.email?.trim().toLowerCase();
 		const username = body.username?.trim();
 		const dao = getDAOFactory(c.env);

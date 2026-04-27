@@ -1,6 +1,7 @@
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { Context } from "hono";
 import { UPLOAD_CONFIG } from "@/app-constants";
+import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	LibraryEntityDAO,
@@ -257,18 +258,37 @@ export async function handleGetFiles(c: ContextWithAuth) {
 
 		const fileDAO = getDAOFactory(c.env).fileDAO;
 		const files = await fileDAO.getFilesByUser(userAuth.username);
+		const fileRows = files || [];
+		const keys = fileRows.map((f) => f.file_key);
+		const chunkStatsMap = await fileDAO.getFileChunkStatsForFileKeys(keys);
 
 		const libDao = new LibraryEntityDAO(c.env.DB);
+		const librarySchemaReady = await libDao.isSchemaReady();
 		let discoveryByFile = new Map<string, LibraryEntityDiscoveryRow>();
-		if (await libDao.isSchemaReady()) {
+		if (librarySchemaReady) {
 			const rows = await libDao.listDiscoveryForUsername(userAuth.username);
 			discoveryByFile = new Map(rows.map((r) => [r.file_key, r]));
 		}
 
-		const enriched = (files || []).map((f) => {
+		const enriched = fileRows.map((f) => {
 			const d = discoveryByFile.get(f.file_key);
+			const chunkStats = chunkStatsMap.get(f.file_key);
+			const indexingDone = f.status === FileDAO.STATUS.COMPLETED;
+			let libraryPipelineReady = false;
+			if (!indexingDone) {
+				libraryPipelineReady = false;
+			} else if (!librarySchemaReady) {
+				libraryPipelineReady = true;
+			} else if (!d) {
+				libraryPipelineReady = false;
+			} else {
+				libraryPipelineReady = d.status === "complete";
+			}
 			return {
 				...f,
+				ingestion_chunk_stats:
+					chunkStats && chunkStats.total > 0 ? chunkStats : null,
+				library_pipeline_ready: libraryPipelineReady,
 				...(d && {
 					library_entity_discovery_status: d.status,
 					library_entity_discovery_queue_message: d.queue_message,

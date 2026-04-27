@@ -45,7 +45,7 @@ This document provides a comprehensive overview of LoreSmith AI's features and c
 
 - Automatic text extraction from PDFs
 - Vision-based image description for mood, style, and setting cues
-- Entity extraction from content
+- Library-scoped entity extraction (one run per file, copied into campaigns)
 - Semantic indexing for search
 - **AI-powered metadata generation**: Automatic descriptions and tags based on file content
 - Processing status tracking (Ready, Processing, Failed)
@@ -130,7 +130,7 @@ LoreSmith automatically generates rich metadata for uploaded files:
 
 **Knowledge Graph**
 
-- Automatic entity extraction (NPCs, locations, items)
+- Automatic library entity extraction (NPCs, locations, items), copied into campaigns
 - Relationship mapping between entities
 - Multi-hop graph traversal
 - Entity similarity search
@@ -303,7 +303,7 @@ To access the admin dashboard, click the chart icon in the top header bar (visib
 **Progress Updates**
 
 - File processing status
-- Entity extraction progress
+- Library indexing and entity discovery progress
 - Campaign rebuild status
 - System notifications
 

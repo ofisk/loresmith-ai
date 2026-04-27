@@ -324,7 +324,7 @@ export function TelemetryDashboard() {
 				</p>
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
 					<CountRow
-						label="Entity extraction"
+						label="Library entity discovery"
 						value={overview.queues.stuck.entityExtraction.count}
 					/>
 					<CountRow
@@ -341,7 +341,7 @@ export function TelemetryDashboard() {
 					/>
 				</div>
 				<StuckTable
-					title="Entity extraction samples"
+					title="Library entity discovery samples"
 					samples={overview.queues.stuck.entityExtraction.samples}
 				/>
 				<StuckTable
@@ -404,7 +404,7 @@ export function TelemetryDashboard() {
 					</h2>
 					<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 						Grouped by identical message text from failed graph rebuilds and
-						failed entity extraction jobs.
+						failed library entity discovery jobs.
 					</p>
 					<ol className="list-decimal list-inside space-y-3 text-sm">
 						{(dashboard.topErrors ?? []).map((row) => (
@@ -417,7 +417,7 @@ export function TelemetryDashboard() {
 								<span className="text-neutral-500 dark:text-neutral-400 text-xs uppercase tracking-wide">
 									{row.source === "graph_rebuild"
 										? "Graph rebuild"
-										: "Entity extraction"}
+										: "Library entity discovery"}
 								</span>
 								<div className="mt-1 pl-0 sm:pl-5 text-neutral-700 dark:text-neutral-300 break-words whitespace-pre-wrap font-mono text-xs">
 									{row.message}

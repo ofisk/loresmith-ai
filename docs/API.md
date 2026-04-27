@@ -232,6 +232,45 @@ Update file metadata.
 
 Delete a file.
 
+## Library endpoints
+
+Library files use the `/api/library/...` routes. Entity **discovery** runs once per library file and feeds campaign **copies** of staged shards (see [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md)).
+
+### List library files
+
+**GET** `/api/library/files`
+
+Returns `{ "files": [ ... ] }`. Each file includes the usual metadata fields plus optional pipeline fields:
+
+- **`ingestion_chunk_stats`**: chunk counts for ingestion (`total`, `completed`, `failed`, `pending`, `processing`), or `null` if not applicable.
+- **`library_pipeline_ready`**: whether indexing and library discovery are far enough along for the file to be treated as pipeline-complete.
+- **`library_entity_discovery_status`**, **`library_entity_discovery_queue_message`**: present when a `library_entity_discovery` row exists.
+
+### Retry library entity discovery
+
+**POST** `/api/library/retry-entity-pipeline`
+
+Re-run library entity discovery for a file after indexing has completed.
+
+**Request body:**
+
+```json
+{
+  "fileKey": "username/filename-or-full-key"
+}
+```
+
+**Success response:**
+
+```json
+{
+  "success": true,
+  "message": "Library entity discovery re-queued"
+}
+```
+
+Returns **400** if `fileKey` is missing or the file is not finished indexing; **404** if the file is not found; **503** if the library entity schema is not available.
+
 ## Campaign Resource Endpoints
 
 ### Add Resource to Campaign
@@ -248,6 +287,8 @@ Add a file resource to a campaign.
   "resourceType": "file"
 }
 ```
+
+**Entity staging:** The worker copies **pre-discovered** library entities into the campaign when possible. If library discovery is still running or failed, the resource may be created with `entity_copy_status: "pending_library"` until discovery completes and the copy runs (or fails). Shards appear for approval after entities are staged in the campaign.
 
 ### Remove Resource from Campaign
 
@@ -449,35 +490,15 @@ Get all entities for a campaign.
 }
 ```
 
-### Extract Entities
+### Retry entity staging (library-backed)
 
-**POST** `/api/campaigns/:campaignId/entities/extract`
+**POST** `/api/campaigns/:campaignId/resource/:resourceId/retry-entity-extraction`
 
-Extract entities from text content.
+Re-queues **library** entity discovery for the resource’s file and marks the campaign resource as pending copy until discovery completes. Subject to per-user retry limits. Returns **409** if library discovery is already in progress for that file.
 
-**Request Body:**
+### Entity extract HTTP route (removed)
 
-```json
-{
-  "content": "Text content to extract entities from...",
-  "campaignId": "campaign-id"
-}
-```
-
-**Response:**
-
-```json
-{
-  "entities": [
-    {
-      "name": "Entity Name",
-      "type": "npc",
-      "description": "Description",
-      "relationships": [...]
-    }
-  ]
-}
-```
+Per-campaign **`POST /api/campaigns/:campaignId/entities/extract`** is **not** available. Extraction is **library-scoped**; use discovery + campaign copy (see [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md)).
 
 ## Telemetry Endpoints (Admin Only)
 

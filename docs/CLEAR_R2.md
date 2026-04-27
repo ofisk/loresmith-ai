@@ -76,13 +76,13 @@ npm run r2:clear
 
 ```bash
 # Dry run
-node scripts/clear-r2.js --dry-run
+node scripts/storage/clear-r2.js --dry-run
 
 # Actually delete
-node scripts/clear-r2.js
+node scripts/storage/clear-r2.js
 
 # Custom bucket name
-node scripts/clear-r2.js --bucket-name my-custom-bucket
+node scripts/storage/clear-r2.js --bucket-name my-custom-bucket
 ```
 
 ### Using Bash Script (Alternative)
@@ -95,7 +95,7 @@ export R2_ACCESS_KEY_ID='your-key'
 export R2_SECRET_ACCESS_KEY='your-secret'
 export CF_ACCOUNT_ID='f67932e71175b3ee7c945c6bb84c5259'
 
-./scripts/clear-r2-simple.sh
+./scripts/storage/clear-r2-simple.sh
 ```
 
 ## What Gets Deleted
@@ -133,14 +133,14 @@ When resetting production data, R2 cleanup is included:
 
 ```bash
 # This clears database, R2, and Vectorize
-./scripts/reset-and-apply-clean-slate.sh production
+./scripts/maintenance/reset-and-apply-clean-slate.sh production
 ```
 
 Or separately:
 
 ```bash
 # Clear database
-./scripts/reset-and-apply-clean-slate.sh production
+./scripts/maintenance/reset-and-apply-clean-slate.sh production
 
 # Clear R2 separately
 npm run r2:clear

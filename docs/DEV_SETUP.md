@@ -145,7 +145,7 @@ npm run deploy
 
 ```bash
 # Validate dev environment setup
-./scripts/validate-dev.sh
+./scripts/dev/validate-dev.sh
 ```
 
 ## Environment Structure
@@ -158,8 +158,10 @@ loresmith-ai/
 ├── .vars                       # Production env vars (gitignored; copy from .vars.example)
 ├── .vars.example               # Reference template for .vars
 ├── scripts/
-│   ├── setup-dev.sh           # Automated setup script
-│   └── validate-dev.sh        # Validation script
+│   ├── dev/
+│   │   ├── setup-dev.sh      # Automated setup script
+│   │   └── validate-dev.sh   # Validation script
+│   └── …                     # See scripts/README.md
 └── docs/
     └── DEV_SETUP.md           # This file
 ```
@@ -206,7 +208,7 @@ loresmith-ai/
 Run the validation script to check your setup:
 
 ```bash
-./scripts/validate-dev.sh
+./scripts/dev/validate-dev.sh
 ```
 
 This will verify:
@@ -248,7 +250,7 @@ npm run dev:cloudflare  # Terminal 1
 npm run start          # Terminal 2
 
 # Validation (run when issues occur)
-./scripts/validate-dev.sh
+./scripts/dev/validate-dev.sh
 ```
 
 ### Key files to edit
@@ -267,7 +269,7 @@ npm run start          # Terminal 2
 If you encounter issues:
 
 1. Check the troubleshooting section above
-2. Run the validation script: `./scripts/validate-dev.sh`
+2. Run the validation script: `./scripts/dev/validate-dev.sh`
 3. Check Cloudflare dashboard for resource status
 4. Review the logs in the Wrangler dev console
 

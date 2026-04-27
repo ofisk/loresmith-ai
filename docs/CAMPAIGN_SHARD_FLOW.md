@@ -4,6 +4,8 @@
 
 The Campaign Shard Flow is a sophisticated content curation system that allows users to selectively incorporate relevant content from their library into campaign-specific knowledge bases. This system ensures that campaign AI agents have access to high-quality, curated information while maintaining isolation between different campaigns.
 
+**Pipeline:** Structured shards are produced by **library entity discovery** (one pass per library file) and **copied** into a campaign when you add that file as a resource. See [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md).
+
 ## What Are Shards?
 
 Shards are structured content entities extracted from uploaded files that represent meaningful, reusable game content. Unlike raw text chunks, shards are intelligently parsed and categorized into specific content types that can be directly used in campaigns.

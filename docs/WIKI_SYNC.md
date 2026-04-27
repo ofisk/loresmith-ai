@@ -44,13 +44,13 @@ npm run wiki:sync:dry-run
 
 ```bash
 # Using the Node.js script (cross-platform)
-node scripts/sync-docs-to-wiki.js
+node scripts/wiki/sync-docs-to-wiki.js
 
 # Using the bash script (Unix/macOS/Linux)
-./scripts/sync-docs-to-wiki.sh
+./scripts/wiki/sync-docs-to-wiki.sh
 
 # Dry run to preview changes
-node scripts/sync-docs-to-wiki.js --dry-run
+node scripts/wiki/sync-docs-to-wiki.js --dry-run
 ```
 
 ## What Gets Synced
@@ -75,6 +75,13 @@ The script automatically maps documentation files to wiki pages:
 - `docs/STORAGE_STRATEGY.md` → `Technical/Storage-Strategy.md`
 - `docs/FILE_ANALYSIS_SYSTEM.md` → `Technical/File-Analysis-System.md`
 - `docs/MODEL_CONFIGURATION.md` → `Technical/Model-Configuration.md`
+- `docs/CHECKLIST_STATUS_SYSTEM.md` → `Technical/Checklist-Status-System.md`
+- `docs/ENTITY_SEARCH_CACHING.md` → `Technical/Entity-Search-Caching.md`
+- `docs/LIBRARY_ENTITY_PIPELINE.md` → `Technical/Library-Entity-Pipeline.md`
+- `docs/FILE_UPLOAD_SYSTEM.md` → `Technical/File-Upload-System.md`
+- `docs/DEPLOYMENT.md` → `Deployment.md`
+- `docs/CAMPAIGN_SHARD_FLOW.md` → `Technical/Campaign-Shard-Flow.md`
+- `docs/database/d1-indexes.md` → `Technical/D1-Indexes.md`
 
 The script also automatically creates/updates:
 
@@ -85,7 +92,8 @@ The script also automatically creates/updates:
 
 The script automatically converts documentation links to wiki-friendly format:
 
-- `[text](docs/FILE.md)` → `[text](Wiki-Page-Name)`
+- `[text](docs/FILE.md)` → `[text](Wiki-Page-Name)` (or the mapped path for known files)
+- `[text](./Some-Doc.md)` / `[text](Some-Doc.md)` under `docs/` → mapped wiki paths when the source file is in the sync list
 - Relative image paths are preserved
 - The main title is removed from `Home.md`
 

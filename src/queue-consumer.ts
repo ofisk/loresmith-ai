@@ -15,7 +15,6 @@ import { notifyFileStatusUpdated } from "./lib/notifications";
 import { R2Helper } from "./lib/r2";
 import type { Env } from "./middleware/auth";
 import { ChecklistStatusService } from "./services/campaign/checklist-status-service";
-import { EntityExtractionQueueService } from "./services/campaign/entity-extraction-queue-service";
 import { LibraryEntityDiscoveryQueueService } from "./services/campaign/library-entity-discovery-queue-service";
 import { ChunkedProcessingService } from "./services/file/chunked-processing-service";
 import { SyncQueueService } from "./services/file/sync-queue-service";
@@ -391,8 +390,6 @@ async function runFastScheduledTasks(
 	await processor.cleanupStaging();
 
 	await processPendingSyncQueueItems(env);
-
-	await EntityExtractionQueueService.processPendingQueueItems(env);
 
 	await LibraryEntityDiscoveryQueueService.processPendingQueueItems(env);
 

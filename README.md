@@ -46,7 +46,7 @@ LoreSmith is an AI-powered campaign planning tool that combines:
 - **Intelligent search**: Semantic search across your resources and campaign content using GraphRAG
 - **Session digests**: Automatically capture and track session summaries with world state changes
 - **Campaign timeline tools**: Build chronological timelines from session digests and world state changes, including manual GM timeline notes
-- **World knowledge graph**: Entity extraction and relationship mapping for comprehensive campaign understanding
+- **World knowledge graph**: Library-scoped entity extraction and relationship mapping, copied into campaigns for GraphRAG
 - **Loot and reward agent**: Generate encounter loot, suggest story-relevant magic items, and track distributed rewards as campaign items
 - **Rules reference agent**: Answer rules questions from indexed rulebooks and house rules with citation-first responses
 - **Bring your own API key**: Users provide their own OpenAI API key for full control over AI costs
@@ -90,7 +90,7 @@ cp .dev.vars.template .dev.vars
 # Edit .dev.vars with your credentials
 
 # Set up local database
-./scripts/migrate-local.sh
+./scripts/dev/migrate-local.sh
 
 # Build frontend (first time only)
 npm run build

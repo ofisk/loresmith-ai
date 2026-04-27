@@ -923,10 +923,6 @@ export class FileDAO extends BaseDAOClass {
 					[fileKey, username]
 				),
 			() =>
-				this.execute("DELETE FROM campaign_resources WHERE file_key = ?", [
-					fileKey,
-				]),
-			() =>
 				this.execute(
 					"DELETE FROM file_metadata WHERE file_key = ? AND username = ?",
 					[fileKey, username]
@@ -1313,6 +1309,22 @@ export class FileDAO extends BaseDAOClass {
 		processing: number;
 	}> {
 		return this.processingChunksDAO.getFileChunkStats(fileKey);
+	}
+
+	/** Batch chunk stats for library file list. */
+	async getFileChunkStatsForFileKeys(fileKeys: string[]): Promise<
+		Map<
+			string,
+			{
+				total: number;
+				completed: number;
+				failed: number;
+				pending: number;
+				processing: number;
+			}
+		>
+	> {
+		return this.processingChunksDAO.getFileChunkStatsForFileKeys(fileKeys);
 	}
 
 	/** Delegates to FileProcessingChunksDAO. */

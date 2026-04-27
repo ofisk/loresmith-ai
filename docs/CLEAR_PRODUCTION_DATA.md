@@ -14,7 +14,7 @@ The LoreSmith AI application stores data in multiple places:
 
 ### 1. Clear All Data (Database + R2 + Vectorize)
 
-**Script**: `scripts/clear-production-data.sh`
+**Script**: `scripts/maintenance/clear-production-data.sh`
 
 This script clears everything:
 
@@ -25,12 +25,12 @@ This script clears everything:
 **Usage**:
 
 ```bash
-./scripts/clear-production-data.sh
+./scripts/maintenance/clear-production-data.sh
 ```
 
 ### 2. Clear R2 Storage Only (Preserve Database)
 
-**Script**: `scripts/clear-r2-simple.sh`
+**Script**: `scripts/storage/clear-r2-simple.sh`
 
 This script clears only R2 storage files:
 
@@ -40,7 +40,7 @@ This script clears only R2 storage files:
 **Usage**:
 
 ```bash
-./scripts/clear-r2-simple.sh
+./scripts/storage/clear-r2-simple.sh
 ```
 
 ## Manual Database Clearing
@@ -48,7 +48,7 @@ This script clears only R2 storage files:
 If you prefer to run the database clearing manually:
 
 ```bash
-wrangler d1 execute loresmith-db --file=./scripts/clear_production_data.sql --remote
+wrangler d1 execute loresmith-db --file=./scripts/maintenance/clear_production_data.sql --remote
 ```
 
 ## What Gets Cleared
@@ -124,7 +124,7 @@ After clearing data:
 ### Permission Denied
 
 ```bash
-chmod +x scripts/clear-production-data.sh
+chmod +x scripts/maintenance/clear-production-data.sh
 chmod +x scripts/clear-database-only.sh
 ```
 

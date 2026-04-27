@@ -9,8 +9,6 @@ import {
 	type CampaignRule,
 	RulesContextService,
 } from "@/services/campaign/rules-context-service";
-import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
-import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import { API_CONFIG } from "@/shared-config";
 import {
@@ -33,182 +31,6 @@ const HOUSE_RULE_CATEGORIES = [
 	"combat",
 	"custom",
 ] as const;
-
-const extractEntitiesFromContentSchema = z.object({
-	campaignId: commonSchemas.campaignId,
-	content: z
-		.string()
-		.describe(
-			"The text content to extract entities from. Can be from uploaded files, user messages, or any text containing game content."
-		),
-	sourceName: z
-		.string()
-		.optional()
-		.describe(
-			"Optional name/identifier for the source of this content (e.g., filename, document title). Used for tracking."
-		),
-	sourceId: z
-		.string()
-		.optional()
-		.describe(
-			"Optional ID for the source document/resource. Used for tracking where entities came from."
-		),
-	sourceType: z
-		.string()
-		.optional()
-		.default("user_input")
-		.describe(
-			"Type of source (e.g., 'user_input', 'file_upload', 'document'). Default: 'user_input'"
-		),
-	metadata: z
-		.record(z.string(), z.unknown())
-		.optional()
-		.describe("Optional additional metadata to attach to extracted entities"),
-	jwt: commonSchemas.jwt,
-});
-
-export const extractEntitiesFromContentTool = tool({
-	description:
-		"Extract structured entities (NPCs, locations, items, monsters, etc.) from text content " +
-		"and add them to the campaign's entity graph. Use this when the user provides text content " +
-		"(from uploaded files or chat messages) that contains information about entities like characters, " +
-		"locations, items, or other game content. The tool will automatically identify and extract " +
-		"entities and their relationships from the text.",
-	inputSchema: extractEntitiesFromContentSchema,
-	execute: async (
-		input: z.infer<typeof extractEntitiesFromContentSchema>,
-		options?: ToolExecuteOptions
-	): Promise<ToolResult> => {
-		const {
-			campaignId,
-			content,
-			sourceName,
-			sourceId,
-			sourceType,
-			metadata,
-			jwt,
-		} = input;
-		const toolCallId = options?.toolCallId ?? "unknown";
-
-		try {
-			const env = getEnvFromContext(options);
-			if (!env) {
-				// Fallback to API call
-				const response = await authenticatedFetch(
-					API_CONFIG.buildUrl(
-						API_CONFIG.ENDPOINTS.CAMPAIGNS.ENTITIES.EXTRACT(campaignId)
-					),
-					{
-						method: "POST",
-						jwt,
-						body: JSON.stringify({
-							content,
-							sourceName: sourceName || "user_input",
-							sourceId: sourceId || crypto.randomUUID(),
-							sourceType: sourceType || "user_input",
-							metadata,
-						}),
-					}
-				);
-
-				if (!response.ok) {
-					const authError = handleAuthError(response);
-					if (authError) {
-						return createToolError(
-							authError,
-							"Authentication failed",
-							response.status,
-							toolCallId
-						);
-					}
-
-					const errorData = (await response.json()) as {
-						error?: string;
-						message?: string;
-					};
-					return createToolError(
-						errorData.error || "Failed to extract entities",
-						errorData.message || "Unknown error",
-						response.status,
-						toolCallId
-					);
-				}
-
-				const data = (await response.json()) as {
-					entities?: unknown[];
-					relationships?: unknown[];
-					count?: number;
-				};
-				return createToolSuccess(
-					`Extracted ${data.entities?.length || 0} entities from content`,
-					data,
-					toolCallId
-				);
-			}
-
-			const campaignAccess = await requireCampaignAccessForTool({
-				env,
-				campaignId,
-				jwt,
-				toolCallId,
-			});
-			if ("toolCallId" in campaignAccess) {
-				return campaignAccess;
-			}
-			const { userId } = campaignAccess;
-
-			const daoFactory = getDAOFactory(env);
-
-			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
-			if (gmError) return gmError;
-
-			// Initialize services
-			const extractionService = new EntityExtractionService(null, null);
-			const embeddingService = new EntityEmbeddingService(
-				env.VECTORIZE as
-					| import("@cloudflare/workers-types").VectorizeIndex
-					| undefined
-			);
-			const graphService = daoFactory.entityGraphService;
-			const pipeline = new EntityExtractionPipeline(
-				daoFactory.entityDAO,
-				extractionService,
-				embeddingService,
-				graphService,
-				env,
-				undefined
-			);
-
-			// Extract and persist entities using the pipeline
-			const result = await pipeline.run({
-				campaignId,
-				content,
-				sourceId: sourceId || crypto.randomUUID(),
-				sourceType: sourceType || "user_input",
-				sourceName: sourceName || "user_input",
-				metadata,
-			});
-
-			return createToolSuccess(
-				`Extracted and created ${result.entities.length} entities and ${result.relationships.length} relationships`,
-				{
-					entities: result.entities,
-					relationships: result.relationships,
-					count: result.entities.length,
-					relationshipCount: result.relationships.length,
-				},
-				toolCallId
-			);
-		} catch (error) {
-			return createToolError(
-				"Failed to extract entities from content",
-				error instanceof Error ? error.message : "Unknown error",
-				500,
-				toolCallId
-			);
-		}
-	},
-});
 
 const createEntityRelationshipSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -252,7 +74,7 @@ export const createEntityRelationshipTool = tool({
 		"Create a relationship between two entities in the campaign's entity graph. " +
 		"Use this when the user mentions a relationship between entities (e.g., 'NPC X lives in Location Y', " +
 		"'Character A is allied with Character B', 'Item belongs to NPC'). " +
-		"The entities must already exist in the graph (create them first using extractEntitiesFromContentTool if needed).",
+		"The entities must already exist in the graph (add library resources to the campaign so entities are copied from indexed files, or use graph/RAG tools that create entities).",
 	inputSchema: createEntityRelationshipSchema,
 	execute: async (
 		input: z.infer<typeof createEntityRelationshipSchema>,

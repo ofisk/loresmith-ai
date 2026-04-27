@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader } from "@/components/loader/Loader";
 import type { useLocalNotifications } from "@/hooks/useLocalNotifications";
+import { formatRateLimitResetTime } from "@/lib/format-reset-time";
 import {
 	authenticatedFetchWithExpiration,
 	getStoredJwt,
@@ -35,21 +36,6 @@ interface RateLimitIndicatorProps {
 const POLL_INTERVAL_MS = 30_000;
 const NEAR_LIMIT_THRESHOLD = 0.8;
 const NOTIFY_THRESHOLDS = [0.5, 0.8, 1] as const;
-
-function formatResetTime(iso: string): string {
-	try {
-		const d = new Date(iso.replace(" ", "T"));
-		return d.toLocaleString(undefined, {
-			weekday: "short",
-			month: "short",
-			day: "numeric",
-			hour: "numeric",
-			minute: "2-digit",
-		});
-	} catch {
-		return iso;
-	}
-}
 
 export function RateLimitIndicator({
 	addLocalNotification,
@@ -110,7 +96,7 @@ export function RateLimitIndicator({
 		if (!usage || usage.isAdmin) return;
 
 		const nextReset = usage.nextResetAt
-			? formatResetTime(usage.nextResetAt)
+			? formatRateLimitResetTime(usage.nextResetAt)
 			: "soon";
 
 		const shortWindowPct =

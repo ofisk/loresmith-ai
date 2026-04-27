@@ -43,6 +43,8 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - Query types and usage
   - Performance considerations
 
+- **[Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md)** - Library-scoped discovery, campaign copy, API fields, retries, and schema notes
+
 - **[Authentication Flow](AUTHENTICATION_FLOW.md)** - Authentication system documentation
   - JWT-based authentication
   - API key management
@@ -142,6 +144,7 @@ docs/
 ├── ARCHITECTURE.md         # System architecture
 ├── API.md                  # API reference
 ├── GRAPHRAG_INTEGRATION.md # GraphRAG details
+├── LIBRARY_ENTITY_PIPELINE.md # Library discovery and campaign copy
 ├── AUTHENTICATION_FLOW.md  # Auth system
 ├── STORAGE_STRATEGY.md     # Storage architecture
 └── ...                     # Additional technical docs
@@ -165,6 +168,7 @@ docs/
 
 - Read [Architecture Overview](ARCHITECTURE.md)
 - Dive into [GraphRAG Integration](GRAPHRAG_INTEGRATION.md)
+- For uploads, indexing, and entity discovery: [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md)
 
 **Integrate with the API:**
 
