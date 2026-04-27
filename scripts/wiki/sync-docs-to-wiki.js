@@ -84,7 +84,46 @@ const FILE_MAPPINGS = [
 		dest: "Technical/Entity-Search-Caching.md",
 		process: true,
 	},
+	{
+		src: "docs/LIBRARY_ENTITY_PIPELINE.md",
+		dest: "Technical/Library-Entity-Pipeline.md",
+		process: true,
+	},
+	{
+		src: "docs/FILE_UPLOAD_SYSTEM.md",
+		dest: "Technical/File-Upload-System.md",
+		process: true,
+	},
+	{
+		src: "docs/DEPLOYMENT.md",
+		dest: "Deployment.md",
+		process: true,
+	},
+	{
+		src: "docs/CAMPAIGN_SHARD_FLOW.md",
+		dest: "Technical/Campaign-Shard-Flow.md",
+		process: true,
+	},
+	{
+		src: "docs/database/d1-indexes.md",
+		dest: "Technical/D1-Indexes.md",
+		process: true,
+	},
 ];
+
+/** Map docs/ relative paths (e.g. API.md, database/d1-indexes.md) to wiki page paths without .md */
+function buildDocsToWikiLinkMap() {
+	const map = new Map();
+	for (const { src, dest } of FILE_MAPPINGS) {
+		if (!src.startsWith("docs/")) {
+			continue;
+		}
+		const rel = src.slice("docs/".length);
+		const wikiPath = dest.replace(/\.md$/, "");
+		map.set(rel, wikiPath);
+	}
+	return map;
+}
 
 function exec(cmd, options = {}) {
 	if (DRY_RUN) {
@@ -102,12 +141,28 @@ function exec(cmd, options = {}) {
 function processMarkdown(content, isHomePage = false) {
 	// Convert relative links to wiki-friendly links
 	let processed = content;
+	const docsLinkMap = buildDocsToWikiLinkMap();
 
-	// Convert docs/ links to wiki links
+	// Same-directory links from docs/ files: [t](FILE.md) or [t](./FILE.md) or [t](./sub/file.md)
+	for (const [relDocPath, wikiPath] of docsLinkMap) {
+		const escaped = relDocPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		processed = processed.replace(
+			new RegExp(`\\[([^\\]]+)\\]\\(${escaped}\\)`, "g"),
+			`[$1](${wikiPath})`
+		);
+		processed = processed.replace(
+			new RegExp(`\\[([^\\]]+)\\]\\(\\.\\/${escaped}\\)`, "g"),
+			`[$1](${wikiPath})`
+		);
+	}
+
+	// Convert docs/ links to wiki links (unmapped paths fall back to title-cased name)
 	processed = processed.replace(
 		/\[([^\]]+)\]\(docs\/([^)]+\.md)\)/g,
 		(_match, text, file) => {
-			// Convert file path to wiki page name
+			if (docsLinkMap.has(file)) {
+				return `[${text}](${docsLinkMap.get(file)})`;
+			}
 			const wikiName = file
 				.replace(/\.md$/, "")
 				.replace(/_/g, "-")
@@ -149,11 +204,19 @@ function createSidebar() {
 
 ## Technical Documentation
 - [[Technical/GraphRAG-Integration|GraphRAG Integration]]
+- [[Technical/Library-Entity-Pipeline|Library entity pipeline]]
+- [[Technical/File-Upload-System|File upload system]]
+- [[Technical/Campaign-Shard-Flow|Campaign shard flow]]
+- [[Technical/D1-Indexes|D1 indexes]]
 - [[Technical/Authentication-Flow|Authentication Flow]]
 - [[Technical/Storage-Strategy|Storage Strategy]]
 - [[Technical/File-Analysis-System|File Analysis System]]
 - [[Technical/Model-Configuration|Model Configuration]]
 - [[Technical/Checklist-Status-System|Checklist Status System]]
+- [[Technical/Entity-Search-Caching|Entity search caching]]
+
+## Operations
+- [[Deployment|Deployment]]
 `;
 }
 
