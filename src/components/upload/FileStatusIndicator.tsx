@@ -9,10 +9,6 @@ import { useCallback } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
-import {
-	estimateProcessingTime,
-	formatProcessingTime,
-} from "@/lib/file/processing-time-estimator";
 import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 
 interface FileStatusIndicatorProps {
@@ -56,12 +52,6 @@ export function FileStatusIndicator({
 
 	// FileStatusIndicator now only displays status - refresh logic moved to ResourceList
 	// This prevents multiple components from making duplicate refresh-all-statuses calls
-
-	// Get processing time estimate if file size is available
-	const processingEstimate = fileSize ? estimateProcessingTime(fileSize) : null;
-	const timeEstimate = processingEstimate
-		? formatProcessingTime(processingEstimate)
-		: null;
 
 	// Determine what to show based on status
 	const statusConfig = {
@@ -110,19 +100,15 @@ export function FileStatusIndicator({
 		[FILE_UPLOAD_STATUS.PROCESSING]: {
 			icon: Spinner,
 			color: "text-blue-500",
-			text: timeEstimate ? `Processing (~${timeEstimate})` : "Processing",
-			title: timeEstimate
-				? `File is being prepared. Estimated time: ${timeEstimate}`
-				: "File is being prepared",
+			text: "Processing",
+			title: "File is being prepared",
 			spinning: true,
 		},
 		[FILE_UPLOAD_STATUS.INDEXING]: {
 			icon: Spinner,
 			color: "text-blue-500",
-			text: timeEstimate ? `Indexing (~${timeEstimate})` : "Indexing",
-			title: timeEstimate
-				? `File is being prepared. Estimated time: ${timeEstimate}`
-				: "File is being prepared",
+			text: "Indexing",
+			title: "File is being prepared",
 			spinning: true,
 		},
 		[FILE_UPLOAD_STATUS.UNINDEXED]: {
