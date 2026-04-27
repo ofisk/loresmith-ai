@@ -102,7 +102,7 @@ export interface Alert {
 }
 
 /** Admin dashboard: aggregated error text by source (rebuild_status, entity extraction queue, etc.). */
-export type TelemetryErrorSource = "graph_rebuild" | "entity_extraction";
+export type TelemetryErrorSource = "graph_rebuild" | "library_entity_discovery";
 
 export interface TelemetryTopError {
 	source: TelemetryErrorSource;

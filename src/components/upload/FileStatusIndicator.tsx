@@ -32,6 +32,8 @@ interface FileStatusIndicatorProps {
 	retryLimitTooltip?: string;
 	/** When RAG is `completed` but library entity discovery is still running, show as processing */
 	libraryEntityDiscoveryStatus?: string | null;
+	/** From GET /library/files: false until indexing + library discovery complete */
+	libraryPipelineReady?: boolean;
 }
 
 export function FileStatusIndicator({
@@ -48,6 +50,7 @@ export function FileStatusIndicator({
 	retryLimitDisabled = false,
 	retryLimitTooltip,
 	libraryEntityDiscoveryStatus,
+	libraryPipelineReady,
 }: FileStatusIndicatorProps) {
 	// No local error timeout; rely on SSE-driven updates and server state
 
@@ -156,10 +159,12 @@ export function FileStatusIndicator({
 	// Get current status - use initialStatus if it exists in statusConfig, otherwise default to PROCESSING
 	let currentStatus: keyof typeof statusConfig;
 
-	// RAG can be "completed" while library entity + shard discovery is still running
+	// RAG can be "completed" while library entity pipeline is still running
 	if (
 		initialStatus === FILE_UPLOAD_STATUS.COMPLETED &&
-		isLibraryEntityDiscoveryInFlight(libraryEntityDiscoveryStatus)
+		(libraryPipelineReady === false ||
+			(libraryPipelineReady === undefined &&
+				isLibraryEntityDiscoveryInFlight(libraryEntityDiscoveryStatus)))
 	) {
 		currentStatus = FILE_UPLOAD_STATUS.PROCESSING;
 	} else if (initialStatus && initialStatus in statusConfig) {

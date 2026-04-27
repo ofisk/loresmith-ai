@@ -1,6 +1,9 @@
 import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { LibraryEntityDAO } from "@/dao/library-entity-dao";
+import {
+	LibraryEntityDAO,
+	type LibraryEntityDiscoveryRow,
+} from "@/dao/library-entity-dao";
 import { parseEntityExtractionProgress } from "@/lib/entity-extraction-progress";
 import { getEnvVar } from "@/lib/env-utils";
 import {
@@ -12,9 +15,63 @@ import {
 import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { stageLibraryEntitiesFromFile } from "@/services/campaign/entity-staging-service";
+import { processPendingCampaignEntityCopiesForFile } from "@/services/campaign/pending-campaign-entity-copy";
+import { notifyLibraryDiscoveryTerminalFailure } from "@/services/support/library-pipeline-support";
 
 const MAX_CHUNKS_PER_RUN = 12;
 const MAX_JOBS_PER_SCHEDULED_RUN = 8;
+
+async function recordDiscoveryError(
+	env: Env,
+	libDao: LibraryEntityDAO,
+	row: LibraryEntityDiscoveryRow,
+	error: string,
+	opts: { failImmediately?: boolean } = {}
+): Promise<"failed" | "retry_scheduled"> {
+	const out = await libDao.recordDiscoveryFailureWithRetry(
+		row.file_key,
+		error,
+		{ failImmediately: opts.failImmediately }
+	);
+	if (out === "failed") {
+		const disc = await libDao.getDiscovery(row.file_key);
+		const retryCount = disc?.retry_count ?? row.retry_count;
+		try {
+			if (env.FILE_PROCESSING_DLQ) {
+				await env.FILE_PROCESSING_DLQ.send({
+					kind: "library_entity_discovery" as const,
+					fileKey: row.file_key,
+					username: row.username,
+					error,
+					retryCount,
+					timestamp: new Date().toISOString(),
+				});
+			}
+		} catch (dlqErr) {
+			createLogger(env, "[LibraryEntityDiscovery]").error(
+				"dlq_send_failed",
+				dlqErr
+			);
+		}
+		if (!row.support_escalated_at) {
+			try {
+				await notifyLibraryDiscoveryTerminalFailure(env, {
+					fileKey: row.file_key,
+					username: row.username,
+					error,
+					retryCount,
+				});
+				await libDao.setSupportEscalatedNow(row.file_key);
+			} catch (supportErr) {
+				createLogger(env, "[LibraryEntityDiscovery]").error(
+					"support_notify_failed",
+					supportErr
+				);
+			}
+		}
+	}
+	return out;
+}
 
 /**
  * After library indexing completes, queue one LLM pass per file_key. Results are stored in
@@ -62,16 +119,26 @@ export class LibraryEntityDiscoveryQueueService {
 					row.username
 				);
 				if (!fileRecord) {
-					await libDao.markDiscoveryFailed(row.file_key, "File not found");
-					failed++;
+					const out = await recordDiscoveryError(
+						env,
+						libDao,
+						row,
+						"File not found",
+						{ failImmediately: true }
+					);
+					if (out === "failed") failed++;
+					else processed++;
 					continue;
 				}
 				if (fileRecord.status !== "completed") {
-					await libDao.markDiscoveryFailed(
-						row.file_key,
+					const out = await recordDiscoveryError(
+						env,
+						libDao,
+						row,
 						`File not ready for discovery (status=${fileRecord.status})`
 					);
-					failed++;
+					if (out === "failed") failed++;
+					else processed++;
 					continue;
 				}
 
@@ -82,11 +149,14 @@ export class LibraryEntityDiscoveryQueueService {
 				const llmApiKeyRaw = await getEnvVar(env, providerKeyEnvVar, false);
 				const llmApiKey = llmApiKeyRaw.trim();
 				if (!llmApiKey) {
-					await libDao.markDiscoveryFailed(
-						row.file_key,
+					const out = await recordDiscoveryError(
+						env,
+						libDao,
+						row,
 						`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`
 					);
-					failed++;
+					if (out === "failed") failed++;
+					else processed++;
 					continue;
 				}
 				const openaiApiKeyRaw = await getEnvVar(env, "OPENAI_API_KEY", false);
@@ -128,11 +198,14 @@ export class LibraryEntityDiscoveryQueueService {
 				});
 
 				if (!result.success) {
-					await libDao.markDiscoveryFailed(
-						row.file_key,
+					const out = await recordDiscoveryError(
+						env,
+						libDao,
+						row,
 						result.error || "Entity extraction failed"
 					);
-					failed++;
+					if (out === "failed") failed++;
+					else processed++;
 					continue;
 				}
 
@@ -206,15 +279,24 @@ export class LibraryEntityDiscoveryQueueService {
 					username: row.username,
 					entityCount: staged.length,
 				});
+				await processPendingCampaignEntityCopiesForFile(
+					env,
+					row.file_key
+				).catch((e) => {
+					log.error("pending_campaign_entity_copy_failed", {
+						fileKey: row.file_key,
+						error: e instanceof Error ? e.message : String(e),
+					});
+				});
 				processed++;
 			} catch (e) {
-				failed++;
 				const msg = e instanceof Error ? e.message : String(e);
 				try {
-					const libDaoInner = new LibraryEntityDAO(env.DB);
-					await libDaoInner.markDiscoveryFailed(row.file_key, msg);
+					const out = await recordDiscoveryError(env, libDao, row, msg);
+					if (out === "failed") failed++;
+					else processed++;
 				} catch {
-					// ignore
+					failed++;
 				}
 				log.error("library_entity_discovery_failed", {
 					fileKey: row.file_key,
@@ -228,5 +310,26 @@ export class LibraryEntityDiscoveryQueueService {
 
 	static async processPendingQueueItems(env: Env): Promise<void> {
 		await LibraryEntityDiscoveryQueueService.processQueue(env, 15);
+	}
+
+	/**
+	 * Reset library discovery jobs stuck in `processing` (e.g. worker timeout) to `pending`.
+	 */
+	static async cleanupStuckProcessingItems(
+		env: Env,
+		timeoutMinutes: number
+	): Promise<{
+		reset: number;
+		items: LibraryEntityDiscoveryRow[];
+	}> {
+		const libDao = new LibraryEntityDAO(env.DB);
+		if (!(await libDao.isSchemaReady())) {
+			return { reset: 0, items: [] };
+		}
+		const stuck = await libDao.getStuckProcessingRows(timeoutMinutes);
+		for (const row of stuck) {
+			await libDao.resetStuckProcessingToPending(row.file_key);
+		}
+		return { reset: stuck.length, items: stuck };
 	}
 }

@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS campaign_resources (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
+-- entity_copy_status, pending_attribution, idx_campaign_resources_entity_copy: see migrations/0022_unify_library_entity_pipeline.sql
+
 -- Create file metadata for search (main file storage)
 CREATE TABLE IF NOT EXISTS file_metadata (
   file_key text primary key,
@@ -424,30 +426,6 @@ CREATE INDEX IF NOT EXISTS idx_planning_tasks_campaign ON planning_tasks(campaig
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_status ON planning_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_created_at ON planning_tasks(created_at);
 
--- Entity extraction queue (0003)
-CREATE TABLE IF NOT EXISTS entity_extraction_queue (
-  id integer primary key autoincrement,
-  username text not null,
-  campaign_id text not null,
-  resource_id text not null,
-  resource_name text not null,
-  file_key text,
-  status text not null default 'pending',
-  retry_count integer not null default 0,
-  last_error text, -- migration 0017 renames to queue_message (run migrations after bootstrap)
-  error_code text,
-  next_retry_at datetime,
-  proposed_by text, -- proposal-attributed shards (migration 0002 is index-only for idempotency)
-  created_at datetime default current_timestamp,
-  processed_at datetime,
-  updated_at datetime,
-  UNIQUE(campaign_id, resource_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_status ON entity_extraction_queue(status);
-CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_next_retry ON entity_extraction_queue(next_retry_at);
-CREATE INDEX IF NOT EXISTS idx_entity_extraction_queue_campaign ON entity_extraction_queue(campaign_id);
-
 -- Library entity discovery (0020): one extraction per library file, copied to campaigns on add
 CREATE TABLE IF NOT EXISTS library_entity_discovery (
   file_key TEXT PRIMARY KEY,
@@ -462,6 +440,7 @@ CREATE TABLE IF NOT EXISTS library_entity_discovery (
   completed_at TEXT,
   FOREIGN KEY (file_key) REFERENCES file_metadata(file_key) ON DELETE CASCADE
 );
+-- next_retry_at, support_escalated_at: see migrations/0022_unify_library_entity_pipeline.sql
 
 CREATE INDEX IF NOT EXISTS idx_library_entity_discovery_status ON library_entity_discovery(status);
 CREATE INDEX IF NOT EXISTS idx_library_entity_discovery_username ON library_entity_discovery(username);

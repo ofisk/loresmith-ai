@@ -28,8 +28,8 @@ import {
 	requireParam,
 } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
-import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import { tryCopyLibraryEntitiesToCampaign } from "@/services/campaign/library-entity-copy-to-campaign-service";
+import { ensureLibraryDiscoveryAndMarkResourcePending } from "@/services/campaign/pending-campaign-entity-copy";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { ResourceAddRateLimitService } from "@/services/resource-add-rate-limit-service";
 
@@ -353,8 +353,8 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			).catch(() => {});
 		}
 
-		// Library copy when discovery is complete; else queue extraction (server OpenAI key).
-		// Pass proposedBy on queue path so shards show "co-authored by proposer and approver".
+		// Library copy when discovery is complete; else queue library discovery and mark resource pending.
+		// Pass proposedBy on pending path so shards show "co-authored by proposer and approver".
 		try {
 			const campaignRow =
 				await daoFactory.campaignDAO.getCampaignById(campaignId);
@@ -380,19 +380,19 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			});
 
 			if (!copied) {
-				await EntityExtractionQueueService.queueEntityExtraction({
+				await ensureLibraryDiscoveryAndMarkResourcePending({
 					env: c.env,
 					username: userAuth.username,
 					campaignId,
 					resourceId,
-					resourceName: proposal.file_name,
 					fileKey: proposal.file_key,
-					proposedBy: proposal.proposed_by,
+					fileName: proposal.file_name,
+					pendingAttribution: attribution,
 				});
 			}
 		} catch (queueError) {
 			log.warn(
-				"[handleApproveResourceProposal] Entity extraction queue failed",
+				"[handleApproveResourceProposal] Library entity pipeline failed",
 				queueError
 			);
 		}
@@ -400,7 +400,7 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 		return c.json({
 			success: true,
 			resourceId,
-			message: "Proposal approved; extraction queued",
+			message: "Proposal approved; resource added",
 		});
 	} catch (error: unknown) {
 		if (

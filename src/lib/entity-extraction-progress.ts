@@ -3,7 +3,7 @@ const PROGRESS_IN_MESSAGE = /PROGRESS:(\d+)\/(\d+)/;
 
 /**
  * Parses a `PROGRESS:processed/total` checkpoint from `queue_message`
- * on `entity_extraction_queue` (also used for failures and rate-limit notes).
+ * on `library_entity_discovery.queue_message` (also used for failures and rate-limit notes).
  * `processed` is cumulative chunks finished for the resource (resume cursor / bar),
  * not “chunks done in the current worker invocation only”.
  * Matches the first `PROGRESS:a/b` in the string so the line can sit before other text.

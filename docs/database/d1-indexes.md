@@ -11,7 +11,7 @@ Reference for Cloudflare D1 (SQLite) tables, indexes, and hot query paths. See [
 ## Schema sources
 
 - Base: [scripts/d1/d1-bootstrap.sql](../scripts/d1/d1-bootstrap.sql)
-- Migrations: [migrations/](../migrations/) (0001–0015; 0014–0015 for performance indexes)
+- Migrations: [migrations/](../migrations/) (incremental; 0014+ performance indexes, 0020+ library entity discovery, 0022 library pipeline)
 
 ---
 
@@ -47,8 +47,11 @@ Reference for Cloudflare D1 (SQLite) tables, indexes, and hot query paths. See [
 | PK | `id` | bootstrap |
 | idx_campaign_resources_campaign | `campaign_id` | 0014 |
 | idx_campaign_resources_campaign_file | `campaign_id`, `file_key` | 0014 |
+| idx_campaign_resources_entity_copy | `campaign_id`, `entity_copy_status` | 0022 |
 
-**Hot paths**: List resources by campaign, lookup by campaign+file_key.
+**Columns (0022)**: `entity_copy_status`, `pending_attribution` — track library-entity copy into campaigns (replaces campaign-scoped extraction queue).
+
+**Hot paths**: List resources by campaign, lookup by campaign+file_key, pending library copy by campaign+status.
 
 ---
 
@@ -174,18 +177,19 @@ No additional indexes. Filtered by `campaign_id` or `context_id`; consider compo
 
 ---
 
-### entity_extraction_queue
+### library_entity_discovery
 
 | Index | Columns | Source |
 |-------|---------|--------|
-| UNIQUE | `campaign_id`, `resource_id` | bootstrap |
-| idx_entity_extraction_queue_status | `status` | bootstrap |
-| idx_entity_extraction_queue_next_retry | `next_retry_at` | bootstrap |
-| idx_entity_extraction_queue_campaign | `campaign_id` | bootstrap |
-| idx_entity_extraction_queue_status_retry | `status`, `next_retry_at` | 0014 |
-| idx_entity_extraction_queue_status_updated | `status`, `updated_at` | 0014 |
+| PK | `file_key` | 0020 |
+| idx_library_entity_discovery_status | `status` | 0020 |
+| idx_library_entity_discovery_username | `username` | 0020 |
 
-**Hot paths**: Pending/rate-limited items, stuck processing items.
+**Columns (0022)**: `next_retry_at`, `support_escalated_at` — backoff, DLQ, and support escalation for library-scoped discovery.
+
+**Hot paths**: Queue consumer picks pending/processing rows; listing by user; retries ordered by `next_retry_at`.
+
+**Removed**: `entity_extraction_queue` (per-campaign extraction) was dropped in 0022; legacy `CREATE TABLE` stub exists in `0000_entity_extraction_queue_legacy.sql` so older migration files remain runnable on empty DBs.
 
 ---
 

@@ -57,57 +57,57 @@ flowchart TD
 
 ## Entity Extraction and Graph Building
 
-### Automatic Entity Extraction
+### Automatic entity extraction (library-first)
 
-When resources are added to campaigns, entities are automatically extracted:
+Structured entities (NPCs, locations, items, etc.) are produced by **library entity discovery**, which runs **once per library file** after RAG indexing. Campaigns do not run a separate LLM extraction pass per add.
 
-1. **Resource Addition** (`handleAddResourceToCampaign`)
-   - File is added to campaign
-   - `stageEntitiesFromResource` is called automatically
-   - Entities are extracted from file content using `EntityExtractionService`
+1. **Library discovery** (`library_entity_discovery`, `LibraryEntityDiscoveryQueueService`)
+   - Queue consumer runs extraction against the file’s indexed content
+   - Results are stored as library candidates and relationships
 
-2. **Entity Staging** (`entity-staging-service.ts`)
-   - Extracts structured entities (NPCs, locations, items, monsters, etc.)
-   - Creates entities in the graph with relationships
-   - Entities are stored with `shardStatus: "staging"` for user approval
+2. **Resource addition** (`handleAddResourceToCampaign`)
+   - If discovery is **complete** and the file fingerprint still matches, **`tryCopyLibraryEntitiesToCampaign`** inserts **staged** entities and relationships into the campaign (same shard shape as before: `shardStatus: "staging"`).
+   - If discovery is not ready, **`ensureLibraryDiscoveryAndMarkResourcePending`** queues discovery and sets `campaign_resources.entity_copy_status` to `pending_library` until **`processPendingCampaignEntityCopiesForFile`** can copy.
 
-3. **Entity Approval**
-   - User approves/rejects entities through shard approval UI
+3. **Entity approval**
+   - User approves/rejects shards in the existing shard UI
    - Approved entities become searchable via GraphRAG
-   - Relationships are preserved and traversable
+
+See [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md) for API fields, retries, and delete semantics.
 
 #### Entity extraction and approval sequence
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant API as Add Resource API
-    participant stage as stageEntitiesFromResource
-    participant Extraction as EntityExtractionService
+    participant API as Add resource API
+    participant Copy as tryCopyLibraryEntitiesToCampaign
+    participant Pending as ensureLibraryDiscoveryAndMarkResourcePending
+    participant Queue as Library discovery queue
     participant Staging as Entities in staging
-    participant ShardUI as Shard Approval UI
-    participant ApproveAPI as Approve Shards API
-    participant Graph as Entity Graph and GraphRAG
+    participant ShardUI as Shard approval UI
+    participant ApproveAPI as Approve shards API
+    participant Graph as Entity graph and GraphRAG
 
     User->>API: Add resource to campaign
-    API->>stage: stageEntitiesFromResource
-    stage->>Extraction: Extract from file content
-    Extraction-->>stage: Entities and relationships
-    stage->>Staging: Store with shardStatus staging
+    alt Library discovery complete
+        API->>Copy: Copy candidates into campaign
+        Copy->>Staging: Staged entities and relationships
+    else Discovery missing or in progress
+        API->>Pending: Queue discovery, mark pending_library
+        Pending->>Queue: Process library discovery
+        Queue->>Staging: Later copy into campaign
+    end
     Staging-->>User: Shards ready for review
     User->>ShardUI: Approve or reject
     ShardUI->>ApproveAPI: Approve shards
-    ApproveAPI->>Graph: Move approved entities to graph
+    ApproveAPI->>Graph: Approved entities in graph
     Graph-->>User: Entities searchable via GraphRAG
 ```
 
-### Manual Entity Extraction
+### Manual extraction from arbitrary text
 
-Entities can also be extracted manually via:
-
-- **`extractEntitiesFromContentTool`** - Extract entities from text content
-- **`EntityExtractionPipeline`** - Programmatic entity extraction
-- **API endpoints** - `/campaigns/:campaignId/entities/extract`
+There is **no** first-class HTTP route for `POST /campaigns/:campaignId/entities/extract`. Programmatic extraction for uploads goes through the **library discovery** pipeline and campaign **copy**. Agent tools that mutate the graph should use the existing entity/shard tools rather than a removed “extract from free text” tool.
 
 ## Query Types
 
@@ -209,7 +209,7 @@ The legacy `CampaignRAGService` (using `campaign_context_chunks` table) has been
 
 **Replacement**:
 
-- `CampaignRAGService.processCampaignContext()` → Use entity extraction pipeline
+- `CampaignRAGService.processCampaignContext()` → Use GraphRAG / context assembly and the library entity pipeline for new extractions
 - `CampaignRAGService.searchCampaignContext()` → Use `PlanningContextService` or `ContextAssemblyService`
 
 ### Migration Status
@@ -217,7 +217,7 @@ The legacy `CampaignRAGService` (using `campaign_context_chunks` table) has been
 **Complete**: All campaign context queries migrated to GraphRAG
 
 - `searchCampaignContext` tool uses `PlanningContextService`
-- Entity extraction integrated with shard creation
+- Library discovery integrated with shard creation (copy into campaign on add)
 - GraphRAG queries used throughout the system
 
 ## Tools Using GraphRAG
@@ -229,10 +229,7 @@ The legacy `CampaignRAGService` (using `campaign_context_chunks` table) has been
    - Uses `EntityEmbeddingService` for semantic entity search
    - Augments results with entity graph context
 
-2. **`extractEntitiesFromContentTool`**
-   - Extracts entities from text content
-   - Creates entities in the graph
-   - Establishes relationships
+2. **Entity and shard tools** (e.g. list, search, approve) — operate on entities already staged or approved in the campaign graph.
 
 ### Agent Integration
 
@@ -388,7 +385,8 @@ See [TOOL_PATTERNS.md](./TOOL_PATTERNS.md) for env vs API fallback and paginatio
 
 ## Related Documentation
 
-- [Campaign Shard Flow](./CAMPAIGN_SHARD_FLOW.md) - Entity extraction and shard approval
+- [Library entity pipeline](./LIBRARY_ENTITY_PIPELINE.md) - Library discovery, campaign copy, retries
+- [Campaign Shard Flow](./CAMPAIGN_SHARD_FLOW.md) - Shard approval workflow
 - [DAO Layer](./DAO_LAYER.md) - Database access patterns
 - [Testing Guide](./TESTING_GUIDE.md) - Testing GraphRAG services
 - [LEIDEN_ALGORITHM.md](./LEIDEN_ALGORITHM.md) - Community detection used in graph/GraphRAG

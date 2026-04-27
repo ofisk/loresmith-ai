@@ -14,8 +14,11 @@ export function isLibraryEntityDiscoveryInFlight(
 export function isFileReadyForCampaignAdd(file: {
 	status: string;
 	library_entity_discovery_status?: string | null;
+	library_pipeline_ready?: boolean;
 }): boolean {
 	if (file.status !== "completed") return false;
+	if (file.library_pipeline_ready === true) return true;
+	if (file.library_pipeline_ready === false) return false;
 	if (isLibraryEntityDiscoveryInFlight(file.library_entity_discovery_status)) {
 		return false;
 	}

@@ -33,6 +33,11 @@ export const PROCESSING_LIMITS = {
 	MAX_PDF_SIZE_FOR_RANGE_BYTES: 100 * 1024 * 1024,
 } as const;
 
+/** Library entity discovery: bounded retries with backoff before terminal failure (DLQ + support). */
+export const LIBRARY_ENTITY_DISCOVERY = {
+	MAX_RETRIES: 6,
+} as const;
+
 const _cannotProcessText = `Files over ${PROCESSING_LIMITS.MEMORY_LIMIT_MB}MB cannot be processed in one pass due to memory limits. Large files are processed in chunks; if you see this, processing failed.`;
 
 /** User-facing copy for memory limit and upload errors. Upload max = UPLOAD_CONFIG.MAX_FILE_SIZE; processing uses chunks. */

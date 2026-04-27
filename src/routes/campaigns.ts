@@ -3,7 +3,6 @@ import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
 import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import {
 	buildBulkDeletionResponse,
@@ -19,7 +18,6 @@ import {
 	addResourceToCampaign,
 	checkResourceExists,
 	createCampaign,
-	getCampaignRagBasePath,
 	validateCampaignOwnership,
 } from "@/lib/campaign-operations";
 import { CampaignAccessDeniedError } from "@/lib/errors";
@@ -46,8 +44,9 @@ import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
 import { CampaignContextSyncService } from "@/services/campaign/campaign-context-sync-service";
 import { ChecklistStatusService } from "@/services/campaign/checklist-status-service";
-import { EntityExtractionQueueService } from "@/services/campaign/entity-extraction-queue-service";
 import { tryCopyLibraryEntitiesToCampaign } from "@/services/campaign/library-entity-copy-to-campaign-service";
+import { LibraryEntityDiscoveryQueueService } from "@/services/campaign/library-entity-discovery-queue-service";
+import { ensureLibraryDiscoveryAndMarkResourcePending } from "@/services/campaign/pending-campaign-entity-copy";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { SyncQueueService } from "@/services/file/sync-queue-service";
 import { ResourceAddRateLimitService } from "@/services/resource-add-rate-limit-service";
@@ -76,16 +75,23 @@ export async function handleGetCampaigns(c: ContextWithAuth) {
 			userAuth.username
 		);
 
-		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
-		const campaignIdsWithProcessing = new Set(
-			await queueDAO.getCampaignIdsWithActiveExtraction()
+		const campaignIdsPendingCopy = new Set(
+			await campaignDAO.getCampaignIdsWithPendingLibraryEntityCopy()
 		);
-		const campaignsWithFlags = campaigns.map((campaign) => ({
-			...campaign,
-			hasProcessingDocuments: campaignIdsWithProcessing.has(
-				campaign.campaignId
-			),
-		}));
+		const campaignsWithFlags = await Promise.all(
+			campaigns.map(async (campaign) => {
+				const filesStillProcessing =
+					(await campaignDAO.countResourcesWithFilesStillProcessing(
+						campaign.campaignId
+					)) > 0;
+				return {
+					...campaign,
+					hasProcessingDocuments:
+						campaignIdsPendingCopy.has(campaign.campaignId) ||
+						filesStillProcessing,
+				};
+			})
+		);
 
 		log.debug("Found campaigns for user", {
 			count: campaigns.length,
@@ -805,29 +811,17 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 					`[Server] Library entities copied for resource ${resourceId} in campaign ${campaignId}`
 				);
 			} else {
-				const campaignRagBasePath = await getCampaignRagBasePath(
-					userAuth.username,
+				await ensureLibraryDiscoveryAndMarkResourcePending({
+					env: c.env,
+					username: userAuth.username,
 					campaignId,
-					c.env
+					resourceId,
+					fileKey: id,
+					fileName: name || fileName,
+				});
+				log.debug(
+					`[Server] Library discovery queued; campaign resource ${resourceId} pending copy`
 				);
-				if (!campaignRagBasePath) {
-					log.warn(
-						`[Server] Campaign RAG not initialized for campaign: ${campaignId}`
-					);
-				} else {
-					await EntityExtractionQueueService.queueEntityExtraction({
-						env: c.env,
-						username: userAuth.username,
-						campaignId,
-						resourceId,
-						resourceName: name || id,
-						fileKey: id,
-					});
-
-					log.debug(
-						`[Server] Entity extraction queued for resource ${resourceId} in campaign ${campaignId}`
-					);
-				}
 			}
 		} catch (queueError) {
 			log.error(
@@ -924,29 +918,24 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 
 		log.debug("[Server] Found resource for retry:", resource);
 
-		// In-progress check: block retry until current extraction completes
-		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
-		const queueItem = await queueDAO.getQueueItemByResource(
-			campaignId,
-			resourceId
-		);
-		const activeStatuses = ["pending", "processing", "rate_limited"];
+		const fileKey = resource.file_key;
+		const libDaoRetry = new LibraryEntityDAO(c.env.DB);
+		const discoveryRetry = await libDaoRetry.getDiscovery(fileKey);
 		if (
-			queueItem &&
-			activeStatuses.includes(queueItem.status?.toLowerCase() ?? "")
+			discoveryRetry &&
+			isLibraryEntityDiscoveryInFlight(discoveryRetry.status)
 		) {
 			return c.json(
 				{
 					success: false,
 					message:
-						"Please wait for the current extraction to complete before retrying.",
+						"Please wait for the current library indexing run to complete before retrying.",
 					error: "EXTRACTION_IN_PROGRESS",
 				},
 				409
 			);
 		}
 
-		// Limit check: per-file daily and monthly retry limits
 		const limitKey = resource.file_key ?? resourceId;
 		const retryLimit = await RetryLimitService.checkAndIncrementRetry(
 			userAuth.username,
@@ -965,71 +954,33 @@ export async function handleRetryEntityExtraction(c: ContextWithAuth) {
 			);
 		}
 
-		// Queue entity extraction retry (asynchronous)
 		try {
-			await EntityExtractionQueueService.queueEntityExtraction({
+			await ensureLibraryDiscoveryAndMarkResourcePending({
 				env: c.env,
 				username: userAuth.username,
 				campaignId,
 				resourceId,
-				resourceName: resource.file_name || resource.id,
-				fileKey: resource.file_key || undefined,
+				fileKey,
+				fileName: resource.file_name,
 			});
-
-			log.debug(
-				`[Server] Entity extraction retry queued for resource ${resourceId} in campaign ${campaignId}`
-			);
+			LibraryEntityDiscoveryQueueService.processQueue(c.env).catch(() => {});
 
 			return c.json({
 				success: true,
 				message:
-					"Entity extraction has been queued. You'll receive a notification when it's complete.",
+					"Library entity extraction has been re-queued. You'll receive a notification when shards are ready.",
 			});
 		} catch (error) {
 			log.error(
-				`[Server] Error during entity extraction retry for resource ${resourceId}:`,
+				`[Server] Error during library extraction retry for resource ${resourceId}:`,
 				error
 			);
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
-
-			// Check if it's a memory limit error
-			if (
-				errorMessage.includes("memory limit") ||
-				errorMessage.includes("exceeded") ||
-				errorMessage.includes("Worker exceeded")
-			) {
-				return c.json(
-					{
-						success: false,
-						message: MEMORY_LIMIT_COPY.withFilename(resource.file_name),
-						error: "MEMORY_LIMIT_EXCEEDED",
-					},
-					413
-				);
-			}
-
-			// For rate limit errors, provide actionable message
-			if (
-				errorMessage.includes("rate limit") ||
-				errorMessage.includes("429") ||
-				errorMessage.includes("Too Many Requests")
-			) {
-				return c.json(
-					{
-						success: false,
-						message: `Entity extraction is being rate-limited. Please wait a few moments and try again. The file is being processed in chunks, which may take longer for large files.`,
-						error: "RATE_LIMIT_EXCEEDED",
-					},
-					429
-				);
-			}
-
-			// Generic error
 			return c.json(
 				{
 					success: false,
-					message: `Failed to queue entity extraction retry: ${errorMessage}`,
+					message: `Failed to queue extraction retry: ${errorMessage}`,
 					error: errorMessage,
 				},
 				500
@@ -1154,36 +1105,31 @@ export async function handleGetEntityExtractionStatus(c: ContextWithAuth) {
 			return c.json({ error: "Campaign not found" }, 404);
 		}
 
-		// Check queue status
-		const queueDAO = new EntityExtractionQueueDAO(c.env.DB);
-		const queueItem = await queueDAO.getQueueItemByResource(
-			campaignId,
-			resourceId
+		const campaignDAOStatus = getDAOFactory(c.env).campaignDAO;
+		const resourceRow = await campaignDAOStatus.getCampaignResourceById(
+			resourceId,
+			campaignId
 		);
-
-		if (!queueItem) {
-			// Not in queue - extraction is either completed or never started
-			log.debug(
-				`[Server] Entity extraction status for resource ${resourceId}: not in queue (completed or never started)`
-			);
-			return c.json({
-				inQueue: false,
-				status: null,
-			});
+		if (!resourceRow) {
+			return c.json({ error: "Resource not found in this campaign" }, 404);
 		}
+		const libDaoStatus = new LibraryEntityDAO(c.env.DB);
+		const disc = await libDaoStatus.getDiscovery(resourceRow.file_key);
+		const copyStatus = resourceRow.entity_copy_status ?? "complete";
 
 		log.debug(
-			`[Server] Entity extraction status for resource ${resourceId}: inQueue=true, status=${queueItem.status}, retryCount=${queueItem.retry_count}`
+			`[Server] Entity extraction status for resource ${resourceId}: library=${disc?.status}, copy=${copyStatus}`
 		);
 		return c.json({
-			inQueue: true,
-			status: queueItem.status,
-			retryCount: queueItem.retry_count,
-			queueMessage: queueItem.queue_message,
-			errorCode: queueItem.error_code,
-			nextRetryAt: queueItem.next_retry_at,
-			createdAt: queueItem.created_at,
-			processedAt: queueItem.processed_at,
+			inQueue: copyStatus === "pending_library",
+			status:
+				copyStatus === "pending_library"
+					? (disc?.status ?? "pending")
+					: copyStatus,
+			entityCopyStatus: copyStatus,
+			queueMessage: disc?.queue_message ?? null,
+			retryCount: disc?.retry_count ?? 0,
+			libraryLastError: disc?.last_error ?? null,
 		});
 	} catch (error) {
 		log.error("Error getting entity extraction status:", error);
@@ -1214,7 +1160,7 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
 		);
 
 		const result =
-			await EntityExtractionQueueService.cleanupStuckProcessingItems(
+			await LibraryEntityDiscoveryQueueService.cleanupStuckProcessingItems(
 				c.env,
 				timeoutMinutes
 			);
@@ -1223,14 +1169,12 @@ export async function handleCleanupStuckEntityExtraction(c: ContextWithAuth) {
 			success: true,
 			reset: result.reset,
 			items: result.items.map((item) => ({
-				id: item.id,
-				resourceId: item.resource_id,
-				resourceName: item.resource_name,
-				campaignId: item.campaign_id,
+				fileKey: item.file_key,
+				username: item.username,
 				status: item.status,
 				updatedAt: item.updated_at,
 			})),
-			message: `Reset ${result.reset} stuck processing item(s) back to pending`,
+			message: `Reset ${result.reset} stuck library discovery job(s) back to pending`,
 		});
 	} catch (error) {
 		log.error("Error cleaning up stuck entity extraction items:", error);
@@ -1259,11 +1203,8 @@ export async function handleProcessEntityExtractionQueue(c: ContextWithAuth) {
 			`[Server] POST /campaigns/process-entity-extraction-queue - manually triggering queue processing for user ${userAuth.username}`
 		);
 
-		// Process queue for the current user
-		const result = await EntityExtractionQueueService.processQueue(
-			c.env,
-			userAuth.username
-		);
+		// Process library entity discovery queue (not user-scoped; best-effort batch)
+		const result = await LibraryEntityDiscoveryQueueService.processQueue(c.env);
 
 		return c.json({
 			success: true,

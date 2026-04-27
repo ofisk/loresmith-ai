@@ -2,11 +2,14 @@
 // Handles file listing, search, metadata updates, and file operations
 
 import { type Context, Hono } from "hono";
+import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import { getRequestLogger } from "@/lib/logger";
 import { requireParam } from "@/lib/route-utils";
 import { getLibraryService, LibraryRAGService } from "@/lib/service-factory";
 import { requireUserJwt } from "@/middleware/auth";
+import { LibraryEntityDiscoveryQueueService } from "@/services/campaign/library-entity-discovery-queue-service";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import type { SearchQuery } from "@/types/upload";
@@ -311,5 +314,55 @@ export const handleRegenerateFileMetadata = async (
 			error
 		);
 		return c.json({ error: "Failed to regenerate metadata" }, 500);
+	}
+};
+
+/**
+ * POST /library/retry-entity-pipeline
+ * Re-run library entity discovery after indexing completed (clears staged candidates and re-queues).
+ */
+export const handleRetryLibraryEntityPipeline = async (
+	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
+	const log = getRequestLogger(c);
+	try {
+		const userAuth = (c as any).userAuth;
+		const userId = userAuth?.username || "anonymous";
+		const body = (await c.req.json()) as { fileKey?: string };
+		const fileKey = body?.fileKey;
+		if (!fileKey) {
+			return c.json({ error: "fileKey is required" }, 400);
+		}
+
+		const fileDAO = getDAOFactory(c.env).fileDAO;
+		const file = await fileDAO.getFileForRag(fileKey, userId);
+		if (!file) {
+			return c.json({ error: "File not found" }, 404);
+		}
+		if (file.status !== FileDAO.STATUS.COMPLETED) {
+			return c.json(
+				{
+					error: "File must finish indexing before retrying entity extraction",
+					status: file.status,
+				},
+				400
+			);
+		}
+
+		const libDao = new LibraryEntityDAO(c.env.DB);
+		if (!(await libDao.isSchemaReady())) {
+			return c.json({ error: "Library entity pipeline is not available" }, 503);
+		}
+
+		await libDao.resetForReExtraction(fileKey, userId);
+		LibraryEntityDiscoveryQueueService.processQueue(c.env).catch(() => {});
+
+		return c.json({
+			success: true,
+			message: "Library entity discovery re-queued",
+		});
+	} catch (error) {
+		log.error("[handleRetryLibraryEntityPipeline] failed", error);
+		return c.json({ error: "Internal server error" }, 500);
 	}
 };

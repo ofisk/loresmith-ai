@@ -30,7 +30,6 @@ SELECT
   (SELECT COUNT(*) FROM email_verification_tokens) AS email_verification_tokens,
   (SELECT COUNT(*) FROM entities) AS entities,
   (SELECT COUNT(*) FROM entity_deduplication_pending) AS entity_deduplication_pending,
-  (SELECT COUNT(*) FROM entity_extraction_queue) AS entity_extraction_queue,
   (SELECT COUNT(*) FROM entity_importance) AS entity_importance,
   (SELECT COUNT(*) FROM entity_relationships) AS entity_relationships,
   (SELECT COUNT(*) FROM entity_search_cache_version) AS entity_search_cache_version,

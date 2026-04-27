@@ -130,3 +130,18 @@ export const routeGetFileStatus = createRoute({
 	security: [{ bearerAuth: [] }],
 	responses: { 200: jsonDesc("File status"), ...E401, ...E500 },
 });
+
+export const routeRetryLibraryEntityPipeline = createRoute({
+	method: "post",
+	path: toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.RETRY_ENTITY_PIPELINE),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": { schema: z.object({ fileKey: z.string() }) },
+			},
+		},
+	},
+	responses: { 200: jsonDesc("Re-queued"), ...E401, ...E500 },
+});

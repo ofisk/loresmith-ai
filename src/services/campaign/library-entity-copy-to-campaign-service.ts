@@ -27,7 +27,7 @@ export interface CopyLibraryEntitiesOptions {
  * entities and relationships into the campaign graph (same shape as post-extraction staging).
  *
  * Returns `false` when discovery is missing, incomplete, or fingerprint drifted — callers
- * should fall back to {@link EntityExtractionQueueService.queueEntityExtraction} (see campaigns route).
+ * should call `ensureLibraryDiscoveryAndMarkResourcePending` (see `pending-campaign-entity-copy`) so library discovery runs and the resource stays pending until copy succeeds.
  */
 export async function tryCopyLibraryEntitiesToCampaign(
 	options: CopyLibraryEntitiesOptions

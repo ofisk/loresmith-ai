@@ -8,13 +8,11 @@ import {
 } from "./community-tools";
 import {
 	createEntityRelationshipTool,
-	extractEntitiesFromContentTool,
 	updateEntityTypeTool,
 } from "./entity-tools";
 import { searchCampaignContext } from "./search-tools";
 
 export const entityGraphTools = {
-	extractEntitiesFromContentTool,
 	createEntityRelationshipTool,
 	updateEntityTypeTool,
 	detectCommunitiesTool,

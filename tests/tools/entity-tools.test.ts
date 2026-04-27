@@ -4,11 +4,6 @@ const { getResolvedRulesContextMock } = vi.hoisted(() => ({
 	getResolvedRulesContextMock: vi.fn(),
 }));
 
-vi.mock("@/lib/tool-auth", () => ({
-	authenticatedFetch: vi.fn(),
-	handleAuthError: vi.fn(),
-}));
-
 const mockDaoFactory = {
 	campaignDAO: {
 		getCampaignByIdWithMapping: vi.fn(),
@@ -38,20 +33,13 @@ vi.mock("@/services/campaign/rules-context-service", () => ({
 	},
 }));
 
-import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import {
 	deleteEntityTool,
-	extractEntitiesFromContentTool,
 	listHouseRulesTool,
 	updateEntityMetadataTool,
 } from "@/tools/campaign-context/entity-tools";
 
 const jwt = "x.eyJ1c2VybmFtZSI6Im9maXNrIn0=.y";
-const makeResponse = (data: unknown, ok = true, status = 200) => ({
-	ok,
-	status,
-	json: vi.fn().mockResolvedValue(data),
-});
 
 describe("entity tools", () => {
 	beforeEach(() => {
@@ -67,56 +55,6 @@ describe("entity tools", () => {
 			rules: [],
 			conflicts: [],
 			warnings: [],
-		});
-	});
-
-	describe("extractEntitiesFromContentTool", () => {
-		it("API fallback returns success when env is null", async () => {
-			(authenticatedFetch as any).mockResolvedValue(
-				makeResponse({
-					entities: [{ id: "ent-1", name: "Dragon" }],
-					relationships: [],
-					count: 1,
-				})
-			);
-
-			const result = await extractEntitiesFromContentTool.execute(
-				{
-					campaignId: "campaign-1",
-					content: "A fierce dragon guarded the tower.",
-					jwt,
-				},
-				{ toolCallId: "extract-1", messages: [] }
-			);
-
-			expect(result.result.success).toBe(true);
-			expect(authenticatedFetch).toHaveBeenCalledWith(
-				expect.stringContaining("/entities/extract"),
-				expect.objectContaining({
-					method: "POST",
-					jwt,
-					body: expect.stringContaining("dragon"),
-				})
-			);
-		});
-
-		it("API fallback returns error on auth failure", async () => {
-			(authenticatedFetch as any).mockResolvedValue(
-				makeResponse({}, false, 401)
-			);
-			(handleAuthError as any).mockReturnValue("Auth failed");
-
-			const result = await extractEntitiesFromContentTool.execute(
-				{
-					campaignId: "campaign-1",
-					content: "Some content",
-					jwt,
-				},
-				{ toolCallId: "extract-2", messages: [] }
-			);
-
-			expect(result.result.success).toBe(false);
-			expect(result.result.message).toBe("Auth failed");
 		});
 	});
 

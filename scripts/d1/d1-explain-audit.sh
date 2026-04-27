@@ -77,8 +77,8 @@ mkdir -p "$DOCS_DIR"
 	run_explain "graph_dirty_relationships delete by from_entity_id" "DELETE FROM graph_dirty_relationships WHERE campaign_id = 'c1' AND from_entity_id IN ('e1', 'e2')"
 	run_explain "graph_dirty_relationships delete by to_entity_id" "DELETE FROM graph_dirty_relationships WHERE campaign_id = 'c1' AND to_entity_id IN ('e1', 'e2')"
 
-	# entity_extraction_queue getPendingQueueItems
-	run_explain "entity_extraction_queue pending items" "SELECT * FROM entity_extraction_queue WHERE status = 'pending' OR (status = 'rate_limited' AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))) ORDER BY created_at ASC LIMIT 10"
+	# library_entity_discovery listPendingDiscovery
+	run_explain "library_entity_discovery pending items" "SELECT * FROM library_entity_discovery WHERE status = 'pending' AND (next_retry_at IS NULL OR next_retry_at <= datetime('now')) ORDER BY updated_at ASC LIMIT 10"
 
 	# entity_dao listEntities with json_each filter
 	run_explain "entities listEntities with json_each" "SELECT * FROM entities WHERE campaign_id = 'c1' AND id IN (SELECT value FROM json_each('[\"e1\",\"e2\"]')) ORDER BY updated_at DESC"

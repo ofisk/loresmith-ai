@@ -202,9 +202,11 @@ If a file shows a "Failed" status, you can:
 
 You can add the same file to multiple campaigns if it's relevant to several of your adventures.
 
+**Library processing:** LoreSmith runs **indexing** (chunking and embeddings) and then **entity discovery** once per library file. In the resource library, progress and readiness appear on each file. If you add a file to a campaign before discovery finishes, staging may be **delayed** until that step completes; you can use **Retry entity extraction** on the file details if something fails after indexing.
+
 ### Reviewing and Approving Shards
 
-After adding a file to a campaign, LoreSmith automatically extracts entities (NPCs, locations, items, etc.) as "shards" that you can review before they're added to your campaign's knowledge base.
+After entities are **staged** for your campaign (copied from the library when discovery is ready), they appear as "shards" you can review before they're fully folded into your campaign's knowledge base.
 
 **To review shards:**
 

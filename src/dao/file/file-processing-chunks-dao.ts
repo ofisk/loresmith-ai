@@ -176,6 +176,67 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
 		}));
 	}
 
+	/**
+	 * Per-file aggregate chunk stats for many files in one query (GET /library/files).
+	 */
+	async getFileChunkStatsForFileKeys(fileKeys: string[]): Promise<
+		Map<
+			string,
+			{
+				total: number;
+				completed: number;
+				failed: number;
+				pending: number;
+				processing: number;
+			}
+		>
+	> {
+		const out = new Map<
+			string,
+			{
+				total: number;
+				completed: number;
+				failed: number;
+				pending: number;
+				processing: number;
+			}
+		>();
+		if (fileKeys.length === 0) {
+			return out;
+		}
+		const ph = fileKeys.map(() => "?").join(", ");
+		const sql = `
+      SELECT
+        file_key,
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing
+      FROM file_processing_chunks
+      WHERE file_key IN (${ph})
+      GROUP BY file_key
+    `;
+		const rows = await this.queryAll<{
+			file_key: string;
+			total?: number;
+			completed?: number;
+			failed?: number;
+			pending?: number;
+			processing?: number;
+		}>(sql, fileKeys);
+		for (const row of rows) {
+			out.set(row.file_key, {
+				total: row.total ?? 0,
+				completed: row.completed ?? 0,
+				failed: row.failed ?? 0,
+				pending: row.pending ?? 0,
+				processing: row.processing ?? 0,
+			});
+		}
+		return out;
+	}
+
 	async getFileChunkStats(fileKey: string): Promise<{
 		total: number;
 		completed: number;

@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { AdminAnalyticsQueryOptions } from "@/dao/admin-analytics-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
-import { EntityExtractionQueueDAO } from "@/dao/entity-extraction-queue-dao";
+import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { UserAuthenticationMissingError } from "@/lib/errors";
 import { getRequestLogger } from "@/lib/logger";
@@ -254,7 +254,7 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 
 		// Get key metrics for dashboard
 		const daoFactory = getDAOFactory(c.env);
-		const extractionQueueDao = new EntityExtractionQueueDAO(c.env.DB);
+		const libraryEntityDao = new LibraryEntityDAO(c.env.DB);
 
 		const [
 			queryLatency,
@@ -311,7 +311,7 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 				fromDate: last7Days,
 				limit: 15,
 			}),
-			extractionQueueDao.getTopFailedErrorMessages({
+			libraryEntityDao.getTopFailedErrorMessages({
 				fromDate: last7Days,
 				limit: 15,
 			}),
@@ -324,7 +324,7 @@ export async function handleGetDashboard(c: ContextWithAuth) {
 				count: row.count,
 			})),
 			...extractionErrors.map((row) => ({
-				source: "entity_extraction" as const,
+				source: "library_entity_discovery" as const,
 				message: row.errorMessage,
 				count: row.count,
 			})),

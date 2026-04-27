@@ -17,6 +17,10 @@ A comprehensive file upload and library system built with Cloudflare Workers, R2
 User upload -> Direct/Multipart upload -> R2 storage -> Extraction and featurization -> Embeddings -> D1 and Vectorize
 ```
 
+### Library entity discovery (after indexing)
+
+After a file is **indexed** for the library, **entity discovery** runs **once per `file_key`** (queue-backed `library_entity_discovery`), independent of which campaigns use the file. Campaign adds **copy** staged entities into a campaign or mark the resource **pending** until discovery completes. The **`GET /api/library/files`** response includes **`ingestion_chunk_stats`**, **`library_pipeline_ready`**, and optional discovery status fields for the UI. Retries: **`POST /api/library/retry-entity-pipeline`** (body: `{ "fileKey" }`) after indexing completes. See [Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md).
+
 ### Upload path: direct vs multipart
 
 ```mermaid

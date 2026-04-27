@@ -91,7 +91,7 @@ Staging uses a dedicated D1 database (`loresmith-db-dev`). R2 and Vectorize are 
 
 ### Database migrations
 
-**New databases:** Run `npm run migrate:bootstrap:dev` (or `migrate:bootstrap:prod`) once to create the base schema. Then run `npm run migrate:dev` or `wrangler d1 migrations apply` to apply incremental migrations. The bootstrap script is separate because the clean-slate schema contains triggers that cause D1's migration runner to fail (semicolon-splitting).
+**New databases:** Run `npm run migrate:bootstrap:dev` (or `migrate:bootstrap:prod`) once to create the base schema. Then run `npm run migrate:dev` or `wrangler d1 migrations apply` to apply incremental migrations. The bootstrap script is separate because the clean-slate schema contains triggers that cause D1's migration runner to fail (semicolon-splitting). **Always apply migrations after bootstrap:** some columns and indexes (for example `campaign_resources.entity_copy_status` and `library_entity_discovery.next_retry_at` from `0022`) are added only in migrations, not in the bootstrap snapshot, so skipping migrations will break code that expects those columns.
 
 **Existing databases:** Run migrations before deploying new code. The app is backwards compatible: if migrations 0013 or 0014 have not run, the code will degrade gracefully (e.g. no shared campaigns until 0013, no proposal attribution until 0014) rather than failing.
 

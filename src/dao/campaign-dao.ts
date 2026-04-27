@@ -528,8 +528,8 @@ export class CampaignDAO extends BaseDAOClass {
 	): Promise<string> {
 		const resourceId = crypto.randomUUID();
 		const sql = `
-      insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at, updated_at)
-      values (?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+      insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, entity_copy_status, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, 'complete', current_timestamp, current_timestamp)
     `;
 		await this.execute(sql, [
 			resourceId,
@@ -551,11 +551,13 @@ export class CampaignDAO extends BaseDAOClass {
 		fileName: string,
 		description?: string,
 		tags?: string,
-		status?: string
+		status?: string,
+		entityCopyStatus: "complete" | "pending_library" | "failed" = "complete",
+		pendingAttribution?: string | null
 	): Promise<void> {
 		const sql = `
-      insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, created_at, updated_at)
-      values (?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+      insert into campaign_resources (id, campaign_id, file_key, file_name, description, tags, status, entity_copy_status, pending_attribution, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
     `;
 		await this.execute(sql, [
 			resourceId,
@@ -565,7 +567,70 @@ export class CampaignDAO extends BaseDAOClass {
 			description || "",
 			tags || "[]",
 			status || "active",
+			entityCopyStatus,
+			pendingAttribution ?? null,
 		]);
+	}
+
+	/** Campaigns with at least one resource waiting on library entity extraction + copy. */
+	async getCampaignIdsWithPendingLibraryEntityCopy(): Promise<string[]> {
+		const sql = `
+      SELECT DISTINCT campaign_id FROM campaign_resources
+      WHERE entity_copy_status = 'pending_library'
+    `;
+		const rows = await this.queryAll<{ campaign_id: string }>(sql, []);
+		return rows.map((r) => r.campaign_id);
+	}
+
+	async countResourcesWithPendingLibraryEntityCopy(
+		campaignId: string
+	): Promise<number> {
+		const row = await this.queryFirst<{ c: number }>(
+			`SELECT COUNT(*) AS c FROM campaign_resources
+       WHERE campaign_id = ? AND entity_copy_status = 'pending_library'`,
+			[campaignId]
+		);
+		return Number(row?.c ?? 0);
+	}
+
+	async setCampaignResourceEntityCopyStatus(
+		campaignId: string,
+		resourceId: string,
+		status: "complete" | "pending_library" | "failed",
+		pendingAttribution?: string | null
+	): Promise<void> {
+		const sql = `
+      UPDATE campaign_resources
+      SET entity_copy_status = ?, pending_attribution = COALESCE(?, pending_attribution), updated_at = current_timestamp
+      WHERE campaign_id = ? AND id = ?
+    `;
+		await this.execute(sql, [
+			status,
+			pendingAttribution ?? null,
+			campaignId,
+			resourceId,
+		]);
+	}
+
+	async listResourcesPendingLibraryCopy(fileKey: string): Promise<
+		{
+			id: string;
+			campaign_id: string;
+			file_name: string;
+			pending_attribution: string | null;
+		}[]
+	> {
+		const sql = `
+      SELECT id, campaign_id, file_name, pending_attribution
+      FROM campaign_resources
+      WHERE file_key = ? AND entity_copy_status = 'pending_library'
+    `;
+		return this.queryAll<{
+			id: string;
+			campaign_id: string;
+			file_name: string;
+			pending_attribution: string | null;
+		}>(sql, [fileKey]);
 	}
 
 	// Check if file resource already exists in campaign
@@ -592,12 +657,14 @@ export class CampaignDAO extends BaseDAOClass {
 		file_key: string;
 		file_name: string;
 		display_name?: string;
+		entity_copy_status?: string;
 	} | null> {
 		const sql = `
       select 
         cr.id, 
         cr.file_key, 
         cr.file_name,
+        cr.entity_copy_status,
         fm.display_name
       from campaign_resources cr
       left join file_metadata fm on cr.file_key = fm.file_key
@@ -607,6 +674,7 @@ export class CampaignDAO extends BaseDAOClass {
 			id: string;
 			file_key: string;
 			file_name: string;
+			entity_copy_status?: string;
 			display_name?: string;
 		}>(sql, [resourceId, campaignId]);
 	}

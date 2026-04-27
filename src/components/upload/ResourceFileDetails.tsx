@@ -8,6 +8,11 @@ import {
 	isFileReadyForCampaignAdd,
 	isLibraryEntityDiscoveryInFlight,
 } from "@/lib/library-entity-pipeline";
+import {
+	authenticatedFetchWithExpiration,
+	getStoredJwt,
+} from "@/services/core/auth-service";
+import { API_CONFIG } from "@/shared-config";
 import type { Campaign } from "@/types/campaign";
 
 const LIBRARY_DISCOVERY_LABEL: Record<string, string> = {
@@ -48,6 +53,37 @@ export function ResourceFileDetails({
 }: ResourceFileDetailsProps) {
 	const canAddToCampaign = isFileReadyForCampaignAdd(file);
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [retryingEntityPipeline, setRetryingEntityPipeline] = useState(false);
+	const discoveryInFlight = isLibraryEntityDiscoveryInFlight(
+		file.library_entity_discovery_status
+	);
+	const showRetryEntityExtraction =
+		file.status === FileDAO.STATUS.COMPLETED &&
+		!discoveryInFlight &&
+		(file.library_entity_discovery_status === "failed" ||
+			file.library_pipeline_ready === false);
+
+	const handleRetryEntityExtraction = async () => {
+		const jwt = getStoredJwt();
+		if (!jwt) return;
+		setRetryingEntityPipeline(true);
+		try {
+			const { response } = await authenticatedFetchWithExpiration(
+				API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.LIBRARY.RETRY_ENTITY_PIPELINE),
+				{
+					method: "POST",
+					jwt,
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ fileKey: file.file_key }),
+				}
+			);
+			if (response.ok) {
+				await fetchResources();
+			}
+		} finally {
+			setRetryingEntityPipeline(false);
+		}
+	};
 	const handleRetryIndexing = async () => {
 		await onRetryIndexing(file.file_key);
 		await fetchResources();
@@ -280,11 +316,20 @@ export function ResourceFileDetails({
 					>
 						{canAddToCampaign
 							? "Add to campaign"
-							: isLibraryEntityDiscoveryInFlight(
-										file.library_entity_discovery_status
-									)
+							: discoveryInFlight
 								? "Indexing entities…"
 								: "File not ready"}
+					</Button>
+				)}
+				{showRetryEntityExtraction && (
+					<Button
+						onClick={handleRetryEntityExtraction}
+						disabled={retryingEntityPipeline}
+						variant="secondary"
+						size="sm"
+						className="w-full !text-primary border-primary/35 hover:border-primary/50"
+					>
+						{retryingEntityPipeline ? "Queuing…" : "Retry entity extraction"}
 					</Button>
 				)}
 				<Button

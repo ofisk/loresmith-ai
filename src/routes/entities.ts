@@ -1,38 +1,24 @@
-import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { EntityDAO } from "@/dao/entity-dao";
-import { getEnvVar } from "@/lib/env-utils";
-import {
-	chunkTextByCharacterCount,
-	chunkTextByPages,
-} from "@/lib/file/text-chunking-utils";
 import {
 	type ImportanceLevel,
 	mapOverrideToScore,
 } from "@/lib/importance-config";
-import { R2Helper } from "@/lib/r2";
 import {
 	type ContextWithAuth,
 	ensureCampaignAccess,
 	getUserAuth,
 	requireParam,
 } from "@/lib/route-utils";
-import { DirectFileContentExtractionProvider } from "@/services/campaign/impl/direct-file-content-extraction-provider";
-import { generateVisualInspirationTitle } from "@/services/campaign/visual-inspiration-title";
 import type { AuthPayload } from "@/services/core/auth-service";
 import type { EntityGraphService } from "@/services/graph/entity-graph-service";
 import type { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { WorldStateChangelogService } from "@/services/graph/world-state-changelog-service";
-import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { EntityDeduplicationService } from "@/services/rag/entity-deduplication-service";
-import { EntityExtractionPipeline } from "@/services/rag/entity-extraction-pipeline";
-import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 
 interface EntityServiceBundle {
 	embeddingService: EntityEmbeddingService;
-	extractionService: EntityExtractionService;
-	pipeline: EntityExtractionPipeline;
 	dedupeService: EntityDeduplicationService;
 	graphService: EntityGraphService;
 }
@@ -54,19 +40,9 @@ function buildEntityServiceAccessor(
 	return () => {
 		if (!bundle) {
 			const embeddingService = new EntityEmbeddingService(c.env.VECTORIZE);
-			const extractionService = new EntityExtractionService(null);
 			bundle = {
 				embeddingService,
-				extractionService,
 				graphService,
-				pipeline: new EntityExtractionPipeline(
-					entityDAO,
-					extractionService,
-					embeddingService,
-					graphService,
-					c.env,
-					undefined
-				),
 				dedupeService: new EntityDeduplicationService(
 					entityDAO,
 					embeddingService
@@ -449,70 +425,6 @@ export async function handleDeleteEntityRelationship(c: ContextWithAuth) {
 	);
 }
 
-export async function handleTriggerEntityExtraction(c: ContextWithAuth) {
-	return withCampaignContext(
-		c,
-		"Entity extraction failed",
-		async ({ c: ctx, campaignId, getServices }) => {
-			const requestBody = (await ctx.req.json()) as {
-				sourceId: string;
-				sourceType: string;
-				sourceName: string;
-				content: string;
-				metadata?: Record<string, unknown>;
-			};
-
-			if (
-				!requestBody.content ||
-				!requestBody.sourceId ||
-				!requestBody.sourceType ||
-				!requestBody.sourceName
-			) {
-				return ctx.json(
-					{
-						error: "sourceId, sourceType, sourceName, and content are required",
-					},
-					400
-				);
-			}
-
-			const { pipeline, dedupeService } = getServices();
-
-			const pipelineResult = await pipeline.run({
-				campaignId,
-				sourceId: requestBody.sourceId,
-				sourceType: requestBody.sourceType,
-				sourceName: requestBody.sourceName,
-				content: requestBody.content,
-				metadata: requestBody.metadata,
-			});
-
-			const deduplication = [];
-			for (const entity of pipelineResult.entities) {
-				const result = await dedupeService.evaluateEntity(
-					campaignId,
-					entity.id,
-					entity.entityType
-				);
-				deduplication.push({
-					entityId: entity.id,
-					highConfidenceMatches: result.highConfidenceMatches.map((match) => ({
-						entity: match.entity,
-						score: match.score,
-					})),
-					pendingEntryId: result.pendingEntryId,
-				});
-			}
-
-			return ctx.json({
-				entities: pipelineResult.entities,
-				relationships: pipelineResult.relationships,
-				deduplication,
-			});
-		}
-	);
-}
-
 export async function handleTriggerEntityDeduplication(c: ContextWithAuth) {
 	return withCampaignContext(
 		c,
@@ -591,276 +503,4 @@ export async function handleResolveDeduplicationEntry(c: ContextWithAuth) {
 			return ctx.json({ status: "ok" });
 		}
 	);
-}
-
-/**
- * Test endpoint to extract entities from an R2 file (admin only)
- * Returns the same format as stageEntitiesFromResource would return
- * This allows testing entity extraction without actually adding files to campaigns
- */
-export async function handleTestEntityExtractionFromR2(
-	c: ContextWithAuth
-): Promise<Response> {
-	try {
-		const userAuth = getUserAuth(c);
-
-		// Require admin access
-		if (!userAuth.isAdmin) {
-			return c.json({ error: "Admin access required" }, 403);
-		}
-
-		const requestBody = (await c.req.json()) as {
-			fileKey: string;
-			campaignId?: string;
-			sourceName?: string;
-		};
-
-		if (!requestBody.fileKey) {
-			return c.json({ error: "fileKey is required" }, 400);
-		}
-
-		const providerKeyEnvVar =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? "ANTHROPIC_API_KEY"
-				: "OPENAI_API_KEY";
-		const llmApiKeyRaw = await getEnvVar(c.env, providerKeyEnvVar, false);
-		const llmApiKey = llmApiKeyRaw.trim() || undefined;
-		if (!llmApiKey) {
-			return c.json(
-				{
-					error: `${MODEL_CONFIG.PROVIDER.DEFAULT} API key is required for entity extraction`,
-				},
-				400
-			);
-		}
-
-		const campaignId = requestBody.campaignId || `test-${crypto.randomUUID()}`;
-		const fileKey = requestBody.fileKey;
-		const sourceName = requestBody.sourceName || fileKey;
-
-		// Extract content from R2 file
-		const r2Helper = new R2Helper(c.env);
-		const provider = new DirectFileContentExtractionProvider(c.env, r2Helper);
-
-		const resource = {
-			id: fileKey,
-			file_key: fileKey,
-			file_name: sourceName,
-		};
-
-		const extractionResult = await provider.extractContent({ resource });
-
-		if (!extractionResult.success || !extractionResult.content) {
-			return c.json(
-				{
-					success: false,
-					error:
-						extractionResult.error || "Failed to extract content from file",
-					entityCount: 0,
-					stagedEntities: [],
-				},
-				400
-			);
-		}
-
-		const fileContent = extractionResult.content;
-		const isPDF = extractionResult.metadata?.isPDF || false;
-
-		const isVisualInspiration =
-			extractionResult.metadata?.isVisualInspiration === true ||
-			fileContent.trimStart().startsWith("Visual inspiration reference");
-
-		if (isVisualInspiration) {
-			const baseId = crypto.randomUUID();
-			const entityId = `${campaignId}_${baseId}`;
-			let displayName =
-				(sourceName.split(/[/\\]/).pop() ?? sourceName)
-					.replace(/\.(jpg|jpeg|png|webp)$/i, "")
-					.trim() || "Visual inspiration";
-			let titleSource: "llm" | "filename" = "filename";
-			try {
-				const rateLimitService = getLLMRateLimitService(c.env);
-				const generated = await generateVisualInspirationTitle({
-					descriptionText: fileContent,
-					apiKey: llmApiKey,
-					onUsage: async (usage) => {
-						await rateLimitService.recordUsage(
-							userAuth.username,
-							usage.tokens,
-							usage.queryCount
-						);
-					},
-				});
-				if (generated.trim()) {
-					displayName = generated.trim();
-					titleSource = "llm";
-				}
-			} catch {
-				// Keep filename-based displayName
-			}
-
-			const contentPayload = {
-				text: fileContent,
-				title: displayName,
-			};
-			const finalMetadata: Record<string, unknown> = {
-				shardStatus: "staging",
-				staged: true,
-				shardStagingOrigin: "new",
-				resourceId: fileKey,
-				resourceName: sourceName,
-				fileKey,
-				visualInspiration: true,
-				visualInspirationTitleSource: titleSource,
-				...(extractionResult.metadata?.contentType && {
-					sourceImageContentType: extractionResult.metadata.contentType,
-				}),
-			};
-			return c.json({
-				success: true,
-				entityCount: 1,
-				stagedEntities: [
-					{
-						id: entityId,
-						entityType: "visual_inspiration",
-						name: displayName,
-						content: contentPayload,
-						metadata: finalMetadata,
-						relations: [],
-					},
-				],
-				metadata: {
-					fileKey,
-					sourceName,
-					chunkCount: 1,
-					isPDF: false,
-					isVisualInspiration: true,
-				},
-			});
-		}
-
-		// Chunk content same way as staging service does
-		const CHARS_PER_TOKEN = 4;
-		const PROMPT_TOKENS_ESTIMATE = 3000;
-		const MAX_RESPONSE_TOKENS = 16384;
-		const TPM_LIMIT = 30000;
-		const MAX_CONTENT_TOKENS =
-			TPM_LIMIT - PROMPT_TOKENS_ESTIMATE - MAX_RESPONSE_TOKENS;
-		const MAX_CHUNK_SIZE = Math.floor(MAX_CONTENT_TOKENS * CHARS_PER_TOKEN);
-
-		const chunks =
-			fileContent.length > MAX_CHUNK_SIZE
-				? isPDF
-					? chunkTextByPages(fileContent, MAX_CHUNK_SIZE)
-					: chunkTextByCharacterCount(fileContent, MAX_CHUNK_SIZE)
-				: [fileContent];
-
-		// Extract entities from each chunk
-		const extractionService = new EntityExtractionService(llmApiKey);
-		const allExtractedEntities: Map<
-			string,
-			Awaited<ReturnType<typeof extractionService.extractEntities>>[0]
-		> = new Map();
-
-		const CHUNK_PROCESSING_DELAY_MS = chunks.length > 1 ? 2000 : 0;
-
-		for (let i = 0; i < chunks.length; i++) {
-			const chunk = chunks[i];
-
-			if (i > 0 && CHUNK_PROCESSING_DELAY_MS > 0) {
-				await new Promise((resolve) =>
-					setTimeout(resolve, CHUNK_PROCESSING_DELAY_MS)
-				);
-			}
-
-			const chunkEntities = await extractionService.extractEntities({
-				content: chunk,
-				sourceName,
-				campaignId,
-				sourceId: fileKey,
-				sourceType: "file_upload",
-				llmApiKey,
-				metadata: {
-					fileKey,
-					resourceId: fileKey,
-					resourceName: sourceName,
-					staged: true,
-					shardStatus: "staging",
-					chunkIndex: i,
-					totalChunks: chunks.length,
-				},
-			});
-
-			// Merge entities by ID (same logic as staging service)
-			for (const entity of chunkEntities) {
-				const existing = allExtractedEntities.get(entity.id);
-				if (existing) {
-					existing.content = {
-						...(typeof existing.content === "object" &&
-						existing.content !== null
-							? existing.content
-							: {}),
-						...(typeof entity.content === "object" && entity.content !== null
-							? entity.content
-							: {}),
-					};
-					const existingTargetIds = new Set(
-						existing.relations.map((r) => r.targetId)
-					);
-					for (const rel of entity.relations) {
-						if (!existingTargetIds.has(rel.targetId)) {
-							existing.relations.push(rel);
-							existingTargetIds.add(rel.targetId);
-						}
-					}
-					existing.metadata = {
-						...existing.metadata,
-						...entity.metadata,
-					};
-				} else {
-					allExtractedEntities.set(entity.id, entity);
-				}
-			}
-		}
-
-		const extractedEntities = Array.from(allExtractedEntities.values());
-
-		// Format response same as EntityStagingResult
-		const stagedEntities = extractedEntities.map((entity) => ({
-			id: entity.id,
-			entityType: entity.entityType,
-			name: entity.name,
-			content: entity.content,
-			metadata: entity.metadata,
-			relations: entity.relations.map((rel) => ({
-				relationshipType: rel.relationshipType,
-				targetId: rel.targetId,
-				strength: rel.strength,
-				metadata: rel.metadata,
-			})),
-		}));
-
-		return c.json({
-			success: true,
-			entityCount: stagedEntities.length,
-			stagedEntities,
-			metadata: {
-				fileKey,
-				sourceName,
-				chunkCount: chunks.length,
-				isPDF,
-			},
-		});
-	} catch (error) {
-		return c.json(
-			{
-				success: false,
-				error:
-					error instanceof Error ? error.message : "Unknown error occurred",
-				entityCount: 0,
-				stagedEntities: [],
-			},
-			500
-		);
-	}
 }

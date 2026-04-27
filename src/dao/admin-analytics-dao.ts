@@ -101,35 +101,31 @@ export class AdminAnalyticsDAO extends BaseDAOClass {
 
 		const stuckBefore = opts.entityExtractionStuckBefore;
 		const entitySamples = await this.queryAll<{
-			id: number;
-			campaign_id: string;
+			file_key: string;
 			username: string;
-			resource_name: string;
 			status: string;
 			created_at: string;
 			updated_at: string;
 		}>(
-			`SELECT id, campaign_id, username, resource_name, status, created_at, updated_at
-       FROM entity_extraction_queue
+			`SELECT file_key, username, status, created_at, updated_at
+       FROM library_entity_discovery
        WHERE (
          (status = 'pending' AND datetime(created_at) < datetime(?))
          OR (status = 'processing' AND datetime(updated_at) < datetime(?))
-         OR (status = 'rate_limited' AND datetime(created_at) < datetime(?))
        )
        ORDER BY
          CASE status WHEN 'processing' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
          created_at ASC
        LIMIT ?`,
-			[stuckBefore, stuckBefore, stuckBefore, lim]
+			[stuckBefore, stuckBefore, lim]
 		);
 		const entityCountRow = await this.queryFirst<{ c: number }>(
-			`SELECT COUNT(*) AS c FROM entity_extraction_queue
+			`SELECT COUNT(*) AS c FROM library_entity_discovery
        WHERE (
          (status = 'pending' AND datetime(created_at) < datetime(?))
          OR (status = 'processing' AND datetime(updated_at) < datetime(?))
-         OR (status = 'rate_limited' AND datetime(created_at) < datetime(?))
        )`,
-			[stuckBefore, stuckBefore, stuckBefore]
+			[stuckBefore, stuckBefore]
 		);
 
 		const syncSamples = await this.queryAll<{
@@ -214,8 +210,8 @@ export class AdminAnalyticsDAO extends BaseDAOClass {
 			};
 			if (row.campaign_id) base.campaignId = row.campaign_id;
 			if (row.username) base.username = row.username;
-			if (kind === "entity_extraction" && row.resource_name)
-				base.detail = row.resource_name;
+			if (kind === "library_entity_discovery" && row.file_key)
+				base.detail = row.file_key;
 			if (kind === "sync_queue" && row.file_name) base.detail = row.file_name;
 			if (kind === "file_processing_chunk" && row.file_key != null)
 				base.detail = `${row.file_key}#${row.chunk_index ?? ""}`;
@@ -226,11 +222,10 @@ export class AdminAnalyticsDAO extends BaseDAOClass {
 			entityExtraction: {
 				count: entityCountRow?.c ?? 0,
 				samples: entitySamples.map((r) =>
-					toSample("entity_extraction", {
-						id: r.id,
-						campaign_id: r.campaign_id,
+					toSample("library_entity_discovery", {
+						id: r.file_key,
 						username: r.username,
-						resource_name: r.resource_name,
+						file_key: r.file_key,
 						status: r.status,
 						created_at: r.status === "processing" ? r.updated_at : r.created_at,
 					})

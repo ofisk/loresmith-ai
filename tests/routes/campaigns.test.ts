@@ -19,6 +19,8 @@ vi.mock("@/durable-objects/chat", () => ({
 const mockCampaignDAO = {
 	getCampaignsByUser: vi.fn(),
 	getCampaignsByUserWithMapping: vi.fn(),
+	getCampaignIdsWithPendingLibraryEntityCopy: vi.fn(),
+	countResourcesWithFilesStillProcessing: vi.fn(),
 	getCampaignByIdWithMapping: vi.fn(),
 	getCampaignById: vi.fn(),
 	deleteCampaign: vi.fn(),
@@ -101,6 +103,10 @@ describe("campaigns routes", () => {
 		mockGetTier.mockResolvedValue("free");
 		mockCampaignDAO.getCampaignsByUser.mockResolvedValue([]);
 		mockCampaignDAO.getCampaignsByUserWithMapping.mockResolvedValue([]);
+		mockCampaignDAO.getCampaignIdsWithPendingLibraryEntityCopy.mockResolvedValue(
+			[]
+		);
+		mockCampaignDAO.countResourcesWithFilesStillProcessing.mockResolvedValue(0);
 		mockCampaignDAO.getCampaignByIdWithMapping.mockResolvedValue(null);
 		mockCampaignDAO.getCampaignById.mockResolvedValue(null);
 		mockCampaignDAO.deleteCampaign.mockResolvedValue(undefined);

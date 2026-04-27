@@ -70,15 +70,12 @@ export const ENDPOINTS = {
 				`/campaigns/${campaignId}/entities/${entityId}/importance`,
 			IMPORTANCE_TOP: (campaignId: string) =>
 				`/campaigns/${campaignId}/entities/importance/top`,
-			EXTRACT: (campaignId: string) =>
-				`/campaigns/${campaignId}/entities/extract`,
 			DEDUPLICATE: (campaignId: string) =>
 				`/campaigns/${campaignId}/entities/deduplicate`,
 			DEDUP_PENDING: (campaignId: string) =>
 				`/campaigns/${campaignId}/entities/deduplication-pending`,
 			DEDUP_RESOLVE: (campaignId: string, entryId: string) =>
 				`/campaigns/${campaignId}/entities/deduplication-pending/${entryId}`,
-			TEST_EXTRACT_FROM_R2: "/test/entities/extract-from-r2",
 		},
 		COMMUNITIES: {
 			DETECT: (campaignId: string) =>
@@ -231,6 +228,8 @@ export const ENDPOINTS = {
 	},
 	LIBRARY: {
 		FILES: "/library/files",
+		/** Re-queue library entity discovery (after indexing is complete) */
+		RETRY_ENTITY_PIPELINE: "/library/retry-entity-pipeline",
 		SEARCH: "/library/search",
 		FILE_DETAILS: (fileId: string) => `/library/files/${fileId}`,
 		FILE_UPDATE: (fileId: string) => `/library/files/${fileId}`,

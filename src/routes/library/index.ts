@@ -9,6 +9,7 @@ import {
 	handleGetLlmUsage,
 	handleGetStorageUsage,
 	handleRegenerateFileMetadata,
+	handleRetryLibraryEntityPipeline,
 	handleSearchFiles,
 	handleUpdateFile,
 } from "@/routes/library";
@@ -21,6 +22,7 @@ import {
 	routeGetLlmUsage,
 	routeGetStorageUsage,
 	routeRegenerateFileMetadata,
+	routeRetryLibraryEntityPipeline,
 	routeSearchFiles,
 	routeUpdateFile,
 } from "@/routes/library/routes";
@@ -48,4 +50,8 @@ export function registerLibraryRoutes(
 		handleRegenerateFileMetadata as unknown as Handler
 	);
 	app.openapi(routeGetFileStatus, handleGetFileStatus as unknown as Handler);
+	app.openapi(
+		routeRetryLibraryEntityPipeline,
+		handleRetryLibraryEntityPipeline as unknown as Handler
+	);
 }

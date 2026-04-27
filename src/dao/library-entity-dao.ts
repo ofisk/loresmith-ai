@@ -1,4 +1,6 @@
+import { LIBRARY_ENTITY_DISCOVERY } from "@/app-constants";
 import { BaseDAOClass } from "@/dao/base-dao";
+import type { SqlParam } from "@/types/utils";
 
 export type LibraryDiscoveryStatus =
 	| "pending"
@@ -14,6 +16,8 @@ export interface LibraryEntityDiscoveryRow {
 	queue_message: string | null;
 	retry_count: number;
 	last_error: string | null;
+	next_retry_at: string | null;
+	support_escalated_at: string | null;
 	created_at: string;
 	updated_at: string;
 	completed_at: string | null;
@@ -64,6 +68,8 @@ export class LibraryEntityDAO extends BaseDAOClass {
         queue_message = '',
         retry_count = 0,
         last_error = NULL,
+        next_retry_at = NULL,
+        support_escalated_at = NULL,
         updated_at = datetime('now')
     `;
 		await this.execute(sql, [fileKey, username]);
@@ -78,7 +84,7 @@ export class LibraryEntityDAO extends BaseDAOClass {
 
 	async markDiscoveryProcessing(fileKey: string): Promise<void> {
 		await this.execute(
-			`UPDATE library_entity_discovery SET status = 'processing', updated_at = datetime('now') WHERE file_key = ?`,
+			`UPDATE library_entity_discovery SET status = 'processing', next_retry_at = NULL, updated_at = datetime('now') WHERE file_key = ?`,
 			[fileKey]
 		);
 	}
@@ -98,15 +104,65 @@ export class LibraryEntityDAO extends BaseDAOClass {
 		fingerprint: string
 	): Promise<void> {
 		await this.execute(
-			`UPDATE library_entity_discovery SET status = 'complete', content_fingerprint = ?, queue_message = NULL, last_error = NULL, completed_at = datetime('now'), updated_at = datetime('now') WHERE file_key = ?`,
+			`UPDATE library_entity_discovery SET status = 'complete', content_fingerprint = ?, queue_message = NULL, last_error = NULL, next_retry_at = NULL, completed_at = datetime('now'), updated_at = datetime('now') WHERE file_key = ?`,
 			[fingerprint, fileKey]
 		);
 	}
 
 	async markDiscoveryFailed(fileKey: string, error: string): Promise<void> {
 		await this.execute(
-			`UPDATE library_entity_discovery SET status = 'failed', last_error = ?, updated_at = datetime('now') WHERE file_key = ?`,
+			`UPDATE library_entity_discovery SET status = 'failed', last_error = ?, next_retry_at = NULL, updated_at = datetime('now') WHERE file_key = ?`,
 			[error, fileKey]
+		);
+	}
+
+	/**
+	 * Schedules a retry (pending + next_retry_at) or terminal failure. Use failImmediately for
+	 * non-retryable cases (e.g. file missing in storage).
+	 */
+	async recordDiscoveryFailureWithRetry(
+		fileKey: string,
+		error: string,
+		options?: { maxRetries?: number; failImmediately?: boolean }
+	): Promise<"retry_scheduled" | "failed"> {
+		const max = options?.maxRetries ?? LIBRARY_ENTITY_DISCOVERY.MAX_RETRIES;
+		if (options?.failImmediately) {
+			await this.markDiscoveryFailed(fileKey, error);
+			return "failed";
+		}
+		const row = await this.getDiscovery(fileKey);
+		if (!row) {
+			return "failed";
+		}
+		const next = (row.retry_count ?? 0) + 1;
+		if (next >= max) {
+			await this.markDiscoveryFailed(fileKey, error);
+			return "failed";
+		}
+		const baseMin = Math.min(120, 2 ** Math.min(next, 7));
+		const jitter = Math.max(
+			-3,
+			Math.min(3, Math.floor((Math.random() - 0.5) * 0.3 * baseMin))
+		);
+		const delayMin = Math.max(1, baseMin + jitter);
+		const modifier = `+${delayMin} minutes`;
+		await this.execute(
+			`UPDATE library_entity_discovery SET
+        status = 'pending',
+        retry_count = ?,
+        last_error = ?,
+        next_retry_at = datetime('now', ?),
+        updated_at = datetime('now')
+      WHERE file_key = ?`,
+			[next, error, modifier, fileKey]
+		);
+		return "retry_scheduled";
+	}
+
+	async setSupportEscalatedNow(fileKey: string): Promise<void> {
+		await this.execute(
+			`UPDATE library_entity_discovery SET support_escalated_at = datetime('now'), updated_at = datetime('now') WHERE file_key = ?`,
+			[fileKey]
 		);
 	}
 
@@ -116,10 +172,73 @@ export class LibraryEntityDAO extends BaseDAOClass {
 		const sql = `
       SELECT * FROM library_entity_discovery
       WHERE status = 'pending'
+        AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))
       ORDER BY updated_at ASC
       LIMIT ?
     `;
 		return this.queryAll<LibraryEntityDiscoveryRow>(sql, [limit]);
+	}
+
+	/**
+	 * Jobs stuck in `processing` long enough to be reset (e.g. worker died mid-run).
+	 */
+	async getStuckProcessingRows(
+		timeoutMinutes: number
+	): Promise<LibraryEntityDiscoveryRow[]> {
+		return this.queryAll<LibraryEntityDiscoveryRow>(
+			`SELECT * FROM library_entity_discovery
+       WHERE status = 'processing'
+         AND updated_at < datetime('now', '-' || ? || ' minutes')
+       ORDER BY updated_at ASC`,
+			[timeoutMinutes]
+		);
+	}
+
+	async resetStuckProcessingToPending(fileKey: string): Promise<void> {
+		await this.execute(
+			`UPDATE library_entity_discovery
+       SET status = 'pending', next_retry_at = NULL, updated_at = datetime('now')
+       WHERE file_key = ?`,
+			[fileKey]
+		);
+	}
+
+	/**
+	 * Most common failure messages (admin telemetry).
+	 */
+	async getTopFailedErrorMessages(options: {
+		fromDate?: string;
+		toDate?: string;
+		limit?: number;
+	}): Promise<{ errorMessage: string; count: number }[]> {
+		const conditions: string[] = [
+			"status = 'failed'",
+			"last_error IS NOT NULL",
+			"TRIM(last_error) != ''",
+		];
+		const params: SqlParam[] = [];
+
+		if (options.fromDate) {
+			conditions.push("COALESCE(completed_at, updated_at) >= ?");
+			params.push(options.fromDate);
+		}
+		if (options.toDate) {
+			conditions.push("COALESCE(completed_at, updated_at) <= ?");
+			params.push(options.toDate);
+		}
+
+		const where = conditions.join(" AND ");
+		const lim = options.limit ?? 15;
+		const sql = `
+      SELECT last_error AS errorMessage, COUNT(*) AS count
+      FROM library_entity_discovery
+      WHERE ${where}
+      GROUP BY last_error
+      ORDER BY count DESC
+      LIMIT ?
+    `;
+		params.push(lim);
+		return this.queryAll<{ errorMessage: string; count: number }>(sql, params);
 	}
 
 	async listDiscoveryForUsername(
@@ -240,5 +359,17 @@ export class LibraryEntityDAO extends BaseDAOClass {
 			`DELETE FROM library_entity_relationships WHERE file_key = ?`,
 			[fileKey]
 		);
+	}
+
+	/**
+	 * Clear staged library entities and re-queue discovery (retry extraction / re-vectorize follow-up).
+	 */
+	async resetForReExtraction(fileKey: string, username: string): Promise<void> {
+		await this.deleteRelationshipsForFile(fileKey);
+		await this.execute(
+			`DELETE FROM library_entity_candidates WHERE file_key = ?`,
+			[fileKey]
+		);
+		await this.upsertDiscoveryPending(fileKey, username);
 	}
 }

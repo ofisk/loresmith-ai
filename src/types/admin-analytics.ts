@@ -25,7 +25,7 @@ export interface ShardAnalytics {
 
 export interface StuckJobSample {
 	kind:
-		| "entity_extraction"
+		| "library_entity_discovery"
 		| "sync_queue"
 		| "rebuild"
 		| "file_processing_chunk";
