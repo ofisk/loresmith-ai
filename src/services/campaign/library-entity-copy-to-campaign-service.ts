@@ -20,6 +20,12 @@ export interface CopyLibraryEntitiesOptions {
 	fileKey: string;
 	fileName: string;
 	attribution?: { proposedBy: string; approvedBy: string };
+	/**
+	 * When true, skip the "shards ready" member notification. When false (default),
+	 * notify only if at least one new staged entity was inserted (skips if all
+	 * candidate ids already existed in the campaign).
+	 */
+	skipNotification?: boolean;
 }
 
 /**
@@ -41,6 +47,7 @@ export async function tryCopyLibraryEntitiesToCampaign(
 		fileKey,
 		fileName,
 		attribution,
+		skipNotification: skipMemberNotification,
 	} = options;
 
 	const libDao = new LibraryEntityDAO(env.DB);
@@ -75,6 +82,7 @@ export async function tryCopyLibraryEntitiesToCampaign(
 		return false;
 	}
 
+	let entitiesCreated = 0;
 	const extractionIdToCampaignId = new Map<string, string>();
 	for (const c of candidates) {
 		const newId = `${campaignId}_${c.id_suffix}`;
@@ -87,6 +95,7 @@ export async function tryCopyLibraryEntitiesToCampaign(
 		if (existing) {
 			continue;
 		}
+		entitiesCreated += 1;
 		const content = c.content ? JSON.parse(c.content) : undefined;
 		const metaBase = c.metadata
 			? (JSON.parse(c.metadata) as Record<string, unknown>)
@@ -161,36 +170,38 @@ export async function tryCopyLibraryEntitiesToCampaign(
 		// non-fatal
 	}
 
-	try {
-		const newForApproval = candidates.length;
-		await notifyCampaignMembers(
-			env,
-			campaignId,
-			campaignName,
-			() => ({
-				type: NOTIFICATION_TYPES.SHARDS_GENERATED,
-				title: "New shards ready",
-				message: `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} from your library file "${fileName}" are ready for approval.`,
-				data: {
-					campaignName,
-					fileName,
-					shardCount: newForApproval,
-					campaignId,
-					resourceId,
-					ui_hint: {
-						type: "shards_ready",
-						data: {
-							campaignId,
-							resourceId,
-							groups: undefined,
+	if (!skipMemberNotification && entitiesCreated > 0) {
+		try {
+			const newForApproval = entitiesCreated;
+			await notifyCampaignMembers(
+				env,
+				campaignId,
+				campaignName,
+				() => ({
+					type: NOTIFICATION_TYPES.SHARDS_GENERATED,
+					title: "New shards ready",
+					message: `🎉 ${newForApproval} new shard${newForApproval === 1 ? "" : "s"} from your library file "${fileName}" are ready for approval.`,
+					data: {
+						campaignName,
+						fileName,
+						shardCount: newForApproval,
+						campaignId,
+						resourceId,
+						ui_hint: {
+							type: "shards_ready",
+							data: {
+								campaignId,
+								resourceId,
+								groups: undefined,
+							},
 						},
 					},
-				},
-			}),
-			[]
-		);
-	} catch {
-		// non-fatal
+				}),
+				[]
+			);
+		} catch {
+			// non-fatal
+		}
 	}
 
 	return true;

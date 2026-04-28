@@ -1,5 +1,6 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { RequestLogger } from "@/lib/logger";
+import { registerAdminRoutes } from "@/routes/admin/index";
 import { registerAppRoutes } from "@/routes/app/index";
 import { registerAssessmentRoutes } from "@/routes/assessment/index";
 import { registerAuthRoutes } from "@/routes/auth/index";
@@ -34,6 +35,7 @@ export function registerRoutes(
 	registerOnboardingRoutes(app);
 	registerExternalResourcesRoutes(app);
 	registerTelemetryRoutes(app);
+	registerAdminRoutes(app);
 	registerLibraryRoutes(app);
 	registerNotificationsRoutes(app);
 	registerUploadRoutes(app);

@@ -633,6 +633,75 @@ export class CampaignDAO extends BaseDAOClass {
 		}>(sql, [fileKey]);
 	}
 
+	/**
+	 * Campaign file rows where library entity discovery is complete and the file is
+	 * ready — used to backfill campaign entities after library-first extraction was introduced.
+	 *
+	 * Scope: **(campaign, file) campaign_resources only**, not every library file. A row needs
+	 * a matching `library_entity_discovery` (status complete, same username as the campaign)
+	 * and `file_metadata` completed for that owner. Total library size / file count is unrelated.
+	 */
+	async listResourcesEligibleForLibraryEntityBackfill(
+		filters: { fileKey?: string; username?: string; limit?: number } = {}
+	): Promise<
+		{
+			id: string;
+			campaign_id: string;
+			file_key: string;
+			file_name: string;
+			entity_copy_status: string;
+			pending_attribution: string | null;
+			username: string;
+			campaign_name: string;
+		}[]
+	> {
+		const clauses: string[] = [
+			"led.status = 'complete'",
+			"led.username = c.username",
+			"fm.status = 'completed'",
+		];
+		const params: SqlParam[] = [];
+		if (filters.fileKey) {
+			clauses.push("cr.file_key = ?");
+			params.push(filters.fileKey);
+		}
+		if (filters.username) {
+			clauses.push("c.username = ?");
+			params.push(filters.username);
+		}
+		const limit = filters.limit;
+		const limitSql = limit && limit > 0 ? " LIMIT ?" : "";
+		if (limit && limit > 0) {
+			params.push(limit);
+		}
+		const sql = `
+      SELECT
+        cr.id,
+        cr.campaign_id,
+        cr.file_key,
+        cr.file_name,
+        cr.entity_copy_status,
+        cr.pending_attribution,
+        c.username,
+        c.name as campaign_name
+      FROM campaign_resources cr
+      INNER JOIN campaigns c ON c.id = cr.campaign_id
+      INNER JOIN library_entity_discovery led ON led.file_key = cr.file_key AND led.username = c.username
+      INNER JOIN file_metadata fm ON fm.file_key = cr.file_key AND fm.username = c.username
+      WHERE ${clauses.join(" AND ")}${limitSql}
+    `;
+		return this.queryAll<{
+			id: string;
+			campaign_id: string;
+			file_key: string;
+			file_name: string;
+			entity_copy_status: string;
+			pending_attribution: string | null;
+			username: string;
+			campaign_name: string;
+		}>(sql, params);
+	}
+
 	// Check if file resource already exists in campaign
 	async getFileResourceByFileKey(
 		campaignId: string,
