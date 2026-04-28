@@ -82,11 +82,21 @@ export class LibraryEntityDAO extends BaseDAOClass {
 		return this.queryFirst<LibraryEntityDiscoveryRow>(sql, [fileKey]);
 	}
 
-	async markDiscoveryProcessing(fileKey: string): Promise<void> {
-		await this.execute(
-			`UPDATE library_entity_discovery SET status = 'processing', next_retry_at = NULL, updated_at = datetime('now') WHERE file_key = ?`,
+	/**
+	 * Atomically move a row from `pending` (eligible for pickup) to `processing`.
+	 * Returns false if the row was not `pending` (another worker claimed it, or state changed).
+	 * Matches {@link listPendingDiscovery} eligibility for single-flight per `file_key`.
+	 */
+	async claimDiscoveryForProcessing(fileKey: string): Promise<boolean> {
+		const changes = await this.executeReturningChanges(
+			`UPDATE library_entity_discovery
+       SET status = 'processing', next_retry_at = NULL, updated_at = datetime('now')
+       WHERE file_key = ?
+         AND status = 'pending'
+         AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))`,
 			[fileKey]
 		);
+		return changes > 0;
 	}
 
 	async updateDiscoveryQueueMessage(
@@ -95,6 +105,21 @@ export class LibraryEntityDAO extends BaseDAOClass {
 	): Promise<void> {
 		await this.execute(
 			`UPDATE library_entity_discovery SET queue_message = ?, updated_at = datetime('now') WHERE file_key = ?`,
+			[queueMessage, fileKey]
+		);
+	}
+
+	/**
+	 * After a partial multi-chunk extraction pass, return the job to `pending` so
+	 * `listPendingDiscovery` can pick it up on the next scheduled run (status must
+	 * not stay `processing` — that excludes the row from the queue).
+	 */
+	async markDiscoveryPendingResume(
+		fileKey: string,
+		queueMessage: string
+	): Promise<void> {
+		await this.execute(
+			`UPDATE library_entity_discovery SET status = 'pending', queue_message = ?, next_retry_at = NULL, updated_at = datetime('now') WHERE file_key = ?`,
 			[queueMessage, fileKey]
 		);
 	}

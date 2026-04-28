@@ -393,6 +393,21 @@ async function runFastScheduledTasks(
 
 	await LibraryEntityDiscoveryQueueService.processPendingQueueItems(env);
 
+	try {
+		const stuck =
+			await LibraryEntityDiscoveryQueueService.cleanupStuckProcessingItems(
+				env,
+				30
+			);
+		if (stuck.reset > 0) {
+			log.info("library_discovery_stuck_reset_to_pending", {
+				count: stuck.reset,
+			});
+		}
+	} catch (error) {
+		log.error("library_discovery_stuck_cleanup_failed", error);
+	}
+
 	await processPendingFileChunks(env);
 
 	await cleanupStuckProcessingFiles(env, 10);

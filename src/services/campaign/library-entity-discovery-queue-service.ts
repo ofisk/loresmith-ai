@@ -112,7 +112,13 @@ export class LibraryEntityDiscoveryQueueService {
 
 		for (const row of pending) {
 			try {
-				await libDao.markDiscoveryProcessing(row.file_key);
+				const claimed = await libDao.claimDiscoveryForProcessing(row.file_key);
+				if (!claimed) {
+					log.debug("library_entity_discovery_claim_skipped", {
+						fileKey: row.file_key,
+					});
+					continue;
+				}
 
 				const fileRecord = await daoFactory.fileDAO.getFileForRag(
 					row.file_key,
@@ -212,12 +218,11 @@ export class LibraryEntityDiscoveryQueueService {
 				if (result.completed === false) {
 					const nextChunk = result.nextChunkIndex ?? resumeFromChunk;
 					const totalChunks = result.totalChunks ?? progress?.total ?? 0;
-					await libDao.updateDiscoveryQueueMessage(
-						row.file_key,
+					const msg =
 						totalChunks > 0
 							? `PROGRESS:${nextChunk}/${totalChunks}`
-							: (row.queue_message ?? "")
-					);
+							: (row.queue_message ?? "");
+					await libDao.markDiscoveryPendingResume(row.file_key, msg);
 					processed++;
 					continue;
 				}

@@ -105,6 +105,25 @@ export abstract class BaseDAOClass implements BaseDAO {
 		});
 	}
 
+	/** Row change count from D1 `meta.changes` (e.g. conditional UPDATE single-flight). */
+	protected async executeReturningChanges(
+		sql: string,
+		params: import("@/types/utils").SqlParamsInput = []
+	): Promise<number> {
+		return this.withD1Retry(async () => {
+			try {
+				const bindParams = params.map((p) => (p === undefined ? null : p));
+				const stmt = this.db.prepare(sql);
+				const result = await stmt.bind(...bindParams).run();
+				return Number(result.meta?.changes ?? 0);
+			} catch (error) {
+				throw new Error(
+					`Database execute failed: ${error instanceof Error ? error.message : "Unknown error"}`
+				);
+			}
+		});
+	}
+
 	protected async executeAndGetId(
 		sql: string,
 		params: import("@/types/utils").SqlParamsInput = []
