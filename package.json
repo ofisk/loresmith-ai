@@ -110,9 +110,9 @@
 		"wrangler": "^4.56.0"
 	},
 	"dependencies": {
-		"@ai-sdk/anthropic": "^3.0.71",
-		"@ai-sdk/openai": "^3.0.53",
-		"@ai-sdk/react": "^3.0.170",
+		"@ai-sdk/anthropic": "^3.0.72",
+		"@ai-sdk/openai": "^3.0.54",
+		"@ai-sdk/react": "^3.0.171",
 		"@hono/swagger-ui": "^0.6.1",
 		"@hono/zod-openapi": "^1.3.0",
 		"@phosphor-icons/react": "^2.1.10",
