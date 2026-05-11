@@ -1,11 +1,6 @@
--- Align character_sheets with CharacterSheetDAO (form + file uploads).
--- Legacy installs only had character_name + character_data; DAO expects structured columns.
-
-ALTER TABLE character_sheets ADD COLUMN character_class TEXT;
-ALTER TABLE character_sheets ADD COLUMN character_level INTEGER;
-ALTER TABLE character_sheets ADD COLUMN character_race TEXT;
-ALTER TABLE character_sheets ADD COLUMN file_name TEXT;
-ALTER TABLE character_sheets ADD COLUMN file_content TEXT;
-ALTER TABLE character_sheets ADD COLUMN file_size INTEGER;
-ALTER TABLE character_sheets ADD COLUMN processed_data TEXT;
-ALTER TABLE character_sheets ADD COLUMN processed_at TEXT;
+-- character_sheets: hosted databases already include character_class, file_name, etc.
+-- (added outside this migration track). Applying ALTER ADD here fails with duplicate column.
+-- DAO changes populate character_data on insert for legacy NOT NULL rows.
+-- Fresh installs: use scripts/d1/d1-bootstrap.sql (character_sheets includes full column set).
+-- Older DBs missing columns: add them manually once to match CharacterSheetDAO.
+SELECT 1 AS migration_0023_character_sheets_schema_aligned;

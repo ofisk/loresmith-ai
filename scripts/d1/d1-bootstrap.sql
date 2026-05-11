@@ -378,12 +378,20 @@ CREATE TABLE IF NOT EXISTS campaign_characters (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- Create character sheets table (legacy shape; migration 0023 adds structured columns)
+-- Create character sheets table (matches CharacterSheetDAO; migration 0023 is a no-op on hosted D1)
 CREATE TABLE IF NOT EXISTS character_sheets (
   id text primary key,
   campaign_id text not null,
   character_name text not null,
-  character_data text not null, -- json string containing character sheet data
+  character_data text not null default '{}',
+  character_class text,
+  character_level integer,
+  character_race text,
+  file_name text,
+  file_content text,
+  file_size integer,
+  processed_data text,
+  processed_at text,
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp,
   foreign key (campaign_id) references campaigns(id) on delete cascade
