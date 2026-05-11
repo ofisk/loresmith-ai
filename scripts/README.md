@@ -7,7 +7,7 @@ Repo automation and operational helpers for LoreSmith AI. Run shell scripts from
 | Directory | Purpose |
 |-----------|---------|
 | `lib/` | Shared shell helpers (`common.sh`, embedding dimension probe) |
-| `d1/` | D1 bootstrap, migrations wrapper, resilient apply, explain audit, table counts |
+| `d1/` | D1 bootstrap (full schema + `d1_migrations` baseline), migrations wrapper, resilient apply, explain audit, table counts |
 | `dev/` | Local dev setup, validation, `migrate-local.sh`, import standardizer |
 | `build/` | Vite debug build, ensure `dist/client` before Wrangler dev |
 | `check/` | Import path checks (`check-import-paths.mjs`) |
@@ -206,6 +206,9 @@ The project uses a migration system for database schema changes:
 # Or use directly:
 ./scripts/d1/migrate.sh local
 ./scripts/d1/migrate.sh production
+
+# From repo root: wipe local D1 and re-bootstrap (data loss OK — fixes migration drift)
+npm run migrate:local:reset
 ```
 
 #### Migration Files

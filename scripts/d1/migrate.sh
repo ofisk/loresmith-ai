@@ -2,6 +2,9 @@
 
 # Unified database migration script for LoreSmith AI.
 # Uses Wrangler's tracked migrations (`d1_migrations`) so each file runs once.
+# New databases: npm run migrate:bootstrap:* then pull new migrations with wrangler apply;
+#   bootstrap seeds d1_migrations so historical files are not re-run.
+# Local duplicate-column / d1_migrations drift: npm run migrate:local:reset (wipes local D1; data loss OK)
 # For production recovery when a migration must be skipped, use:
 #   npm run migrate:prod:apply:resilient
 #
