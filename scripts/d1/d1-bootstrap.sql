@@ -378,7 +378,7 @@ CREATE TABLE IF NOT EXISTS campaign_characters (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- Create character sheets table
+-- Create character sheets table (legacy shape; migration 0023 adds structured columns)
 CREATE TABLE IF NOT EXISTS character_sheets (
   id text primary key,
   campaign_id text not null,

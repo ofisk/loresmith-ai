@@ -60,16 +60,23 @@ export class CharacterSheetDAO extends BaseDAOClass {
 	 * Create a character sheet from form fields (no file).
 	 */
 	async createFromForm(params: CreateCharacterSheetFormParams): Promise<void> {
+		const characterData = JSON.stringify({
+			source: "form",
+			characterClass: params.characterClass,
+			characterLevel: params.characterLevel,
+			characterRace: params.characterRace,
+		});
 		const sql = `
       INSERT INTO character_sheets (
-        id, campaign_id, character_name, character_class, character_level, character_race,
+        id, campaign_id, character_name, character_data, character_class, character_level, character_race,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 		await this.execute(sql, [
 			params.id,
 			params.campaignId,
 			params.characterName,
+			characterData,
 			params.characterClass,
 			params.characterLevel,
 			params.characterRace,
@@ -82,16 +89,22 @@ export class CharacterSheetDAO extends BaseDAOClass {
 	 * Create a character sheet from an uploaded file (file_name, file_content, file_size).
 	 */
 	async createFromFile(params: CreateCharacterSheetFileParams): Promise<void> {
+		const characterData = JSON.stringify({
+			source: "upload",
+			fileName: params.fileName,
+			fileSize: params.fileSize,
+		});
 		const sql = `
       INSERT INTO character_sheets (
-        id, campaign_id, character_name, file_name, file_content, file_size,
+        id, campaign_id, character_name, character_data, file_name, file_content, file_size,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 		await this.execute(sql, [
 			params.id,
 			params.campaignId,
 			params.characterName,
+			characterData,
 			params.fileName,
 			params.fileContent,
 			params.fileSize,
