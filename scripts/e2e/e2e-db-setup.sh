@@ -17,12 +17,10 @@ echo "[e2e-db] Running D1 bootstrap (local)..."
 npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
   --file="$SCRIPT_DIR/../d1/d1-bootstrap.sql"
 
-echo "[e2e-db] Running D1 migrations (local)..."
-for f in migrations/*.sql; do
-  [ -f "$f" ] || continue
-  npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" --local \
-    --file="$f"
-done
+echo "[e2e-db] Baseline d1_migrations + apply any new migrations (local)..."
+export E2E_WRANGLER_CONFIG="$CONFIG"
+node "$ROOT_DIR/scripts/d1/d1-seed-d1-migrations.mjs" e2e
+npx wrangler d1 migrations apply "$DB_NAME" --config "$CONFIG" --local
 
 if [ "$E2E_SEED_USER" = "1" ]; then
   echo "[e2e-db] Seeding E2E user..."

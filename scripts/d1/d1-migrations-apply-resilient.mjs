@@ -141,9 +141,9 @@ function firstResultRows(parsed) {
 
 function ensureMigrationsTable(flags) {
 	const sql = `CREATE TABLE IF NOT EXISTS d1_migrations (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  applied_at TEXT NOT NULL
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );`;
 	const r = executeCommand(flags, sql);
 	if (r.status !== 0) {
@@ -184,7 +184,7 @@ function nextMigrationId(flags) {
 		const n = Number.parseInt(String(row.id), 10);
 		if (Number.isFinite(n) && n > max) max = n;
 	}
-	return String(max + 1).padStart(5, "0");
+	return String(max + 1);
 }
 
 function recordApplied(flags, id, name) {

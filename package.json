@@ -34,6 +34,7 @@
 		"migrate:bootstrap:prod": "./scripts/d1/d1-bootstrap.sh prod",
 		"migrate:local:apply": "wrangler d1 migrations apply loresmith-db-dev --config wrangler.local.jsonc --local",
 		"migrate:local:full": "npm run migrate:bootstrap:local && npm run migrate:local:apply",
+		"migrate:local:reset": "rm -rf .wrangler/state/v3/d1 && npm run migrate:bootstrap:local && npm run migrate:local:apply",
 		"migrate:local": "./scripts/d1/migrate.sh local",
 		"migrate:dev": "wrangler d1 migrations apply loresmith-db-dev --config wrangler.dev.jsonc --remote",
 		"migrate:prod": "./scripts/d1/migrate.sh production",

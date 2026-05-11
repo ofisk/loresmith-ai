@@ -1,5 +1,5 @@
--- D1 bootstrap: base schema (tables, indexes, view)
--- Run once per new database. Run before wrangler d1 migrations apply.
+-- D1 bootstrap: full current schema (tables, indexes, view) for new databases.
+-- d1-bootstrap.sh runs this, then seeds d1_migrations so wrangler only applies newer migrations.
 -- Triggers are applied separately by d1-bootstrap.sh
 
 -- Create campaigns table
@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
   status text default 'active',
   metadata text, -- json metadata
   campaignRagBasePath text, -- base path for campaign-specific RAG storage
-  -- game_system, game_system_version (0018); pc_claim_requires_gm_approval (0019)
+  game_system text not null default 'generic',
+  game_system_version text,
+  pc_claim_requires_gm_approval integer not null default 0,
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp
 );
@@ -25,22 +27,71 @@ CREATE TABLE IF NOT EXISTS campaign_resources (
   description text,
   tags text, -- json array
   status text default 'active',
+  entity_copy_status text not null default 'complete'
+    check (entity_copy_status in ('complete', 'pending_library', 'failed')),
+  pending_attribution text,
   created_at datetime default current_timestamp,
   updated_at datetime default current_timestamp,
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
--- entity_copy_status, pending_attribution, idx_campaign_resources_entity_copy: see migrations/0022_unify_library_entity_pipeline.sql
+CREATE INDEX IF NOT EXISTS idx_campaign_resources_entity_copy
+  ON campaign_resources(campaign_id, entity_copy_status);
+
+-- Campaign members, share links, resource proposals (0001)
+CREATE TABLE IF NOT EXISTS campaign_members (
+  campaign_id text not null,
+  username text not null,
+  role text not null check (role in ('editor_gm', 'readonly_gm', 'editor_player', 'readonly_player')),
+  invited_by text not null,
+  created_at datetime default current_timestamp,
+  primary key (campaign_id, username),
+  foreign key (campaign_id) references campaigns(id) on delete cascade
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_members_username ON campaign_members(username);
+
+CREATE TABLE IF NOT EXISTS campaign_share_links (
+  token text primary key,
+  campaign_id text not null,
+  role text not null check (role in ('editor_gm', 'readonly_gm', 'editor_player', 'readonly_player')),
+  created_by text not null,
+  expires_at datetime,
+  max_uses integer,
+  use_count integer not null default 0,
+  created_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_share_links_campaign_id ON campaign_share_links(campaign_id);
+
+CREATE TABLE IF NOT EXISTS campaign_resource_proposals (
+  id text primary key,
+  campaign_id text not null,
+  file_key text not null,
+  file_name text not null,
+  proposed_by text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by text,
+  reviewed_at datetime,
+  created_at datetime default current_timestamp,
+  foreign key (campaign_id) references campaigns(id) on delete cascade
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_resource_proposals_campaign_id ON campaign_resource_proposals(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_resource_proposals_proposed_by ON campaign_resource_proposals(proposed_by);
 
 -- Create file metadata for search (main file storage)
 CREATE TABLE IF NOT EXISTS file_metadata (
   file_key text primary key,
+  id text not null unique,
   username text not null,
   file_name text not null,
   display_name text, -- Auto-generated pretty name
   description text,
   tags text, -- json array
   file_size integer,
+  content_type text not null default '',
   status text default 'uploaded',
   content_summary text,
   key_topics text, -- JSON array of key topics/themes
@@ -144,6 +195,93 @@ CREATE TABLE IF NOT EXISTS entities (
   shard_status text, -- shard pipeline state (migration 0006 is backfill/index-only for idempotency)
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
+
+-- Backfill shard_status on entities where null (0006)
+UPDATE entities
+SET shard_status = COALESCE(
+  json_extract(metadata, '$.shardStatus'),
+  'approved'
+)
+WHERE shard_status IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_entities_campaign_source
+  ON entities(campaign_id, source_id);
+
+CREATE INDEX IF NOT EXISTS idx_entities_campaign_shard_status_updated
+  ON entities(campaign_id, shard_status, updated_at DESC);
+
+-- Dirty tracking for incremental graph rebuilds (0005)
+CREATE TABLE IF NOT EXISTS graph_dirty_entities (
+  campaign_id TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  dirty_reason TEXT,
+  marked_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (campaign_id, entity_id),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_graph_dirty_entities_campaign_marked
+  ON graph_dirty_entities(campaign_id, marked_at);
+
+CREATE TABLE IF NOT EXISTS graph_dirty_relationships (
+  campaign_id TEXT NOT NULL,
+  from_entity_id TEXT NOT NULL,
+  to_entity_id TEXT NOT NULL,
+  relationship_type TEXT NOT NULL,
+  dirty_reason TEXT,
+  marked_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (campaign_id, from_entity_id, to_entity_id, relationship_type),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_graph_dirty_relationships_campaign_marked
+  ON graph_dirty_relationships(campaign_id, marked_at);
+
+CREATE INDEX IF NOT EXISTS idx_graph_dirty_relationships_campaign_from
+  ON graph_dirty_relationships(campaign_id, from_entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_graph_dirty_relationships_campaign_to
+  ON graph_dirty_relationships(campaign_id, to_entity_id);
+
+CREATE TABLE IF NOT EXISTS graph_rebuild_job_dedupe (
+  campaign_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  rebuild_mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  last_rebuild_id TEXT,
+  payload TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (campaign_id, idempotency_key),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_graph_rebuild_job_dedupe_campaign_status
+  ON graph_rebuild_job_dedupe(campaign_id, status);
+
+-- Player character claims (0004 + 0019)
+CREATE TABLE IF NOT EXISTS campaign_player_character_claims (
+  campaign_id TEXT NOT NULL,
+  username TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  assigned_by TEXT NOT NULL,
+  claim_status TEXT NOT NULL DEFAULT 'approved',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (campaign_id, username),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pc_claims_campaign_entity
+  ON campaign_player_character_claims(campaign_id, entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_pc_claims_campaign_username
+  ON campaign_player_character_claims(campaign_id, username);
+
+-- Normalize legacy player character entity types (0018)
+UPDATE entities SET entity_type = 'pcs' WHERE lower(entity_type) = 'pc';
 
 -- Create entity_relationships table (GraphRAG) - using final schema with from/to and strength
 CREATE TABLE IF NOT EXISTS entity_relationships (
@@ -434,7 +572,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_tasks_campaign ON planning_tasks(campaig
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_status ON planning_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_created_at ON planning_tasks(created_at);
 
--- Library entity discovery (0020): one extraction per library file, copied to campaigns on add
+-- Library entity discovery (0020 + 0022): one extraction per library file, copied to campaigns on add
 CREATE TABLE IF NOT EXISTS library_entity_discovery (
   file_key TEXT PRIMARY KEY,
   username TEXT NOT NULL,
@@ -443,12 +581,13 @@ CREATE TABLE IF NOT EXISTS library_entity_discovery (
   queue_message TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,
+  next_retry_at TEXT,
+  support_escalated_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   completed_at TEXT,
   FOREIGN KEY (file_key) REFERENCES file_metadata(file_key) ON DELETE CASCADE
 );
--- next_retry_at, support_escalated_at: see migrations/0022_unify_library_entity_pipeline.sql
 
 CREATE INDEX IF NOT EXISTS idx_library_entity_discovery_status ON library_entity_discovery(status);
 CREATE INDEX IF NOT EXISTS idx_library_entity_discovery_username ON library_entity_discovery(username);
@@ -556,6 +695,131 @@ CREATE TABLE IF NOT EXISTS user_indexing_credits (
   foreign key (username) references users(username) on delete cascade
 );
 CREATE INDEX IF NOT EXISTS idx_user_indexing_credits_username ON user_indexing_credits(username);
+
+-- Subscriptions and monthly usage (0007)
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id text primary key,
+  username text not null unique,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  tier text not null default 'free' check (tier in ('free', 'basic', 'pro')),
+  status text not null default 'active' check (status in ('active', 'canceled', 'past_due', 'trialing', 'incomplete', 'incomplete_expired')),
+  current_period_end datetime,
+  created_at datetime default current_timestamp,
+  updated_at datetime default current_timestamp,
+  foreign key (username) references users(username) on delete cascade
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_username ON subscriptions(username);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer ON subscriptions(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription ON subscriptions(stripe_subscription_id);
+
+CREATE TABLE IF NOT EXISTS user_monthly_usage (
+  username text not null,
+  year_month text not null,
+  tokens integer not null default 0,
+  updated_at datetime default current_timestamp,
+  primary key (username, year_month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_monthly_usage_username ON user_monthly_usage(username);
+
+-- LLM usage log (0003)
+CREATE TABLE IF NOT EXISTS llm_usage_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  tokens INTEGER NOT NULL,
+  query_count INTEGER NOT NULL DEFAULT 1,
+  model TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_usage_username_time
+  ON llm_usage_log(username, created_at);
+
+-- File retry usage (0008)
+CREATE TABLE IF NOT EXISTS file_retry_usage (
+  username text not null,
+  file_key text not null,
+  retry_date text not null,
+  retry_count integer not null default 0,
+  updated_at datetime default current_timestamp,
+  primary key (username, file_key, retry_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_file_retry_usage_lookup ON file_retry_usage(username, file_key);
+
+-- Resource add log (0011)
+CREATE TABLE IF NOT EXISTS resource_add_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_resource_add_log_lookup
+  ON resource_add_log(username, campaign_id, created_at);
+
+-- Entity search cache version (0012)
+CREATE TABLE IF NOT EXISTS entity_search_cache_version (
+  campaign_id TEXT PRIMARY KEY,
+  cache_version INTEGER NOT NULL DEFAULT 0
+);
+
+-- Free-tier cumulative usage (0013)
+CREATE TABLE IF NOT EXISTS user_free_tier_usage (
+  username text primary key,
+  tokens_used integer not null default 0,
+  updated_at datetime default current_timestamp,
+  foreign key (username) references users(username) on delete cascade
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_free_tier_usage_username ON user_free_tier_usage(username);
+
+-- Session plan readouts (0010, 0016)
+CREATE TABLE IF NOT EXISTS campaign_session_plan_readouts (
+  campaign_id TEXT NOT NULL,
+  next_session_number INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT current_timestamp,
+  updated_at DATETIME DEFAULT current_timestamp,
+  PRIMARY KEY (campaign_id, next_session_number),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS campaign_session_plan_readout_chunks (
+  campaign_id TEXT NOT NULL,
+  next_session_number INTEGER NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  steps_json TEXT NOT NULL,
+  created_at DATETIME DEFAULT current_timestamp,
+  PRIMARY KEY (campaign_id, next_session_number, chunk_index),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+-- Performance indexes (0014; excludes legacy entity_extraction_queue)
+CREATE INDEX IF NOT EXISTS idx_entity_relationships_from ON entity_relationships(from_entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_relationships_to ON entity_relationships(to_entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_relationships_campaign_type ON entity_relationships(campaign_id, relationship_type);
+
+CREATE INDEX IF NOT EXISTS idx_file_metadata_username ON file_metadata(username);
+CREATE INDEX IF NOT EXISTS idx_file_metadata_username_status ON file_metadata(username, status);
+CREATE INDEX IF NOT EXISTS idx_file_metadata_status_updated ON file_metadata(status, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_campaigns_username ON campaigns(username);
+CREATE INDEX IF NOT EXISTS idx_campaigns_username_updated ON campaigns(username, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_resources_campaign ON campaign_resources(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_resources_campaign_file ON campaign_resources(campaign_id, file_key);
+
+CREATE INDEX IF NOT EXISTS idx_shard_registry_campaign ON shard_registry(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_shard_registry_resource ON shard_registry(resource_id);
+CREATE INDEX IF NOT EXISTS idx_shard_registry_campaign_status ON shard_registry(campaign_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_communities_campaign ON communities(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_communities_parent ON communities(parent_community_id);
+
+CREATE INDEX IF NOT EXISTS idx_entity_dedup_campaign_status ON entity_deduplication_pending(campaign_id, status);
 
 -- Create a view for easy querying of analyzed files
 CREATE VIEW IF NOT EXISTS analyzed_files AS

@@ -1,6 +1,6 @@
 #!/bin/bash
-# One-time D1 bootstrap: creates base schema (tables, indexes, view, triggers).
-# Run before wrangler d1 migrations apply on a fresh database.
+# D1 bootstrap: applies scripts/d1/d1-bootstrap.sql (full current schema) plus triggers,
+# then baselines d1_migrations so wrangler only applies migration files added after this run.
 # Usage: ./scripts/d1/d1-bootstrap.sh [local|dev|prod]
 
 set -e
@@ -39,4 +39,7 @@ npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" $REMOTE_FLAG --file="$SCRI
 npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" $REMOTE_FLAG --command="CREATE TRIGGER IF NOT EXISTS update_shard_registry_timestamp AFTER UPDATE ON shard_registry FOR EACH ROW BEGIN UPDATE shard_registry SET updated_at = datetime('now') WHERE shard_id = new.shard_id; END"
 npx wrangler d1 execute "$DB_NAME" --config "$CONFIG" $REMOTE_FLAG --command="CREATE TRIGGER IF NOT EXISTS trigger_entity_relationships_updated_at AFTER UPDATE ON entity_relationships FOR EACH ROW BEGIN UPDATE entity_relationships SET updated_at = current_timestamp WHERE id = new.id; END"
 
-echo "Bootstrap complete. Run 'wrangler d1 migrations apply ...' (e.g. npm run migrate:dev / migrate:local:apply) to apply incremental migrations."
+echo "Recording applied migrations in d1_migrations (empty journal only)..."
+node "$SCRIPT_DIR/d1-seed-d1-migrations.mjs" "$ENV"
+
+echo "Bootstrap complete. Schema matches d1-bootstrap.sql; d1_migrations lists current migration files. Run wrangler d1 migrations apply (e.g. npm run migrate:local:apply) after pulling to pick up any new .sql migrations. Local migration issues (duplicate column, drift): npm run migrate:local:reset (wipes local D1; data loss OK)."
