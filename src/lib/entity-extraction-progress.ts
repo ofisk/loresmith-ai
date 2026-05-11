@@ -20,7 +20,8 @@ export function parseEntityExtractionProgress(
 		!Number.isFinite(processed) ||
 		!Number.isFinite(total) ||
 		total <= 0 ||
-		processed < 0
+		processed < 0 ||
+		processed > total
 	) {
 		return null;
 	}
