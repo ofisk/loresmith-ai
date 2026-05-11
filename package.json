@@ -126,7 +126,7 @@
 		"jose": "^6.2.2",
 		"lucide-react": "^0.577.0",
 		"mammoth": "^1.12.0",
-		"partyserver": "^0.4.1",
+		"partyserver": "^0.5.5",
 		"pdf-lib": "^1.17.1",
 		"pdfjs-serverless": "^1.1.0",
 		"react": "19.2.5",
