@@ -25,6 +25,10 @@ describe("parseEntityExtractionProgress", () => {
 		expect(parseEntityExtractionProgress(null)).toBeNull();
 		expect(parseEntityExtractionProgress("Rate limited")).toBeNull();
 	});
+
+	it("returns null when processed exceeds total (corrupt checkpoint)", () => {
+		expect(parseEntityExtractionProgress("PROGRESS:39/10")).toBeNull();
+	});
 });
 
 describe("entityExtractionProgressPercent", () => {

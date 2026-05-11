@@ -318,7 +318,6 @@ export const ENDPOINTS = {
 		CONTEXT_ACCURACY: "/telemetry/context-accuracy",
 	},
 	ADMIN: {
-		LIBRARY_ENTITY_BACKFILL: "/admin/library-entity-backfill",
 		TELEMETRY: {
 			METRICS: "/admin/telemetry/metrics",
 			DASHBOARD: "/admin/telemetry/dashboard",

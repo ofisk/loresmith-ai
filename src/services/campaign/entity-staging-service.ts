@@ -615,8 +615,12 @@ async function stageEntitiesFromResourceImpl(
 		let successfulChunks = 0;
 		let completedCount = 0; // Chunks finished in this invocation (parallel completion order)
 		const emitChunkCheckpoint = async () => {
+			const reported = Math.min(
+				chunks.length,
+				startChunkIndex + completedCount
+			);
 			await onChunkCheckpoint?.({
-				processedChunks: startChunkIndex + completedCount,
+				processedChunks: reported,
 				totalChunks: chunks.length,
 			});
 		};
