@@ -1,6 +1,14 @@
 import { getDAOFactory } from "@/dao/dao-factory";
+import type { LlmSpendIntent } from "@/lib/llm-usage-intents";
+import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
 import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
+
+/** Optional attribution for verbose token logs (intent required when passed). */
+export type LlmSpendLogMeta = {
+	intent: LlmSpendIntent;
+	source?: string;
+} & Record<string, unknown>;
 
 export interface CheckLimitResult {
 	allowed: boolean;
@@ -294,10 +302,27 @@ export class LLMRateLimitService {
 		username: string,
 		tokens: number,
 		queryCount: number,
-		model?: string
+		model?: string,
+		meta?: LlmSpendLogMeta
 	): Promise<void> {
 		const dao = getDAOFactory(this.env);
 		await dao.llmUsageDAO.insertUsage(username, tokens, queryCount, model);
+
+		if (meta) {
+			const { intent, source, ...extras } = meta;
+			logVerboseLlmSpend(this.env, {
+				intent,
+				source,
+				username,
+				tokens,
+				queryCount,
+				model,
+				extras:
+					Object.keys(extras).length > 0
+						? (extras as Record<string, unknown>)
+						: undefined,
+			});
+		}
 
 		// Free tier: track usage for cap (lifetime trial or monthly)
 		const subService = getSubscriptionService(this.env);

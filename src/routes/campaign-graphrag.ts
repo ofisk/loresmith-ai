@@ -7,6 +7,7 @@ import {
 	isStubContentSufficient,
 } from "@/lib/entity/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { createLogger, getRequestLogger } from "@/lib/logger";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import {
@@ -776,11 +777,19 @@ Rules:
 		const rateLimitService = getLLMRateLimitService(c.env);
 		const value = await provider.generateSummary(prompt, {
 			username: userAuth.username,
-			onUsage: async (usage) => {
+			onUsage: async (usage, ctx) => {
 				await rateLimitService.recordUsage(
 					userAuth.username,
 					usage.tokens,
-					usage.queryCount
+					usage.queryCount,
+					ctx?.model,
+					{
+						intent: LLM_SPEND_INTENT.graph_rebuild,
+						source: "campaign_graphrag:generate_shard_field",
+						campaignId,
+						shardId,
+						field,
+					}
 				);
 			},
 		});

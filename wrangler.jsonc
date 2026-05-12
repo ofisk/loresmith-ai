@@ -20,6 +20,7 @@
 		"run_worker_first": ["/api/*", "/auth/*"]
 	},
 	"vars": {
+		"LORESMITH_VERBOSE_LLM_USAGE": "1",
 		"MAX_INDEX_FILE_BYTES": "4194304",
 		"STAGING_PREFIX": "staging",
 		"READINESS_TIMEOUT_SEC": "600",

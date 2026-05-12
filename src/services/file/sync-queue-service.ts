@@ -573,7 +573,7 @@ export class SyncQueueService {
 	private static async processFileChunks(
 		env: any,
 		fileKey: string,
-		_username: string,
+		username: string,
 		fileName: string,
 		file: any,
 		dbMetadata: any
@@ -687,7 +687,8 @@ export class SyncQueueService {
 							chunkDef,
 							fileSize,
 							contentType,
-							metadataId
+							metadataId,
+							username
 						);
 					} else {
 						// Non-PDF or missing page range: load full file (may OOM)
@@ -716,7 +717,8 @@ export class SyncQueueService {
 							chunkDefinition,
 							chunkBuffer,
 							contentType,
-							metadataId
+							metadataId,
+							username
 						);
 					}
 					continue;
@@ -739,7 +741,8 @@ export class SyncQueueService {
 					chunkDefinition,
 					chunkBuffer,
 					contentType,
-					metadataId
+					metadataId,
+					username
 				);
 			} catch (chunkError) {
 				const errorMessage =

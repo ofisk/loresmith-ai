@@ -6,6 +6,8 @@ import {
 	VectorizeIndexRequiredError,
 } from "@/lib/errors";
 import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
 import { OpenAIEmbeddingService } from "./openai-embedding-service";
 
 const EMBEDDING_CHUNK_SIZE = 3500; // Stay safely under 4000 char limit
@@ -17,6 +19,12 @@ export interface EmbeddingMetadata {
 	metadataId: string;
 	type?: string;
 }
+
+/** Optional context for verbose `embedding_index` token logs only. */
+export type FileEmbeddingSpendContext = {
+	username?: string;
+	fileKey?: string;
+};
 
 /**
  * Service for storing file embeddings in Vectorize
@@ -36,7 +44,8 @@ export class FileEmbeddingService {
 	async storeEmbeddings(
 		text: string,
 		metadataId: string,
-		metadata: EmbeddingMetadata = { metadataId }
+		metadata: EmbeddingMetadata = { metadataId },
+		spendContext?: FileEmbeddingSpendContext
 	): Promise<string> {
 		if (!this.vectorize) {
 			throw new VectorizeIndexRequiredError();
@@ -66,7 +75,10 @@ export class FileEmbeddingService {
 				const chunkText = chunk.substring(0, EMBEDDING_CHUNK_SIZE);
 
 				// Generate embedding for this chunk using OpenAI
-				const embeddings = await this.generateEmbedding(chunkText);
+				const embeddings = await this.generateEmbedding(
+					chunkText,
+					spendContext
+				);
 
 				// Validate embedding dimensions
 				if (!Array.isArray(embeddings) || embeddings.length === 0) {
@@ -208,7 +220,10 @@ export class FileEmbeddingService {
 	/**
 	 * Generate embedding using OpenAI API
 	 */
-	private async generateEmbedding(text: string): Promise<number[]> {
+	private async generateEmbedding(
+		text: string,
+		spendContext?: FileEmbeddingSpendContext
+	): Promise<number[]> {
 		const apiKey = await this.resolveOpenAIKey();
 
 		try {
@@ -230,11 +245,38 @@ export class FileEmbeddingService {
 				);
 			}
 
-			const result = (await response.json()) as any;
-			const embedding = result.data[0]?.embedding;
+			const result = (await response.json()) as {
+				data?: Array<{ embedding?: unknown }>;
+				usage?: {
+					total_tokens?: number;
+					prompt_tokens?: number;
+					completion_tokens?: number;
+				};
+			};
+			const embedding = result.data?.[0]?.embedding;
 
 			if (!Array.isArray(embedding) || embedding.length === 0) {
 				throw new EmbeddingGenerationError("Invalid embedding response");
+			}
+
+			const totalTokens = result.usage?.total_tokens;
+			if (typeof totalTokens === "number" && totalTokens > 0) {
+				const extras: Record<string, unknown> = {};
+				if (spendContext?.fileKey) {
+					extras.fileKey = spendContext.fileKey;
+				}
+				logVerboseLlmSpend(this.env, {
+					intent: LLM_SPEND_INTENT.embedding_index,
+					source: "file_embedding_service",
+					username: spendContext?.username,
+					tokens: totalTokens,
+					queryCount: 1,
+					model: OpenAIEmbeddingService.EMBEDDING_MODEL,
+					promptTokens: result.usage?.prompt_tokens,
+					completionTokens: result.usage?.completion_tokens,
+					totalTokens,
+					extras: Object.keys(extras).length > 0 ? extras : undefined,
+				});
 			}
 
 			// Validate dimensions

@@ -17,6 +17,7 @@ import {
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
 import { getLibrarySyntheticCampaignId } from "@/lib/library-entity-id";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
 import {
@@ -335,7 +336,15 @@ async function stageEntitiesFromResourceImpl(
 							await rateLimitService.recordUsage(
 								username,
 								usage.tokens,
-								usage.queryCount
+								usage.queryCount,
+								undefined,
+								{
+									intent: LLM_SPEND_INTENT.visual_inspiration_title,
+									source: "entity_staging:visual_inspiration_title",
+									campaignId,
+									fileKey: normalizedResource.file_key || undefined,
+									libraryMode,
+								}
 							);
 						},
 					});
@@ -416,7 +425,15 @@ async function stageEntitiesFromResourceImpl(
 						await rateLimitService.recordUsage(
 							username,
 							usage.tokens,
-							usage.queryCount
+							usage.queryCount,
+							undefined,
+							{
+								intent: LLM_SPEND_INTENT.character_sheet_detection,
+								source: "entity_staging:character_sheet_detection",
+								campaignId,
+								fileKey: normalizedResource.file_key || undefined,
+								libraryMode,
+							}
 						);
 					},
 				}
@@ -684,7 +701,15 @@ async function stageEntitiesFromResourceImpl(
 								username,
 								usage.tokens,
 								usage.queryCount,
-								ctx?.model
+								ctx?.model,
+								{
+									intent: LLM_SPEND_INTENT.entity_extraction,
+									source: "entity_staging:extraction_chunk_gate",
+									phase: "chunk_gate",
+									campaignId,
+									fileKey: normalizedResource.file_key || undefined,
+									chunkIndex: chunkIndex,
+								}
 							);
 						},
 					});
@@ -726,7 +751,15 @@ async function stageEntitiesFromResourceImpl(
 							username,
 							usage.tokens,
 							usage.queryCount,
-							ctx?.model
+							ctx?.model,
+							{
+								intent: LLM_SPEND_INTENT.entity_extraction,
+								source: "entity_staging:extract_entities",
+								phase: "extract_entities",
+								campaignId,
+								fileKey: normalizedResource.file_key || undefined,
+								chunkIndex: chunkIndex,
+							}
 						);
 					},
 					metadata: {
