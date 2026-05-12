@@ -6,6 +6,7 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { AuthService } from "@/services/core/auth-service";
 import { RecapService } from "@/services/core/recap-service";
@@ -21,6 +22,23 @@ import {
 	type ToolExecuteOptions,
 } from "@/tools/utils";
 import { searchCampaignContext } from "./search-tools";
+
+function logSessionReadoutFailure(
+	env: unknown,
+	context: { phase: string; campaignId?: string; toolCallId?: string },
+	error: unknown
+): void {
+	const log = createLogger(
+		env as Record<string, unknown> | undefined,
+		"[SessionReadout]"
+	);
+	const err = error instanceof Error ? error : new Error(String(error));
+	log.error("Session readout step failed", err, {
+		phase: context.phase,
+		campaignId: context.campaignId,
+		toolCallId: context.toolCallId,
+	});
+}
 
 function sessionReadoutGenerateSummaryOptions(
 	env: unknown,
@@ -41,17 +59,33 @@ function sessionReadoutGenerateSummaryOptions(
 			usage: { tokens: number; queryCount: number },
 			ctx?: { model?: string; username?: string }
 		) => {
-			await rateLimitService.recordUsage(
-				username,
-				usage.tokens,
-				usage.queryCount,
-				ctx?.model,
-				{
-					intent: LLM_SPEND_INTENT.session_plan_readout,
-					source,
-					campaignId,
-				}
-			);
+			try {
+				await rateLimitService.recordUsage(
+					username,
+					usage.tokens,
+					usage.queryCount,
+					ctx?.model,
+					{
+						intent: LLM_SPEND_INTENT.session_plan_readout,
+						source,
+						campaignId,
+					}
+				);
+			} catch (usageErr) {
+				const log = createLogger(
+					env as Record<string, unknown>,
+					"[SessionReadout]"
+				);
+				log.warn(
+					"Session readout usage record failed (readout still succeeds)",
+					{
+						campaignId,
+						source,
+						message:
+							usageErr instanceof Error ? usageErr.message : String(usageErr),
+					}
+				);
+			}
 		},
 	};
 }
@@ -770,6 +804,16 @@ export const getSessionReadoutContext = tool({
 
 			return await Promise.race([doReadoutWork(), timeoutPromise]);
 		} catch (error) {
+			const env = getEnvFromContext(options);
+			logSessionReadoutFailure(
+				env,
+				{
+					phase: "getSessionReadoutContext",
+					campaignId,
+					toolCallId,
+				},
+				error
+			);
 			const isTimeout =
 				error instanceof Error && error.message.includes("timed out");
 			return createToolError(
@@ -952,6 +996,16 @@ export const getSessionReadoutChunk = tool({
 				toolCallId
 			);
 		} catch (error) {
+			const env = getEnvFromContext(options);
+			logSessionReadoutFailure(
+				env,
+				{
+					phase: "getSessionReadoutChunk",
+					campaignId,
+					toolCallId,
+				},
+				error
+			);
 			return createToolError(
 				"Failed to process readout chunk",
 				error instanceof Error ? error.message : String(error),
@@ -1104,6 +1158,16 @@ export const stitchSessionReadout = tool({
 				toolCallId
 			);
 		} catch (error) {
+			const env = getEnvFromContext(options);
+			logSessionReadoutFailure(
+				env,
+				{
+					phase: "stitchSessionReadout",
+					campaignId,
+					toolCallId,
+				},
+				error
+			);
 			return createToolError(
 				"Failed to stitch session readout",
 				error instanceof Error ? error.message : String(error),
