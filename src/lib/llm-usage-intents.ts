@@ -13,6 +13,7 @@
  * | character_sheet_detection | Character sheet detect pass |
  * | embedding_index | File embedding (Vectorize indexing path) |
  * | vision_image_extract | Vision image description for extraction |
+ * | session_plan_readout | Session plan readout (stitch / single-shot plan LLM) |
  */
 export const LLM_SPEND_INTENT = {
 	user_prompt: "user_prompt",
@@ -24,6 +25,7 @@ export const LLM_SPEND_INTENT = {
 	character_sheet_detection: "character_sheet_detection",
 	embedding_index: "embedding_index",
 	vision_image_extract: "vision_image_extract",
+	session_plan_readout: "session_plan_readout",
 } as const;
 
 export type LlmSpendIntent =

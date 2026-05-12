@@ -5,7 +5,11 @@ import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import type { Env } from "@/middleware/auth";
+import { AuthService } from "@/services/core/auth-service";
 import { RecapService } from "@/services/core/recap-service";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import {
 	commonSchemas,
 	createToolError,
@@ -17,6 +21,40 @@ import {
 	type ToolExecuteOptions,
 } from "@/tools/utils";
 import { searchCampaignContext } from "./search-tools";
+
+function sessionReadoutGenerateSummaryOptions(
+	env: unknown,
+	jwt: string | null | undefined,
+	campaignId: string,
+	source:
+		| "recap_tools:getSessionReadoutContext"
+		| "recap_tools:stitchSessionReadout"
+) {
+	const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
+	if (!username || !env) {
+		return {};
+	}
+	const rateLimitService = getLLMRateLimitService(env as Env);
+	return {
+		username,
+		onUsage: async (
+			usage: { tokens: number; queryCount: number },
+			ctx?: { model?: string; username?: string }
+		) => {
+			await rateLimitService.recordUsage(
+				username,
+				usage.tokens,
+				usage.queryCount,
+				ctx?.model,
+				{
+					intent: LLM_SPEND_INTENT.session_plan_readout,
+					source,
+					campaignId,
+				}
+			);
+		},
+	};
+}
 
 const generateContextRecapSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -693,6 +731,12 @@ export const getSessionReadoutContext = tool({
 					model: getGenerationModelForProvider("SESSION_PLANNING"),
 					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 					maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+					...sessionReadoutGenerateSummaryOptions(
+						env,
+						jwt,
+						campaignId,
+						"recap_tools:getSessionReadoutContext"
+					),
 				});
 
 				await sessionPlanReadoutDAO.save(
@@ -1032,6 +1076,12 @@ export const stitchSessionReadout = tool({
 				model: getGenerationModelForProvider("SESSION_PLANNING"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+				...sessionReadoutGenerateSummaryOptions(
+					env,
+					jwt,
+					campaignId,
+					"recap_tools:stitchSessionReadout"
+				),
 			});
 
 			await sessionPlanReadoutDAO.save(
