@@ -1,5 +1,6 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import type { Env } from "@/middleware/auth";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
@@ -70,11 +71,18 @@ export class ShardEmbeddingQueueProcessor {
 					texts,
 					{
 						username,
-						onUsage: async (usage) => {
+						onUsage: async (usage, ctx) => {
 							await rateLimitService.recordUsage(
 								username,
 								usage.tokens,
-								usage.queryCount
+								usage.queryCount,
+								ctx?.model,
+								{
+									intent: LLM_SPEND_INTENT.shard_embedding,
+									source: "shard_embedding_queue_processor:batch",
+									campaignId,
+									entityCount: chunk.length,
+								}
 							);
 						},
 					}

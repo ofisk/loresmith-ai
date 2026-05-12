@@ -98,10 +98,14 @@ export class DirectFileContentExtractionProvider
 					typeof this.env.OPENAI_API_KEY === "string"
 						? this.env.OPENAI_API_KEY
 						: undefined;
-				const extractionService = new FileExtractionService(openAIApiKey);
+				const extractionService = new FileExtractionService(
+					openAIApiKey,
+					this.env as unknown as Record<string, unknown>
+				);
 				const imageResult = await extractionService.extractText(
 					fileBuffer,
-					effectiveType
+					effectiveType,
+					{ fileKey: resource.file_key ?? undefined }
 				);
 				if (!imageResult?.text?.trim()) {
 					return {

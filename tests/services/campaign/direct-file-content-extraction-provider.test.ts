@@ -45,7 +45,8 @@ describe("DirectFileContentExtractionProvider", () => {
 		expect(result.metadata?.contentType).toBe("image/png");
 		expect(mockExtractText).toHaveBeenCalledWith(
 			expect.any(ArrayBuffer),
-			"image/png"
+			"image/png",
+			{ fileKey: "library/user/forest.png" }
 		);
 	});
 
@@ -71,7 +72,8 @@ describe("DirectFileContentExtractionProvider", () => {
 		expect(result.metadata?.isVisualInspiration).toBe(true);
 		expect(mockExtractText).toHaveBeenCalledWith(
 			expect.any(ArrayBuffer),
-			"image/jpeg"
+			"image/jpeg",
+			{ fileKey: "library/user/photo.jpg" }
 		);
 	});
 });

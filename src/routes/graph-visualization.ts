@@ -19,6 +19,7 @@ import {
 	computeOrphanNodes,
 	type GraphFilters,
 } from "@/lib/graph/graph-visualization-helpers";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { ProviderEmbeddingService } from "@/services/embedding/provider-embedding-service";
@@ -455,11 +456,18 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 				const getQueryEmbedding = async (q: string) => {
 					const [emb] = await embeddingProvider.generateEmbeddings([q], {
 						username: userAuth.username,
-						onUsage: async (usage) => {
+						onUsage: async (usage, ctx) => {
 							await rateLimitService.recordUsage(
 								userAuth.username,
 								usage.tokens,
-								usage.queryCount
+								usage.queryCount,
+								ctx?.model,
+								{
+									intent: LLM_SPEND_INTENT.graph_visualization,
+									source: "graph_visualization:search_entity_embedding",
+									campaignId,
+									entityName,
+								}
 							);
 						},
 					});

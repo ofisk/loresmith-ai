@@ -977,7 +977,8 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 									chunkDef,
 									fileSize,
 									contentType,
-									metadataId
+									metadataId,
+									chunk.username
 								);
 								log.debug("Successfully processed PDF chunk (R2 range)", {
 									chunkIndex: chunk.chunkIndex + 1,
@@ -1011,7 +1012,8 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 									chunkDefinition,
 									chunkBuffer,
 									contentType,
-									metadataId
+									metadataId,
+									chunk.username
 								);
 							}
 							continue;
@@ -1034,7 +1036,8 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 							chunkDefinition,
 							chunkBuffer,
 							contentType,
-							metadataId
+							metadataId,
+							chunk.username
 						);
 
 						log.debug("Successfully processed chunk", {

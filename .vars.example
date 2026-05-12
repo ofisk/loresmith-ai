@@ -26,6 +26,11 @@
 # OpenAI API Key (optional - users can provide their own in production)
 # OPENAI_API_KEY=sk-your-openai-api-key-here
 
+# When set to 1/true/yes/on (case-insensitive), emit structured `llm_token_spend` logs
+# with intent/source for debugging token usage (see LORESMITH_VERBOSE_LLM_USAGE in code).
+# Production sets `LORESMITH_VERBOSE_LLM_USAGE` in wrangler.jsonc `vars`; override locally if needed.
+# LORESMITH_VERBOSE_LLM_USAGE=1
+
 # CORS allowed origins for production
 CORS_ALLOWED_ORIGINS=https://yourdomain.com
 

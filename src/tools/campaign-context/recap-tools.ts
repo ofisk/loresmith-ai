@@ -5,7 +5,13 @@ import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import { createLogger } from "@/lib/logger";
+import type { Env } from "@/middleware/auth";
+import { AuthService } from "@/services/core/auth-service";
 import { RecapService } from "@/services/core/recap-service";
+import type { LLMOptions, LLMProvider } from "@/services/llm/llm-provider";
+import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import {
 	commonSchemas,
 	createToolError,
@@ -17,6 +23,153 @@ import {
 	type ToolExecuteOptions,
 } from "@/tools/utils";
 import { searchCampaignContext } from "./search-tools";
+
+/** Wrangler tail surfaces `console.*` more reliably than tslog for DO-isolate debugging. */
+function emitSessionReadoutTelemetry(
+	level: "info" | "warn" | "error",
+	label: string,
+	jsonPayload: string
+): void {
+	switch (level) {
+		case "info":
+			// biome-ignore lint/suspicious/noConsole: Workers wrangler tail observability
+			console.info(label, jsonPayload);
+			return;
+		case "warn":
+			// biome-ignore lint/suspicious/noConsole: Workers wrangler tail observability
+			console.warn(label, jsonPayload);
+			return;
+		case "error":
+			// biome-ignore lint/suspicious/noConsole: Workers wrangler tail observability
+			console.error(label, jsonPayload);
+	}
+}
+
+function logSessionReadoutFailure(
+	env: unknown,
+	context: { phase: string; campaignId?: string; toolCallId?: string },
+	error: unknown
+): void {
+	const err = error instanceof Error ? error : new Error(String(error));
+	try {
+		emitSessionReadoutTelemetry(
+			"error",
+			"[SessionReadout]",
+			JSON.stringify({
+				event: "session_readout_failure",
+				phase: context.phase,
+				campaignId: context.campaignId,
+				toolCallId: context.toolCallId,
+				message: err.message,
+				stack: err.stack?.slice(0, 800),
+			})
+		);
+	} catch {
+		emitSessionReadoutTelemetry(
+			"error",
+			"[SessionReadout]",
+			JSON.stringify({ event: "session_readout_failure", message: err.message })
+		);
+	}
+	const log = createLogger(
+		env as Record<string, unknown> | undefined,
+		"[SessionReadout]"
+	);
+	log.error("Session readout step failed", err, {
+		phase: context.phase,
+		campaignId: context.campaignId,
+		toolCallId: context.toolCallId,
+	});
+}
+
+/** Plain console so `wrangler tail --format pretty` always shows readout LLM boundaries. */
+async function runSessionReadoutSummary(
+	llmProvider: LLMProvider,
+	prompt: string,
+	summaryOptions: LLMOptions,
+	meta: { phase: string; campaignId: string }
+): Promise<string> {
+	const promptLength = prompt.length;
+	emitSessionReadoutTelemetry(
+		"info",
+		"[SessionReadout]",
+		JSON.stringify({
+			event: "session_readout_summary_start",
+			phase: meta.phase,
+			campaignId: meta.campaignId,
+			promptLength,
+		})
+	);
+	try {
+		return await llmProvider.generateSummary(prompt, summaryOptions);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const name = error instanceof Error ? error.name : "unknown";
+		emitSessionReadoutTelemetry(
+			"error",
+			"[SessionReadout]",
+			JSON.stringify({
+				event: "session_readout_summary_failed",
+				phase: meta.phase,
+				campaignId: meta.campaignId,
+				promptLength,
+				message,
+				name,
+			})
+		);
+		throw error;
+	}
+}
+
+function sessionReadoutGenerateSummaryOptions(
+	env: unknown,
+	jwt: string | null | undefined,
+	campaignId: string,
+	source:
+		| "recap_tools:getSessionReadoutContext"
+		| "recap_tools:stitchSessionReadout"
+) {
+	const username = jwt ? AuthService.parseJwtForUsername(jwt) : null;
+	if (!username || !env) {
+		return {};
+	}
+	const rateLimitService = getLLMRateLimitService(env as Env);
+	return {
+		username,
+		onUsage: async (
+			usage: { tokens: number; queryCount: number },
+			ctx?: { model?: string; username?: string }
+		) => {
+			try {
+				await rateLimitService.recordUsage(
+					username,
+					usage.tokens,
+					usage.queryCount,
+					ctx?.model,
+					{
+						intent: LLM_SPEND_INTENT.session_plan_readout,
+						source,
+						campaignId,
+					}
+				);
+			} catch (usageErr) {
+				const log = createLogger(
+					env as Record<string, unknown>,
+					"[SessionReadout]"
+				);
+				log.warn(
+					"Session readout usage record failed (readout still succeeds)",
+					{
+						campaignId,
+						source,
+						message:
+							usageErr instanceof Error ? usageErr.message : String(usageErr),
+					}
+				);
+			}
+		},
+	};
+}
 
 const generateContextRecapSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -662,6 +815,16 @@ export const getSessionReadoutContext = tool({
 				);
 				const providerApiKey = providerApiKeyRaw?.trim() ?? "";
 				if (!providerApiKey) {
+					emitSessionReadoutTelemetry(
+						"warn",
+						"[SessionReadout]",
+						JSON.stringify({
+							event: "session_readout_no_provider_key",
+							phase: "getSessionReadoutContext",
+							campaignId,
+							toolCallId,
+						})
+					);
 					return createToolError(
 						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
 						"AI is not configured for this environment.",
@@ -689,11 +852,22 @@ export const getSessionReadoutContext = tool({
 						MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 					defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 				});
-				const transformedPlan = await llmProvider.generateSummary(prompt, {
-					model: getGenerationModelForProvider("SESSION_PLANNING"),
-					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-					maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
-				});
+				const transformedPlan = await runSessionReadoutSummary(
+					llmProvider,
+					prompt,
+					{
+						model: getGenerationModelForProvider("SESSION_PLANNING"),
+						temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+						maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+						...sessionReadoutGenerateSummaryOptions(
+							env,
+							jwt,
+							campaignId,
+							"recap_tools:getSessionReadoutContext"
+						),
+					},
+					{ phase: "getSessionReadoutContext", campaignId }
+				);
 
 				await sessionPlanReadoutDAO.save(
 					campaignId,
@@ -726,6 +900,16 @@ export const getSessionReadoutContext = tool({
 
 			return await Promise.race([doReadoutWork(), timeoutPromise]);
 		} catch (error) {
+			const env = getEnvFromContext(options);
+			logSessionReadoutFailure(
+				env,
+				{
+					phase: "getSessionReadoutContext",
+					campaignId,
+					toolCallId,
+				},
+				error
+			);
 			const isTimeout =
 				error instanceof Error && error.message.includes("timed out");
 			return createToolError(
@@ -908,6 +1092,16 @@ export const getSessionReadoutChunk = tool({
 				toolCallId
 			);
 		} catch (error) {
+			const env = getEnvFromContext(options);
+			logSessionReadoutFailure(
+				env,
+				{
+					phase: "getSessionReadoutChunk",
+					campaignId,
+					toolCallId,
+				},
+				error
+			);
 			return createToolError(
 				"Failed to process readout chunk",
 				error instanceof Error ? error.message : String(error),
@@ -982,6 +1176,17 @@ export const stitchSessionReadout = tool({
 				nextSessionNumber
 			);
 			if (steps.length === 0) {
+				emitSessionReadoutTelemetry(
+					"warn",
+					"[SessionReadout]",
+					JSON.stringify({
+						event: "session_readout_stitch_no_chunks",
+						phase: "stitchSessionReadout",
+						campaignId,
+						nextSessionNumber,
+						toolCallId,
+					})
+				);
 				return createToolError(
 					"No chunks to stitch",
 					"Call getSessionReadoutChunk at least once before stitchSessionReadout.",
@@ -1001,6 +1206,16 @@ export const stitchSessionReadout = tool({
 			);
 			const providerApiKey = providerApiKeyRaw?.trim() ?? "";
 			if (!providerApiKey) {
+				emitSessionReadoutTelemetry(
+					"warn",
+					"[SessionReadout]",
+					JSON.stringify({
+						event: "session_readout_no_provider_key",
+						phase: "stitchSessionReadout",
+						campaignId,
+						toolCallId,
+					})
+				);
 				return createToolError(
 					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
 					"AI is not configured for this environment.",
@@ -1028,11 +1243,22 @@ export const stitchSessionReadout = tool({
 					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 			});
-			const transformedPlan = await llmProvider.generateSummary(prompt, {
-				model: getGenerationModelForProvider("SESSION_PLANNING"),
-				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-				maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
-			});
+			const transformedPlan = await runSessionReadoutSummary(
+				llmProvider,
+				prompt,
+				{
+					model: getGenerationModelForProvider("SESSION_PLANNING"),
+					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
+					maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+					...sessionReadoutGenerateSummaryOptions(
+						env,
+						jwt,
+						campaignId,
+						"recap_tools:stitchSessionReadout"
+					),
+				},
+				{ phase: "stitchSessionReadout", campaignId }
+			);
 
 			await sessionPlanReadoutDAO.save(
 				campaignId,
@@ -1054,6 +1280,16 @@ export const stitchSessionReadout = tool({
 				toolCallId
 			);
 		} catch (error) {
+			const env = getEnvFromContext(options);
+			logSessionReadoutFailure(
+				env,
+				{
+					phase: "stitchSessionReadout",
+					campaignId,
+					toolCallId,
+				},
+				error
+			);
 			return createToolError(
 				"Failed to stitch session readout",
 				error instanceof Error ? error.message : String(error),

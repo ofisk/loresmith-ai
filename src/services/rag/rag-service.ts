@@ -30,7 +30,10 @@ export class LibraryRAGService extends BaseRAGService {
 		super(env.DB, env.VECTORIZE, env.OPENAI_API_KEY, env);
 		const openAIApiKey =
 			typeof env.OPENAI_API_KEY === "string" ? env.OPENAI_API_KEY : undefined;
-		this.extractionService = new FileExtractionService(openAIApiKey);
+		this.extractionService = new FileExtractionService(
+			openAIApiKey,
+			env as unknown as Record<string, unknown>
+		);
 		this.embeddingService = new FileEmbeddingService(
 			env.VECTORIZE,
 			env.OPENAI_API_KEY,
@@ -127,7 +130,8 @@ export class LibraryRAGService extends BaseRAGService {
 			}
 			extractionResult = await this.extractionService.extractText(
 				buffer!,
-				metadata.contentType
+				metadata.contentType,
+				{ username: metadata.userId, fileKey: metadata.fileKey }
 			);
 		} catch (memoryError) {
 			// Check if this is a memory limit error from Worker runtime
@@ -235,7 +239,9 @@ export class LibraryRAGService extends BaseRAGService {
 		// Store embeddings for search
 		const vectorId = await this.embeddingService.storeEmbeddings(
 			text,
-			metadata.id
+			metadata.id,
+			{ metadataId: metadata.id },
+			{ username: metadata.userId, fileKey: metadata.fileKey }
 		);
 
 		return {
@@ -309,7 +315,8 @@ export class LibraryRAGService extends BaseRAGService {
 				"application/pdf";
 			const extractionResult = await this.extractionService.extractText(
 				buffer,
-				contentType
+				contentType,
+				{ username, fileKey }
 			);
 
 			if (!extractionResult?.text) {
@@ -333,7 +340,9 @@ export class LibraryRAGService extends BaseRAGService {
 				try {
 					vectorId = await this.embeddingService.storeEmbeddings(
 						text,
-						metadata.id || fileKey
+						metadata.id || fileKey,
+						{ metadataId: metadata.id || fileKey },
+						{ username, fileKey }
 					);
 				} catch (_error) {}
 			}

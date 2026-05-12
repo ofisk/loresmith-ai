@@ -23,7 +23,12 @@ export class ChunkedProcessingService {
 
 	constructor(private env: Env) {
 		this.fileDAO = new FileDAO(env.DB);
-		this.extractionService = new FileExtractionService();
+		const openAIApiKey =
+			typeof env.OPENAI_API_KEY === "string" ? env.OPENAI_API_KEY : undefined;
+		this.extractionService = new FileExtractionService(
+			openAIApiKey,
+			env as unknown as Record<string, unknown>
+		);
 		this.pdfChunkingService = new PDFChunkingService();
 	}
 
@@ -164,11 +169,12 @@ export class ChunkedProcessingService {
 	 */
 	async processChunk(
 		chunkId: string,
-		_fileKey: string,
+		fileKey: string,
 		chunkDefinition: ChunkDefinition,
 		fileBuffer: ArrayBuffer,
 		contentType: string,
-		metadataId: string
+		metadataId: string,
+		username?: string
 	): Promise<{
 		success: boolean;
 		vectorId?: string;
@@ -226,7 +232,8 @@ export class ChunkedProcessingService {
 				{
 					metadataId,
 					type: "file_chunk",
-				}
+				},
+				{ username, fileKey }
 			);
 
 			// Mark chunk as completed
@@ -264,7 +271,8 @@ export class ChunkedProcessingService {
 		chunkDefinition: ChunkDefinition,
 		fileSize: number,
 		_contentType: string,
-		metadataId: string
+		metadataId: string,
+		username?: string
 	): Promise<{
 		success: boolean;
 		vectorId?: string;
@@ -312,7 +320,8 @@ export class ChunkedProcessingService {
 				{
 					metadataId,
 					type: "file_chunk",
-				}
+				},
+				{ username, fileKey }
 			);
 
 			await this.fileDAO.markFileChunkComplete(chunkId, vectorId);

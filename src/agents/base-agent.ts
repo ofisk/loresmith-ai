@@ -13,6 +13,11 @@ import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import {
+	isVerboseLlmSpendEnabled,
+	logVerboseLlmSpend,
+} from "@/lib/llm-usage-verbose-log";
 import { createLogger } from "@/lib/logger";
 import { messageHistoryInjectionFlags } from "@/lib/message-history-injection";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
@@ -37,6 +42,20 @@ import {
 	MESSAGE_HISTORY_REFERENCE_RULE,
 	MESSAGE_HISTORY_RESEARCH_RULE,
 } from "./system-prompts";
+
+function parseUsernameFromClientJwt(clientJwt: string | null): string | null {
+	if (!clientJwt) return null;
+	try {
+		const part = clientJwt.split(".")[1] || "";
+		let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+		const pad = base64.length % 4;
+		if (pad) base64 += "=".repeat(4 - pad);
+		const jwtPayload = JSON.parse(atob(base64)) as { username?: string };
+		return typeof jwtPayload.username === "string" ? jwtPayload.username : null;
+	} catch {
+		return null;
+	}
+}
 
 interface Env {
 	Chat: DurableObjectNamespace;
@@ -455,6 +474,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				{ hasLastUserMessage: !!lastUserMessage }
 			);
 		}
+
+		const usageBillingUserData = lastUserMessage?.data as
+			| { isHelpRequest?: boolean }
+			| undefined;
+		const isHelpRequestForUsage = usageBillingUserData?.isHelpRequest === true;
+
 		if (!selectedCampaignId) {
 			// Fallback: use the most recent campaignId found in message metadata
 			// (including client marker system messages) so tools can use the
@@ -842,18 +867,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					durationMs: Date.now() - turnStartedAt,
 				});
 				// Record LLM usage for rate limiting (chat consumes quota)
-				const lastUserData = lastUserMessage?.data as
-					| { isHelpRequest?: boolean }
-					| undefined;
-				const isHelpRequest = lastUserData?.isHelpRequest === true;
-				if (clientJwt && !isHelpRequest) {
+				if (clientJwt && !isHelpRequestForUsage) {
 					try {
-						const part = clientJwt.split(".")[1] || "";
-						let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
-						const pad = base64.length % 4;
-						if (pad) base64 += "=".repeat(4 - pad);
-						const jwtPayload = JSON.parse(atob(base64));
-						const username = jwtPayload.username;
+						const username = parseUsernameFromClientJwt(clientJwt);
 						const usage = (args?.totalUsage ?? args?.usage) as
 							| {
 									totalTokens?: number;
@@ -861,16 +877,57 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 									completionTokens?: number;
 							  }
 							| undefined;
-						if (username && usage) {
-							const tokens =
-								usage.totalTokens ??
-								(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
-							if (tokens > 0 && this.env?.DB) {
-								const rateLimitService = getLLMRateLimitService(
-									this.env as Parameters<typeof getLLMRateLimitService>[0]
-								);
-								await rateLimitService.recordUsage(username, tokens, 1);
+						const tokens = usage
+							? (usage.totalTokens ??
+								(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0))
+							: 0;
+						const envRecord = this.env as Record<string, unknown> | undefined;
+						const verbose = isVerboseLlmSpendEnabled(envRecord);
+
+						if (username && tokens > 0 && this.env?.DB) {
+							const rateLimitService = getLLMRateLimitService(
+								this.env as Parameters<typeof getLLMRateLimitService>[0]
+							);
+							await rateLimitService.recordUsage(
+								username,
+								tokens,
+								1,
+								undefined,
+								{
+									intent: LLM_SPEND_INTENT.user_prompt,
+									source: "base_agent:onChatMessage",
+									agent: this.constructor.name,
+									promptTokens: usage?.promptTokens,
+									completionTokens: usage?.completionTokens,
+									totalTokens: usage?.totalTokens,
+								}
+							);
+						} else if (verbose && username) {
+							const extras: Record<string, unknown> = {
+								finishReason: args?.finishReason ?? null,
+								agent: this.constructor.name,
+							};
+							if (usage) {
+								extras.promptTokens = usage.promptTokens;
+								extras.completionTokens = usage.completionTokens;
+								extras.totalTokens = usage.totalTokens;
+							} else {
+								extras.usageUnavailable = true;
 							}
+							if (tokens > 0 && !this.env?.DB) {
+								extras.d1Unavailable = true;
+							}
+							if (tokens === 0) {
+								extras.zeroTokenFinish = true;
+							}
+							logVerboseLlmSpend(envRecord, {
+								intent: LLM_SPEND_INTENT.user_prompt,
+								source: "base_agent:onChatMessage",
+								username,
+								tokens,
+								queryCount: 1,
+								extras,
+							});
 						}
 					} catch (err) {
 						log.warn("Failed to record LLM usage", err);
@@ -944,6 +1001,34 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				);
 				if (error?.stack && error.stack.length < 1000) {
 					log.error("Stack:", error.stack);
+				}
+
+				if (
+					clientJwt &&
+					!isHelpRequestForUsage &&
+					isVerboseLlmSpendEnabled(this.env as Record<string, unknown>)
+				) {
+					const username = parseUsernameFromClientJwt(clientJwt);
+					if (username) {
+						const statusCode =
+							(error?.statusCode as number | undefined) ??
+							(error?.status as number | undefined);
+						logVerboseLlmSpend(this.env as Record<string, unknown>, {
+							intent: LLM_SPEND_INTENT.user_prompt,
+							source: "base_agent:onChatMessage_provider_error",
+							username,
+							tokens: 0,
+							queryCount: 0,
+							model: modelId,
+							extras: {
+								agent: this.constructor.name,
+								errorName: error?.name,
+								statusCode: statusCode ?? null,
+								code: error?.code ?? null,
+								message: errorMessage.slice(0, 500),
+							},
+						});
+					}
 				}
 				// User-facing error message is provided by toUIMessageStreamResponse onError
 			},

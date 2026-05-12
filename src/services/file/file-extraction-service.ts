@@ -3,6 +3,8 @@ import { getDocument } from "pdfjs-serverless";
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
 import { getPdfPageCount as getPdfPageCountUtil } from "@/lib/file/pdf-utils";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
 
 export interface ExtractionResult {
 	text: string;
@@ -10,19 +12,28 @@ export interface ExtractionResult {
 	totalPages?: number;
 }
 
+export type VisionExtractionSpendContext = {
+	username?: string;
+	fileKey?: string;
+};
+
 /**
  * Service for extracting text from various file types
  * Handles PDF, DOCX, text, and JSON files
  */
 export class FileExtractionService {
-	constructor(private readonly openAIApiKey?: string) {}
+	constructor(
+		private readonly openAIApiKey?: string,
+		private readonly env?: Record<string, unknown>
+	) {}
 
 	/**
 	 * Extract text from a file buffer based on content type
 	 */
 	async extractText(
 		buffer: ArrayBuffer,
-		contentType: string
+		contentType: string,
+		spendContext?: VisionExtractionSpendContext
 	): Promise<ExtractionResult | null> {
 		if (contentType.includes("pdf")) {
 			return await this.extractPdfText(buffer);
@@ -44,7 +55,7 @@ export class FileExtractionService {
 				return { text };
 			}
 		} else if (this.isImageContentType(contentType)) {
-			return await this.extractImageText(buffer, contentType);
+			return await this.extractImageText(buffer, contentType, spendContext);
 		}
 
 		return null;
@@ -62,7 +73,8 @@ export class FileExtractionService {
 
 	private async extractImageText(
 		buffer: ArrayBuffer,
-		contentType: string
+		contentType: string,
+		spendContext?: VisionExtractionSpendContext
 	): Promise<ExtractionResult> {
 		// Keep processing resilient if vision analysis is unavailable.
 		if (!this.openAIApiKey) {
@@ -136,7 +148,33 @@ export class FileExtractionService {
 
 			const data = (await response.json()) as {
 				choices?: Array<{ message?: { content?: string } }>;
+				usage?: {
+					total_tokens?: number;
+					prompt_tokens?: number;
+					completion_tokens?: number;
+				};
 			};
+
+			const totalTokens = data.usage?.total_tokens;
+			if (typeof totalTokens === "number" && totalTokens > 0) {
+				const extras: Record<string, unknown> = {};
+				if (spendContext?.fileKey) {
+					extras.fileKey = spendContext.fileKey;
+				}
+				logVerboseLlmSpend(this.env, {
+					intent: LLM_SPEND_INTENT.vision_image_extract,
+					source: "file_extraction_service",
+					username: spendContext?.username,
+					tokens: totalTokens,
+					queryCount: 1,
+					model: "gpt-4o-mini",
+					promptTokens: data.usage?.prompt_tokens,
+					completionTokens: data.usage?.completion_tokens,
+					totalTokens,
+					extras: Object.keys(extras).length > 0 ? extras : undefined,
+				});
+			}
+
 			const visionText = data.choices?.[0]?.message?.content?.trim();
 
 			if (!visionText) {

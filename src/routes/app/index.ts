@@ -1,5 +1,7 @@
 import { routeAgentRequest } from "agents";
 import type { Context, Hono } from "hono";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
 import { toApiRoutePath } from "@/routes/env";
@@ -63,6 +65,20 @@ export function registerAppRoutes(
 				authPayload.username,
 				authPayload.isAdmin ?? false
 			);
+			if (!check.allowed) {
+				logVerboseLlmSpend(c.env, {
+					intent: LLM_SPEND_INTENT.user_prompt,
+					source: "app_agents_route:quota_blocked",
+					username: authPayload.username,
+					tokens: 0,
+					queryCount: 0,
+					extras: {
+						reason: check.reason ?? null,
+						limitType: check.limitType ?? null,
+						nextResetAt: check.nextResetAt ?? null,
+					},
+				});
+			}
 			if (!check.allowed && check.nextResetAt) {
 				const retryAfterSeconds = Math.ceil(
 					(new Date(check.nextResetAt).getTime() - Date.now()) / 1000
