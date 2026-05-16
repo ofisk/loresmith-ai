@@ -78,16 +78,16 @@ export function registerAppRoutes(
 						nextResetAt: check.nextResetAt ?? null,
 					},
 				});
-			}
-			if (!check.allowed && check.nextResetAt) {
-				const retryAfterSeconds = Math.ceil(
-					(new Date(check.nextResetAt).getTime() - Date.now()) / 1000
-				);
-				c.header("Retry-After", String(Math.max(1, retryAfterSeconds)));
+				if (check.nextResetAt) {
+					const retryAfterSeconds = Math.ceil(
+						(new Date(check.nextResetAt).getTime() - Date.now()) / 1000
+					);
+					c.header("Retry-After", String(Math.max(1, retryAfterSeconds)));
+				}
 				return c.json(
 					{
 						error: check.reason ?? "Rate limit exceeded",
-						nextResetAt: check.nextResetAt,
+						nextResetAt: check.nextResetAt ?? null,
 					},
 					429
 				);

@@ -203,8 +203,16 @@ export class Chat extends SimpleChatAgent<Env> {
 							content = "";
 						}
 						const data = m.data ?? m.metadata;
+						const rawRole =
+							typeof m.role === "string" ? m.role.toLowerCase() : "";
+						const role: "user" | "assistant" | "system" =
+							rawRole === "user" ||
+							rawRole === "assistant" ||
+							rawRole === "system"
+								? rawRole
+								: "user";
 						return {
-							role: (m.role as "user" | "assistant" | "system") || "user",
+							role,
 							content,
 							...(data != null && { data }),
 						};
@@ -361,7 +369,13 @@ export class Chat extends SimpleChatAgent<Env> {
 
 			if (!lastUserMessage) {
 				if (this.agents.size === 0) {
-					return;
+					return new Response(
+						JSON.stringify({
+							error:
+								"No user message in this request, or chat session is not initialized.",
+						}),
+						{ status: 400, headers: { "Content-Type": "application/json" } }
+					);
 				}
 
 				const targetAgentInstance = this.getAgentInstance("recap");
