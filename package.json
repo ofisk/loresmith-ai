@@ -113,7 +113,7 @@
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.78",
 		"@ai-sdk/openai": "^3.0.64",
-		"@ai-sdk/react": "^3.0.186",
+		"@ai-sdk/react": "^3.0.187",
 		"@hono/swagger-ui": "^0.6.1",
 		"@hono/zod-openapi": "^1.4.0",
 		"@phosphor-icons/react": "^2.1.10",
