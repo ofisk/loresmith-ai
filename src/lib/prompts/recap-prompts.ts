@@ -183,7 +183,37 @@ ${blocks}
 Output the complete session plan (markdown, no preamble):`;
 }
 
+/**
+ * Merge batched session plan sections into one unified plan.
+ * Used when the full readout prompt would exceed a safe size for a single LLM call.
+ */
+export function formatSessionPlanMergePrompt(
+	sectionPlans: string[],
+	nextSessionNumber: number
+): string {
+	const sections = sectionPlans
+		.map((plan, i) => `---\n## Section ${i + 1}\n\n${plan}`)
+		.join("\n\n");
+
+	return `You are helping a game master prepare a session plan for their next D&D (or similar TTRPG) session.
+
+Session number: ${nextSessionNumber}
+
+The sections below were generated separately from different planning tasks. Merge them into ONE coherent session plan the DM can run at the table.
+
+- Preserve substantive detail from every section; do not drop scenes or encounters.
+- Renumber scenes or encounters into a single flow (no duplicate "Section" headings in the output).
+- Output format: markdown. Do not add meta-commentary; output only the session plan.
+
+${sections}
+
+---
+
+Output the complete merged session plan (markdown, no preamble):`;
+}
+
 export const RECAP_PROMPTS = {
 	formatContextRecapPrompt,
 	formatSessionPlanReadoutPrompt,
+	formatSessionPlanMergePrompt,
 };
