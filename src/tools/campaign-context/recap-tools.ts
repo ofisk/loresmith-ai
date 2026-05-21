@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { APICallError, RetryError, tool } from "ai";
 import { z } from "zod";
 import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
 import type { Community } from "@/dao/community-dao";
@@ -7,6 +7,7 @@ import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { createLogger } from "@/lib/logger";
+import type { SessionPlanReadoutStep } from "@/lib/prompts/recap-prompts";
 import type { Env } from "@/middleware/auth";
 import { AuthService } from "@/services/core/auth-service";
 import { RecapService } from "@/services/core/recap-service";
@@ -103,7 +104,7 @@ async function runSessionReadoutSummary(
 	try {
 		return await llmProvider.generateSummary(prompt, summaryOptions);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = describeSessionReadoutLlmFailure(error);
 		const name = error instanceof Error ? error.name : "unknown";
 		emitSessionReadoutTelemetry(
 			"error",
@@ -117,7 +118,7 @@ async function runSessionReadoutSummary(
 				name,
 			})
 		);
-		throw error;
+		throw new Error(`Session plan generation failed: ${message}`);
 	}
 }
 
@@ -405,6 +406,93 @@ const MAX_READOUT_ENTITY_TEXT_CHARS = 2500;
 const SESSION_READOUT_TIMEOUT_MS = 90000; // Fail fast to avoid Worker/connection limits
 const CHUNK_BATCH_SIZE = 2;
 const CHUNK_THRESHOLD = 3; // Use chunked flow when 3+ tasks to avoid timeout
+/** Above this, stitch in multiple LLM calls then merge (avoids timeouts / overload retries). */
+const SESSION_PLAN_STITCH_MAX_PROMPT_CHARS = 20_000;
+const SESSION_PLAN_STITCH_BATCH_STEPS = 2;
+
+function describeSessionReadoutLlmFailure(error: unknown): string {
+	if (RetryError.isInstance(error)) {
+		const last = error.errors[error.errors.length - 1];
+		return `${error.message} (${describeSessionReadoutLlmFailure(last)})`;
+	}
+	if (APICallError.isInstance(error)) {
+		const parts = [
+			error.message?.trim() || "(empty API error message)",
+			error.statusCode != null ? `status ${error.statusCode}` : null,
+			error.responseBody
+				? `response ${String(error.responseBody).slice(0, 400)}`
+				: null,
+		].filter(Boolean);
+		return parts.join("; ");
+	}
+	return error instanceof Error ? error.message : String(error);
+}
+
+async function generateSessionPlanFromReadoutSteps(
+	llmProvider: LLMProvider,
+	steps: SessionPlanReadoutStep[],
+	nextSessionNumber: number,
+	summaryOptions: LLMOptions,
+	meta: { phase: string; campaignId: string }
+): Promise<string> {
+	const { formatSessionPlanReadoutPrompt, formatSessionPlanMergePrompt } =
+		await import("../../lib/prompts/recap-prompts");
+
+	const fullPrompt = formatSessionPlanReadoutPrompt(steps, nextSessionNumber);
+	if (fullPrompt.length <= SESSION_PLAN_STITCH_MAX_PROMPT_CHARS) {
+		return runSessionReadoutSummary(
+			llmProvider,
+			fullPrompt,
+			summaryOptions,
+			meta
+		);
+	}
+
+	emitSessionReadoutTelemetry(
+		"info",
+		"[SessionReadout]",
+		JSON.stringify({
+			event: "session_readout_summary_batched",
+			phase: meta.phase,
+			campaignId: meta.campaignId,
+			promptLength: fullPrompt.length,
+			stepCount: steps.length,
+			batchSize: SESSION_PLAN_STITCH_BATCH_STEPS,
+		})
+	);
+
+	const sectionPlans: string[] = [];
+	for (let i = 0; i < steps.length; i += SESSION_PLAN_STITCH_BATCH_STEPS) {
+		const batch = steps.slice(i, i + SESSION_PLAN_STITCH_BATCH_STEPS);
+		const batchPrompt = formatSessionPlanReadoutPrompt(
+			batch,
+			nextSessionNumber
+		);
+		sectionPlans.push(
+			await runSessionReadoutSummary(
+				llmProvider,
+				batchPrompt,
+				summaryOptions,
+				meta
+			)
+		);
+	}
+
+	if (sectionPlans.length === 1) {
+		return sectionPlans[0];
+	}
+
+	const mergePrompt = formatSessionPlanMergePrompt(
+		sectionPlans,
+		nextSessionNumber
+	);
+	return runSessionReadoutSummary(
+		llmProvider,
+		mergePrompt,
+		summaryOptions,
+		meta
+	);
+}
 
 function extractTargetSessionFromTitle(title: string): number | null {
 	const match = /\(\s*target\s*:\s*session\s*(\d+)\s*\)/i.exec(title);
@@ -833,9 +921,6 @@ export const getSessionReadoutContext = tool({
 					);
 				}
 
-				const { formatSessionPlanReadoutPrompt } = await import(
-					"../../lib/prompts/recap-prompts"
-				);
 				const { createLLMProvider } = await import(
 					"../../services/llm/llm-provider-factory"
 				);
@@ -843,7 +928,6 @@ export const getSessionReadoutContext = tool({
 					"../../app-constants"
 				);
 
-				const prompt = formatSessionPlanReadoutPrompt(steps, nextSessionNumber);
 				const llmProvider = createLLMProvider({
 					provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 					apiKey: providerApiKey,
@@ -852,9 +936,10 @@ export const getSessionReadoutContext = tool({
 						MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 					defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 				});
-				const transformedPlan = await runSessionReadoutSummary(
+				const transformedPlan = await generateSessionPlanFromReadoutSteps(
 					llmProvider,
-					prompt,
+					steps,
+					nextSessionNumber,
 					{
 						model: getGenerationModelForProvider("SESSION_PLANNING"),
 						temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
@@ -1224,9 +1309,6 @@ export const stitchSessionReadout = tool({
 				);
 			}
 
-			const { formatSessionPlanReadoutPrompt } = await import(
-				"../../lib/prompts/recap-prompts"
-			);
 			const { createLLMProvider } = await import(
 				"../../services/llm/llm-provider-factory"
 			);
@@ -1234,7 +1316,6 @@ export const stitchSessionReadout = tool({
 				"../../app-constants"
 			);
 
-			const prompt = formatSessionPlanReadoutPrompt(steps, nextSessionNumber);
 			const llmProvider = createLLMProvider({
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 				apiKey: providerApiKey,
@@ -1243,9 +1324,10 @@ export const stitchSessionReadout = tool({
 					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 			});
-			const transformedPlan = await runSessionReadoutSummary(
+			const transformedPlan = await generateSessionPlanFromReadoutSteps(
 				llmProvider,
-				prompt,
+				steps,
+				nextSessionNumber,
 				{
 					model: getGenerationModelForProvider("SESSION_PLANNING"),
 					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
