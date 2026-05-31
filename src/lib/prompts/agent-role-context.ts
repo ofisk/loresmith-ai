@@ -47,7 +47,7 @@ export function getAgentRoleContext(
 			const gapPrompt = buildPlayerCharacterOnboardingGapPrompts(
 				playerContext.onboardingGaps ?? []
 			);
-			return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} Claimed player character: ${claimedEntity.name} (entity ID: ${claimedEntity.id}, type: ${claimedEntity.entityType}). This sheet is incomplete.${pendingNote} ${buildPlayerCharacterOnboardingOpeningPrompt(claimedEntity, playerContext.claim)} ${gapPrompt}`;
+			return `User role in this campaign: ${role}. ${PLAYER_BASE_CONTEXT}${cannotEdit} Claimed player character: ${claimedEntity.name} (entity ID: ${claimedEntity.id}, type: ${claimedEntity.entityType}). Character onboarding is IN PROGRESS and takes priority over every other task until the sheet is well-formed and well-connected.${pendingNote} Do not offer menus of other capabilities. ${buildPlayerCharacterOnboardingOpeningPrompt(claimedEntity, playerContext.claim)} ${gapPrompt}`;
 		}
 		if (!claimedEntity) {
 			const hasAnyPcEntities = playerContext?.hasAnyPcEntities ?? false;

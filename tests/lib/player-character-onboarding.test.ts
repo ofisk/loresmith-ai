@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
 import type { Entity } from "@/dao/entity-dao";
 import {
@@ -12,6 +13,10 @@ import {
 	parsePcEntityMetadata,
 } from "@/lib/player-character-onboarding";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
+import {
+	isExplicitOffTopicPlayerRequest,
+	shouldForceCharacterOnboardingRouting,
+} from "@/lib/prompts/player-character-onboarding-prompts";
 
 const mockEntityDAO = {
 	getEntityById: vi.fn(),
@@ -316,8 +321,46 @@ describe("agent role context for incomplete player characters", () => {
 			],
 		});
 
-		expect(context).toContain("incomplete");
+		expect(context).toContain("IN PROGRESS");
 		expect(context).toContain("completePlayerCharacterOnboarding");
 		expect(context).toContain("Missing class");
+		expect(context).toContain("Do not offer menus");
+	});
+});
+
+describe("player character onboarding routing", () => {
+	const incompleteContext = {
+		username: "player-one",
+		role: CAMPAIGN_ROLES.EDITOR_PLAYER,
+		claim: null,
+		entity: makeEntity({
+			metadata: { pcOnboardingStatus: PC_ONBOARDING_STATUS.INCOMPLETE },
+		}),
+		hasAnyPcEntities: true,
+		isPcOnboardingIncomplete: true,
+	};
+
+	it("forces character routing for incomplete sheets and context recap", () => {
+		expect(
+			shouldForceCharacterOnboardingRouting(
+				incompleteContext,
+				CONTEXT_RECAP_PLACEHOLDER
+			)
+		).toBe(true);
+		expect(
+			shouldForceCharacterOnboardingRouting(incompleteContext, "Hello")
+		).toBe(true);
+	});
+
+	it("allows explicit off-topic requests during onboarding", () => {
+		expect(
+			isExplicitOffTopicPlayerRequest("Just give me a session recap")
+		).toBe(true);
+		expect(
+			shouldForceCharacterOnboardingRouting(
+				incompleteContext,
+				"Just give me a session recap"
+			)
+		).toBe(false);
 	});
 });
