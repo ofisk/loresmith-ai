@@ -6,6 +6,11 @@ import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { Entity } from "@/dao/entity-dao";
 import type { PlayerCharacterClaim } from "@/dao/player-character-claim-dao";
+import {
+	getPcOnboardingGaps,
+	isPcOnboardingIncomplete,
+	type PlayerPcOnboardingGap,
+} from "@/lib/player-character-onboarding";
 import { AuthService } from "@/services/core/auth-service";
 import type { CampaignRole } from "@/types/campaign";
 
@@ -15,6 +20,8 @@ export interface ResolvedClaimedPlayerContext {
 	claim: PlayerCharacterClaim | null;
 	entity: Entity | null;
 	hasAnyPcEntities: boolean;
+	isPcOnboardingIncomplete: boolean;
+	onboardingGaps?: PlayerPcOnboardingGap[];
 }
 
 /**
@@ -62,6 +69,7 @@ export async function resolveClaimedPlayerContext(
 			claim: null,
 			entity: null,
 			hasAnyPcEntities: false,
+			isPcOnboardingIncomplete: false,
 		};
 	}
 
@@ -90,15 +98,24 @@ export async function resolveClaimedPlayerContext(
 			claim: null,
 			entity: null,
 			hasAnyPcEntities,
+			isPcOnboardingIncomplete: false,
 		};
 	}
 
 	const entity = await daoFactory.entityDAO.getEntityById(claim.entityId);
+	const incomplete = isPcOnboardingIncomplete(entity);
+	const onboardingGaps =
+		entity && incomplete
+			? await getPcOnboardingGaps(entity, campaignId, env)
+			: undefined;
+
 	return {
 		username,
 		role,
 		claim,
 		entity,
 		hasAnyPcEntities,
+		isPcOnboardingIncomplete: incomplete,
+		onboardingGaps,
 	};
 }

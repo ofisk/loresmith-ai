@@ -3,6 +3,7 @@
 import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import { getMessageHistory } from "@/tools/message-history-tools";
 import {
+	completePlayerCharacterOnboarding,
 	generateCharacterWithAITool,
 	storeCharacterInfo,
 	updateCharacterInfo,
@@ -15,6 +16,7 @@ export const characterManagementTools = {
 	storeCharacterInfo,
 	updateCharacterInfo,
 	generateCharacterWithAITool,
+	completePlayerCharacterOnboarding,
 	listAllEntities,
 	searchCampaignContext,
 	deleteEntityTool,
@@ -28,6 +30,7 @@ export const playerCharacterTools = {
 	storeCharacterInfo,
 	updateCharacterInfo,
 	generateCharacterWithAITool,
+	completePlayerCharacterOnboarding,
 	listAllEntities,
 	searchCampaignContext,
 	showCampaignDetails,

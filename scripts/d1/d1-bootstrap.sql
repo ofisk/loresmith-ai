@@ -196,6 +196,9 @@ CREATE TABLE IF NOT EXISTS entities (
   foreign key (campaign_id) references campaigns(id) on delete cascade
 );
 
+-- Player character sheets may store onboarding state in metadata JSON:
+-- metadata.pcOnboardingStatus = 'incomplete' | 'complete' (see player-character-onboarding.ts)
+
 -- Backfill shard_status on entities where null (0006)
 UPDATE entities
 SET shard_status = COALESCE(
