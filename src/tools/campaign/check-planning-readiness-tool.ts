@@ -8,6 +8,10 @@ import {
 	ENTITY_TYPE_PCS,
 } from "@/lib/entity/entity-type-constants";
 import {
+	countTasksByStatus,
+	filterTasksForUpcomingSession,
+} from "@/lib/planning-task-session";
+import {
 	commonSchemas,
 	createToolError,
 	createToolSuccess,
@@ -156,35 +160,30 @@ export const checkPlanningReadiness = tool({
 			const criticalGaps = gaps.filter((g) => g.severity === "critical");
 			const isReady = criticalGaps.length === 0;
 
-			// Pull planning task progress for this campaign so agents can reference it
-			const planningTasks =
+			// Pull planning task progress scoped to the upcoming session
+			const nextSessionNumber =
+				await daoFactory.sessionDigestDAO.getNextSessionNumber(campaignId);
+			const allPlanningTasks =
 				await daoFactory.planningTaskDAO.listByCampaign(campaignId);
+			const planningTasks = filterTasksForUpcomingSession(
+				allPlanningTasks,
+				nextSessionNumber
+			);
 
-			const planningTaskCounts = {
-				pending: planningTasks.filter((t) => t.status === "pending").length,
-				in_progress: planningTasks.filter((t) => t.status === "in_progress")
-					.length,
-				completed: planningTasks.filter((t) => t.status === "completed").length,
-				superseded: planningTasks.filter((t) => t.status === "superseded")
-					.length,
-			} as const;
+			const planningTaskCounts = countTasksByStatus(planningTasks);
 
 			const openPlanningTasksCount =
 				planningTaskCounts.pending + planningTaskCounts.in_progress;
 
 			let planningTasksAssessment: string;
 			if (planningTasks.length === 0) {
-				planningTasksAssessment =
-					"No planning tasks have been recorded yet. It may help to ask for next steps or add your own planning tasks.";
+				planningTasksAssessment = `No planning tasks are recorded for upcoming session ${nextSessionNumber}. It may help to ask for next steps or add your own planning tasks.`;
 			} else if (planningTaskCounts.completed >= 3) {
-				planningTasksAssessment =
-					"You have completed several planning tasks. You likely have a healthy amount of prep, but you can always refine further.";
+				planningTasksAssessment = `You have completed several planning tasks for session ${nextSessionNumber}. You likely have a healthy amount of prep, but you can always refine further.`;
 			} else if (openPlanningTasksCount === 0) {
-				planningTasksAssessment =
-					"All recorded planning tasks are completed. You may be ready to run or to ask for new next-step suggestions.";
+				planningTasksAssessment = `All planning tasks for session ${nextSessionNumber} are completed. You may be ready to run or to ask for the session plan readout.`;
 			} else {
-				planningTasksAssessment =
-					"There are still open planning tasks. Completing a few more items may improve your readiness for the next session.";
+				planningTasksAssessment = `There are still ${openPlanningTasksCount} open planning task(s) for session ${nextSessionNumber}. Completing them will prepare you to run that session.`;
 			}
 
 			return createToolSuccess(
@@ -212,6 +211,8 @@ export const checkPlanningReadiness = tool({
 						tasks: planningTasks,
 						counts: planningTaskCounts,
 						openTaskCount: openPlanningTasksCount,
+						nextSessionNumber,
+						targetSessionNumber: nextSessionNumber,
 						assessment: planningTasksAssessment,
 					},
 				},

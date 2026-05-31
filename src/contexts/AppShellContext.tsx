@@ -292,7 +292,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			setOpenPlanningTaskTitles([]);
 			return;
 		}
-		const url = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(selectedCampaignId))}?status=${OPEN_PLANNING_TASK_STATUSES.join(",")}`;
+		const url = `${API_CONFIG.buildUrl(API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(selectedCampaignId))}?status=${OPEN_PLANNING_TASK_STATUSES.join(",")}&scope=upcoming`;
 		makeRequestWithData<{ tasks: Array<{ title: string }> }>(url)
 			.then((data) =>
 				setOpenPlanningTaskTitles((data.tasks ?? []).map((t) => t.title))
