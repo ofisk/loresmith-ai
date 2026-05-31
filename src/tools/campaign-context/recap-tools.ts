@@ -274,16 +274,22 @@ export const generateGMContextRecapTool = tool({
 					? (progressRes.result.data as {
 							openTaskCount?: number;
 							counts?: { completed?: number };
+							nextSessionNumber?: number;
+							targetSessionNumber?: number;
 						})
 					: null;
 			const openTaskCount = progressData?.openTaskCount ?? 0;
 			const completedCount = progressData?.counts?.completed ?? 0;
+			const sessionNum =
+				progressData?.targetSessionNumber ??
+				progressData?.nextSessionNumber ??
+				"upcoming";
 			if (openTaskCount > 0) {
-				recapPrompt += `\n\n[Server preflight: This campaign already has ${openTaskCount} open next step(s). Call getPlanningTaskProgress to retrieve them, then present those to the user. Do NOT call recordPlanningTasks.]`;
+				recapPrompt += `\n\n[Server preflight: Session ${sessionNum} has ${openTaskCount} open next step(s). Call getPlanningTaskProgress to retrieve them (scoped to the upcoming session by default), then present those to the user. Do NOT call recordPlanningTasks.]`;
 			} else if (completedCount > 0) {
-				recapPrompt += `\n\n[Server preflight: All next steps for this campaign are complete (${completedCount} completed). Your first response MUST be to ask: "Would you like me to construct a readout for your next session's plan? I'll stitch together your completion notes into a ready-to-run plan you can follow at the table—or is there something else you'd like to add first?" Do NOT suggest new next steps, World Expansion, Session Prep, or Player Engagement until the user answers. Do NOT call recordPlanningTasks.]`;
+				recapPrompt += `\n\n[Server preflight: All next steps for session ${sessionNum} are complete (${completedCount} completed for this session). Your first response MUST be to ask: "Would you like me to construct a readout for your next session's plan? I'll stitch together your completion notes into a ready-to-run plan you can follow at the table—or is there something else you'd like to add first?" Do NOT suggest new next steps, World Expansion, Session Prep, or Player Engagement until the user answers. Do NOT call recordPlanningTasks.]`;
 			} else {
-				recapPrompt += `\n\n[Server preflight: There are no open next steps. You MUST generate 2-3 high-quality, campaign-relevant next steps (using the checklist and campaign context), then call recordPlanningTasks with them. Only after the tool succeeds may you say they have been saved and direct the user to Campaign Details > Next steps.]`;
+				recapPrompt += `\n\n[Server preflight: There are no open next steps for session ${sessionNum}. You MUST generate 2-3 high-quality, campaign-relevant next steps (using the checklist and campaign context), then call recordPlanningTasks with them (they will be pinned to session ${sessionNum}). Only after the tool succeeds may you say they have been saved and direct the user to Campaign Details > Next steps.]`;
 			}
 
 			return createToolSuccess(

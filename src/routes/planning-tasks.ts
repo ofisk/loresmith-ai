@@ -1,6 +1,7 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { CampaignAccessDeniedError } from "@/lib/errors";
+import { filterTasksForUpcomingSession } from "@/lib/planning-task-session";
 import {
 	type ContextWithAuth,
 	ensureCampaignAccess,
@@ -38,12 +39,37 @@ export async function handleGetPlanningTasks(c: ContextWithAuth) {
 			? (statusParam.split(",").filter(Boolean) as PlanningTaskStatus[])
 			: undefined;
 
-		const tasks = await planningTaskDAO.listByCampaign(campaignId, {
-			status: statuses,
-		});
-
 		const nextSessionNumber =
 			await sessionDigestDAO.getNextSessionNumber(campaignId);
+
+		const scopeParam = c.req.query("scope");
+		const targetSessionParam = c.req.query("targetSessionNumber");
+		let targetSessionNumber: number | undefined;
+		if (targetSessionParam != null && targetSessionParam !== "") {
+			const parsed = Number.parseInt(targetSessionParam, 10);
+			if (Number.isInteger(parsed) && parsed >= 1) {
+				targetSessionNumber = parsed;
+			}
+		} else if (scopeParam === "upcoming") {
+			targetSessionNumber = nextSessionNumber;
+		}
+
+		let tasks = await planningTaskDAO.listByCampaign(campaignId, {
+			status: statuses,
+			targetSessionNumber,
+		});
+
+		// Upcoming scope includes legacy untagged open tasks not returned by exact SQL match.
+		if (scopeParam === "upcoming" && !targetSessionParam) {
+			const allMatchingStatus = await planningTaskDAO.listByCampaign(
+				campaignId,
+				{ status: statuses }
+			);
+			tasks = filterTasksForUpcomingSession(
+				allMatchingStatus,
+				nextSessionNumber
+			);
+		}
 
 		return c.json({ tasks, nextSessionNumber });
 	} catch (error) {
@@ -79,15 +105,20 @@ export async function handleCreatePlanningTask(c: ContextWithAuth) {
 
 		const description =
 			typeof body.description === "string" ? body.description : null;
+
+		const daoFactory = getDAOFactory(c.env);
+		const planningTaskDAO = daoFactory.planningTaskDAO;
+		const sessionDigestDAO = daoFactory.sessionDigestDAO;
+
+		const nextSessionNumber =
+			await sessionDigestDAO.getNextSessionNumber(campaignId);
+
 		const targetSessionNumber =
 			typeof body.targetSessionNumber === "number" &&
 			Number.isInteger(body.targetSessionNumber) &&
 			body.targetSessionNumber >= 1
 				? body.targetSessionNumber
-				: null;
-
-		const daoFactory = getDAOFactory(c.env);
-		const planningTaskDAO = daoFactory.planningTaskDAO;
+				: nextSessionNumber;
 
 		const task = await planningTaskDAO.createPlanningTask(campaignId, {
 			title: body.title.trim(),

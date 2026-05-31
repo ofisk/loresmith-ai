@@ -17,12 +17,28 @@ export function usePlanningTasks() {
 			() =>
 				async (
 					campaignId: string,
-					options?: { statuses?: PlanningTaskStatus[] }
+					options?: {
+						statuses?: PlanningTaskStatus[];
+						scope?: "upcoming";
+						targetSessionNumber?: number;
+					}
 				) => {
-					const query =
-						options?.statuses && options.statuses.length > 0
-							? `?status=${options.statuses.join(",")}`
-							: "";
+					const params = new URLSearchParams();
+					if (options?.statuses && options.statuses.length > 0) {
+						params.set("status", options.statuses.join(","));
+					}
+					if (options?.scope === "upcoming") {
+						params.set("scope", "upcoming");
+					} else if (
+						options?.targetSessionNumber != null &&
+						options.targetSessionNumber >= 1
+					) {
+						params.set(
+							"targetSessionNumber",
+							String(options.targetSessionNumber)
+						);
+					}
+					const query = params.toString() ? `?${params.toString()}` : "";
 
 					const data = await makeRequestWithData<{
 						tasks: PlanningTask[];

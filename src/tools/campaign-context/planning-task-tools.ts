@@ -4,6 +4,11 @@ import type { ToolResult } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
 import { notifyNextStepsCreated } from "@/lib/notifications";
+import {
+	countTasksByStatus,
+	filterTasksForSessionNumber,
+	filterTasksForUpcomingSession,
+} from "@/lib/planning-task-session";
 import type { Env } from "@/middleware/auth";
 import {
 	commonSchemas,
@@ -99,12 +104,15 @@ export const recordPlanningTasks = tool({
 			const planningTaskDAO = daoFactory.planningTaskDAO;
 			const sessionDigestDAO = daoFactory.sessionDigestDAO;
 
-			if (replaceExisting) {
-				await planningTaskDAO.markSupersededForCampaign(campaignId);
-			}
-
 			const nextSessionNumber =
 				await sessionDigestDAO.getNextSessionNumber(campaignId);
+
+			if (replaceExisting) {
+				await planningTaskDAO.markSupersededForCampaignSession(
+					campaignId,
+					nextSessionNumber
+				);
+			}
 
 			const created = await planningTaskDAO.bulkCreatePlanningTasks(
 				campaignId,
@@ -126,9 +134,11 @@ export const recordPlanningTasks = tool({
 			}
 
 			return createToolSuccess(
-				`Recorded ${created.length} planning task(s) for campaign "${campaign.name}".`,
+				`Recorded ${created.length} planning task(s) for session ${nextSessionNumber}.`,
 				{
 					tasks: created,
+					nextSessionNumber,
+					targetSessionNumber: nextSessionNumber,
 				},
 				toolCallId
 			);
@@ -163,17 +173,25 @@ const getPlanningTaskProgressSchema = z.object({
 		.describe(
 			"Optional list of statuses to include. Defaults to pending and in_progress."
 		),
+	targetSessionNumber: z
+		.number()
+		.int()
+		.min(1)
+		.optional()
+		.describe(
+			"Filter to tasks pinned to this session. Omit to use the upcoming session (next session to play)."
+		),
 });
 
 export const getPlanningTaskProgress = tool({
 	description:
-		'Get planning task ("next steps") progress for a campaign, including counts by status and the list of tasks. Completed tasks include completionNotes (how the user completed the step). For "summarize my completed steps" or "what was my solution?", call with includeStatuses including "completed" to get completionNotes.',
+		'Get planning task ("next steps") progress for a campaign. By default scopes to the upcoming session (tasks pinned with targetSessionNumber = next session to play). Returns nextSessionNumber, counts, openTaskCount, and tasks. Completed tasks include completionNotes. For retroactive review of a past session, pass targetSessionNumber. For "summarize my completed steps" for the upcoming session readout, call with includeStatuses including "completed" (defaults to upcoming session scope).',
 	inputSchema: getPlanningTaskProgressSchema,
 	execute: async (
 		input: z.infer<typeof getPlanningTaskProgressSchema>,
 		options?: ToolExecuteOptions
 	): Promise<ToolResult> => {
-		const { campaignId, jwt, includeStatuses } = input;
+		const { campaignId, jwt, includeStatuses, targetSessionNumber } = input;
 		const toolCallId = options?.toolCallId ?? "unknown";
 
 		try {
@@ -213,6 +231,12 @@ export const getPlanningTaskProgress = tool({
 			if (gmError) return gmError;
 
 			const planningTaskDAO = daoFactory.planningTaskDAO;
+			const sessionDigestDAO = daoFactory.sessionDigestDAO;
+
+			const nextSessionNumber =
+				await sessionDigestDAO.getNextSessionNumber(campaignId);
+			const sessionScope =
+				targetSessionNumber != null ? targetSessionNumber : nextSessionNumber;
 
 			const statusesToInclude: PlanningTaskStatus[] = (includeStatuses as
 				| PlanningTaskStatus[]
@@ -220,27 +244,26 @@ export const getPlanningTaskProgress = tool({
 
 			const allTasks = await planningTaskDAO.listByCampaign(campaignId, {});
 
-			const counts: Record<PlanningTaskStatus, number> = {
-				pending: 0,
-				in_progress: 0,
-				completed: 0,
-				superseded: 0,
-			};
-			for (const task of allTasks) {
-				counts[task.status] += 1;
-			}
+			const scopedTasks =
+				targetSessionNumber != null
+					? filterTasksForSessionNumber(allTasks, sessionScope)
+					: filterTasksForUpcomingSession(allTasks, nextSessionNumber);
+
+			const counts = countTasksByStatus(scopedTasks);
 			const openTaskCount = counts.pending + counts.in_progress;
 
-			const tasks = allTasks.filter((t) =>
+			const tasks = scopedTasks.filter((t) =>
 				statusesToInclude.includes(t.status)
 			);
 
 			return createToolSuccess(
-				`Retrieved planning task progress for campaign "${campaign.name}".`,
+				`Retrieved planning task progress for campaign "${campaign.name}" (session ${sessionScope}).`,
 				{
 					tasks,
 					counts,
 					openTaskCount,
+					nextSessionNumber,
+					targetSessionNumber: sessionScope,
 				},
 				toolCallId
 			);

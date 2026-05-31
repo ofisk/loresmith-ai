@@ -220,6 +220,25 @@ export class PlanningTaskDAO extends BaseDAOClass {
 		await this.execute(sql, [campaignId]);
 	}
 
+	/** Supersede open tasks pinned to a session (and legacy untagged open tasks when session is upcoming). */
+	async markSupersededForCampaignSession(
+		campaignId: string,
+		targetSessionNumber: number
+	): Promise<void> {
+		const sql = `
+      UPDATE planning_tasks
+      SET status = 'superseded', updated_at = CURRENT_TIMESTAMP
+      WHERE campaign_id = ?
+        AND status IN ('pending', 'in_progress')
+        AND (
+          target_session_number = ?
+          OR target_session_number IS NULL
+        )
+    `;
+
+		await this.execute(sql, [campaignId, targetSessionNumber]);
+	}
+
 	async deleteTask(id: string): Promise<void> {
 		const sql = `DELETE FROM planning_tasks WHERE id = ?`;
 		await this.execute(sql, [id]);

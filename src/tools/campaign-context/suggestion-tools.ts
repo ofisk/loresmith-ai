@@ -15,6 +15,7 @@ import {
 	type StructuredEntityType,
 } from "@/lib/entity/entity-types";
 import { getEnvVar } from "@/lib/env-utils";
+import { filterTasksForUpcomingSession } from "@/lib/planning-task-session";
 import { METADATA_ANALYSIS_PROMPTS } from "@/lib/prompts/metadata-analysis-prompts";
 import { getAssessmentService } from "@/lib/service-factory";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
@@ -103,13 +104,16 @@ export const getCampaignSuggestions = tool({
 				if (gmError) return gmError;
 
 				const planningTaskDAO = daoFactory.planningTaskDAO;
+				const sessionDigestDAO = daoFactory.sessionDigestDAO;
+				const nextSessionNumber =
+					await sessionDigestDAO.getNextSessionNumber(campaignId);
 
-				// Load existing open planning tasks so we do not re-suggest them.
-				const existingOpenTasks = await planningTaskDAO.listByCampaign(
-					campaignId,
-					{
+				// Load existing open planning tasks for the upcoming session only.
+				const existingOpenTasks = filterTasksForUpcomingSession(
+					await planningTaskDAO.listByCampaign(campaignId, {
 						status: ["pending", "in_progress"] as PlanningTaskStatus[],
-					}
+					}),
+					nextSessionNumber
 				);
 				const existingTitleSet = new Set(
 					existingOpenTasks
@@ -170,6 +174,7 @@ export const getCampaignSuggestions = tool({
 							title: s.title as string,
 							description:
 								typeof s.description === "string" ? s.description : null,
+							targetSessionNumber: nextSessionNumber,
 						})),
 						toolCallId
 					);

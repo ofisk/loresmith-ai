@@ -1,6 +1,16 @@
-import { Check, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import {
+	CaretDown,
+	CaretRight,
+	Check,
+	PencilSimple,
+	Plus,
+	Trash,
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { usePlanningTasks } from "@/hooks/usePlanningTasks";
+import { groupTasksByTargetSession } from "@/lib/planning-task-session";
+import { API_CONFIG } from "@/shared-config";
 import type { PlanningTask, PlanningTaskStatus } from "@/types/planning-task";
 
 interface PlanningTasksPanelProps {
@@ -17,6 +27,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 		updatePlanningTask,
 		deletePlanningTask,
 	} = usePlanningTasks();
+	const { makeRequestWithData } = useAuthenticatedRequest();
 	const [newTitle, setNewTitle] = useState("");
 	const [newDescription, setNewDescription] = useState("");
 	const [editingSession, setEditingSession] = useState<Record<string, string>>(
@@ -26,13 +37,31 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 	const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
 	const [editingDescription, setEditingDescription] = useState("");
+	const [completedTasks, setCompletedTasks] = useState<PlanningTask[]>([]);
+	const [showCompletedHistory, setShowCompletedHistory] = useState(false);
+
+	const loadCompletedHistory = useCallback(async () => {
+		if (!campaignId) return;
+		try {
+			const data = await makeRequestWithData<{ tasks: PlanningTask[] }>(
+				API_CONFIG.buildUrl(
+					`${API_CONFIG.ENDPOINTS.CAMPAIGNS.PLANNING_TASKS.BASE(campaignId)}?status=completed`
+				)
+			);
+			setCompletedTasks(data.tasks ?? []);
+		} catch {
+			setCompletedTasks([]);
+		}
+	}, [campaignId, makeRequestWithData]);
 
 	useEffect(() => {
 		if (!campaignId) return;
 		void fetchPlanningTasks.execute(campaignId, {
 			statuses: ["pending", "in_progress"] as PlanningTaskStatus[],
+			scope: "upcoming",
 		});
-	}, [campaignId, fetchPlanningTasks]);
+		void loadCompletedHistory();
+	}, [campaignId, fetchPlanningTasks, loadCompletedHistory]);
 
 	const handleAddTask = async () => {
 		const title = newTitle.trim();
@@ -99,11 +128,25 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 		});
 	};
 
+	const completedBySession = useMemo(() => {
+		const groups = groupTasksByTargetSession(completedTasks);
+		return [...groups.entries()].sort(([a], [b]) => {
+			if (a == null) return 1;
+			if (b == null) return -1;
+			return b - a;
+		});
+	}, [completedTasks]);
+
+	const refreshCompletedHistory = () => {
+		void loadCompletedHistory();
+	};
+
 	const handleMarkComplete = async (campaignId: string, taskId: string) => {
 		try {
 			await updatePlanningTask.execute(campaignId, taskId, {
 				status: "completed",
 			});
+			refreshCompletedHistory();
 		} catch {
 			// Error handled by hook
 		}
@@ -116,15 +159,23 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 	return (
 		<div className="mb-4 rounded-lg border border-neutral-200/60 bg-white/70 px-4 py-3 shadow-sm dark:border-neutral-700/60 dark:bg-neutral-900/80">
 			<div className="flex items-center justify-between gap-2">
-				<div className="flex items-center gap-2">
-					<h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-						Next steps
-					</h2>
-					{tasks.length > 0 && (
-						<span className="text-xs text-neutral-500 dark:text-neutral-400">
-							{tasks.length} open {tasks.length === 1 ? "task" : "tasks"}
+				<div className="flex flex-col gap-0.5">
+					<div className="flex items-center gap-2">
+						<h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+							Next steps
+						</h2>
+						<span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+							Session {nextSessionNumber}
 						</span>
-					)}
+						{tasks.length > 0 && (
+							<span className="text-xs text-neutral-500 dark:text-neutral-400">
+								{tasks.length} open {tasks.length === 1 ? "task" : "tasks"}
+							</span>
+						)}
+					</div>
+					<p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+						Complete these before session {nextSessionNumber} is ready to play.
+					</p>
 				</div>
 				{!isAddingTask && (
 					<button
@@ -187,8 +238,8 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 			<div className="mt-3 space-y-2">
 				{tasks.length === 0 ? (
 					<p className="text-xs text-neutral-500 dark:text-neutral-400">
-						No planning tasks yet. Use the help button or add your own tasks to
-						track what you want to prepare next.
+						No open tasks for session {nextSessionNumber}. Use the help button
+						or add your own tasks to track what you want to prepare next.
 					</p>
 				) : (
 					tasks.map((task) => {
@@ -247,7 +298,7 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 												</p>
 											)}
 											<div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-												<span>Session</span>
+												<span>For session</span>
 												<input
 													type="number"
 													min={1}
@@ -314,6 +365,53 @@ export function PlanningTasksPanel({ campaignId }: PlanningTasksPanelProps) {
 					})
 				)}
 			</div>
+
+			{completedBySession.length > 0 && (
+				<div className="mt-4 border-t border-neutral-200/60 pt-3 dark:border-neutral-700/60">
+					<button
+						type="button"
+						onClick={() => setShowCompletedHistory((v) => !v)}
+						className="flex w-full items-center gap-1.5 text-left text-xs font-medium text-neutral-700 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-100"
+					>
+						{showCompletedHistory ? (
+							<CaretDown size={14} />
+						) : (
+							<CaretRight size={14} />
+						)}
+						Completed by session
+					</button>
+					{showCompletedHistory && (
+						<div className="mt-2 space-y-3">
+							{completedBySession.map(([sessionNum, sessionTasks]) => (
+								<div key={sessionNum ?? "unassigned"}>
+									<p className="mb-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
+										{sessionNum != null
+											? `Session ${sessionNum}`
+											: "Unassigned session"}
+									</p>
+									<ul className="space-y-1">
+										{sessionTasks.map((task) => (
+											<li
+												key={task.id}
+												className="rounded-md bg-neutral-50/40 px-2 py-1 text-[11px] text-neutral-700 dark:bg-neutral-900/50 dark:text-neutral-300"
+											>
+												<span className="font-medium">{task.title}</span>
+												{task.completionNotes && (
+													<p className="mt-0.5 text-neutral-500 dark:text-neutral-400">
+														{task.completionNotes.length > 120
+															? `${task.completionNotes.slice(0, 120)}…`
+															: task.completionNotes}
+													</p>
+												)}
+											</li>
+										))}
+									</ul>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
