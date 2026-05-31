@@ -16,10 +16,13 @@ interface PlayerCharacterSelectionPanelProps {
 	options: PlayerCharacterOption[];
 	submitLabel?: string;
 	skipLabel?: string;
+	canCreateNew?: boolean;
+	createNewLabel?: string;
 	onSkip?: () => void;
 	isSubmitting?: boolean;
 	error?: string | null;
 	onSubmit: (entityId: string) => Promise<void>;
+	onCreateNew?: (name?: string) => Promise<void>;
 }
 
 export function PlayerCharacterSelectionPanel({
@@ -28,13 +31,17 @@ export function PlayerCharacterSelectionPanel({
 	options,
 	submitLabel = "Save character",
 	skipLabel = "Skip for now",
+	canCreateNew = false,
+	createNewLabel = "Create new",
 	onSkip,
 	isSubmitting = false,
 	error = null,
 	onSubmit,
+	onCreateNew,
 }: PlayerCharacterSelectionPanelProps) {
 	const [selectedEntityId, setSelectedEntityId] = useState<string>("");
 	const [localError, setLocalError] = useState<string | null>(null);
+	const [newCharacterName, setNewCharacterName] = useState("");
 
 	const availableOptions = useMemo(
 		() => [...options].sort((a, b) => a.name.localeCompare(b.name)),
@@ -48,6 +55,13 @@ export function PlayerCharacterSelectionPanel({
 		}
 		setLocalError(null);
 		await onSubmit(selectedEntityId);
+	};
+
+	const handleCreateNew = async () => {
+		if (!onCreateNew) return;
+		setLocalError(null);
+		const trimmedName = newCharacterName.trim();
+		await onCreateNew(trimmedName.length > 0 ? trimmedName : undefined);
 	};
 
 	return (
@@ -70,11 +84,34 @@ export function PlayerCharacterSelectionPanel({
 				</div>
 			)}
 
+			{canCreateNew && onCreateNew ? (
+				<div className="space-y-2 rounded border border-neutral-700 bg-neutral-900/60 p-3">
+					<label
+						htmlFor="new-character-name"
+						className="block text-sm font-medium text-neutral-200"
+					>
+						New character name (optional)
+					</label>
+					<input
+						id="new-character-name"
+						type="text"
+						value={newCharacterName}
+						onChange={(event) => setNewCharacterName(event.target.value)}
+						placeholder="New character"
+						className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+					/>
+					<p className="text-xs text-neutral-500">
+						Create a blank character sheet and finish building it in chat.
+					</p>
+				</div>
+			) : null}
+
 			<div className="max-h-[60vh] space-y-2 overflow-y-auto rounded border border-neutral-700 bg-neutral-900/60 p-2">
 				{availableOptions.length === 0 ? (
 					<div className="p-3 text-sm text-neutral-400">
-						No unclaimed player characters are available yet. Ask your GM to add
-						or assign one.
+						{canCreateNew
+							? "No prebuilt characters are available yet. Create a new character to get started."
+							: "No unclaimed player characters are available yet. Ask your GM to add or assign one."}
 					</div>
 				) : (
 					availableOptions.map((option) => (
@@ -98,7 +135,7 @@ export function PlayerCharacterSelectionPanel({
 				)}
 			</div>
 
-			<div className="flex items-center justify-end gap-2">
+			<div className="flex flex-wrap items-center justify-end gap-2">
 				{onSkip && (
 					<button
 						type="button"
@@ -108,9 +145,21 @@ export function PlayerCharacterSelectionPanel({
 						{skipLabel}
 					</button>
 				)}
+				{canCreateNew && onCreateNew ? (
+					<button
+						type="button"
+						onClick={() => void handleCreateNew()}
+						disabled={isSubmitting}
+						className="rounded border border-neutral-600 bg-neutral-900 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+					>
+						{isSubmitting ? "Creating..." : createNewLabel}
+					</button>
+				) : null}
 				<PrimaryActionButton
 					onClick={handleSubmit}
-					disabled={isSubmitting || availableOptions.length === 0}
+					disabled={
+						isSubmitting || (availableOptions.length === 0 && !canCreateNew)
+					}
 				>
 					{isSubmitting ? "Saving..." : submitLabel}
 				</PrimaryActionButton>
@@ -126,8 +175,10 @@ interface PlayerCharacterSelectionModalProps {
 	isSubmitting?: boolean;
 	error?: string | null;
 	allowSkip?: boolean;
+	canCreateNew?: boolean;
 	onSkip?: () => void;
 	onSubmit: (entityId: string) => Promise<void>;
+	onCreateNew?: (name?: string) => Promise<void>;
 }
 
 export function PlayerCharacterSelectionModal({
@@ -137,8 +188,10 @@ export function PlayerCharacterSelectionModal({
 	isSubmitting = false,
 	error = null,
 	allowSkip = false,
+	canCreateNew = false,
 	onSkip,
 	onSubmit,
+	onCreateNew,
 }: PlayerCharacterSelectionModalProps) {
 	return (
 		<Modal
@@ -156,15 +209,17 @@ export function PlayerCharacterSelectionModal({
 					title="Choose your character"
 					description={
 						campaignName
-							? `Select the character you are playing in "${campaignName}".`
-							: "Select the character you are playing in this campaign."
+							? `Select the character you are playing in "${campaignName}", or create a new one.`
+							: "Select the character you are playing in this campaign, or create a new one."
 					}
 					options={options}
 					submitLabel="Continue to campaign"
+					canCreateNew={canCreateNew}
 					onSkip={allowSkip ? onSkip : undefined}
 					isSubmitting={isSubmitting}
 					error={error}
 					onSubmit={onSubmit}
+					onCreateNew={onCreateNew}
 				/>
 			</div>
 		</Modal>

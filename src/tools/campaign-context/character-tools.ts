@@ -1,9 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { API_CONFIG, AUTH_CODES, type ToolResult } from "@/app-constants";
+import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
 import { getEnvVar } from "@/lib/env-utils";
+import {
+	getPcOnboardingGaps,
+	markPcOnboardingComplete,
+} from "@/lib/player-character-onboarding";
 import { authenticatedFetch, handleAuthError } from "@/lib/tool-auth";
 import type { Env } from "@/middleware/auth";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
@@ -21,6 +26,152 @@ import {
 	generateCharacterWithAI,
 	NEEDS_CLARIFICATION_MARKER,
 } from "./ai-helpers";
+
+type CharacterContentUpdates = {
+	characterName?: string;
+	characterClass?: string;
+	characterLevel?: number;
+	characterRace?: string;
+	backstory?: string;
+	personalityTraits?: string;
+	goals?: string;
+	relationships?: string[];
+	metadata?: Record<string, unknown>;
+};
+
+async function assertPlayerCanEditClaimedEntity(
+	env: Env,
+	campaignId: string,
+	userId: string,
+	entityId: string,
+	toolCallId: string
+): Promise<ToolResult | null> {
+	const daoFactory = getDAOFactory(env);
+	const role = await daoFactory.campaignDAO.getCampaignRole(campaignId, userId);
+	if (!role || !PLAYER_ROLES.has(role)) {
+		return null;
+	}
+
+	const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+		campaignId,
+		userId
+	);
+	if (!claim || claim.entityId !== entityId) {
+		return createToolError(
+			"You can only edit your own claimed player character",
+			"Character edit not allowed",
+			403,
+			toolCallId
+		);
+	}
+
+	return null;
+}
+
+async function applyCharacterUpdatesToEntity(
+	env: Env,
+	entityId: string,
+	campaignId: string,
+	updatesInput: CharacterContentUpdates
+): Promise<
+	| {
+			id: string;
+			entityType: string;
+			characterName?: string;
+			characterClass?: unknown;
+			characterLevel?: unknown;
+			characterRace?: unknown;
+	  }
+	| ToolResult
+> {
+	const daoFactory = getDAOFactory(env);
+	const entity = await daoFactory.entityDAO.getEntityById(entityId);
+
+	if (!entity) {
+		return createToolError(
+			"Entity not found",
+			`No entity with ID ${entityId} found`,
+			404,
+			"unknown"
+		);
+	}
+	if (entity.campaignId !== campaignId) {
+		return createToolError(
+			"Entity belongs to different campaign",
+			"Campaign mismatch",
+			400,
+			"unknown"
+		);
+	}
+	if (entity.entityType !== ENTITY_TYPE_PCS) {
+		return createToolError(
+			"Entity is not a player character",
+			"Only player character (pcs) entities can be updated",
+			400,
+			"unknown"
+		);
+	}
+
+	const {
+		characterName,
+		characterClass,
+		characterLevel,
+		characterRace,
+		backstory,
+		personalityTraits,
+		goals,
+		relationships,
+		metadata,
+	} = updatesInput;
+
+	const existingContent =
+		entity.content && typeof entity.content === "object"
+			? (entity.content as Record<string, unknown>)
+			: {};
+	const updatedContent: Record<string, unknown> = {
+		...existingContent,
+		...(characterName !== undefined && { characterName }),
+		...(characterClass !== undefined && { characterClass }),
+		...(characterLevel !== undefined && { characterLevel }),
+		...(characterRace !== undefined && { characterRace }),
+		...(backstory !== undefined && { backstory }),
+		...(personalityTraits !== undefined && { personalityTraits }),
+		...(goals !== undefined && { goals }),
+		...(relationships !== undefined && { relationships }),
+	};
+	const updates: {
+		content: Record<string, unknown>;
+		name?: string;
+		metadata?: Record<string, unknown>;
+	} = { content: updatedContent };
+	if (characterName !== undefined) {
+		updates.name = characterName;
+	}
+	if (metadata !== undefined && Object.keys(metadata).length > 0) {
+		const existingMeta = (entity.metadata as Record<string, unknown>) || {};
+		updates.metadata = { ...existingMeta, ...metadata };
+	}
+
+	await daoFactory.entityDAO.updateEntity(entityId, updates);
+	const updatedEntity = await daoFactory.entityDAO.getEntityById(entityId);
+
+	return {
+		id: entityId,
+		entityType: ENTITY_TYPE_PCS,
+		characterName:
+			updatedEntity?.name ??
+			characterName ??
+			(typeof existingContent.characterName === "string"
+				? existingContent.characterName
+				: undefined),
+		characterClass:
+			updatedContent.characterClass ?? existingContent.characterClass,
+		characterLevel:
+			updatedContent.characterLevel ?? existingContent.characterLevel,
+		characterRace:
+			updatedContent.characterRace ?? existingContent.characterRace,
+	};
+}
 
 const storeCharacterInfoSchema = z.object({
 	campaignId: commonSchemas.campaignId,
@@ -93,23 +244,82 @@ export const storeCharacterInfo = tool({
 					);
 				}
 
-				// Verify campaign exists and belongs to user
-				const campaignResult = await env
-					.DB!.prepare("SELECT id FROM campaigns WHERE id = ? AND username = ?")
-					.bind(campaignId, userId)
-					.first();
+				const campaignAccess = await requireCampaignAccessForTool({
+					env,
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in campaignAccess) {
+					return campaignAccess;
+				}
 
-				if (!campaignResult) {
-					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
+				const daoFactory = getDAOFactory(env as Env);
+				const role = await daoFactory.campaignDAO.getCampaignRole(
+					campaignId,
+					userId
+				);
+
+				if (role && PLAYER_ROLES.has(role)) {
+					const claim =
+						await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+							campaignId,
+							userId
+						);
+					if (!claim) {
+						return createToolError(
+							"Choose your character before storing character information",
+							"No claimed player character",
+							403,
+							toolCallId
+						);
+					}
+
+					const playerEditError = await assertPlayerCanEditClaimedEntity(
+						env as Env,
+						campaignId,
+						userId,
+						claim.entityId,
+						toolCallId
+					);
+					if (playerEditError) return playerEditError;
+
+					const updated = await applyCharacterUpdatesToEntity(
+						env as Env,
+						claim.entityId,
+						campaignId,
+						{
+							characterName,
+							characterClass,
+							characterLevel,
+							characterRace,
+							backstory,
+							personalityTraits,
+							goals,
+							relationships,
+							metadata,
+						}
+					);
+					if ("toolCallId" in updated) {
+						return { ...updated, toolCallId };
+					}
+
+					return createToolSuccess(
+						`Successfully stored character information for ${updated.characterName ?? characterName}`,
+						{
+							...updated,
+							duplicateFound: false,
+							backstory,
+							personalityTraits,
+							goals,
+							relationships,
+							metadata,
+						},
 						toolCallId
 					);
 				}
 
 				// Store the character as an entity
-				const daoFactory = getDAOFactory(env as Env);
 				const characterId = crypto.randomUUID();
 
 				const contentForSemantic = [
@@ -338,84 +548,54 @@ export const updateCharacterInfo = tool({
 			}
 			const { userId } = campaignAccess;
 
-			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
-			if (gmError) return gmError;
+			const playerEditError = await assertPlayerCanEditClaimedEntity(
+				env as Env,
+				campaignId,
+				userId,
+				entityId,
+				toolCallId
+			);
+			if (playerEditError) return playerEditError;
 
-			const daoFactory = getDAOFactory(env as Env);
-			const entity = await daoFactory.entityDAO.getEntityById(entityId);
-
-			if (!entity) {
-				return createToolError(
-					"Entity not found",
-					`No entity with ID ${entityId} found`,
-					404,
+			const role = await getDAOFactory(env as Env).campaignDAO.getCampaignRole(
+				campaignId,
+				userId
+			);
+			if (role && PLAYER_ROLES.has(role)) {
+				// Players may only edit their claimed character (checked above).
+			} else {
+				const gmError = await requireGMRole(
+					env,
+					campaignId,
+					userId,
 					toolCallId
 				);
-			}
-			if (entity.campaignId !== campaignId) {
-				return createToolError(
-					"Entity belongs to different campaign",
-					"Campaign mismatch",
-					400,
-					toolCallId
-				);
-			}
-			if (entity.entityType !== ENTITY_TYPE_PCS) {
-				return createToolError(
-					"Entity is not a player character",
-					"updateCharacterInfo only updates player character (pcs) entities",
-					400,
-					toolCallId
-				);
+				if (gmError) return gmError;
 			}
 
-			const existingContent =
-				entity.content && typeof entity.content === "object"
-					? (entity.content as Record<string, unknown>)
-					: {};
-			const updatedContent: Record<string, unknown> = {
-				...existingContent,
-				...(characterName !== undefined && { characterName }),
-				...(characterClass !== undefined && { characterClass }),
-				...(characterLevel !== undefined && { characterLevel }),
-				...(characterRace !== undefined && { characterRace }),
-				...(backstory !== undefined && { backstory }),
-				...(personalityTraits !== undefined && { personalityTraits }),
-				...(goals !== undefined && { goals }),
-				...(relationships !== undefined && { relationships }),
-			};
-			const updates: {
-				content: Record<string, unknown>;
-				name?: string;
-				metadata?: Record<string, unknown>;
-			} = { content: updatedContent };
-			if (characterName !== undefined) {
-				updates.name = characterName;
-			}
-			if (metadata !== undefined && Object.keys(metadata).length > 0) {
-				const existingMeta = (entity.metadata as Record<string, unknown>) || {};
-				updates.metadata = { ...existingMeta, ...metadata };
-			}
-
-			await daoFactory.entityDAO.updateEntity(entityId, updates);
-
-			const updatedEntity = await daoFactory.entityDAO.getEntityById(entityId);
-			return createToolSuccess(
-				`Successfully updated character ${updatedEntity?.name ?? entityId}`,
+			const updated = await applyCharacterUpdatesToEntity(
+				env as Env,
+				entityId,
+				campaignId,
 				{
-					id: entityId,
-					entityType: ENTITY_TYPE_PCS,
-					characterName:
-						updatedEntity?.name ??
-						characterName ??
-						existingContent.characterName,
-					characterClass:
-						updatedContent.characterClass ?? existingContent.characterClass,
-					characterLevel:
-						updatedContent.characterLevel ?? existingContent.characterLevel,
-					characterRace:
-						updatedContent.characterRace ?? existingContent.characterRace,
-				},
+					characterName,
+					characterClass,
+					characterLevel,
+					characterRace,
+					backstory,
+					personalityTraits,
+					goals,
+					relationships,
+					metadata,
+				}
+			);
+			if ("toolCallId" in updated) {
+				return updated;
+			}
+
+			return createToolSuccess(
+				`Successfully updated character ${updated.characterName ?? entityId}`,
+				updated,
 				toolCallId
 			);
 		} catch (error) {
@@ -489,30 +669,35 @@ export const generateCharacterWithAITool = tool({
 
 			// If we have environment, work directly with the database
 			if (env) {
-				const userId = extractUsernameFromJwt(jwt);
-
-				if (!userId) {
-					return createToolError(
-						"Invalid authentication token",
-						"Authentication failed",
-						AUTH_CODES.INVALID_KEY,
-						toolCallId
-					);
+				const campaignAccess = await requireCampaignAccessForTool({
+					env,
+					campaignId,
+					jwt,
+					toolCallId,
+				});
+				if ("toolCallId" in campaignAccess) {
+					return campaignAccess;
 				}
+				const { userId, campaign } = campaignAccess;
 
-				// Verify campaign exists and belongs to user
-				const campaignResult = await env
-					.DB!.prepare(
-						"SELECT id, name FROM campaigns WHERE id = ? AND username = ?"
-					)
-					.bind(campaignId, userId)
-					.first();
+				const daoFactory = getDAOFactory(env as Env);
+				const role = await daoFactory.campaignDAO.getCampaignRole(
+					campaignId,
+					userId
+				);
+				const playerClaim =
+					role && PLAYER_ROLES.has(role)
+						? await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+								campaignId,
+								userId
+							)
+						: null;
 
-				if (!campaignResult) {
+				if (role && PLAYER_ROLES.has(role) && !playerClaim) {
 					return createToolError(
-						"Campaign not found",
-						"Campaign not found",
-						404,
+						"Choose your character before generating character information",
+						"No claimed player character",
+						403,
 						toolCallId
 					);
 				}
@@ -528,9 +713,7 @@ export const generateCharacterWithAITool = tool({
 						campaignSetting,
 						playerPreferences,
 						partyComposition,
-						campaignName: String(
-							(campaignResult as { name?: string }).name ?? ""
-						),
+						campaignName: campaign.name ?? "",
 						toolCallId,
 						allowInventIfNoRules,
 					},
@@ -543,16 +726,88 @@ export const generateCharacterWithAITool = tool({
 					return characterData;
 				}
 
+				const characterDataTyped = characterData.result.data as Record<
+					string,
+					unknown
+				>;
+
+				if (playerClaim) {
+					const playerEditError = await assertPlayerCanEditClaimedEntity(
+						env as Env,
+						campaignId,
+						userId,
+						playerClaim.entityId,
+						toolCallId
+					);
+					if (playerEditError) return playerEditError;
+
+					const updated = await applyCharacterUpdatesToEntity(
+						env as Env,
+						playerClaim.entityId,
+						campaignId,
+						{
+							characterName: String(
+								characterDataTyped.characterName ?? characterName
+							),
+							characterClass:
+								typeof characterDataTyped.characterClass === "string"
+									? characterDataTyped.characterClass
+									: characterClass,
+							characterLevel:
+								typeof characterDataTyped.characterLevel === "number"
+									? characterDataTyped.characterLevel
+									: characterLevel || 1,
+							characterRace:
+								typeof characterDataTyped.characterRace === "string"
+									? characterDataTyped.characterRace
+									: characterRace,
+							backstory:
+								typeof characterDataTyped.backstory === "string"
+									? characterDataTyped.backstory
+									: undefined,
+							personalityTraits:
+								typeof characterDataTyped.personalityTraits === "string"
+									? characterDataTyped.personalityTraits
+									: undefined,
+							goals:
+								typeof characterDataTyped.goals === "string"
+									? characterDataTyped.goals
+									: undefined,
+							relationships: Array.isArray(characterDataTyped.relationships)
+								? (characterDataTyped.relationships as string[])
+								: undefined,
+							metadata: {
+								...(typeof characterDataTyped.metadata === "object" &&
+								characterDataTyped.metadata
+									? (characterDataTyped.metadata as Record<string, unknown>)
+									: {}),
+								sourceType: "ai_generated",
+								generatedWithAI: true,
+							},
+						}
+					);
+					if ("toolCallId" in updated) {
+						return updated;
+					}
+
+					return createToolSuccess(
+						`Successfully generated character ${updated.characterName ?? characterName} using AI generation`,
+						{
+							...updated,
+							...characterDataTyped,
+						},
+						toolCallId
+					);
+				}
+
 				// Store the generated character as an entity
-				const daoFactory = getDAOFactory(env as Env);
 				const characterId = crypto.randomUUID();
-				const characterDataTyped = characterData.result.data as any;
 
 				await daoFactory.entityDAO.createEntity({
 					id: characterId,
 					campaignId,
 					entityType: ENTITY_TYPE_PCS,
-					name: characterDataTyped.characterName,
+					name: String(characterDataTyped.characterName ?? characterName),
 					content: {
 						characterName: characterDataTyped.characterName,
 						characterClass: characterDataTyped.characterClass,
@@ -573,7 +828,7 @@ export const generateCharacterWithAITool = tool({
 				});
 
 				return createToolSuccess(
-					`Successfully created character ${characterDataTyped.characterName} using AI generation`,
+					`Successfully created character ${String(characterDataTyped.characterName ?? characterName)} using AI generation`,
 					{
 						id: characterId,
 						entityType: ENTITY_TYPE_PCS,
@@ -631,6 +886,142 @@ export const generateCharacterWithAITool = tool({
 			return createToolError(
 				"Failed to generate character with AI",
 				error,
+				500,
+				toolCallId
+			);
+		}
+	},
+});
+
+const completePlayerCharacterOnboardingSchema = z.object({
+	campaignId: commonSchemas.campaignId,
+	entityId: z
+		.string()
+		.optional()
+		.describe("Player character entity ID to mark complete"),
+	jwt: commonSchemas.jwt,
+});
+
+export const completePlayerCharacterOnboarding = tool({
+	description:
+		"Mark a player's claimed character onboarding as complete after critical and important sheet gaps are resolved",
+	inputSchema: completePlayerCharacterOnboardingSchema,
+	execute: async (
+		input: z.infer<typeof completePlayerCharacterOnboardingSchema>,
+		options?: ToolExecuteOptions
+	): Promise<ToolResult> => {
+		const { campaignId, entityId, jwt } = input;
+		const toolCallId = options?.toolCallId ?? "unknown";
+
+		try {
+			const env = getEnvFromContext(options);
+			if (!env?.DB) {
+				return createToolError(
+					"Complete onboarding is not available",
+					"Server context required",
+					503,
+					toolCallId
+				);
+			}
+
+			const campaignAccess = await requireCampaignAccessForTool({
+				env,
+				campaignId,
+				jwt,
+				toolCallId,
+			});
+			if ("toolCallId" in campaignAccess) {
+				return campaignAccess;
+			}
+			const { userId } = campaignAccess;
+			const daoFactory = getDAOFactory(env as Env);
+			const role = await daoFactory.campaignDAO.getCampaignRole(
+				campaignId,
+				userId
+			);
+
+			let targetEntityId = entityId;
+			if (role && PLAYER_ROLES.has(role)) {
+				const claim = await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+					campaignId,
+					userId
+				);
+				if (!claim) {
+					return createToolError(
+						"No claimed player character found",
+						"Claim required",
+						403,
+						toolCallId
+					);
+				}
+				targetEntityId = claim.entityId;
+			}
+
+			if (!targetEntityId) {
+				return createToolError(
+					"entityId is required",
+					"Missing entity ID",
+					400,
+					toolCallId
+				);
+			}
+
+			if (role && PLAYER_ROLES.has(role)) {
+				const playerEditError = await assertPlayerCanEditClaimedEntity(
+					env as Env,
+					campaignId,
+					userId,
+					targetEntityId,
+					toolCallId
+				);
+				if (playerEditError) return playerEditError;
+			} else {
+				const gmError = await requireGMRole(
+					env,
+					campaignId,
+					userId,
+					toolCallId
+				);
+				if (gmError) return gmError;
+			}
+
+			const entity = await daoFactory.entityDAO.getEntityById(targetEntityId);
+			if (!entity) {
+				return createToolError(
+					"Entity not found",
+					`No entity with ID ${targetEntityId} found`,
+					404,
+					toolCallId
+				);
+			}
+
+			const result = await markPcOnboardingComplete(targetEntityId, env);
+			if (!result.success) {
+				return createToolSuccess(
+					"Character onboarding is not complete yet",
+					{
+						entityId: targetEntityId,
+						remainingGaps: result.remainingGaps ?? [],
+					},
+					toolCallId
+				);
+			}
+
+			const gaps = await getPcOnboardingGaps(entity, campaignId, env);
+
+			return createToolSuccess(
+				"Player character onboarding marked complete",
+				{
+					entityId: targetEntityId,
+					pcOnboardingStatus: "complete",
+					remainingMinorGaps: gaps.filter((gap) => gap.severity === "minor"),
+				},
+				toolCallId
+			);
+		} catch (error) {
+			return createToolError(
+				"Failed to complete player character onboarding",
+				error instanceof Error ? error.message : "Unknown error",
 				500,
 				toolCallId
 			);

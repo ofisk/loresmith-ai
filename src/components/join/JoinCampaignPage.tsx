@@ -5,7 +5,10 @@ import {
 	type PlayerCharacterOption,
 	PlayerCharacterSelectionPanel,
 } from "@/components/campaign/PlayerCharacterSelectionModal";
-import { CAMPAIGN_ROLE_LABELS } from "@/constants/campaign-roles";
+import {
+	CAMPAIGN_ROLE_LABELS,
+	CAMPAIGN_ROLES,
+} from "@/constants/campaign-roles";
 import { clearJoinIntent, setJoinIntent } from "@/lib/join-intent";
 import { API_CONFIG } from "@/shared-config";
 
@@ -35,6 +38,7 @@ export function JoinCampaignPage({
 	const [error, setError] = useState<string | null>(null);
 	const [campaignId, setCampaignId] = useState<string | null>(null);
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
+	const [canCreateNew, setCanCreateNew] = useState(false);
 	const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
 	const loadClaimOptions = useCallback(
@@ -52,6 +56,7 @@ export function JoinCampaignPage({
 			const optionsData = (await optionsRes.json()) as {
 				options?: PlayerCharacterOption[];
 				requiresCharacterSelection?: boolean;
+				canCreateNew?: boolean;
 				error?: string;
 			};
 			if (!optionsRes.ok) {
@@ -65,6 +70,7 @@ export function JoinCampaignPage({
 				return;
 			}
 			setClaimOptions(optionsData.options ?? []);
+			setCanCreateNew(!!optionsData.canCreateNew);
 			setStatus("needsCharacterSelection");
 		},
 		[onJoinSuccess]
@@ -227,6 +233,45 @@ export function JoinCampaignPage({
 		}
 	};
 
+	const handleCreateNewClaim = async (name?: string) => {
+		if (!jwt || !campaignId) return;
+		setIsSubmittingClaim(true);
+		setError(null);
+		try {
+			const response = await fetch(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM(campaignId)
+				),
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${jwt}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						createNew: true,
+						...(name ? { name } : {}),
+					}),
+				}
+			);
+			const data = (await response.json()) as { error?: string };
+			if (!response.ok) {
+				throw new Error(data.error ?? "Failed to create player character");
+			}
+			clearJoinIntent();
+			setStatus("success");
+			onJoinSuccess(campaignId);
+		} catch (claimError) {
+			setError(
+				claimError instanceof Error
+					? claimError.message
+					: "Failed to create player character"
+			);
+		} finally {
+			setIsSubmittingClaim(false);
+		}
+	};
+
 	if (status === "loading") {
 		return (
 			<div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6">
@@ -302,14 +347,16 @@ export function JoinCampaignPage({
 						title="Choose your character"
 						description={
 							campaignName
-								? `Select your character for "${campaignName}" before entering the campaign.`
-								: "Select your character before entering the campaign."
+								? `Select your character for "${campaignName}" before entering the campaign, or create a new one.`
+								: "Select your character before entering the campaign, or create a new one."
 						}
 						options={claimOptions}
 						submitLabel="Continue to campaign"
+						canCreateNew={canCreateNew || role === CAMPAIGN_ROLES.EDITOR_PLAYER}
 						isSubmitting={isSubmittingClaim}
 						error={error}
 						onSubmit={handleSubmitClaim}
+						onCreateNew={handleCreateNewClaim}
 					/>
 				</div>
 			</div>

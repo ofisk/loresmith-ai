@@ -93,6 +93,7 @@ export function ChatArea({
 }: ChatAreaProps) {
 	const [placeholder] = useState(() => getRandomPrompt());
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
+	const [canCreateNewCharacter, setCanCreateNewCharacter] = useState(false);
 	const [showCharacterClaimModal, setShowCharacterClaimModal] = useState(false);
 	const [isSubmittingCharacterClaim, setIsSubmittingCharacterClaim] =
 		useState(false);
@@ -147,6 +148,7 @@ export function ChatArea({
 
 				const data = (await response.json()) as {
 					requiresCharacterSelection?: boolean;
+					canCreateNew?: boolean;
 					options?: PlayerCharacterOption[];
 					currentClaim?: unknown;
 					error?: string;
@@ -166,12 +168,14 @@ export function ChatArea({
 					hasAvailableClaimOptions;
 				if (data.requiresCharacterSelection || shouldPromptReadonlyPlayer) {
 					setClaimOptions(data.options ?? []);
+					setCanCreateNewCharacter(!!data.canCreateNew);
 					setShowCharacterClaimModal(true);
 					return;
 				}
 
 				setShowCharacterClaimModal(false);
 				setClaimOptions([]);
+				setCanCreateNewCharacter(false);
 			} catch (error) {
 				if (cancelled) return;
 				setCharacterClaimError(
@@ -228,6 +232,53 @@ export function ChatArea({
 				error instanceof Error
 					? error.message
 					: "Failed to save player character claim"
+			);
+		} finally {
+			setIsSubmittingCharacterClaim(false);
+		}
+	};
+
+	const handleCreateNewPlayerCharacterClaim = async (name?: string) => {
+		const campaignId = selectedCampaign?.campaignId;
+		const jwt = AuthService.getStoredJwt();
+		if (!campaignId || !jwt) {
+			setCharacterClaimError("Authentication required");
+			return;
+		}
+
+		setCharacterClaimError(null);
+		setIsSubmittingCharacterClaim(true);
+
+		try {
+			const response = await fetch(
+				API_CONFIG.buildUrl(
+					API_CONFIG.ENDPOINTS.CAMPAIGNS.PLAYER_CHARACTER_CLAIM(campaignId)
+				),
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${jwt}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						createNew: true,
+						...(name ? { name } : {}),
+					}),
+				}
+			);
+			const data = (await response.json()) as { error?: string };
+			if (!response.ok) {
+				throw new Error(data.error ?? "Failed to create player character");
+			}
+			setShowCharacterClaimModal(false);
+			setClaimOptions([]);
+			setCanCreateNewCharacter(false);
+			setCharacterClaimError(null);
+		} catch (error) {
+			setCharacterClaimError(
+				error instanceof Error
+					? error.message
+					: "Failed to create player character"
 			);
 		} finally {
 			setIsSubmittingCharacterClaim(false);
@@ -400,8 +451,13 @@ export function ChatArea({
 				isSubmitting={isSubmittingCharacterClaim}
 				error={characterClaimError}
 				allowSkip={selectedCampaign?.role === CAMPAIGN_ROLES.READONLY_PLAYER}
+				canCreateNew={
+					canCreateNewCharacter ||
+					selectedCampaign?.role === CAMPAIGN_ROLES.EDITOR_PLAYER
+				}
 				onSkip={() => setShowCharacterClaimModal(false)}
 				onSubmit={handleSubmitPlayerCharacterClaim}
+				onCreateNew={handleCreateNewPlayerCharacterClaim}
 			/>
 		</div>
 	);

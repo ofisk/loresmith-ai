@@ -4,9 +4,14 @@ import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import type { CampaignMemberRole } from "@/dao/campaign-share-link-dao";
 import { type DAOFactory, getDAOFactory } from "@/dao/dao-factory";
 import { publicPcSheetSummary } from "@/lib/campaign/game-systems/validate-pc-content";
+import { ENTITY_TYPE_PCS } from "@/lib/entity/entity-type-constants";
 import { getRequestLogger } from "@/lib/logger";
 import { nanoid } from "@/lib/nanoid";
 import { notifyPartyRosterUpdated, notifyUser } from "@/lib/notifications";
+import {
+	isPcOnboardingIncomplete,
+	PC_ONBOARDING_STATUS,
+} from "@/lib/player-character-onboarding";
 import {
 	ensureCampaignAccess,
 	getCampaignRole,
@@ -27,21 +32,6 @@ function isPlayerRole(role: "owner" | CampaignMemberRole | null): boolean {
 		role === CAMPAIGN_ROLES.EDITOR_PLAYER ||
 		role === CAMPAIGN_ROLES.READONLY_PLAYER
 	);
-}
-
-async function hasAnyPcEntities(
-	daoFactory: DAOFactory,
-	campaignId: string
-): Promise<boolean> {
-	const [pcCount, pcsCount] = await Promise.all([
-		daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
-			entityType: "pc",
-		}),
-		daoFactory.entityDAO.getEntityCountByCampaign(campaignId, {
-			entityType: "pcs",
-		}),
-	]);
-	return pcCount + pcsCount > 0;
 }
 
 async function getCampaignManagerUsernames(
@@ -313,20 +303,14 @@ export async function handleCampaignJoin(c: ContextWithAuth) {
 		} catch (_notificationError) {}
 
 		const isPlayer = isPlayerRole(result.role);
-		const [claim, hasCampaignPcEntities] = isPlayer
-			? await Promise.all([
-					daoFactory.playerCharacterClaimDAO.getClaimForUser(
-						result.campaignId,
-						userAuth.username
-					),
-					hasAnyPcEntities(daoFactory, result.campaignId),
-				])
-			: [null, false];
+		const claim = isPlayer
+			? await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+					result.campaignId,
+					userAuth.username
+				)
+			: null;
 		const requiresCharacterSelection =
-			isPlayer &&
-			!claim &&
-			result.role === CAMPAIGN_ROLES.EDITOR_PLAYER &&
-			hasCampaignPcEntities;
+			isPlayer && !claim && result.role === CAMPAIGN_ROLES.EDITOR_PLAYER;
 
 		return c.json({
 			success: true,
@@ -367,18 +351,19 @@ export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
 		}
 
 		const daoFactory = getDAOFactory(c.env);
-		const [options, currentClaim, hasCampaignPcEntities] = await Promise.all([
+		const [options, currentClaim] = await Promise.all([
 			daoFactory.playerCharacterClaimDAO.listUnclaimedPcEntities(campaignId),
 			daoFactory.playerCharacterClaimDAO.getClaimForUser(
 				campaignId,
 				auth.username
 			),
-			hasAnyPcEntities(daoFactory, campaignId),
 		]);
 
 		const currentClaimEntity = currentClaim
 			? await daoFactory.entityDAO.getEntityById(currentClaim.entityId)
 			: null;
+
+		const canCreateNew = role === CAMPAIGN_ROLES.EDITOR_PLAYER;
 
 		return c.json({
 			options,
@@ -389,10 +374,8 @@ export async function handleGetPlayerCharacterClaimOptions(c: ContextWithAuth) {
 							entityName: currentClaimEntity.name,
 						}
 					: null,
-			requiresCharacterSelection:
-				!currentClaim &&
-				role === CAMPAIGN_ROLES.EDITOR_PLAYER &&
-				hasCampaignPcEntities,
+			canCreateNew,
+			requiresCharacterSelection: !currentClaim && canCreateNew,
 		});
 	} catch (error) {
 		log.error(
@@ -423,22 +406,71 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 			);
 		}
 
-		const body = (await c.req.json()) as { entityId?: string };
-		if (!body.entityId) {
-			return c.json({ error: "entityId is required" }, 400);
-		}
+		const body = (await c.req.json()) as {
+			entityId?: string;
+			createNew?: boolean;
+			name?: string;
+		};
 
 		const daoFactory = getDAOFactory(c.env);
+		const existingClaim =
+			await daoFactory.playerCharacterClaimDAO.getClaimForUser(
+				campaignId,
+				auth.username
+			);
+		if (existingClaim) {
+			return c.json(
+				{ error: "You already have a claimed player character" },
+				409
+			);
+		}
+
 		const campaignRow =
 			await daoFactory.campaignDAO.getCampaignById(campaignId);
 		const requireApproval =
 			(campaignRow?.pc_claim_requires_gm_approval ?? 0) === 1;
 		const claimStatus = requireApproval ? "pending" : "approved";
 
+		let entityId = body.entityId;
+		let createdEntity = null;
+
+		if (body.createNew) {
+			if (role !== CAMPAIGN_ROLES.EDITOR_PLAYER) {
+				return c.json(
+					{ error: "Only editor players can create a new character" },
+					403
+				);
+			}
+
+			const characterName =
+				typeof body.name === "string" && body.name.trim().length > 0
+					? body.name.trim()
+					: "New character";
+			const newEntityId = nanoid();
+			await daoFactory.entityDAO.createEntity({
+				id: newEntityId,
+				campaignId,
+				entityType: ENTITY_TYPE_PCS,
+				name: characterName,
+				content: { summary: "" },
+				metadata: {
+					pcOnboardingStatus: PC_ONBOARDING_STATUS.INCOMPLETE,
+					createdByPlayer: auth.username,
+				},
+				sourceType: "player_created",
+			});
+			entityId = newEntityId;
+			createdEntity = await daoFactory.entityDAO.getEntityById(newEntityId);
+		}
+
+		if (!entityId) {
+			return c.json({ error: "entityId is required" }, 400);
+		}
+
 		await daoFactory.playerCharacterClaimDAO.upsertClaim(
 			campaignId,
 			auth.username,
-			body.entityId,
+			entityId,
 			auth.username,
 			{ claimStatus }
 		);
@@ -447,6 +479,8 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 			campaignId,
 			auth.username
 		);
+		const entity =
+			createdEntity ?? (await daoFactory.entityDAO.getEntityById(entityId));
 
 		if (campaignRow) {
 			if (claimStatus === "pending") {
@@ -480,7 +514,7 @@ export async function handleCreatePlayerCharacterClaim(c: ContextWithAuth) {
 			}
 		}
 
-		return c.json({ success: true, claim });
+		return c.json({ success: true, claim, entity });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown error";
 		if (message.includes("UNIQUE constraint failed")) {
@@ -749,12 +783,14 @@ export async function handleGetPlayerCharacterRoster(c: ContextWithAuth) {
 			const pending = claim?.claimStatus === "pending";
 			const isSubject = claim?.username === auth.username;
 			const hideForPending = pending && !canManageRosterPrivacy && !isSubject;
+			const pcOnboardingIncomplete = isPcOnboardingIncomplete(e);
 			return {
 				entityId: e.id,
 				name: e.name,
 				displayName: sheet.displayName,
 				subtitle: sheet.subtitle,
 				unclaimed: !claim,
+				pcOnboardingIncomplete,
 				claim: claim
 					? {
 							username: hideForPending ? null : claim.username,

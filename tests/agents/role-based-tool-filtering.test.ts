@@ -219,4 +219,16 @@ describe("Role-based tool filtering", () => {
 			).toBeUndefined();
 		});
 	});
+
+	describe("Character tools bundles", () => {
+		it("playerCharacterTools should include onboarding completion for players", () => {
+			expect(
+				playerCharacterTools.completePlayerCharacterOnboarding
+			).toBeDefined();
+			expect(playerCharacterTools.storeCharacterInfo).toBeDefined();
+			expect(playerCharacterTools.updateCharacterInfo).toBeDefined();
+			expect(playerCharacterTools.generateCharacterWithAITool).toBeDefined();
+			expect((playerCharacterTools as any).deleteEntityTool).toBeUndefined();
+		});
+	});
 });

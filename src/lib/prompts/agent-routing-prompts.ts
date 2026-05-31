@@ -34,7 +34,7 @@ Routing rules:
 - Context recap requested (e.g. "[Context recap requested]" when user returns or switches campaign) → "recap"
 - Session plan readout (e.g. "let's do a readout", "construct the readout", "give me the session plan", "ready-to-run plan", "DM script" after completing next steps) → "recap" (recap agent builds the plan from completed next-step notes; do NOT route to session-digest)
 - Campaign entity questions (what/who/tell me about [Entity Name], questions about locations/NPCs/items in the campaign) → "campaign-context"
-- Character creation/management (create character, generate character backstory, store character info) → "character"
+- Character creation/management (create character, create my character, finish my character, build my PC, generate character backstory, store character info) → "character"
 - Character sheet operations (upload character sheet, import character sheet, character sheet file) → "character-sheets"
 - Entity graph operations (extract entities from text, create relationship, detect communities, entity graph) → "entity-graph"
 - Session recaps (record session, session digest, what happened last session, create a new digest for a session that just happened) → "session-digest"

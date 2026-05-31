@@ -16,6 +16,7 @@ export interface RosterCharacter {
 	displayName: string;
 	subtitle?: string;
 	unclaimed: boolean;
+	pcOnboardingIncomplete?: boolean;
 	claim: RosterClaim | null;
 }
 
@@ -170,6 +171,11 @@ export function PlayerCharacterRosterPanel({
 								) : null}
 							</div>
 							<div className="flex flex-wrap items-center gap-2">
+								{row.pcOnboardingIncomplete ? (
+									<span className="rounded-full border border-neutral-500/40 bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+										Incomplete
+									</span>
+								) : null}
 								{row.unclaimed ? (
 									<span className="text-xs text-neutral-500 dark:text-neutral-400">
 										Open

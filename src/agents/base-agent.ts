@@ -21,6 +21,7 @@ import {
 import { createLogger } from "@/lib/logger";
 import { messageHistoryInjectionFlags } from "@/lib/message-history-injection";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
+import { buildPlayerCharacterOnboardingAgentGuidelines } from "@/lib/prompts/player-character-onboarding-prompts";
 import { createStatusInjectingTransform } from "@/lib/stream-status-injector";
 import {
 	estimateRequestTokens,
@@ -592,6 +593,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			supplementalSystemContext.push(roleContextMessage);
 		}
 
+		const agentType = ((this.constructor as any).agentMetadata?.type ||
+			"") as string;
+		if (
+			claimedPlayerContext?.isPcOnboardingIncomplete &&
+			claimedPlayerContext.entity &&
+			agentType === "character"
+		) {
+			supplementalSystemContext.push(
+				buildPlayerCharacterOnboardingAgentGuidelines(
+					claimedPlayerContext.entity
+				)
+			);
+		}
+
 		// Include essential system messages (campaign context, user state) but exclude tool results
 		for (let i = 0; i < this.messages.length; i++) {
 			const message = this.messages[i];
@@ -610,8 +625,6 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		}
 
 		// Inject resolved campaign rules context for targeted core agents.
-		const agentType = ((this.constructor as any).agentMetadata?.type ||
-			"") as string;
 		if (
 			selectedCampaignId &&
 			RULES_AWARE_AGENT_TYPES.has(agentType) &&
