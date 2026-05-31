@@ -2,6 +2,7 @@ import type { Schedule } from "agents";
 import { SimpleChatAgent } from "@/agents/simple-chat-agent";
 import { JWT_STORAGE_KEY, MODEL_CONFIG } from "@/app-constants";
 import { AgentRegistryService } from "@/lib/agent-registry";
+import { resolveClaimedPlayerContext } from "@/lib/agent-role-utils";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader, sanitizeApiKey } from "@/lib/auth-utils";
@@ -14,6 +15,7 @@ import {
 import { createLogger } from "@/lib/logger";
 import { ModelManager } from "@/lib/model-manager";
 import { notifyAuthenticationRequired } from "@/lib/notifications";
+import { shouldForceCharacterOnboardingRouting } from "@/lib/prompts/player-character-onboarding-prompts";
 import type { Env as MiddlewareEnv } from "@/middleware/auth";
 import type { AuthEnv } from "@/services/core/auth-service";
 import { AuthService } from "@/services/core/auth-service";
@@ -275,7 +277,55 @@ export class Chat extends SimpleChatAgent<Env> {
 	 * Determines which specialized agent should handle the user's request
 	 * based on keywords and intent in the message and conversation context
 	 */
-	private async determineAgent(userMessage: string): Promise<string> {
+	private async resolveCampaignIdFromMessage(
+		lastUserMessage: unknown
+	): Promise<string | null> {
+		const messageData =
+			lastUserMessage &&
+			typeof lastUserMessage === "object" &&
+			"data" in lastUserMessage
+				? ((lastUserMessage as { data?: { campaignId?: string | null } })
+						.data ?? undefined)
+				: undefined;
+		if (typeof messageData?.campaignId === "string") {
+			return messageData.campaignId;
+		}
+		return getCampaignIdFromConversationId(this.ctx?.id?.toString() ?? null);
+	}
+
+	private async resolveOnboardingAgentOverride(
+		userMessage: string,
+		lastUserMessage: unknown
+	): Promise<string | null> {
+		const jwt = await this.extractAndStoreJwtFromMessage(lastUserMessage);
+		const campaignId = await this.resolveCampaignIdFromMessage(lastUserMessage);
+		if (!jwt || !campaignId) {
+			return null;
+		}
+
+		const playerContext = await resolveClaimedPlayerContext(
+			this.env,
+			campaignId,
+			jwt
+		);
+		if (shouldForceCharacterOnboardingRouting(playerContext, userMessage)) {
+			return "character";
+		}
+		return null;
+	}
+
+	private async determineAgent(
+		userMessage: string,
+		lastUserMessage?: unknown
+	): Promise<string> {
+		const onboardingAgent = await this.resolveOnboardingAgentOverride(
+			userMessage,
+			lastUserMessage
+		);
+		if (onboardingAgent) {
+			return onboardingAgent;
+		}
+
 		const modelManager = ModelManager.getInstance();
 		const model = modelManager.getModel();
 
@@ -378,7 +428,9 @@ export class Chat extends SimpleChatAgent<Env> {
 					);
 				}
 
-				const targetAgentInstance = this.getAgentInstance("recap");
+				const defaultAgent =
+					(await this.resolveOnboardingAgentOverride("", null)) ?? "recap";
+				const targetAgentInstance = this.getAgentInstance(defaultAgent);
 				targetAgentInstance.messages = [...messages];
 				return targetAgentInstance.onChatMessage(onFinish, {
 					abortSignal: _options?.abortSignal,
@@ -393,7 +445,10 @@ export class Chat extends SimpleChatAgent<Env> {
 
 			const userContent =
 				(lastUserMessage as { content?: string })?.content ?? "";
-			const targetAgent = await this.determineAgent(userContent);
+			const targetAgent = await this.determineAgent(
+				userContent,
+				lastUserMessage
+			);
 
 			const targetAgentInstance = this.getAgentInstance(targetAgent);
 			// Persist the latest user message to message history using the agent's
