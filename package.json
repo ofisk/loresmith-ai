@@ -81,9 +81,9 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
-		"@cloudflare/vite-plugin": "^1.32.2",
-		"@cloudflare/vitest-pool-workers": "^0.14.6",
-		"@cloudflare/workers-types": "^4.20260414.1",
+		"@cloudflare/vite-plugin": "^1.39.2",
+		"@cloudflare/vitest-pool-workers": "^0.16.12",
+		"@cloudflare/workers-types": "^4.20260604.1",
 		"@playwright/test": "^1.60.0",
 		"@storybook/addon-a11y": "10.3.5",
 		"@storybook/addon-essentials": "8.6.18",
