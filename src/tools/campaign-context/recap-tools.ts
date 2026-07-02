@@ -3,7 +3,13 @@ import { z } from "zod";
 import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
 import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
-import type { PlanningTaskStatus } from "@/dao/planning-task-dao";
+import type {
+	PlanningTaskDAO,
+	PlanningTaskRecord,
+	PlanningTaskStatus,
+} from "@/dao/planning-task-dao";
+import type { SessionPlanReadoutChunkDAO } from "@/dao/session-plan-readout-chunk-dao";
+import type { SessionPlanReadoutDAO } from "@/dao/session-plan-readout-dao";
 import { getEnvVar } from "@/lib/env-utils";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { createLogger } from "@/lib/logger";
@@ -687,11 +693,15 @@ async function processTaskForReadout(
 					: v.text,
 		}));
 
-	const readoutBlock = [
-		`## ${task.title}`,
-		"",
-		...entityResults.flatMap((e) => [`### ${e.title}`, "", e.text, ""]),
-	].join("\n");
+	const fullCompletionNotes = (task.completionNotes ?? "").trim();
+	const readoutBody =
+		entityResults.length > 0
+			? entityResults.flatMap((e) => [`### ${e.title}`, "", e.text, ""])
+			: fullCompletionNotes
+				? ["### Completion notes", "", fullCompletionNotes, ""]
+				: ["_(No entity context or completion notes for this step.)_", ""];
+
+	const readoutBlock = [`## ${task.title}`, "", ...readoutBody].join("\n");
 
 	return {
 		task: {
@@ -706,6 +716,220 @@ async function processTaskForReadout(
 		entityResults,
 		entityIds: entityResults.map((e) => e.entityId),
 	};
+}
+
+type CommunityDAO = {
+	findCommunitiesContainingEntities: (
+		cid: string,
+		eids: string[]
+	) => Promise<Community[]>;
+};
+
+async function loadCompletedTasksForReadout(
+	planningTaskDAO: { listByCampaign: PlanningTaskDAO["listByCampaign"] },
+	campaignId: string,
+	nextSessionNumber: number
+): Promise<PlanningTaskRecord[]> {
+	let completedTasksForUpcomingSession = await planningTaskDAO.listByCampaign(
+		campaignId,
+		{
+			status: ["completed"] as PlanningTaskStatus[],
+			targetSessionNumber: nextSessionNumber,
+		}
+	);
+	if (completedTasksForUpcomingSession.length === 0) {
+		const allCompleted = await planningTaskDAO.listByCampaign(campaignId, {
+			status: ["completed"] as PlanningTaskStatus[],
+		});
+		completedTasksForUpcomingSession = allCompleted.filter(
+			(task: PlanningTaskRecord) =>
+				extractTargetSessionFromTitle(task.title) === nextSessionNumber
+		);
+	}
+	return [...completedTasksForUpcomingSession]
+		.sort(
+			(a, b) =>
+				new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+		)
+		.slice(-MAX_READOUT_STEPS);
+}
+
+function taskResultsToReadoutSteps(
+	taskResults: Awaited<ReturnType<typeof processTaskForReadout>>[],
+	communitiesByEntityId: Map<string, Community[]>
+): SessionPlanReadoutStep[] {
+	return taskResults.map((tr) => {
+		const communitiesByEntity: Record<
+			string,
+			{ id: string; level: number; entityCount: number }[]
+		> = {};
+		for (const entity of tr.entityResults) {
+			const communities = communitiesByEntityId.get(entity.entityId) ?? [];
+			if (communities.length > 0) {
+				communitiesByEntity[entity.entityId] = communities.map((c) => ({
+					id: c.id,
+					level: c.level,
+					entityCount: c.entityIds.length,
+				}));
+			}
+		}
+
+		return {
+			task: tr.task,
+			instruction: tr.instruction,
+			readoutBlock: tr.readoutBlock,
+			entityResults: tr.entityResults,
+		};
+	});
+}
+
+async function processTasksIntoReadoutSteps(
+	tasks: Array<{
+		id: string;
+		title: string;
+		completionNotes: string | null;
+		createdAt: string;
+	}>,
+	processOpts: ProcessTaskOpts,
+	campaignId: string,
+	communityDAO: CommunityDAO
+): Promise<SessionPlanReadoutStep[]> {
+	const READOUT_CONCURRENCY = 2;
+	const taskResults: Awaited<ReturnType<typeof processTaskForReadout>>[] = [];
+	for (let i = 0; i < tasks.length; i += READOUT_CONCURRENCY) {
+		const chunk = tasks.slice(i, i + READOUT_CONCURRENCY);
+		const chunkResults = await Promise.all(
+			chunk.map((task) => processTaskForReadout(task, processOpts))
+		);
+		taskResults.push(...chunkResults);
+	}
+
+	const allEntityIds = [...new Set(taskResults.flatMap((r) => r.entityIds))];
+	const communitiesByEntityId = await batchLoadCommunitiesByEntity(
+		campaignId,
+		allEntityIds,
+		communityDAO
+	);
+
+	return taskResultsToReadoutSteps(taskResults, communitiesByEntityId);
+}
+
+async function createSessionReadoutLlmProvider(env: unknown): Promise<{
+	provider: LLMProvider;
+	model: string;
+	temperature: number;
+	maxTokens: number;
+} | null> {
+	const providerEnvVar =
+		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+			? "ANTHROPIC_API_KEY"
+			: "OPENAI_API_KEY";
+	const providerApiKeyRaw = await getEnvVar(
+		env as Record<string, unknown>,
+		providerEnvVar,
+		false
+	);
+	const providerApiKey = providerApiKeyRaw?.trim() ?? "";
+	if (!providerApiKey) {
+		return null;
+	}
+
+	const { createLLMProvider } = await import(
+		"../../services/llm/llm-provider-factory"
+	);
+	const { getGenerationModelForProvider } = await import("../../app-constants");
+
+	const model = getGenerationModelForProvider("SESSION_PLANNING");
+	const temperature = MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE;
+	const maxTokens = MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS;
+
+	return {
+		provider: createLLMProvider({
+			provider: MODEL_CONFIG.PROVIDER.DEFAULT,
+			apiKey: providerApiKey,
+			defaultModel: model,
+			defaultTemperature: temperature,
+			defaultMaxTokens: maxTokens,
+		}),
+		model,
+		temperature,
+		maxTokens,
+	};
+}
+
+async function generateAndPersistSessionPlan(params: {
+	env: unknown;
+	jwt: string;
+	campaignId: string;
+	nextSessionNumber: number;
+	steps: SessionPlanReadoutStep[];
+	toolCallId: string;
+	source:
+		| "recap_tools:getSessionReadoutContext"
+		| "recap_tools:stitchSessionReadout";
+	metaPhase: string;
+	sessionPlanReadoutDAO: SessionPlanReadoutDAO;
+	sessionPlanReadoutChunkDAO?: SessionPlanReadoutChunkDAO;
+}): Promise<string> {
+	const llmConfig = await createSessionReadoutLlmProvider(params.env);
+	if (!llmConfig) {
+		throw new Error(
+			`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`
+		);
+	}
+
+	const transformedPlan = await generateSessionPlanFromReadoutSteps(
+		llmConfig.provider,
+		params.steps,
+		params.nextSessionNumber,
+		{
+			model: llmConfig.model,
+			temperature: llmConfig.temperature,
+			maxTokens: llmConfig.maxTokens,
+			...sessionReadoutGenerateSummaryOptions(
+				params.env,
+				params.jwt,
+				params.campaignId,
+				params.source
+			),
+		},
+		{ phase: params.metaPhase, campaignId: params.campaignId }
+	);
+
+	await params.sessionPlanReadoutDAO.save(
+		params.campaignId,
+		params.nextSessionNumber,
+		transformedPlan
+	);
+
+	if (params.sessionPlanReadoutChunkDAO) {
+		await params.sessionPlanReadoutChunkDAO.clearChunks(
+			params.campaignId,
+			params.nextSessionNumber
+		);
+	}
+
+	return transformedPlan;
+}
+
+async function buildReadoutStepsForCompletedTasks(
+	completedTasks: PlanningTaskRecord[],
+	processOpts: ProcessTaskOpts,
+	campaignId: string,
+	communityDAO: CommunityDAO
+): Promise<SessionPlanReadoutStep[]> {
+	const allSteps: SessionPlanReadoutStep[] = [];
+	for (let i = 0; i < completedTasks.length; i += CHUNK_BATCH_SIZE) {
+		const batchTasks = completedTasks.slice(i, i + CHUNK_BATCH_SIZE);
+		const batchSteps = await processTasksIntoReadoutSteps(
+			batchTasks,
+			processOpts,
+			campaignId,
+			communityDAO
+		);
+		allSteps.push(...batchSteps);
+	}
+	return allSteps;
 }
 
 /**
@@ -788,50 +1012,16 @@ export const getSessionReadoutContext = tool({
 					);
 				}
 			}
-			// Only fetch completed tasks for the upcoming session (not all campaign tasks)
-			let completedTasksForUpcomingSession =
-				await planningTaskDAO.listByCampaign(campaignId, {
-					status: ["completed"] as PlanningTaskStatus[],
-					targetSessionNumber: nextSessionNumber,
-				});
-			// Fallback for legacy tasks with null targetSessionNumber but "(target: session N)" in title
-			if (completedTasksForUpcomingSession.length === 0) {
-				const allCompleted = await planningTaskDAO.listByCampaign(campaignId, {
-					status: ["completed"] as PlanningTaskStatus[],
-				});
-				completedTasksForUpcomingSession = allCompleted.filter(
-					(task) =>
-						extractTargetSessionFromTitle(task.title) === nextSessionNumber
-				);
-			}
-			const completedTasks = [...completedTasksForUpcomingSession]
-				.sort(
-					(a, b) =>
-						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-				)
-				.slice(-MAX_READOUT_STEPS);
+			const completedTasks = await loadCompletedTasksForReadout(
+				planningTaskDAO,
+				campaignId,
+				nextSessionNumber
+			);
 
 			if (completedTasks.length === 0) {
 				return createToolSuccess(
 					`No completed next steps for upcoming session ${nextSessionNumber}; nothing to build readout from.`,
 					{ steps: [], nextSessionNumber },
-					toolCallId
-				);
-			}
-
-			// Use chunked flow for 3+ tasks to avoid Worker timeout
-			if (completedTasks.length >= CHUNK_THRESHOLD) {
-				const taskIds = completedTasks.map((t) => t.id);
-				const totalChunks = Math.ceil(taskIds.length / CHUNK_BATCH_SIZE);
-				return createToolSuccess(
-					`This campaign has ${completedTasks.length} completed next steps. Use the chunked flow to avoid timeout: call getSessionReadoutChunk for each batch (chunkIndex 0 to ${totalChunks - 1}), then stitchSessionReadout.`,
-					{
-						useChunkedFlow: true,
-						taskIds,
-						nextSessionNumber,
-						totalChunks,
-						message: `Call getSessionReadoutChunk with taskIds and chunkIndex 0, then ${totalChunks > 1 ? `chunkIndex 1 through ${totalChunks - 1}, then ` : ""}stitchSessionReadout.`,
-					},
 					toolCallId
 				);
 			}
@@ -851,64 +1041,30 @@ export const getSessionReadoutContext = tool({
 				toolCallId,
 			};
 
-			const doReadoutWork = async () => {
-				const READOUT_CONCURRENCY = 2;
-				const taskResults: Awaited<ReturnType<typeof processTaskForReadout>>[] =
-					[];
-				for (let i = 0; i < completedTasks.length; i += READOUT_CONCURRENCY) {
-					const chunk = completedTasks.slice(i, i + READOUT_CONCURRENCY);
-					const chunkResults = await Promise.all(
-						chunk.map((task) => processTaskForReadout(task, processOpts))
-					);
-					taskResults.push(...chunkResults);
-				}
+			const doReadoutWork = async (): Promise<ToolResult> => {
+				emitSessionReadoutTelemetry(
+					"info",
+					"[SessionReadout]",
+					JSON.stringify({
+						event: "session_readout_start",
+						phase: "getSessionReadoutContext",
+						campaignId,
+						nextSessionNumber,
+						completedTaskCount: completedTasks.length,
+						chunked: completedTasks.length >= CHUNK_THRESHOLD,
+						toolCallId,
+					})
+				);
 
-				const allEntityIds = [
-					...new Set(taskResults.flatMap((r) => r.entityIds)),
-				];
-				const communitiesByEntityId = await batchLoadCommunitiesByEntity(
+				const steps = await buildReadoutStepsForCompletedTasks(
+					completedTasks,
+					processOpts,
 					campaignId,
-					allEntityIds,
 					communityDAO
 				);
 
-				const steps = taskResults.map((tr) => {
-					const communitiesByEntity: Record<
-						string,
-						{ id: string; level: number; entityCount: number }[]
-					> = {};
-					for (const entity of tr.entityResults) {
-						const communities =
-							communitiesByEntityId.get(entity.entityId) ?? [];
-						if (communities.length > 0) {
-							communitiesByEntity[entity.entityId] = communities.map((c) => ({
-								id: c.id,
-								level: c.level,
-								entityCount: c.entityIds.length,
-							}));
-						}
-					}
-
-					return {
-						task: tr.task,
-						instruction: tr.instruction,
-						readoutBlock: tr.readoutBlock,
-						entityResults: tr.entityResults,
-					};
-				});
-
-				// Generate session plan via LLM and persist
-				const providerEnvVar =
-					MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-						? "ANTHROPIC_API_KEY"
-						: "OPENAI_API_KEY";
-				const providerApiKeyRaw = await getEnvVar(
-					env as unknown as Record<string, unknown>,
-					providerEnvVar,
-					false
-				);
-				const providerApiKey = providerApiKeyRaw?.trim() ?? "";
-				if (!providerApiKey) {
+				const llmConfig = await createSessionReadoutLlmProvider(env);
+				if (!llmConfig) {
 					emitSessionReadoutTelemetry(
 						"warn",
 						"[SessionReadout]",
@@ -927,44 +1083,18 @@ export const getSessionReadoutContext = tool({
 					);
 				}
 
-				const { createLLMProvider } = await import(
-					"../../services/llm/llm-provider-factory"
-				);
-				const { getGenerationModelForProvider } = await import(
-					"../../app-constants"
-				);
-
-				const llmProvider = createLLMProvider({
-					provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-					apiKey: providerApiKey,
-					defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
-					defaultTemperature:
-						MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-					defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
-				});
-				const transformedPlan = await generateSessionPlanFromReadoutSteps(
-					llmProvider,
-					steps,
-					nextSessionNumber,
-					{
-						model: getGenerationModelForProvider("SESSION_PLANNING"),
-						temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-						maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
-						...sessionReadoutGenerateSummaryOptions(
-							env,
-							jwt,
-							campaignId,
-							"recap_tools:getSessionReadoutContext"
-						),
-					},
-					{ phase: "getSessionReadoutContext", campaignId }
-				);
-
-				await sessionPlanReadoutDAO.save(
+				const transformedPlan = await generateAndPersistSessionPlan({
+					env,
+					jwt,
 					campaignId,
 					nextSessionNumber,
-					transformedPlan
-				);
+					steps,
+					toolCallId,
+					source: "recap_tools:getSessionReadoutContext",
+					metaPhase: "getSessionReadoutContext",
+					sessionPlanReadoutDAO,
+					sessionPlanReadoutChunkDAO: daoFactory.sessionPlanReadoutChunkDAO,
+				});
 
 				return createToolSuccess(
 					`Session plan generated for session ${nextSessionNumber}. Present the plan to the user. It has been saved for future requests.`,
@@ -976,6 +1106,10 @@ export const getSessionReadoutContext = tool({
 					toolCallId
 				);
 			};
+
+			if (completedTasks.length >= CHUNK_THRESHOLD) {
+				return await doReadoutWork();
+			}
 
 			const timeoutPromise = new Promise<never>((_, reject) =>
 				setTimeout(
@@ -1033,7 +1167,7 @@ const getSessionReadoutChunkSchema = z.object({
 
 export const getSessionReadoutChunk = tool({
 	description:
-		"Process a batch of completed planning tasks into a readout chunk. Call multiple times with incrementing chunkIndex (e.g. 0, 1, 2) for different task batches, then call stitchSessionReadout. Use when getSessionReadoutContext returns useChunkedFlow: true.",
+		"Process a batch of completed planning tasks into a readout chunk. Prefer getSessionReadoutContext, which runs the full readout server-side. This tool remains for recovery when partial chunks were saved.",
 	inputSchema: getSessionReadoutChunkSchema,
 	execute: async (
 		input: z.infer<typeof getSessionReadoutChunkSchema>,
@@ -1122,41 +1256,12 @@ export const getSessionReadoutChunk = tool({
 				jwt,
 				toolCallId,
 			};
-			const taskResults = await Promise.all(
-				tasks.map((t) => processTaskForReadout(t, processOpts))
-			);
-
-			const allEntityIds = [
-				...new Set(taskResults.flatMap((r) => r.entityIds)),
-			];
-			const communitiesByEntityId = await batchLoadCommunitiesByEntity(
+			const steps = await processTasksIntoReadoutSteps(
+				tasks,
+				processOpts,
 				campaignId,
-				allEntityIds,
 				communityDAO
 			);
-
-			const steps = taskResults.map((tr) => {
-				const communitiesByEntity: Record<
-					string,
-					{ id: string; level: number; entityCount: number }[]
-				> = {};
-				for (const entity of tr.entityResults) {
-					const communities = communitiesByEntityId.get(entity.entityId) ?? [];
-					if (communities.length > 0) {
-						communitiesByEntity[entity.entityId] = communities.map((c) => ({
-							id: c.id,
-							level: c.level,
-							entityCount: c.entityIds.length,
-						}));
-					}
-				}
-				return {
-					task: tr.task,
-					instruction: tr.instruction,
-					readoutBlock: tr.readoutBlock,
-					entityResults: tr.entityResults,
-				};
-			});
 
 			await sessionPlanReadoutChunkDAO.saveChunk(
 				campaignId,
@@ -1210,7 +1315,7 @@ const stitchSessionReadoutSchema = z.object({
 
 export const stitchSessionReadout = tool({
 	description:
-		"Combine saved readout chunks into the final session plan. Call after all getSessionReadoutChunk calls are complete.",
+		"Combine saved readout chunks into the final session plan. Prefer getSessionReadoutContext, which runs the full readout server-side.",
 	inputSchema: stitchSessionReadoutSchema,
 	execute: async (
 		input: z.infer<typeof stitchSessionReadoutSchema>,
@@ -1255,48 +1360,80 @@ export const stitchSessionReadout = tool({
 			if (gmError) return gmError;
 
 			const daoFactory = getDAOFactory(env);
+			const planningTaskDAO = daoFactory.planningTaskDAO;
 			const sessionDigestDAO = daoFactory.sessionDigestDAO;
 			const sessionPlanReadoutDAO = daoFactory.sessionPlanReadoutDAO;
 			const sessionPlanReadoutChunkDAO = daoFactory.sessionPlanReadoutChunkDAO;
+			const communityDAO = daoFactory.communityDAO;
 
 			const nextSessionNumber =
 				await sessionDigestDAO.getNextSessionNumber(campaignId);
 
-			const steps = await sessionPlanReadoutChunkDAO.getChunks(
+			if (!jwt) {
+				return createToolError(
+					"Authentication required",
+					"JWT is required",
+					401,
+					toolCallId
+				);
+			}
+
+			let steps = await sessionPlanReadoutChunkDAO.getChunks(
 				campaignId,
 				nextSessionNumber
 			);
 			if (steps.length === 0) {
 				emitSessionReadoutTelemetry(
-					"warn",
+					"info",
 					"[SessionReadout]",
 					JSON.stringify({
-						event: "session_readout_stitch_no_chunks",
+						event: "session_readout_stitch_rebuild_from_tasks",
 						phase: "stitchSessionReadout",
 						campaignId,
 						nextSessionNumber,
 						toolCallId,
 					})
 				);
-				return createToolError(
-					"No chunks to stitch",
-					"Call getSessionReadoutChunk at least once before stitchSessionReadout.",
-					400,
-					toolCallId
+				const completedTasks = await loadCompletedTasksForReadout(
+					planningTaskDAO,
+					campaignId,
+					nextSessionNumber
+				);
+				if (completedTasks.length === 0) {
+					emitSessionReadoutTelemetry(
+						"warn",
+						"[SessionReadout]",
+						JSON.stringify({
+							event: "session_readout_stitch_no_chunks",
+							phase: "stitchSessionReadout",
+							campaignId,
+							nextSessionNumber,
+							toolCallId,
+						})
+					);
+					return createToolError(
+						"No completed next steps to stitch",
+						"Complete your next steps for this session, then call getSessionReadoutContext.",
+						400,
+						toolCallId
+					);
+				}
+				const processOpts: ProcessTaskOpts = {
+					env,
+					campaignId,
+					jwt,
+					toolCallId,
+				};
+				steps = await buildReadoutStepsForCompletedTasks(
+					completedTasks,
+					processOpts,
+					campaignId,
+					communityDAO
 				);
 			}
 
-			const providerEnvVar =
-				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-					? "ANTHROPIC_API_KEY"
-					: "OPENAI_API_KEY";
-			const providerApiKeyRaw = await getEnvVar(
-				env as unknown as Record<string, unknown>,
-				providerEnvVar,
-				false
-			);
-			const providerApiKey = providerApiKeyRaw?.trim() ?? "";
-			if (!providerApiKey) {
+			const llmConfig = await createSessionReadoutLlmProvider(env);
+			if (!llmConfig) {
 				emitSessionReadoutTelemetry(
 					"warn",
 					"[SessionReadout]",
@@ -1315,48 +1452,18 @@ export const stitchSessionReadout = tool({
 				);
 			}
 
-			const { createLLMProvider } = await import(
-				"../../services/llm/llm-provider-factory"
-			);
-			const { getGenerationModelForProvider } = await import(
-				"../../app-constants"
-			);
-
-			const llmProvider = createLLMProvider({
-				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
-				apiKey: providerApiKey,
-				defaultModel: getGenerationModelForProvider("SESSION_PLANNING"),
-				defaultTemperature:
-					MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-				defaultMaxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
-			});
-			const transformedPlan = await generateSessionPlanFromReadoutSteps(
-				llmProvider,
+			const transformedPlan = await generateAndPersistSessionPlan({
+				env,
+				jwt,
+				campaignId,
+				nextSessionNumber,
 				steps,
-				nextSessionNumber,
-				{
-					model: getGenerationModelForProvider("SESSION_PLANNING"),
-					temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
-					maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
-					...sessionReadoutGenerateSummaryOptions(
-						env,
-						jwt,
-						campaignId,
-						"recap_tools:stitchSessionReadout"
-					),
-				},
-				{ phase: "stitchSessionReadout", campaignId }
-			);
-
-			await sessionPlanReadoutDAO.save(
-				campaignId,
-				nextSessionNumber,
-				transformedPlan
-			);
-			await sessionPlanReadoutChunkDAO.clearChunks(
-				campaignId,
-				nextSessionNumber
-			);
+				toolCallId,
+				source: "recap_tools:stitchSessionReadout",
+				metaPhase: "stitchSessionReadout",
+				sessionPlanReadoutDAO,
+				sessionPlanReadoutChunkDAO,
+			});
 
 			return createToolSuccess(
 				`Session plan generated for session ${nextSessionNumber}. Present the plan to the user. It has been saved for future requests.`,
