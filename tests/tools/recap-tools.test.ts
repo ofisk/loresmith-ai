@@ -3,8 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFindCommunitiesContainingEntity = vi.hoisted(() => vi.fn());
 const mockFindCommunitiesContainingEntities = vi.hoisted(() => vi.fn());
 
+const mockGenerateSummary = vi.hoisted(() =>
+	vi.fn().mockResolvedValue("# Session plan\n\n## Scene 1")
+);
+
 const mockPlanningTaskDAO = vi.hoisted(() => ({
 	listByCampaign: vi.fn(),
+	getById: vi.fn(),
 }));
 
 const mockSessionDigestDAO = vi.hoisted(() => ({
@@ -13,6 +18,13 @@ const mockSessionDigestDAO = vi.hoisted(() => ({
 
 const mockSessionPlanReadoutDAO = vi.hoisted(() => ({
 	get: vi.fn(),
+	save: vi.fn(),
+}));
+
+const mockSessionPlanReadoutChunkDAO = vi.hoisted(() => ({
+	getChunks: vi.fn(),
+	saveChunk: vi.fn(),
+	clearChunks: vi.fn(),
 }));
 
 const mockCommunityDAO = vi.hoisted(() => ({
@@ -24,11 +36,22 @@ const mockDaoFactory = vi.hoisted(() => ({
 	planningTaskDAO: mockPlanningTaskDAO,
 	sessionDigestDAO: mockSessionDigestDAO,
 	sessionPlanReadoutDAO: mockSessionPlanReadoutDAO,
+	sessionPlanReadoutChunkDAO: mockSessionPlanReadoutChunkDAO,
 	communityDAO: mockCommunityDAO,
 }));
 
 vi.mock("@/dao/dao-factory", () => ({
 	getDAOFactory: vi.fn(() => mockDaoFactory),
+}));
+
+vi.mock("@/lib/env-utils", () => ({
+	getEnvVar: vi.fn().mockResolvedValue("test-api-key"),
+}));
+
+vi.mock("@/services/llm/llm-provider-factory", () => ({
+	createLLMProvider: vi.fn(() => ({
+		generateSummary: mockGenerateSummary,
+	})),
 }));
 
 const mockSearchExecute = vi.hoisted(() => vi.fn());
@@ -60,27 +83,32 @@ describe("getSessionReadoutContext", () => {
 		env: { DB: {} },
 	} as any;
 
+	const baseTasks = [
+		{
+			id: "task-1",
+			title: "Prep Vallaki",
+			completionNotes: "Reviewed NPCs and locations",
+			createdAt: "2024-01-01T00:00:00Z",
+			targetSessionNumber: 2,
+		},
+		{
+			id: "task-2",
+			title: "Set up the Feast",
+			completionNotes: null,
+			createdAt: "2024-01-02T00:00:00Z",
+			targetSessionNumber: 2,
+		},
+	];
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockSessionDigestDAO.getNextSessionNumber.mockResolvedValue(2);
 		mockSessionPlanReadoutDAO.get.mockResolvedValue(null);
+		mockSessionPlanReadoutChunkDAO.clearChunks.mockResolvedValue(undefined);
+		mockSessionPlanReadoutDAO.save.mockResolvedValue(undefined);
+		mockGenerateSummary.mockResolvedValue("# Session plan\n\n## Scene 1");
 
-		mockPlanningTaskDAO.listByCampaign.mockResolvedValue([
-			{
-				id: "task-1",
-				title: "Prep Vallaki",
-				completionNotes: "Reviewed NPCs and locations",
-				createdAt: "2024-01-01T00:00:00Z",
-				targetSessionNumber: 2,
-			},
-			{
-				id: "task-2",
-				title: "Set up the Feast",
-				completionNotes: null,
-				createdAt: "2024-01-02T00:00:00Z",
-				targetSessionNumber: 2,
-			},
-		]);
+		mockPlanningTaskDAO.listByCampaign.mockResolvedValue(baseTasks);
 
 		mockSearchExecute.mockImplementation(
 			async (_input: { query?: string; traverseFromEntityIds?: string[] }) => {
@@ -128,7 +156,7 @@ describe("getSessionReadoutContext", () => {
 	});
 
 	it("uses batch community lookup instead of per-entity loop", async () => {
-		const _result = await getSessionReadoutContext.execute?.(
+		await getSessionReadoutContext.execute?.(
 			{ campaignId, jwt, forceRegenerate: true },
 			options
 		);
@@ -174,5 +202,58 @@ describe("getSessionReadoutContext", () => {
 		);
 
 		expect(maxConcurrent).toBeGreaterThanOrEqual(2);
+	});
+
+	it("returns a generated plan for 3+ completed tasks without useChunkedFlow", async () => {
+		mockPlanningTaskDAO.listByCampaign.mockResolvedValue([
+			...baseTasks,
+			{
+				id: "task-3",
+				title: "Plan the finale",
+				completionNotes: "Boss fight on the bridge",
+				createdAt: "2024-01-03T00:00:00Z",
+				targetSessionNumber: 2,
+			},
+		]);
+
+		const result = await getSessionReadoutContext.execute?.(
+			{ campaignId, jwt, forceRegenerate: true },
+			options
+		);
+
+		expect(result?.result?.success).toBe(true);
+		expect(result?.result?.data).toMatchObject({
+			plan: expect.stringContaining("Session plan"),
+			nextSessionNumber: 2,
+			cached: false,
+		});
+		expect(result?.result?.data).not.toHaveProperty("useChunkedFlow");
+		expect(mockGenerateSummary).toHaveBeenCalled();
+		expect(mockSessionPlanReadoutDAO.save).toHaveBeenCalled();
+		expect(mockSessionPlanReadoutChunkDAO.clearChunks).toHaveBeenCalled();
+	});
+
+	it("includes completion notes in the LLM prompt when search returns no entities", async () => {
+		mockSearchExecute.mockResolvedValue({
+			result: { success: true, data: { results: [] } },
+		});
+		mockPlanningTaskDAO.listByCampaign.mockResolvedValue([
+			{
+				id: "task-1",
+				title: "Write opening scene",
+				completionNotes: "Start in the tavern with a mysterious stranger",
+				createdAt: "2024-01-01T00:00:00Z",
+				targetSessionNumber: 2,
+			},
+		]);
+
+		await getSessionReadoutContext.execute?.(
+			{ campaignId, jwt, forceRegenerate: true },
+			options
+		);
+
+		const prompt = mockGenerateSummary.mock.calls[0]?.[0] as string;
+		expect(prompt).toContain("mysterious stranger");
+		expect(prompt).toContain("Completion notes");
 	});
 });
