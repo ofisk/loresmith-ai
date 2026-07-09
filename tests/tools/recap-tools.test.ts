@@ -9,6 +9,7 @@ const mockGenerateSummary = vi.hoisted(() =>
 
 const mockPlanningTaskDAO = vi.hoisted(() => ({
 	listByCampaign: vi.fn(),
+	listCompletedForSessionReadout: vi.fn(),
 	getById: vi.fn(),
 }));
 
@@ -108,7 +109,9 @@ describe("getSessionReadoutContext", () => {
 		mockSessionPlanReadoutDAO.save.mockResolvedValue(undefined);
 		mockGenerateSummary.mockResolvedValue("# Session plan\n\n## Scene 1");
 
-		mockPlanningTaskDAO.listByCampaign.mockResolvedValue(baseTasks);
+		mockPlanningTaskDAO.listCompletedForSessionReadout.mockResolvedValue(
+			baseTasks
+		);
 
 		mockSearchExecute.mockImplementation(
 			async (_input: { query?: string; traverseFromEntityIds?: string[] }) => {
@@ -205,7 +208,7 @@ describe("getSessionReadoutContext", () => {
 	});
 
 	it("returns a generated plan for 3+ completed tasks without useChunkedFlow", async () => {
-		mockPlanningTaskDAO.listByCampaign.mockResolvedValue([
+		mockPlanningTaskDAO.listCompletedForSessionReadout.mockResolvedValue([
 			...baseTasks,
 			{
 				id: "task-3",
@@ -233,11 +236,49 @@ describe("getSessionReadoutContext", () => {
 		expect(mockSessionPlanReadoutChunkDAO.clearChunks).toHaveBeenCalled();
 	});
 
+	it("excludes legacy completed tasks that are not for the upcoming session", async () => {
+		mockPlanningTaskDAO.listCompletedForSessionReadout.mockResolvedValue([
+			{
+				id: "task-1",
+				title: "Prep Vallaki",
+				completionNotes: "Session 2 prep",
+				createdAt: "2024-01-01T00:00:00Z",
+				targetSessionNumber: 2,
+			},
+			{
+				id: "task-old",
+				title: "Old prep (target: session 1)",
+				completionNotes: "Should be ignored",
+				createdAt: "2024-01-02T00:00:00Z",
+				targetSessionNumber: null,
+			},
+			{
+				id: "task-other",
+				title: "Pinned to session 3",
+				completionNotes: "Wrong session",
+				createdAt: "2024-01-03T00:00:00Z",
+				targetSessionNumber: 3,
+			},
+		]);
+
+		await getSessionReadoutContext.execute?.(
+			{ campaignId, jwt, forceRegenerate: true },
+			options
+		);
+
+		expect(
+			mockPlanningTaskDAO.listCompletedForSessionReadout
+		).toHaveBeenCalledWith(campaignId, 2);
+		expect(mockSearchExecute).toHaveBeenCalled();
+		const searchCalls = mockSearchExecute.mock.calls.length;
+		expect(searchCalls).toBeLessThanOrEqual(2);
+	});
+
 	it("includes completion notes in the LLM prompt when search returns no entities", async () => {
 		mockSearchExecute.mockResolvedValue({
 			result: { success: true, data: { results: [] } },
 		});
-		mockPlanningTaskDAO.listByCampaign.mockResolvedValue([
+		mockPlanningTaskDAO.listCompletedForSessionReadout.mockResolvedValue([
 			{
 				id: "task-1",
 				title: "Write opening scene",
