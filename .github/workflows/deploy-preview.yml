@@ -51,11 +51,12 @@ jobs:
 
       # Optional: set JWT_SECRET so the new Worker can auth (add GitHub secret PREVIEW_JWT_SECRET)
       - name: Set preview Worker secrets
-        if: secrets.PREVIEW_JWT_SECRET != ''
         env:
           PREVIEW_JWT_SECRET: ${{ secrets.PREVIEW_JWT_SECRET }}
         run: |
-          echo "$PREVIEW_JWT_SECRET" | npx wrangler secret put JWT_SECRET --config wrangler.preview.generated.jsonc
+          if [ -n "$PREVIEW_JWT_SECRET" ]; then
+            echo "$PREVIEW_JWT_SECRET" | npx wrangler secret put JWT_SECRET --config wrangler.preview.generated.jsonc
+          fi
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
