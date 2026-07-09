@@ -13,6 +13,13 @@ export interface LLMOptions {
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
+	/**
+	 * AI SDK generateText retries (default 2 → 3 total attempts).
+	 * Session readout passes a higher value for transient overload.
+	 */
+	maxRetries?: number;
+	/** Wall-clock timeout for the provider call (ms), or AI SDK timeout shape. */
+	timeout?: number | { totalMs?: number; stepMs?: number };
 	/** Username for rate limit attribution (passed to onUsage context) */
 	username?: string;
 	/** Callback invoked after generation with token and query counts (for rate limiting) */

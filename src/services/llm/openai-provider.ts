@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError, generateText, Output } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
+import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
 import type {
 	LLMOptions,
 	LLMProvider,
@@ -73,14 +74,20 @@ export class OpenAIProvider implements LLMProvider {
 				model,
 				prompt,
 				maxOutputTokens: maxTokens,
+				...(options.maxRetries != null
+					? { maxRetries: options.maxRetries }
+					: {}),
+				...(options.timeout != null ? { timeout: options.timeout } : {}),
 				...(!MODEL_CONFIG.isReasoningModel(modelId) && {
 					temperature,
 				}),
 			});
 
 			const text = result.text;
-			if (text === undefined || text === null) {
-				throw new Error("OpenAI API returned empty response");
+			if (text === undefined || text === null || text.trim().length === 0) {
+				throw new Error(
+					`OpenAI API returned empty response (model ${modelId}, finishReason ${result.finishReason ?? "unknown"})`
+				);
 			}
 			const tokens =
 				(result.usage as { totalTokens?: number })?.totalTokens ??
@@ -98,9 +105,8 @@ export class OpenAIProvider implements LLMProvider {
 			if (error instanceof LLMProviderAPIKeyError) {
 				throw error;
 			}
-			throw new Error(
-				`Failed to generate summary: ${error instanceof Error ? error.message : "Unknown error"}`
-			);
+			const detail = describeLlmFailure(error);
+			throw wrapLlmError(`Failed to generate summary: ${detail}`, error);
 		}
 	}
 

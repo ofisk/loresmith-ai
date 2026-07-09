@@ -1,6 +1,10 @@
-import { APICallError, RetryError, tool } from "ai";
+import { tool } from "ai";
 import { z } from "zod";
-import { MODEL_CONFIG, type ToolResult } from "@/app-constants";
+import {
+	getGenerationModelForProvider,
+	MODEL_CONFIG,
+	type ToolResult,
+} from "@/app-constants";
 import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type {
@@ -10,6 +14,10 @@ import type {
 import type { SessionPlanReadoutChunkDAO } from "@/dao/session-plan-readout-chunk-dao";
 import type { SessionPlanReadoutDAO } from "@/dao/session-plan-readout-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import {
+	describeLlmFailure,
+	isLikelyTransientLlmFailure,
+} from "@/lib/llm-error-utils";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { createLogger } from "@/lib/logger";
 import type { SessionPlanReadoutStep } from "@/lib/prompts/recap-prompts";
@@ -112,14 +120,22 @@ async function runSessionReadoutSummary(
 ): Promise<string> {
 	const promptLength = prompt.length;
 	const summaryStart = sessionReadoutNow();
+	const llmCallOptions: LLMOptions = {
+		...summaryOptions,
+		maxRetries:
+			summaryOptions.maxRetries ?? SESSION_READOUT_SUMMARY_MAX_RETRIES,
+		timeout: summaryOptions.timeout ?? SESSION_READOUT_SUMMARY_TIMEOUT_MS,
+	};
 	emitSessionReadoutPerf({
 		event: "session_readout_summary_start",
 		phase: meta.phase,
 		campaignId: meta.campaignId,
 		promptLength,
+		model: llmCallOptions.model,
+		maxRetries: llmCallOptions.maxRetries,
 	});
 	try {
-		const result = await llmProvider.generateSummary(prompt, summaryOptions);
+		const result = await llmProvider.generateSummary(prompt, llmCallOptions);
 		emitSessionReadoutPerf({
 			event: "session_readout_summary_complete",
 			phase: meta.phase,
@@ -127,11 +143,73 @@ async function runSessionReadoutSummary(
 			promptLength,
 			responseLength: result.length,
 			durationMs: sessionReadoutNow() - summaryStart,
+			model: llmCallOptions.model,
 		});
 		return result;
 	} catch (error) {
 		const message = describeSessionReadoutLlmFailure(error);
 		const name = error instanceof Error ? error.name : "unknown";
+
+		// One fallback to a lighter model when the primary planner is overloaded or times out.
+		const primaryModel = llmCallOptions.model;
+		const fallbackModel = getGenerationModelForProvider("PIPELINE_LIGHT");
+		const canFallback =
+			primaryModel &&
+			fallbackModel !== primaryModel &&
+			isLikelyTransientLlmFailure(error);
+
+		if (canFallback) {
+			emitSessionReadoutTelemetry(
+				"warn",
+				"[SessionReadout]",
+				JSON.stringify({
+					event: "session_readout_summary_fallback",
+					phase: meta.phase,
+					campaignId: meta.campaignId,
+					promptLength,
+					primaryModel,
+					fallbackModel,
+					reason: message.slice(0, 400),
+				})
+			);
+			try {
+				const fallbackResult = await llmProvider.generateSummary(prompt, {
+					...llmCallOptions,
+					model: fallbackModel,
+				});
+				emitSessionReadoutPerf({
+					event: "session_readout_summary_complete",
+					phase: meta.phase,
+					campaignId: meta.campaignId,
+					promptLength,
+					responseLength: fallbackResult.length,
+					durationMs: sessionReadoutNow() - summaryStart,
+					model: fallbackModel,
+					usedFallback: true,
+				});
+				return fallbackResult;
+			} catch (fallbackError) {
+				const fallbackMessage = describeSessionReadoutLlmFailure(fallbackError);
+				emitSessionReadoutTelemetry(
+					"error",
+					"[SessionReadout]",
+					JSON.stringify({
+						event: "session_readout_summary_failed",
+						phase: meta.phase,
+						campaignId: meta.campaignId,
+						promptLength,
+						message: fallbackMessage,
+						primaryError: message.slice(0, 400),
+						name,
+						fallbackModel,
+					})
+				);
+				throw new Error(
+					`Session plan generation failed after fallback: ${fallbackMessage}`
+				);
+			}
+		}
+
 		emitSessionReadoutTelemetry(
 			"error",
 			"[SessionReadout]",
@@ -142,6 +220,7 @@ async function runSessionReadoutSummary(
 				promptLength,
 				message,
 				name,
+				model: primaryModel,
 			})
 		);
 		throw new Error(`Session plan generation failed: ${message}`);
@@ -436,28 +515,17 @@ const MAX_READOUT_STEPS = 5;
 const MAX_READOUT_ENTITIES_PER_STEP = 10;
 const MAX_READOUT_ENTITY_TEXT_CHARS = 2500;
 const SESSION_READOUT_TIMEOUT_MS = 90000; // Fail fast to avoid Worker/connection limits
+/** Per LLM call: allow long session-plan generation and extra retries for overload. */
+const SESSION_READOUT_SUMMARY_TIMEOUT_MS = 180_000;
+const SESSION_READOUT_SUMMARY_MAX_RETRIES = 3;
 const CHUNK_BATCH_SIZE = 2;
 const CHUNK_THRESHOLD = 3; // Use chunked flow when 3+ tasks to avoid timeout
 /** Above this, stitch in multiple LLM calls then merge (avoids timeouts / overload retries). */
-const SESSION_PLAN_STITCH_MAX_PROMPT_CHARS = 20_000;
-const SESSION_PLAN_STITCH_BATCH_STEPS = 2;
+const SESSION_PLAN_STITCH_MAX_PROMPT_CHARS = 12_000;
+const SESSION_PLAN_STITCH_BATCH_STEPS = 1;
 
 function describeSessionReadoutLlmFailure(error: unknown): string {
-	if (RetryError.isInstance(error)) {
-		const last = error.errors[error.errors.length - 1];
-		return `${error.message} (${describeSessionReadoutLlmFailure(last)})`;
-	}
-	if (APICallError.isInstance(error)) {
-		const parts = [
-			error.message?.trim() || "(empty API error message)",
-			error.statusCode != null ? `status ${error.statusCode}` : null,
-			error.responseBody
-				? `response ${String(error.responseBody).slice(0, 400)}`
-				: null,
-		].filter(Boolean);
-		return parts.join("; ");
-	}
-	return error instanceof Error ? error.message : String(error);
+	return describeLlmFailure(error);
 }
 
 async function generateSessionPlanFromReadoutSteps(
