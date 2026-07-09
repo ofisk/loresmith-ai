@@ -115,19 +115,81 @@ export function describeLlmFailure(error: unknown): string {
 	return "Unknown LLM error";
 }
 
+const TRANSIENT_HTTP_STATUS_CODES = new Set([429, 529]);
+
+/** Substrings / patterns in describeLlmFailure output for non-API transient signals. */
+const TRANSIENT_FAILURE_TEXT_PATTERNS: ReadonlyArray<RegExp> = [
+	/overloaded/,
+	/status 529/,
+	/rate limit/,
+	/\b429\b/,
+	/too many requests/,
+	/timeout/,
+	/timed out/,
+	/execution_time_exceeded/,
+	/failed after/,
+	/no output generated/,
+	/empty response/,
+];
+
+function walkLlmErrorTree(
+	error: unknown,
+	visit: (item: unknown) => void,
+	maxDepth = 8
+): void {
+	const seen = new Set<unknown>();
+
+	function walk(current: unknown, depth: number): void {
+		if (current == null || depth > maxDepth || seen.has(current)) {
+			return;
+		}
+		seen.add(current);
+		visit(current);
+
+		if (RetryError.isInstance(current)) {
+			for (const nested of current.errors) {
+				walk(nested, depth + 1);
+			}
+		}
+
+		const cause = readCause(current);
+		if (cause != null) {
+			walk(cause, depth + 1);
+		}
+	}
+
+	walk(error, 0);
+}
+
+function hasTransientStructuredSignal(error: unknown): boolean {
+	let transient = false;
+
+	walkLlmErrorTree(error, (item) => {
+		if (transient) {
+			return;
+		}
+
+		if (!APICallError.isInstance(item)) {
+			return;
+		}
+
+		const code = item.statusCode;
+		if (code != null && TRANSIENT_HTTP_STATUS_CODES.has(code)) {
+			transient = true;
+		}
+	});
+
+	return transient;
+}
+
+function matchesTransientFailureText(text: string): boolean {
+	const lower = text.toLowerCase();
+	return TRANSIENT_FAILURE_TEXT_PATTERNS.some((pattern) => pattern.test(lower));
+}
+
 export function isLikelyTransientLlmFailure(error: unknown): boolean {
-	const text = describeLlmFailure(error).toLowerCase();
-	return (
-		text.includes("overloaded") ||
-		text.includes("status 529") ||
-		text.includes("rate limit") ||
-		text.includes("429") ||
-		text.includes("too many requests") ||
-		text.includes("timeout") ||
-		text.includes("timed out") ||
-		text.includes("execution_time_exceeded") ||
-		text.includes("failed after") ||
-		text.includes("no output generated") ||
-		text.includes("empty response")
-	);
+	if (hasTransientStructuredSignal(error)) {
+		return true;
+	}
+	return matchesTransientFailureText(describeLlmFailure(error));
 }
