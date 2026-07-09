@@ -6,7 +6,6 @@ import { getDAOFactory } from "@/dao/dao-factory";
 import type {
 	PlanningTaskDAO,
 	PlanningTaskRecord,
-	PlanningTaskStatus,
 } from "@/dao/planning-task-dao";
 import type { SessionPlanReadoutChunkDAO } from "@/dao/session-plan-readout-chunk-dao";
 import type { SessionPlanReadoutDAO } from "@/dao/session-plan-readout-dao";
@@ -89,6 +88,21 @@ function logSessionReadoutFailure(
 	});
 }
 
+function sessionReadoutNow(): number {
+	return Date.now();
+}
+
+function emitSessionReadoutPerf(
+	payload: Record<string, unknown>,
+	level: "info" | "warn" | "error" = "info"
+): void {
+	emitSessionReadoutTelemetry(
+		level,
+		"[SessionReadout]",
+		JSON.stringify({ ...payload, ts: sessionReadoutNow() })
+	);
+}
+
 /** Plain console so `wrangler tail --format pretty` always shows readout LLM boundaries. */
 async function runSessionReadoutSummary(
 	llmProvider: LLMProvider,
@@ -97,18 +111,24 @@ async function runSessionReadoutSummary(
 	meta: { phase: string; campaignId: string }
 ): Promise<string> {
 	const promptLength = prompt.length;
-	emitSessionReadoutTelemetry(
-		"info",
-		"[SessionReadout]",
-		JSON.stringify({
-			event: "session_readout_summary_start",
+	const summaryStart = sessionReadoutNow();
+	emitSessionReadoutPerf({
+		event: "session_readout_summary_start",
+		phase: meta.phase,
+		campaignId: meta.campaignId,
+		promptLength,
+	});
+	try {
+		const result = await llmProvider.generateSummary(prompt, summaryOptions);
+		emitSessionReadoutPerf({
+			event: "session_readout_summary_complete",
 			phase: meta.phase,
 			campaignId: meta.campaignId,
 			promptLength,
-		})
-	);
-	try {
-		return await llmProvider.generateSummary(prompt, summaryOptions);
+			responseLength: result.length,
+			durationMs: sessionReadoutNow() - summaryStart,
+		});
+		return result;
 	} catch (error) {
 		const message = describeSessionReadoutLlmFailure(error);
 		const name = error instanceof Error ? error.name : "unknown";
@@ -587,6 +607,7 @@ async function processTaskForReadout(
 	entityResults: Array<{ entityId: string; title: string; text: string }>;
 	entityIds: string[];
 }> {
+	const taskStart = sessionReadoutNow();
 	const { env, campaignId, jwt, toolCallId } = opts;
 	const execOpts = {
 		env,
@@ -612,16 +633,56 @@ async function processTaskForReadout(
 	type SearchRes =
 		| { result: { success: boolean; data?: { results?: SearchResultItem[] } } }
 		| undefined;
-	const [searchRes, notesOnlyRes] = (await Promise.all([
-		searchCampaignContext.execute?.(
-			{ ...baseSearchArgs, query: searchQuery },
+
+	type ReadoutSearchArgs = typeof baseSearchArgs & {
+		query: string;
+		traverseFromEntityIds?: string[];
+		traverseDepth?: number;
+	};
+
+	async function runReadoutSearch(
+		label: string,
+		args: ReadoutSearchArgs
+	): Promise<SearchRes> {
+		const searchStart = sessionReadoutNow();
+		const res = (await searchCampaignContext.execute?.(
+			args,
 			execOpts
-		),
+		)) as SearchRes;
+		const results = res?.result?.success
+			? (res.result.data?.results ?? [])
+			: [];
+		const resultTextChars = results.reduce(
+			(sum, r) => sum + (r.text?.length ?? 0),
+			0
+		);
+		emitSessionReadoutPerf({
+			event: "session_readout_search",
+			campaignId,
+			taskId: task.id,
+			taskTitle: task.title.slice(0, 80),
+			searchLabel: label,
+			query: String(args.query ?? "").slice(0, 120),
+			resultCount: results.length,
+			resultTextChars,
+			traverseFromEntityIds: Array.isArray(args.traverseFromEntityIds)
+				? args.traverseFromEntityIds.length
+				: 0,
+			durationMs: sessionReadoutNow() - searchStart,
+		});
+		return res;
+	}
+
+	const [searchRes, notesOnlyRes] = (await Promise.all([
+		runReadoutSearch("title_and_notes", {
+			...baseSearchArgs,
+			query: searchQuery,
+		}),
 		notesSlice && notesSlice.length > 80
-			? searchCampaignContext.execute?.(
-					{ ...baseSearchArgs, query: notesSlice },
-					execOpts
-				)
+			? runReadoutSearch("notes_only", {
+					...baseSearchArgs,
+					query: notesSlice,
+				})
 			: Promise.resolve(undefined),
 	])) as [SearchRes, SearchRes];
 
@@ -649,15 +710,12 @@ async function processTaskForReadout(
 
 	let traversedResults: SearchResultItem[] = [];
 	if (entityIds.length > 0 && entityIds.length < 6) {
-		const traverseRes = (await searchCampaignContext.execute?.(
-			{
-				...baseSearchArgs,
-				query: task.title,
-				traverseFromEntityIds: entityIds,
-				traverseDepth: 2,
-			},
-			execOpts
-		)) as SearchRes;
+		const traverseRes = await runReadoutSearch("graph_traverse", {
+			...baseSearchArgs,
+			query: task.title,
+			traverseFromEntityIds: entityIds,
+			traverseDepth: 2,
+		});
 		traversedResults =
 			traverseRes?.result?.success && traverseRes?.result?.data?.results
 				? traverseRes.result.data.results
@@ -703,6 +761,20 @@ async function processTaskForReadout(
 
 	const readoutBlock = [`## ${task.title}`, "", ...readoutBody].join("\n");
 
+	emitSessionReadoutPerf({
+		event: "session_readout_task_processed",
+		campaignId,
+		taskId: task.id,
+		taskTitle: task.title.slice(0, 80),
+		completionNotesChars: fullCompletionNotes.length,
+		initialEntityCount: initialResults.length,
+		traversedEntityCount: traversedResults.length,
+		entityResultsCount: entityResults.length,
+		readoutBlockChars: readoutBlock.length,
+		entityTextChars: entityResults.reduce((sum, e) => sum + e.text.length, 0),
+		durationMs: sessionReadoutNow() - taskStart,
+	});
+
 	return {
 		task: {
 			id: task.id,
@@ -726,32 +798,75 @@ type CommunityDAO = {
 };
 
 async function loadCompletedTasksForReadout(
-	planningTaskDAO: { listByCampaign: PlanningTaskDAO["listByCampaign"] },
+	planningTaskDAO: {
+		listCompletedForSessionReadout: PlanningTaskDAO["listCompletedForSessionReadout"];
+	},
 	campaignId: string,
 	nextSessionNumber: number
 ): Promise<PlanningTaskRecord[]> {
-	let completedTasksForUpcomingSession = await planningTaskDAO.listByCampaign(
+	const loadStart = sessionReadoutNow();
+	const candidates = await planningTaskDAO.listCompletedForSessionReadout(
 		campaignId,
-		{
-			status: ["completed"] as PlanningTaskStatus[],
-			targetSessionNumber: nextSessionNumber,
-		}
+		nextSessionNumber
 	);
-	if (completedTasksForUpcomingSession.length === 0) {
-		const allCompleted = await planningTaskDAO.listByCampaign(campaignId, {
-			status: ["completed"] as PlanningTaskStatus[],
-		});
-		completedTasksForUpcomingSession = allCompleted.filter(
-			(task: PlanningTaskRecord) =>
-				extractTargetSessionFromTitle(task.title) === nextSessionNumber
-		);
+
+	const matched: PlanningTaskRecord[] = [];
+	const excludedLegacy: Array<{
+		id: string;
+		title: string;
+		reason: string;
+	}> = [];
+
+	for (const task of candidates) {
+		if (task.targetSessionNumber === nextSessionNumber) {
+			matched.push(task);
+			continue;
+		}
+		if (task.targetSessionNumber != null) {
+			continue;
+		}
+		const parsedSession = extractTargetSessionFromTitle(task.title);
+		if (parsedSession === nextSessionNumber) {
+			matched.push(task);
+		} else {
+			excludedLegacy.push({
+				id: task.id,
+				title: task.title.slice(0, 80),
+				reason:
+					parsedSession != null
+						? `title targets session ${parsedSession}`
+						: "legacy untagged completed task",
+			});
+		}
 	}
-	return [...completedTasksForUpcomingSession]
+
+	const selected = [...matched]
 		.sort(
 			(a, b) =>
 				new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 		)
 		.slice(-MAX_READOUT_STEPS);
+
+	emitSessionReadoutPerf({
+		event: "session_readout_tasks_loaded",
+		campaignId,
+		nextSessionNumber,
+		durationMs: sessionReadoutNow() - loadStart,
+		candidateCount: candidates.length,
+		matchedCount: matched.length,
+		selectedCount: selected.length,
+		cappedByMaxSteps: matched.length > MAX_READOUT_STEPS,
+		excludedLegacyCount: excludedLegacy.length,
+		excludedLegacySample: excludedLegacy.slice(0, 5),
+		selectedTasks: selected.map((t) => ({
+			id: t.id,
+			title: t.title.slice(0, 80),
+			targetSessionNumber: t.targetSessionNumber,
+			completionNotesChars: (t.completionNotes ?? "").length,
+		})),
+	});
+
+	return selected;
 }
 
 function taskResultsToReadoutSteps(
@@ -794,6 +909,7 @@ async function processTasksIntoReadoutSteps(
 	campaignId: string,
 	communityDAO: CommunityDAO
 ): Promise<SessionPlanReadoutStep[]> {
+	const batchStart = sessionReadoutNow();
 	const READOUT_CONCURRENCY = 2;
 	const taskResults: Awaited<ReturnType<typeof processTaskForReadout>>[] = [];
 	for (let i = 0; i < tasks.length; i += READOUT_CONCURRENCY) {
@@ -805,13 +921,39 @@ async function processTasksIntoReadoutSteps(
 	}
 
 	const allEntityIds = [...new Set(taskResults.flatMap((r) => r.entityIds))];
+	const communitiesStart = sessionReadoutNow();
 	const communitiesByEntityId = await batchLoadCommunitiesByEntity(
 		campaignId,
 		allEntityIds,
 		communityDAO
 	);
+	emitSessionReadoutPerf({
+		event: "session_readout_communities_loaded",
+		campaignId,
+		entityCount: allEntityIds.length,
+		communityCount: communitiesByEntityId.size,
+		durationMs: sessionReadoutNow() - communitiesStart,
+	});
 
-	return taskResultsToReadoutSteps(taskResults, communitiesByEntityId);
+	const steps = taskResultsToReadoutSteps(taskResults, communitiesByEntityId);
+	const totalReadoutBlockChars = steps.reduce(
+		(sum, s) => sum + s.readoutBlock.length,
+		0
+	);
+	emitSessionReadoutPerf({
+		event: "session_readout_steps_built",
+		campaignId,
+		taskCount: tasks.length,
+		stepCount: steps.length,
+		totalReadoutBlockChars,
+		totalEntityResults: steps.reduce(
+			(sum, s) => sum + s.entityResults.length,
+			0
+		),
+		durationMs: sessionReadoutNow() - batchStart,
+	});
+
+	return steps;
 }
 
 async function createSessionReadoutLlmProvider(env: unknown): Promise<{
@@ -995,11 +1137,21 @@ export const getSessionReadoutContext = tool({
 
 			// Check cache first (unless force regenerating)
 			if (!forceRegenerate) {
+				const cacheStart = sessionReadoutNow();
 				const cached = await sessionPlanReadoutDAO.get(
 					campaignId,
 					nextSessionNumber
 				);
 				if (cached) {
+					emitSessionReadoutPerf({
+						event: "session_readout_cache_hit",
+						phase: "getSessionReadoutContext",
+						campaignId,
+						nextSessionNumber,
+						planChars: cached.content.length,
+						durationMs: sessionReadoutNow() - cacheStart,
+						toolCallId,
+					});
 					return createToolSuccess(
 						`Cached session plan for session ${nextSessionNumber}. Present the plan to the user, then ask if anything needs to be updated.`,
 						{
@@ -1042,26 +1194,31 @@ export const getSessionReadoutContext = tool({
 			};
 
 			const doReadoutWork = async (): Promise<ToolResult> => {
-				emitSessionReadoutTelemetry(
-					"info",
-					"[SessionReadout]",
-					JSON.stringify({
-						event: "session_readout_start",
-						phase: "getSessionReadoutContext",
-						campaignId,
-						nextSessionNumber,
-						completedTaskCount: completedTasks.length,
-						chunked: completedTasks.length >= CHUNK_THRESHOLD,
-						toolCallId,
-					})
-				);
+				const readoutStart = sessionReadoutNow();
+				emitSessionReadoutPerf({
+					event: "session_readout_start",
+					phase: "getSessionReadoutContext",
+					campaignId,
+					nextSessionNumber,
+					completedTaskCount: completedTasks.length,
+					chunked: completedTasks.length >= CHUNK_THRESHOLD,
+					toolCallId,
+				});
 
+				const stepsBuildStart = sessionReadoutNow();
 				const steps = await buildReadoutStepsForCompletedTasks(
 					completedTasks,
 					processOpts,
 					campaignId,
 					communityDAO
 				);
+				emitSessionReadoutPerf({
+					event: "session_readout_context_built",
+					phase: "getSessionReadoutContext",
+					campaignId,
+					stepCount: steps.length,
+					durationMs: sessionReadoutNow() - stepsBuildStart,
+				});
 
 				const llmConfig = await createSessionReadoutLlmProvider(env);
 				if (!llmConfig) {
@@ -1094,6 +1251,17 @@ export const getSessionReadoutContext = tool({
 					metaPhase: "getSessionReadoutContext",
 					sessionPlanReadoutDAO,
 					sessionPlanReadoutChunkDAO: daoFactory.sessionPlanReadoutChunkDAO,
+				});
+
+				emitSessionReadoutPerf({
+					event: "session_readout_complete",
+					phase: "getSessionReadoutContext",
+					campaignId,
+					nextSessionNumber,
+					stepCount: steps.length,
+					planChars: transformedPlan.length,
+					durationMs: sessionReadoutNow() - readoutStart,
+					toolCallId,
 				});
 
 				return createToolSuccess(

@@ -574,6 +574,7 @@ CREATE TABLE IF NOT EXISTS planning_tasks (
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_campaign ON planning_tasks(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_status ON planning_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_planning_tasks_created_at ON planning_tasks(created_at);
+CREATE INDEX IF NOT EXISTS idx_planning_tasks_campaign_status_session ON planning_tasks(campaign_id, status, target_session_number);
 
 -- Library entity discovery (0020 + 0022): one extraction per library file, copied to campaigns on add
 CREATE TABLE IF NOT EXISTS library_entity_discovery (

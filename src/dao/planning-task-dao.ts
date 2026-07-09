@@ -76,6 +76,44 @@ export class PlanningTaskDAO extends BaseDAOClass {
 		return this.queryAll<PlanningTaskRecord>(sql, params);
 	}
 
+	/**
+	 * Completed tasks for session readout: pinned to the session or legacy rows with
+	 * null target_session_number (filtered in app code by title). Avoids loading every
+	 * completed task for the campaign when legacy rows exist.
+	 */
+	async listCompletedForSessionReadout(
+		campaignId: string,
+		targetSessionNumber: number
+	): Promise<PlanningTaskRecord[]> {
+		const sql = `
+      SELECT
+        id,
+        campaign_id as campaignId,
+        title,
+        description,
+        status,
+        source_message_id as sourceMessageId,
+        linked_shard_id as linkedShardId,
+        completion_notes as completionNotes,
+        target_session_number as targetSessionNumber,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM planning_tasks
+      WHERE campaign_id = ?
+        AND status = 'completed'
+        AND (
+          target_session_number = ?
+          OR target_session_number IS NULL
+        )
+      ORDER BY created_at DESC
+    `;
+
+		return this.queryAll<PlanningTaskRecord>(sql, [
+			campaignId,
+			targetSessionNumber,
+		]);
+	}
+
 	async createPlanningTask(
 		campaignId: string,
 		input: CreatePlanningTaskInput
