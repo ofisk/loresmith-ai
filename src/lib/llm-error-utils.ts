@@ -1,4 +1,10 @@
-import { APICallError, RetryError } from "ai";
+import {
+	APICallError,
+	EmptyResponseBodyError,
+	NoContentGeneratedError,
+	NoOutputGeneratedError,
+	RetryError,
+} from "ai";
 
 type ErrorWithCause = Error & { cause?: unknown };
 
@@ -115,22 +121,16 @@ export function describeLlmFailure(error: unknown): string {
 	return "Unknown LLM error";
 }
 
-const TRANSIENT_HTTP_STATUS_CODES = new Set([429, 529]);
+/** HTTP status codes providers use for rate limits, overload, and gateway failures. */
+const TRANSIENT_HTTP_STATUS_CODES = new Set([429, 502, 503, 529]);
 
-/** Substrings / patterns in describeLlmFailure output for non-API transient signals. */
-const TRANSIENT_FAILURE_TEXT_PATTERNS: ReadonlyArray<RegExp> = [
-	/overloaded/,
-	/status 529/,
-	/rate limit/,
-	/\b429\b/,
-	/too many requests/,
-	/timeout/,
-	/timed out/,
-	/execution_time_exceeded/,
-	/failed after/,
-	/no output generated/,
-	/empty response/,
-];
+/**
+ * Stable runtime error codes (not message substrings) for platform time limits.
+ * Cloudflare Workers attach `code: "execution_time_exceeded"` on CPU timeouts.
+ */
+const TRANSIENT_RUNTIME_ERROR_CODES = new Set(["execution_time_exceeded"]);
+
+const TRANSIENT_ERROR_NAMES = new Set(["AbortError", "TimeoutError"]);
 
 function walkLlmErrorTree(
 	error: unknown,
@@ -161,35 +161,75 @@ function walkLlmErrorTree(
 	walk(error, 0);
 }
 
-function hasTransientStructuredSignal(error: unknown): boolean {
+function isTransientApiCallError(error: APICallError): boolean {
+	const code = error.statusCode;
+	if (code != null && TRANSIENT_HTTP_STATUS_CODES.has(code)) {
+		return true;
+	}
+	// Provider/network layer marks retryable failures (incl. missing status on connect errors).
+	if (error.isRetryable === true && (code == null || code >= 500)) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * RetryError.reason values that mean the SDK exhausted retries or aborted —
+ * i.e. the underlying failure was treated as retryable / interruptible.
+ * `errorNotRetryable` is intentionally excluded; nested errors decide that case.
+ */
+const TRANSIENT_RETRY_REASONS = new Set(["maxRetriesExceeded", "abort"]);
+
+function isTransientStructuredNode(error: unknown): boolean {
+	if (APICallError.isInstance(error)) {
+		return isTransientApiCallError(error);
+	}
+
+	if (RetryError.isInstance(error)) {
+		return TRANSIENT_RETRY_REASONS.has(error.reason);
+	}
+
+	if (
+		NoOutputGeneratedError.isInstance(error) ||
+		NoContentGeneratedError.isInstance(error) ||
+		EmptyResponseBodyError.isInstance(error)
+	) {
+		return true;
+	}
+
+	if (error instanceof Error) {
+		if (TRANSIENT_ERROR_NAMES.has(error.name)) {
+			return true;
+		}
+		const runtimeCode = (error as Error & { code?: unknown }).code;
+		if (
+			typeof runtimeCode === "string" &&
+			TRANSIENT_RUNTIME_ERROR_CODES.has(runtimeCode)
+		) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Whether an LLM failure is likely transient (rate limit, overload, timeout,
+ * empty model output) and worth retrying or falling back to a lighter model.
+ *
+ * Uses typed AI SDK errors and HTTP metadata only — not error message text.
+ */
+export function isLikelyTransientLlmFailure(error: unknown): boolean {
 	let transient = false;
 
 	walkLlmErrorTree(error, (item) => {
 		if (transient) {
 			return;
 		}
-
-		if (!APICallError.isInstance(item)) {
-			return;
-		}
-
-		const code = item.statusCode;
-		if (code != null && TRANSIENT_HTTP_STATUS_CODES.has(code)) {
+		if (isTransientStructuredNode(item)) {
 			transient = true;
 		}
 	});
 
 	return transient;
-}
-
-function matchesTransientFailureText(text: string): boolean {
-	const lower = text.toLowerCase();
-	return TRANSIENT_FAILURE_TEXT_PATTERNS.some((pattern) => pattern.test(lower));
-}
-
-export function isLikelyTransientLlmFailure(error: unknown): boolean {
-	if (hasTransientStructuredSignal(error)) {
-		return true;
-	}
-	return matchesTransientFailureText(describeLlmFailure(error));
 }

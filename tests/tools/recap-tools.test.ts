@@ -1,3 +1,4 @@
+import { APICallError, RetryError } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindCommunitiesContainingEntity = vi.hoisted(() => vi.fn());
@@ -299,24 +300,26 @@ describe("getSessionReadoutContext", () => {
 	});
 
 	it("falls back to PIPELINE_LIGHT when primary session plan LLM fails transiently", async () => {
+		const retry = new RetryError({
+			message: "Failed after 3 attempts. Last error: ",
+			reason: "maxRetriesExceeded",
+			errors: [
+				new APICallError({
+					message: "",
+					url: "https://api.anthropic.com/v1/messages",
+					requestBodyValues: {},
+					statusCode: 529,
+					responseHeaders: {},
+					responseBody: '{"type":"overloaded_error"}',
+					isRetryable: true,
+				}),
+			],
+		});
 		mockGenerateSummary
 			.mockRejectedValueOnce(
-				new Error(
-					"Failed to generate summary: Failed after 3 attempts. Last error: ",
-					{
-						cause: {
-							name: "AI_RetryError",
-							reason: "maxRetriesExceeded",
-							errors: [
-								{
-									statusCode: 529,
-									responseBody: '{"type":"overloaded_error"}',
-									message: "",
-								},
-							],
-						},
-					}
-				)
+				new Error(`Failed to generate summary: ${retry.message}`, {
+					cause: retry,
+				})
 			)
 			.mockResolvedValueOnce("# Session plan (fallback)\n\n## Scene 1");
 
