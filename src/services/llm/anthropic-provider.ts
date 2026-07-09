@@ -2,6 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { APICallError, generateText, type ModelMessage } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
+import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
 import type {
 	LLMOptions,
 	LLMProvider,
@@ -107,11 +108,17 @@ export class AnthropicProvider implements LLMProvider {
 				prompt,
 				temperature,
 				maxOutputTokens: maxTokens,
+				...(options.maxRetries != null
+					? { maxRetries: options.maxRetries }
+					: {}),
+				...(options.timeout != null ? { timeout: options.timeout } : {}),
 			});
 
 			const text = result.text;
-			if (text === undefined || text === null) {
-				throw new Error("Anthropic API returned empty response");
+			if (text === undefined || text === null || text.trim().length === 0) {
+				throw new Error(
+					`Anthropic API returned empty response (model ${modelId}, finishReason ${result.finishReason ?? "unknown"})`
+				);
 			}
 
 			const tokens = getUsageTokens(result.usage);
@@ -123,9 +130,11 @@ export class AnthropicProvider implements LLMProvider {
 			}
 			return text;
 		} catch (error) {
-			throw new Error(
-				`Failed to generate summary: ${error instanceof Error ? error.message : "Unknown error"}`
-			);
+			if (error instanceof LLMProviderAPIKeyError) {
+				throw error;
+			}
+			const detail = describeLlmFailure(error);
+			throw wrapLlmError(`Failed to generate summary: ${detail}`, error);
 		}
 	}
 

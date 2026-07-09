@@ -297,4 +297,42 @@ describe("getSessionReadoutContext", () => {
 		expect(prompt).toContain("mysterious stranger");
 		expect(prompt).toContain("Completion notes");
 	});
+
+	it("falls back to PIPELINE_LIGHT when primary session plan LLM fails transiently", async () => {
+		mockGenerateSummary
+			.mockRejectedValueOnce(
+				new Error(
+					"Failed to generate summary: Failed after 3 attempts. Last error: ",
+					{
+						cause: {
+							name: "AI_RetryError",
+							reason: "maxRetriesExceeded",
+							errors: [
+								{
+									statusCode: 529,
+									responseBody: '{"type":"overloaded_error"}',
+									message: "",
+								},
+							],
+						},
+					}
+				)
+			)
+			.mockResolvedValueOnce("# Session plan (fallback)\n\n## Scene 1");
+
+		const result = await getSessionReadoutContext.execute?.(
+			{ campaignId, jwt, forceRegenerate: true },
+			options
+		);
+
+		expect(result?.result?.success).toBe(true);
+		expect(mockGenerateSummary).toHaveBeenCalledTimes(2);
+		const fallbackCall = mockGenerateSummary.mock.calls[1]?.[1] as {
+			model?: string;
+		};
+		expect(fallbackCall?.model).toBeDefined();
+		expect(result?.result?.data).toMatchObject({
+			plan: expect.stringContaining("fallback"),
+		});
+	});
 });
