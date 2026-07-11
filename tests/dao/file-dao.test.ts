@@ -266,4 +266,41 @@ describe("FileDAO", () => {
 			expect(mockVectorizeIndex.deleteByIds).not.toHaveBeenCalled();
 		});
 	});
+
+	describe("replaceFileChunks", () => {
+		it("deletes existing chunks then inserts with explicit username", async () => {
+			expect.hasAssertions();
+
+			mockPreparedStatement.run.mockResolvedValue({});
+
+			await fileDAO.replaceFileChunks("library/alice/doc.pdf", "alice", [
+				{ chunkIndex: 0, content: "chunk zero", embedding: "v1" },
+			]);
+
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				"DELETE FROM file_chunks WHERE file_key = ?"
+			);
+			expect(mockDB.prepare).toHaveBeenCalledWith(
+				expect.stringContaining("INSERT INTO file_chunks")
+			);
+			expect(mockPreparedStatement.bind).toHaveBeenCalledWith(
+				"library/alice/doc.pdf-chunk-0",
+				"library/alice/doc.pdf",
+				"alice",
+				"chunk zero",
+				0,
+				"v1"
+			);
+		});
+	});
+
+	describe("countFileChunks", () => {
+		it("returns count from D1", async () => {
+			expect.hasAssertions();
+			mockPreparedStatement.first.mockResolvedValue({ c: 3 });
+			await expect(
+				fileDAO.countFileChunks("library/alice/doc.pdf")
+			).resolves.toBe(3);
+		});
+	});
 });

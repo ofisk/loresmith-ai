@@ -329,6 +329,10 @@ export class SyncQueueService {
 
 					if (mergeResult.allComplete && mergeResult.allSuccessful) {
 						// All chunks processed successfully - mark file as completed
+						const ragChunkCount = await fileDAO.countFileChunks(item.file_key);
+						await fileDAO.updateFileMetadata(item.file_key, {
+							chunk_count: ragChunkCount,
+						});
 						await fileDAO.updateFileRecord(
 							item.file_key,
 							FileDAO.STATUS.COMPLETED
@@ -343,6 +347,7 @@ export class SyncQueueService {
 						log.info("All chunks completed", {
 							file_key: item.file_key,
 							stats: mergeResult.stats,
+							ragChunkCount,
 						});
 						fireFileProcessingTelemetry(env, Date.now() - itemStartedAt, {
 							pipeline: "library_sync_chunked",

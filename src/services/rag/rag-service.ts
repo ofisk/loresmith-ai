@@ -3,10 +3,13 @@
 // Uses Vectorize for embeddings and Cloudflare AI for content generation
 
 import { PROCESSING_LIMITS } from "@/app-constants";
+import { getDAOFactory } from "@/dao/dao-factory";
 import { FileNotFoundError, MemoryLimitError } from "@/lib/errors";
+import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
 import { ChunkedProcessingService } from "@/services/file/chunked-processing-service";
+import { persistFileTextChunks } from "@/services/file/file-chunk-persistence";
 import { FileExtractionService } from "@/services/file/file-extraction-service";
 import { FileQueueUtils } from "@/services/file/file-queue-utils";
 import { LibraryContentSearchService } from "@/services/file/library-content-search-service";
@@ -236,17 +239,43 @@ export class LibraryRAGService extends BaseRAGService {
 			};
 		}
 
-		// Store embeddings for search
-		const vectorId = await this.embeddingService.storeEmbeddings(
+		// Store embeddings for search, then persist full text chunks for agent/tools
+		const embeddingResult = await this.embeddingService.storeEmbeddings(
 			text,
 			metadata.id,
 			{ metadataId: metadata.id },
 			{ username: metadata.userId, fileKey: metadata.fileKey }
 		);
 
+		const log = createLogger(
+			this.env as unknown as Record<string, unknown>,
+			"[LibraryRAG]"
+		);
+		try {
+			const fileDAO = getDAOFactory(this.env).fileDAO;
+			await persistFileTextChunks(
+				fileDAO,
+				metadata.fileKey,
+				metadata.userId,
+				embeddingResult.chunks,
+				{
+					vectorId: embeddingResult.primaryVectorId,
+					env: this.env as unknown as Record<string, unknown>,
+				}
+			);
+		} catch (persistError) {
+			// Embeddings already succeeded; surface persistence failures so status is not
+			// marked completed with empty file_chunks (the bug this path fixes).
+			log.error("Failed to persist file_chunks after embedding", persistError, {
+				fileKey: metadata.fileKey,
+				chunkCount: embeddingResult.chunks.length,
+			});
+			throw persistError;
+		}
+
 		return {
 			...result,
-			vectorId,
+			vectorId: embeddingResult.primaryVectorId,
 		};
 	}
 
@@ -338,12 +367,28 @@ export class LibraryRAGService extends BaseRAGService {
 			let vectorId: string | undefined;
 			if (this.vectorize && text) {
 				try {
-					vectorId = await this.embeddingService.storeEmbeddings(
+					const embeddingResult = await this.embeddingService.storeEmbeddings(
 						text,
 						metadata.id || fileKey,
 						{ metadataId: metadata.id || fileKey },
 						{ username, fileKey }
 					);
+					vectorId = embeddingResult.primaryVectorId;
+					try {
+						const fileDAO = getDAOFactory(this.env).fileDAO;
+						await persistFileTextChunks(
+							fileDAO,
+							fileKey,
+							username,
+							embeddingResult.chunks,
+							{
+								vectorId,
+								env: this.env as unknown as Record<string, unknown>,
+							}
+						);
+					} catch (_persistError) {
+						// Legacy path: keep vectorId even if D1 chunk persist fails
+					}
 				} catch (_error) {}
 			}
 

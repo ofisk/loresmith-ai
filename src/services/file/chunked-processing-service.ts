@@ -6,6 +6,7 @@ import { extractPdfPagesRange } from "@/lib/file/pdf-utils";
 import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { FileEmbeddingService } from "@/services/embedding/file-embedding-service";
+import { persistProcessingChunkTextChunks } from "@/services/file/file-chunk-persistence";
 import type { ChunkDefinition } from "@/types/upload";
 import {
 	type ExtractionResult,
@@ -161,6 +162,9 @@ export class ChunkedProcessingService {
 			});
 		}
 
+		// Clear any stale RAG text chunks from a prior incomplete/re-index attempt
+		await this.fileDAO.deleteFileChunks(fileKey);
+
 		return chunks;
 	}
 
@@ -236,12 +240,26 @@ export class ChunkedProcessingService {
 				{ username, fileKey }
 			);
 
+			if (username) {
+				await persistProcessingChunkTextChunks(
+					this.fileDAO,
+					fileKey,
+					username,
+					chunkDefinition.chunkIndex,
+					vectorId.chunks,
+					{ env: this.env as unknown as Record<string, unknown> }
+				);
+			}
+
 			// Mark chunk as completed
-			await this.fileDAO.markFileChunkComplete(chunkId, vectorId);
+			await this.fileDAO.markFileChunkComplete(
+				chunkId,
+				vectorId.primaryVectorId
+			);
 
 			return {
 				success: true,
-				vectorId,
+				vectorId: vectorId.primaryVectorId,
 				text: extractionResult.text,
 			};
 		} catch (error) {
@@ -324,11 +342,25 @@ export class ChunkedProcessingService {
 				{ username, fileKey }
 			);
 
-			await this.fileDAO.markFileChunkComplete(chunkId, vectorId);
+			if (username) {
+				await persistProcessingChunkTextChunks(
+					this.fileDAO,
+					fileKey,
+					username,
+					chunkDefinition.chunkIndex,
+					vectorId.chunks,
+					{ env: this.env as unknown as Record<string, unknown> }
+				);
+			}
+
+			await this.fileDAO.markFileChunkComplete(
+				chunkId,
+				vectorId.primaryVectorId
+			);
 
 			return {
 				success: true,
-				vectorId,
+				vectorId: vectorId.primaryVectorId,
 				text: extractionResult.text,
 			};
 		} catch (error) {

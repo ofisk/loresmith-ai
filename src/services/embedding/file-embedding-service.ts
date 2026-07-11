@@ -26,6 +26,18 @@ export type FileEmbeddingSpendContext = {
 	fileKey?: string;
 };
 
+/** One text chunk stored in Vectorize (full text kept for D1 `file_chunks`). */
+export type StoredEmbeddingChunk = {
+	chunkIndex: number;
+	text: string;
+	vectorId: string;
+};
+
+export type StoreEmbeddingsResult = {
+	primaryVectorId: string;
+	chunks: StoredEmbeddingChunk[];
+};
+
 /**
  * Service for storing file embeddings in Vectorize
  * Handles chunking, embedding generation, and batch insertion
@@ -38,15 +50,15 @@ export class FileEmbeddingService {
 	) {}
 
 	/**
-	 * Store embeddings for a text string in Vectorize
-	 * Returns the primary vector ID (first chunk)
+	 * Store embeddings for a text string in Vectorize.
+	 * Returns the primary vector ID plus full chunk texts for D1 persistence.
 	 */
 	async storeEmbeddings(
 		text: string,
 		metadataId: string,
 		metadata: EmbeddingMetadata = { metadataId },
 		spendContext?: FileEmbeddingSpendContext
-	): Promise<string> {
+	): Promise<StoreEmbeddingsResult> {
 		if (!this.vectorize) {
 			throw new VectorizeIndexRequiredError();
 		}
@@ -68,6 +80,7 @@ export class FileEmbeddingService {
 				values: number[];
 				metadata: Record<string, any>;
 			}> = [];
+			const storedChunks: StoredEmbeddingChunk[] = [];
 			let primaryVectorId: string | undefined;
 
 			for (let i = 0; i < textChunks.length; i++) {
@@ -141,6 +154,12 @@ export class FileEmbeddingService {
 						timestamp: new Date().toISOString(),
 					},
 				});
+
+				storedChunks.push({
+					chunkIndex: i,
+					text: chunkText,
+					vectorId: chunkVectorId,
+				});
 			}
 
 			// Store all embeddings in Vectorize
@@ -150,7 +169,10 @@ export class FileEmbeddingService {
 				throw new Error("Failed to generate primary vector ID");
 			}
 
-			return primaryVectorId;
+			return {
+				primaryVectorId,
+				chunks: storedChunks,
+			};
 		} catch (error) {
 			throw new Error(
 				`Failed to store embeddings: ${error instanceof Error ? error.message : String(error)}. File may be too large or processing timed out.`

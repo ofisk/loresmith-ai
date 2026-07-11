@@ -606,6 +606,8 @@ export class FileDAO extends BaseDAOClass {
 			chunkIndex: number;
 			content: string;
 			embedding?: string;
+			username?: string;
+			id?: string;
 		}>
 	): Promise<void> {
 		const sql = `
@@ -614,16 +616,90 @@ export class FileDAO extends BaseDAOClass {
     `;
 
 		await Promise.all(
-			chunks.map((chunk) =>
-				this.execute(sql, [
-					`${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
+			chunks.map((chunk) => {
+				const username =
+					chunk.username ||
+					chunk.fileKey.split("/")[1] || // library/username/...
+					"";
+				return this.execute(sql, [
+					chunk.id ?? `${chunk.fileKey}-chunk-${chunk.chunkIndex}`,
 					chunk.fileKey,
-					chunk.fileKey.split("/")[1] || "", // Extract username from fileKey (library/username/...)
+					username,
 					chunk.content,
 					chunk.chunkIndex,
 					chunk.embedding || null,
-				])
-			)
+				]);
+			})
+		);
+	}
+
+	async deleteFileChunks(fileKey: string): Promise<void> {
+		await this.execute("DELETE FROM file_chunks WHERE file_key = ?", [fileKey]);
+	}
+
+	async countFileChunks(fileKey: string): Promise<number> {
+		const row = await this.queryFirst<{ c: number }>(
+			"SELECT COUNT(*) as c FROM file_chunks WHERE file_key = ?",
+			[fileKey]
+		);
+		return row?.c ?? 0;
+	}
+
+	/**
+	 * Replace all RAG text chunks for a file (used by direct indexing).
+	 */
+	async replaceFileChunks(
+		fileKey: string,
+		username: string,
+		chunks: Array<{
+			chunkIndex: number;
+			content: string;
+			embedding?: string;
+		}>
+	): Promise<void> {
+		await this.deleteFileChunks(fileKey);
+		if (chunks.length === 0) return;
+		await this.insertFileChunks(
+			chunks.map((chunk) => ({
+				fileKey,
+				username,
+				chunkIndex: chunk.chunkIndex,
+				content: chunk.content,
+				embedding: chunk.embedding,
+			}))
+		);
+	}
+
+	/**
+	 * Replace RAG text chunks whose chunk_index falls in [rangeStart, rangeEnd).
+	 * Used by chunked (large-file) indexing so a single processing chunk can be retried.
+	 */
+	async replaceFileChunksInIndexRange(
+		fileKey: string,
+		username: string,
+		rangeStart: number,
+		rangeEnd: number,
+		chunks: Array<{
+			id: string;
+			chunkIndex: number;
+			content: string;
+			embedding?: string;
+		}>
+	): Promise<void> {
+		await this.execute(
+			"DELETE FROM file_chunks WHERE file_key = ? AND chunk_index >= ? AND chunk_index < ?",
+			[fileKey, rangeStart, rangeEnd]
+		);
+		if (chunks.length === 0) return;
+		await this.insertFileChunks(
+			chunks.map((chunk) => ({
+				fileKey,
+				username,
+				id: chunk.id,
+				chunkIndex: chunk.chunkIndex,
+				content: chunk.content,
+				embedding: chunk.embedding,
+			}))
 		);
 	}
 
