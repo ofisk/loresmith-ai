@@ -100,6 +100,10 @@ describe("LibraryRAGService", () => {
 			getFileForRag: vi.fn(),
 			updateFileMetadataForRag: vi.fn(),
 			updateFileRecord: vi.fn(),
+			replaceFileChunks: vi.fn().mockResolvedValue(undefined),
+			updateFileMetadata: vi.fn().mockResolvedValue(undefined),
+			deleteFileChunks: vi.fn().mockResolvedValue(undefined),
+			countFileChunks: vi.fn().mockResolvedValue(0),
 		};
 
 		(getDAOFactory as any).mockReturnValue({
@@ -146,6 +150,24 @@ describe("LibraryRAGService", () => {
 			expect(result.description).toBe("A test PDF document");
 			expect(result.tags).toEqual(["test", "document", "pdf"]);
 			expect(result.vectorId).toBeDefined();
+			expect(mockFileDAO.replaceFileChunks).toHaveBeenCalledWith(
+				"uploads/test-file.pdf",
+				"user-123",
+				expect.arrayContaining([
+					expect.objectContaining({
+						chunkIndex: 0,
+						content: expect.any(String),
+						embedding: expect.any(String),
+					}),
+				])
+			);
+			expect(mockFileDAO.updateFileMetadata).toHaveBeenCalledWith(
+				"uploads/test-file.pdf",
+				expect.objectContaining({
+					vector_id: result.vectorId,
+					chunk_count: expect.any(Number),
+				})
+			);
 			expect(mockEnv.R2.get).toHaveBeenCalledWith("uploads/test-file.pdf");
 			expect(mockAI.run).toHaveBeenCalledWith(
 				expect.any(String), // model
