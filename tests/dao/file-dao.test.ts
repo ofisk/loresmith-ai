@@ -303,4 +303,31 @@ describe("FileDAO", () => {
 			).resolves.toBe(3);
 		});
 	});
+
+	describe("getStuckProcessingFiles", () => {
+		it("excludes files with active sync_queue or processing chunks", async () => {
+			expect.hasAssertions();
+
+			mockPreparedStatement.all.mockResolvedValue({ results: [] });
+
+			await fileDAO.getStuckProcessingFiles(10);
+
+			const sql = (mockDB.prepare as ReturnType<typeof vi.fn>).mock
+				.calls[0][0] as string;
+			expect(sql).toContain("NOT EXISTS");
+			expect(sql).toContain("sync_queue");
+			expect(sql).toContain("file_processing_chunks");
+			expect(sql).toMatch(/sync_queue\.status IN \('pending', 'processing'\)/);
+			expect(sql).toMatch(
+				/file_processing_chunks\.status IN \('pending', 'processing'\)/
+			);
+			expect(mockPreparedStatement.bind).toHaveBeenCalledWith(
+				FileDAO.STATUS.PROCESSING,
+				FileDAO.STATUS.SYNCING,
+				FileDAO.STATUS.INDEXING,
+				FileDAO.STATUS.UPLOADED,
+				expect.any(String)
+			);
+		});
+	});
 });

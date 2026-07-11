@@ -9,6 +9,7 @@ import type { Community } from "./dao/community-dao";
 import { getDAOFactory } from "./dao/dao-factory";
 import { WorldStateChangelogDAO } from "./dao/world-state-changelog-dao";
 import { campaignHasActiveDocumentProcessing } from "./lib/campaign-document-processing";
+import { getTimeoutSeconds } from "./lib/file/processing-time-estimator";
 import { FileSplitter } from "./lib/file/split";
 import { createLogger } from "./lib/logger";
 import { notifyFileStatusUpdated } from "./lib/notifications";
@@ -1110,8 +1111,14 @@ async function processPendingFileChunks(env: Env): Promise<void> {
 }
 
 /**
- * Clean up files that have been stuck in processing status for too long
- * Can be called manually or via scheduled event
+ * Clean up files that have been stuck in processing status for too long.
+ * Can be called manually or via scheduled event.
+ *
+ * Candidates come from getStuckProcessingFiles (excludes active sync_queue /
+ * file_processing_chunks). Each candidate is then checked with a size-aware
+ * timeout so large PDFs are not marked ERROR while still within their expected
+ * processing window. timeoutMinutes is a floor for the candidate query; the
+ * effective per-file timeout is max(timeoutMinutes, size-aware estimate).
  */
 export async function cleanupStuckProcessingFiles(
 	env: Env,
@@ -1125,27 +1132,45 @@ export async function cleanupStuckProcessingFiles(
 	try {
 		const fileDAO = getDAOFactory(env).fileDAO;
 
-		// Get files stuck in processing or syncing for the specified timeout
-		const allStuckFiles = await fileDAO.getStuckProcessingFiles(timeoutMinutes);
+		// Candidates older than timeoutMinutes, excluding active queue/chunk work
+		const allStuckCandidates =
+			await fileDAO.getStuckProcessingFiles(timeoutMinutes);
 
-		// Filter to specific file if requested
-		const stuckFiles = fileKey
-			? allStuckFiles.filter((f) => f.file_key === fileKey)
-			: allStuckFiles;
+		const candidates = fileKey
+			? allStuckCandidates.filter((f) => f.file_key === fileKey)
+			: allStuckCandidates;
+
+		const floorSeconds = timeoutMinutes * 60;
+		const stuckFiles = candidates.filter((file) => {
+			const sizeTimeoutSeconds = getTimeoutSeconds(file.file_size || 0);
+			const effectiveTimeoutSeconds = Math.max(
+				floorSeconds,
+				sizeTimeoutSeconds
+			);
+			const updatedAtMs = new Date(file.updated_at).getTime();
+			const ageSeconds = Math.floor((Date.now() - updatedAtMs) / 1000);
+			return ageSeconds > effectiveTimeoutSeconds;
+		});
 
 		if (stuckFiles.length > 0) {
 			log.debug("Found files stuck in processing/syncing status", {
 				count: stuckFiles.length,
+				skippedSizeAware: candidates.length - stuckFiles.length,
 			});
 
 			for (const file of stuckFiles) {
-				// Mark file as failed due to timeout
+				const sizeTimeoutSeconds = getTimeoutSeconds(file.file_size || 0);
+				const effectiveTimeoutSeconds = Math.max(
+					floorSeconds,
+					sizeTimeoutSeconds
+				);
+				const effectiveMinutes = Math.ceil(effectiveTimeoutSeconds / 60);
+
 				await fileDAO.markFileAsTimeoutFailed(
 					file.file_key,
-					`Processing timeout - stuck in processing/syncing/indexing/uploaded for more than ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`
+					`Processing timeout - stuck in processing/syncing/indexing/uploaded for more than ${effectiveMinutes} minute${effectiveMinutes !== 1 ? "s" : ""}`
 				);
 
-				// Send notification to user
 				try {
 					await notifyFileStatusUpdated(
 						env,
@@ -1162,6 +1187,7 @@ export async function cleanupStuckProcessingFiles(
 
 				log.debug("Marked file as failed due to timeout", {
 					fileName: file.file_name,
+					effectiveTimeoutSeconds,
 				});
 			}
 

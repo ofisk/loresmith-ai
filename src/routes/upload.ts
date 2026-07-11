@@ -1008,7 +1008,8 @@ export async function handleAbortLargeUpload(c: ContextWithAuth) {
  * POST /upload/cleanup-stuck
  * Manually trigger cleanup of stuck processing files
  * Query params: fileKey (optional) - if provided, only clean up this specific file
- *               timeoutMinutes (optional) - override default 10 minute timeout
+ *               timeoutMinutes (optional) - floor for candidate age (default 10);
+ *               large files still use size-aware timeouts when longer
  */
 export async function handleCleanupStuckFiles(c: ContextWithAuth) {
 	try {

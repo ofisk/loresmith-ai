@@ -301,16 +301,30 @@ export class FileDAO extends BaseDAOClass {
 	}
 
 	/**
-	 * Get all files stuck in processing status across all users
-	 * Used for scheduled cleanup of stuck files
+	 * Get all files stuck in processing status across all users.
+	 * Used for scheduled cleanup of stuck files.
+	 *
+	 * Excludes files that still have active sync_queue or file_processing_chunks
+	 * rows (pending/processing) so legitimate queue wait / chunked work is not
+	 * treated as abandoned.
 	 */
 	async getStuckProcessingFiles(
 		timeoutMinutes: number = 1
 	): Promise<ParsedFileMetadata[]> {
 		const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
 		const sql = `
-      SELECT * FROM file_metadata 
+      SELECT * FROM file_metadata
       WHERE status IN (?, ?, ?, ?) AND updated_at < ?
+        AND NOT EXISTS (
+          SELECT 1 FROM sync_queue
+          WHERE sync_queue.file_key = file_metadata.file_key
+            AND sync_queue.status IN ('pending', 'processing')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM file_processing_chunks
+          WHERE file_processing_chunks.file_key = file_metadata.file_key
+            AND file_processing_chunks.status IN ('pending', 'processing')
+        )
       ORDER BY updated_at ASC
     `;
 		return this.queryAndParseMultipleFileMetadata(sql, [
