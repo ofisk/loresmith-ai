@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { getDAOFactory } from "@/dao/dao-factory";
+import { createLogger } from "@/lib/logger";
 import {
 	createToolError,
 	createToolSuccess,
@@ -41,7 +42,7 @@ const getDocumentContentSchema = z.object({
  */
 export const getDocumentContent = tool({
 	description:
-		"Get the indexed text content of a document that is linked to the campaign (e.g. a PDF or file added as a campaign resource). Use when you need to read or answer questions about what a specific file says. Provide the file name or display name (e.g. 'istelle-character-sheet.pdf'). Returns text chunks from the document.",
+		"Get the indexed text content of a document that is linked to the campaign (e.g. a PDF or file added as a campaign resource). Use when you need to read or answer questions about what a specific file says. Provide the file name or display name (e.g. 'istelle-character-sheet.pdf'). Returns text chunks from the document. Prefer campaign entity search when this returns no chunks but the file status is completed — entities may still be available from discovery.",
 	inputSchema: getDocumentContentSchema,
 	execute: async (
 		input: z.infer<typeof getDocumentContentSchema>,
@@ -123,14 +124,36 @@ export const getDocumentContent = tool({
 			);
 
 			if (!chunks || chunks.length === 0) {
+				const fileMeta = await daoFactory.fileDAO.getFileMetadata(fileKey);
+				const status = fileMeta?.status ?? "unknown";
+				const log = createLogger(
+					env as unknown as Record<string, unknown>,
+					"[getDocumentContent]"
+				);
+				log.warn("Document has no file_chunks", {
+					fileKey,
+					fileName: resource.file_name,
+					status,
+					campaignId,
+				});
+
+				const isTerminalIndexed =
+					status === "completed" || status === "processed";
+				const message = isTerminalIndexed
+					? `Document "${resource.file_name}" is marked ${status} but has no stored text chunks (chunkCount: 0). This can happen for files indexed before text-chunk persistence was added, or if chunk persistence failed. Do not assume PDF extraction failed — try campaign entity/graph search or ask the user to re-index the file. Vector search may still work.`
+					: `Document "${resource.file_name}" is linked to the campaign but has no indexed text chunks yet (status: ${status}). It may still be processing.`;
+
 				return createToolSuccess(
-					`Document "${resource.file_name}" is linked to the campaign but has no indexed text chunks yet. It may still be processing.`,
+					message,
 					{
 						fileKey,
 						fileName: resource.file_name,
 						displayName: resource.display_name,
+						status,
 						chunks: [],
 						chunkCount: 0,
+						suggestEntitySearch: isTerminalIndexed,
+						suggestReindex: isTerminalIndexed,
 					},
 					toolCallId
 				);
