@@ -268,19 +268,21 @@ export const MODEL_CONFIG = {
 		EMBEDDINGS: "text-embedding-3-small",
 	},
 	// Anthropic Models
+	// Sonnet 5 for quality-critical tiers; Haiku for light/analysis (see cost plan).
+	// Sonnet 5: use effort medium via anthropic-model-options (not temperature).
 	ANTHROPIC: {
-		PRIMARY: "claude-sonnet-4-6",
-		INTERACTIVE: "claude-sonnet-4-6",
-		ANALYSIS: "claude-sonnet-4-6",
-		PIPELINE_STRUCTURED: "claude-sonnet-4-6",
+		PRIMARY: "claude-sonnet-5",
+		INTERACTIVE: "claude-sonnet-5",
+		ANALYSIS: "claude-haiku-4-5",
+		PIPELINE_STRUCTURED: "claude-sonnet-5",
 		PIPELINE_LIGHT: "claude-haiku-4-5",
-		PIPELINE_ANALYSIS: "claude-sonnet-4-6",
-		METADATA_ANALYSIS: "claude-sonnet-4-6",
-		SESSION_PLANNING: "claude-sonnet-4-6",
+		PIPELINE_ANALYSIS: "claude-haiku-4-5",
+		METADATA_ANALYSIS: "claude-haiku-4-5",
+		SESSION_PLANNING: "claude-sonnet-5",
 	},
 	// Model parameters
 	PARAMETERS: {
-		// Default temperature for chat responses
+		// Default temperature for chat responses (ignored on Sonnet 5+)
 		CHAT_TEMPERATURE: 0.7,
 		// Default temperature for analysis tasks
 		ANALYSIS_TEMPERATURE: 0.3,
@@ -288,12 +290,12 @@ export const MODEL_CONFIG = {
 		METADATA_ANALYSIS_TEMPERATURE: 0.1,
 		// Default temperature for session planning
 		SESSION_PLANNING_TEMPERATURE: 0.7,
-		// Maximum tokens for responses
-		MAX_TOKENS: 4000,
+		// Maximum tokens for responses (headroom for Sonnet 5 adaptive thinking)
+		MAX_TOKENS: 8000,
 		// Maximum tokens for metadata analysis
 		METADATA_ANALYSIS_MAX_TOKENS: 2000,
 		// Maximum tokens for session planning (longer scripts need more tokens)
-		SESSION_PLANNING_MAX_TOKENS: 8000,
+		SESSION_PLANNING_MAX_TOKENS: 12000,
 		// Top P for response generation
 		TOP_P: 0.9,
 	},

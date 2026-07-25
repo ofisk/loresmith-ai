@@ -1,6 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { APICallError, generateText, type ModelMessage } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
+import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
 import type {
@@ -103,10 +104,11 @@ export class AnthropicProvider implements LLMProvider {
 		try {
 			const anthropic = createAnthropic({ apiKey: this.apiKey });
 			const model = anthropic(modelId as any);
+			const sampling = anthropicSamplingParams(modelId, temperature);
 			const result = await generateText({
 				model,
 				prompt,
-				temperature,
+				...sampling,
 				maxOutputTokens: maxTokens,
 				...(options.maxRetries != null
 					? { maxRetries: options.maxRetries }
@@ -185,10 +187,11 @@ export class AnthropicProvider implements LLMProvider {
 		}
 
 		try {
+			const sampling = anthropicSamplingParams(modelId, temperature);
 			const result = await generateText({
 				model,
 				...(messages ? { messages } : { prompt: singlePrompt as string }),
-				temperature,
+				...sampling,
 				maxOutputTokens: maxTokens,
 			});
 
@@ -222,10 +225,11 @@ export class AnthropicProvider implements LLMProvider {
 					.filter(Boolean)
 					.join("\n\n");
 
+				const repairSampling = anthropicSamplingParams(modelId, 0);
 				const repairResult = await generateText({
 					model,
 					prompt: repairPrompt,
-					temperature: 0,
+					...repairSampling,
 					maxOutputTokens: Math.max(maxTokens, 3000),
 				});
 				repairResultUsage = repairResult.usage;

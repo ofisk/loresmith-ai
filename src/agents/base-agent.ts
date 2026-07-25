@@ -2,6 +2,7 @@ import { stepCountIs, streamText } from "ai";
 import {
 	getGenerationModelForProvider,
 	JWT_STORAGE_KEY,
+	MODEL_CONFIG,
 } from "@/app-constants";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { getDAOFactory } from "@/dao/dao-factory";
@@ -10,6 +11,7 @@ import {
 	resolveClaimedPlayerContext,
 } from "@/lib/agent-role-utils";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
+import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
@@ -851,12 +853,22 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 		const MESSAGE_COMPRESSION_THRESHOLD = 30;
 
+		const sampling =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? anthropicSamplingParams(
+						modelId,
+						MODEL_CONFIG.PARAMETERS.CHAT_TEMPERATURE
+					)
+				: { temperature: MODEL_CONFIG.PARAMETERS.CHAT_TEMPERATURE };
+
 		const result = streamText({
 			model: this.model,
 			system: mergedSystemPrompt,
 			toolChoice,
 			messages: processedMessages,
 			tools: enhancedTools,
+			...sampling,
+			maxOutputTokens: MODEL_CONFIG.PARAMETERS.MAX_TOKENS,
 			stopWhen: stepCountIs(MAX_AGENT_STEPS),
 			prepareStep: async ({ messages }) => {
 				if (messages.length > MESSAGE_COMPRESSION_THRESHOLD) {
