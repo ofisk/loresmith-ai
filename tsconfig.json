@@ -1,7 +1,5 @@
 {
 	"compilerOptions": {
-		// Tailwind configuration
-		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"]
 		},
