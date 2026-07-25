@@ -21,7 +21,7 @@ export interface NotificationSubscriber {
 	abortSignal?: AbortSignal;
 }
 
-export class NotificationHub extends DurableObject {
+export class NotificationHub extends DurableObject<CorsEnv> {
 	private subscribers: Map<string, NotificationSubscriber> = new Map();
 	private pingInterval: ReturnType<typeof setInterval> | null = null;
 	private logger: RequestLogger;
