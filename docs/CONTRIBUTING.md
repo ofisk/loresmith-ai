@@ -215,6 +215,7 @@ refactor: Standardize imports to use @/ alias
 1. **Create a branch**: `git checkout -b feature/your-feature-name`
 2. **Make incremental changes**: Small, focused commits
 3. **Follow linting rules**: Run `npm run check` before committing
+   - Keep functions at or below CCN 15; see [Code Complexity](./CODE_COMPLEXITY.md)
 4. **Write tests**: Add tests for new functionality
 5. **Update documentation**: Update relevant docs if needed
 
@@ -227,6 +228,7 @@ refactor: Standardize imports to use @/ alias
 - [ ] Tests added for new functionality
 - [ ] Documentation updated if needed
 - [ ] Linting passes (`npm run check`)
+- [ ] Complexity gate passes (`npm run complexity`)
 
 ### Pull Request Process
 

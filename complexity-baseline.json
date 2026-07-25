@@ -1,0 +1,545 @@
+{
+	"threshold": 15,
+	"functions": {
+		"scripts/build/debug-build.mjs::run": {
+			"ccn": 24,
+			"count": 1
+		},
+		"scripts/maintenance/retrigger-empty-file-chunks.ts::parseArgs": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/agents/base-agent.ts::(anonymous)": {
+			"ccn": 48,
+			"count": 1
+		},
+		"src/agents/base-agent.ts::normalized": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/agents/base-agent.ts::onFinish": {
+			"ccn": 41,
+			"count": 1
+		},
+		"src/components/BlockingAuthenticationModal.tsx::handleGoogleCompleteSignup": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/components/admin/TelemetryDashboard.tsx::TelemetryDashboard": {
+			"ccn": 43,
+			"count": 1
+		},
+		"src/components/app/ChatArea.tsx::fetchCharacterClaimOptions": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/components/campaign/PlayerCharacterSelectionModal.tsx::PlayerCharacterSelectionPanel": {
+			"ccn": 24,
+			"count": 1
+		},
+		"src/components/campaign/PlayerCharacterSelectionModal.tsx::getInitialStep": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/components/chat/ChatMessageList.tsx::(anonymous)": {
+			"ccn": 23,
+			"count": 1
+		},
+		"src/components/join/JoinCampaignPage.tsx::checkLink": {
+			"ccn": 40,
+			"count": 1
+		},
+		"src/components/join/JoinCampaignPage.tsx::handleJoin": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/components/notifications/NotificationProvider.tsx::NotificationProvider": {
+			"ccn": 86,
+			"count": 1
+		},
+		"src/components/progress/ProcessingProgressBar.stories.tsx::(anonymous)": {
+			"ccn": 23,
+			"count": 1
+		},
+		"src/components/rate-limit/RateLimitIndicator.tsx::(anonymous)": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/components/rate-limit/UsageLimitsModal.tsx::UsageLimitsModal": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/components/resource-side-panel/CampaignDetailsModal.tsx::(anonymous)": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/components/resource-side-panel/CampaignDetailsModal.tsx::handleDigestSave": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/components/resource-side-panel/CampaignResourcesTab.tsx::CampaignResourcesTab": {
+			"ccn": 32,
+			"count": 1
+		},
+		"src/components/resource-side-panel/ResourceSidePanel.tsx::ResourceSidePanel": {
+			"ccn": 57,
+			"count": 1
+		},
+		"src/components/session/SessionDigestBulkImport.tsx::parseNotesToDigest": {
+			"ccn": 55,
+			"count": 1
+		},
+		"src/components/shard/FlexibleShardCard.tsx::(anonymous)": {
+			"ccn": 58,
+			"count": 1
+		},
+		"src/components/shard/ShardGrid.tsx::(anonymous)": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/components/shard/StructuredShardCard.tsx::extractNameFromContent": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/components/shard/StructuredShardCard.tsx::getMainText": {
+			"ccn": 31,
+			"count": 1
+		},
+		"src/components/upload/FileStatusIndicator.tsx::FileStatusIndicator": {
+			"ccn": 22,
+			"count": 1
+		},
+		"src/components/upload/LibraryEntityIndexingProgress.tsx::LibraryEntityIndexingProgress": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/dao/entity-dao.ts::createEntity": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/dao/entity-dao.ts::updateEntity": {
+			"ccn": 25,
+			"count": 1
+		},
+		"src/dao/graph-rebuild-dirty-dao.ts::getTwoHopNeighborhood": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/hooks/useCampaignAddition.ts::(anonymous)": {
+			"ccn": 46,
+			"count": 1
+		},
+		"src/hooks/useChatSession.ts::(anonymous)": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/hooks/useFileUpload.ts::useFileUpload": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/hooks/useNotificationStream.ts::(anonymous)": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/lib/entity/entity-content-merge.ts::mergeEntityContent": {
+			"ccn": 27,
+			"count": 1
+		},
+		"src/lib/explainability-builder.ts::buildExplainabilityFromSteps": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/lib/file/file-upload-security.ts::detectMagicType": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/lib/llm-error-utils.ts::describeSingleLlmFailure": {
+			"ccn": 22,
+			"count": 1
+		},
+		"src/lib/player-character-onboarding.ts::addPlayerFacingGaps": {
+			"ccn": 36,
+			"count": 1
+		},
+		"src/lib/prompts/agent-role-context.ts::getAgentRoleContext": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/lib/shard/staged-entity-display-title.ts::resolveStagedShardDisplayTitle": {
+			"ccn": 26,
+			"count": 1
+		},
+		"src/lib/tool-part-utils.ts::getToolPartInfo": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/lib/tool-result-trimming.ts::trimToolResultsByRelevancy": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/queue-consumer.ts::checkAndTriggerRebuilds": {
+			"ccn": 53,
+			"count": 1
+		},
+		"src/queue-consumer.ts::processPendingFileChunks": {
+			"ccn": 44,
+			"count": 1
+		},
+		"src/routes/app/index.ts::handleAgentsRoute": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/routes/auth.ts::handleGoogleCallback": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/routes/billing.ts::handleBillingCheckout": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/routes/billing.ts::handleBillingStatus": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/routes/billing.ts::handleBillingWebhook": {
+			"ccn": 39,
+			"count": 1
+		},
+		"src/routes/campaign-graphrag.ts::(anonymous)": {
+			"ccn": 33,
+			"count": 1
+		},
+		"src/routes/campaign-graphrag.ts::handleApproveShards": {
+			"ccn": 33,
+			"count": 1
+		},
+		"src/routes/campaign-resource-proposals.ts::handleApproveResourceProposal": {
+			"ccn": 33,
+			"count": 1
+		},
+		"src/routes/campaign-share.ts::handleCampaignJoin": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/routes/campaign-share.ts::handleCreateShareLink": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/routes/campaigns.ts::handleAddResourceToCampaign": {
+			"ccn": 42,
+			"count": 1
+		},
+		"src/routes/campaigns.ts::handleGetEntityExtractionStatus": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/routes/campaigns.ts::handleRetryEntityExtraction": {
+			"ccn": 22,
+			"count": 1
+		},
+		"src/routes/campaigns.ts::handleUpdateCampaign": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/routes/communities.ts::handleGenerateCommunitySummary": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/routes/graph-visualization.ts::handleGetCommunityEntityGraph": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/routes/graph-visualization.ts::handleGetGraphVisualization": {
+			"ccn": 35,
+			"count": 1
+		},
+		"src/routes/graph-visualization.ts::handleSearchEntityInGraph": {
+			"ccn": 58,
+			"count": 1
+		},
+		"src/routes/planning-tasks.ts::handleUpdatePlanningTask": {
+			"ccn": 21,
+			"count": 1
+		},
+		"src/routes/rag.ts::handleTriggerIndexing": {
+			"ccn": 28,
+			"count": 1
+		},
+		"src/routes/telemetry.ts::handleGetAdminTelemetryOverview": {
+			"ccn": 22,
+			"count": 1
+		},
+		"src/routes/upload.ts::handleDirectUpload": {
+			"ccn": 27,
+			"count": 1
+		},
+		"src/routes/upload.ts::handleUpdateFileMetadata": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/server.ts::(anonymous)": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/services/campaign/campaign-context-sync-service.ts::formatCharacterSheetAsText": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/services/campaign/checklist-status-service.ts::analyzeEntityCounts": {
+			"ccn": 24,
+			"count": 1
+		},
+		"src/services/campaign/entity-staging-service.ts::metaUnchanged": {
+			"ccn": 47,
+			"count": 1
+		},
+		"src/services/campaign/entity-staging-service.ts::processChunk": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/services/campaign/entity-staging-service.ts::stageEntitiesFromResourceImpl": {
+			"ccn": 36,
+			"count": 1
+		},
+		"src/services/campaign/impl/direct-file-content-extraction-provider.ts::extractContent": {
+			"ccn": 28,
+			"count": 1
+		},
+		"src/services/campaign/library-entity-copy-to-campaign-service.ts::tryCopyLibraryEntitiesToCampaign": {
+			"ccn": 26,
+			"count": 1
+		},
+		"src/services/campaign/library-entity-discovery-queue-service.ts::processQueue": {
+			"ccn": 49,
+			"count": 1
+		},
+		"src/services/character-sheet/character-sheet-parser-service.ts::mergeParsedResults": {
+			"ccn": 57,
+			"count": 1
+		},
+		"src/services/core/error-handling-service.ts::categorizeError": {
+			"ccn": 26,
+			"count": 1
+		},
+		"src/services/embedding/cloudflare-embedding-service.ts::generateEmbedding": {
+			"ccn": 26,
+			"count": 1
+		},
+		"src/services/file/library-metadata-service.ts::generateSemanticMetadata": {
+			"ccn": 27,
+			"count": 1
+		},
+		"src/services/file/sync-queue-service.ts::processFileUpload": {
+			"ccn": 31,
+			"count": 1
+		},
+		"src/services/file/sync-queue-service.ts::processSyncQueue": {
+			"ccn": 48,
+			"count": 1
+		},
+		"src/services/graph/community-detection-service.ts::buildBoundedSubgraph": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/services/graph/community-detection-service.ts::detectCommunities": {
+			"ccn": 25,
+			"count": 1
+		},
+		"src/services/graph/community-detection-service.ts::loadMinimalGraphData": {
+			"ccn": 23,
+			"count": 1
+		},
+		"src/services/graph/community-summary-service.ts::generateSummary": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/services/graph/entity-importance-service.ts::calculateBetweennessCentrality": {
+			"ccn": 37,
+			"count": 1
+		},
+		"src/services/graph/rebuild-pipeline-service.ts::executeRebuild": {
+			"ccn": 54,
+			"count": 1
+		},
+		"src/services/graph/rebuild-queue-processor.ts::processRebuild": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/services/graph/rebuild-trigger-service.ts::decideAndEnqueueRebuild": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/services/graph/world-state-changelog-service.ts::applyEntityOverlay": {
+			"ccn": 31,
+			"count": 1
+		},
+		"src/services/llm/anthropic-provider.ts::generateStructuredOutput": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/services/llm/llm-rate-limit-service.ts::checkLimit": {
+			"ccn": 22,
+			"count": 1
+		},
+		"src/services/llm/llm-rate-limit-service.ts::getUsageStatus": {
+			"ccn": 45,
+			"count": 1
+		},
+		"src/services/llm/openai-provider.ts::generateSummary": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/services/rag/entity-extraction-pipeline.ts::run": {
+			"ccn": 37,
+			"count": 1
+		},
+		"src/services/rag/entity-extraction-service.ts::(anonymous)": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/services/rag/entity-extraction-service.ts::extractEntities": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/services/rag/historical-context-service.ts::applyHistoricalOverlay": {
+			"ccn": 28,
+			"count": 1
+		},
+		"src/services/rag/historical-context-service.ts::queryHistoricalState": {
+			"ccn": 22,
+			"count": 1
+		},
+		"src/services/rag/planning-context-service.ts::extractDigestSections": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/services/session-digest/digest-quality-service.ts::checkConsistencyWithGraphRAG": {
+			"ccn": 25,
+			"count": 1
+		},
+		"src/services/session-digest/digest-quality-service.ts::digestDataToText": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/tools/campaign-context/character-generation-utils.ts::parseGeneratedCharacter": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/tools/campaign-context/character-rules-fetcher.ts::fetchCharacterCreationRules": {
+			"ccn": 32,
+			"count": 1
+		},
+		"src/tools/campaign-context/character-tools.ts::applyCharacterUpdatesToEntity": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/tools/campaign-context/character-tools.ts::execute": {
+			"ccn": 31,
+			"count": 3
+		},
+		"src/tools/campaign-context/context-capture-tools.ts::execute": {
+			"ccn": 26,
+			"count": 1
+		},
+		"src/tools/campaign-context/encounter-builder-tools.ts::(anonymous)": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/tools/campaign-context/encounter-builder-tools.ts::execute": {
+			"ccn": 24,
+			"count": 2
+		},
+		"src/tools/campaign-context/entity-tools.ts::execute": {
+			"ccn": 24,
+			"count": 3
+		},
+		"src/tools/campaign-context/list-all-entities-tool.ts::execute": {
+			"ccn": 24,
+			"count": 1
+		},
+		"src/tools/campaign-context/loot-reward-tools.ts::execute": {
+			"ccn": 40,
+			"count": 2
+		},
+		"src/tools/campaign-context/loot-reward-tools.ts::tool": {
+			"ccn": 25,
+			"count": 1
+		},
+		"src/tools/campaign-context/loot-reward-utils.ts::normalizeLootItem": {
+			"ccn": 23,
+			"count": 1
+		},
+		"src/tools/campaign-context/player-handout-tools.ts::execute": {
+			"ccn": 17,
+			"count": 2
+		},
+		"src/tools/campaign-context/recap-tools.ts::execute": {
+			"ccn": 17,
+			"count": 1
+		},
+		"src/tools/campaign-context/rules-reference-tools.ts::execute": {
+			"ccn": 16,
+			"count": 1
+		},
+		"src/tools/campaign-context/search-tools.ts::execute": {
+			"ccn": 154,
+			"count": 1
+		},
+		"src/tools/campaign-context/suggestion-tools.ts::execute": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/tools/campaign-context/suggestion-tools.ts::performSemanticChecklistAnalysis": {
+			"ccn": 29,
+			"count": 1
+		},
+		"src/tools/campaign-context/suggestion-utils.ts::buildReadinessRecommendations": {
+			"ccn": 18,
+			"count": 1
+		},
+		"src/tools/campaign-context/timeline-tools.ts::execute": {
+			"ccn": 17,
+			"count": 2
+		},
+		"src/tools/campaign/check-planning-readiness-tool.ts::execute": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/tools/campaign/file-tools.ts::(anonymous)": {
+			"ccn": 19,
+			"count": 1
+		},
+		"src/tools/campaign/file-tools.ts::execute": {
+			"ccn": 24,
+			"count": 1
+		},
+		"src/tools/file/list-tools.ts::deleteFileExecution": {
+			"ccn": 21,
+			"count": 1
+		},
+		"src/tools/message-history-tools.ts::execute": {
+			"ccn": 30,
+			"count": 1
+		},
+		"src/tools/onboarding/guidance-tools.ts::execute": {
+			"ccn": 21,
+			"count": 2
+		},
+		"src/tools/onboarding/state-analysis-tools.ts::execute": {
+			"ccn": 16,
+			"count": 2
+		},
+		"src/tools/session-digest/digest-tools.ts::execute": {
+			"ccn": 25,
+			"count": 2
+		},
+		"src/tools/session-digest/generate-digest-tool.ts::execute": {
+			"ccn": 20,
+			"count": 1
+		},
+		"src/types/session-digest.ts::validateSessionDigestData": {
+			"ccn": 20,
+			"count": 1
+		}
+	}
+}

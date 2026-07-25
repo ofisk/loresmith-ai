@@ -25,7 +25,15 @@ import {
 	requireCampaignAccessForTool,
 	type ToolExecuteOptions,
 } from "@/tools/utils";
+import { collectTraversedEntityResults } from "./search-tools-graph-traversal";
 import { parseQueryIntent } from "./search-tools-query-intent";
+import {
+	applyResultLimit,
+	buildSearchSummary,
+	filterToStrongNameMatches,
+	hasSemanticRelevanceScores,
+	sortByRelevance,
+} from "./search-tools-result-shaping";
 
 // Dynamically build entity types list for descriptions
 const ENTITY_TYPES_LIST = STRUCTURED_ENTITY_TYPES.join(", ");
@@ -1180,399 +1188,53 @@ Call ONCE: Map synonyms (e.g., "monsters or beasts") to correct entity type. Ent
 					}
 				}
 
-				// Graph traversal: If traverseFromEntityIds is provided, traverse the graph from those entities
-				if (traverseFromEntityIds && traverseFromEntityIds.length > 0) {
-					try {
-						const daoFactory = getDAOFactory(env);
-						const graphService = daoFactory.entityGraphService;
-
-						// Normalize relationship types if provided
-						const normalizedRelationshipTypes = traverseRelationshipTypes?.map(
-							(type: string) => type.toLowerCase().replace(/\s+/g, "_")
-						);
-
-						// Collect all traversed neighbors from all starting entities
-						const allTraversedNeighbors: Array<{
-							neighbor: Awaited<
-								ReturnType<typeof graphService.getNeighbors>
-							>[number];
-							sourceEntityId: string;
-						}> = [];
-
-						// Traverse from each starting entity ID
-						for (const entityId of traverseFromEntityIds) {
-							try {
-								const neighbors = await graphService.getNeighbors(
-									campaignId,
-									entityId,
-									{
-										maxDepth: traverseDepth,
-										relationshipTypes: normalizedRelationshipTypes as any,
-									}
-								);
-								allTraversedNeighbors.push(
-									...neighbors.map((neighbor) => ({
-										neighbor,
-										sourceEntityId: entityId,
-									}))
-								);
-							} catch (_error) {}
-						}
-
-						// Deduplicate by entity ID (keep first occurrence)
-						const traversedEntityIdsMap = new Map<
-							string,
-							{
-								neighbor: Awaited<
-									ReturnType<typeof graphService.getNeighbors>
-								>[number];
-								sourceEntityId: string;
-							}
-						>();
-						for (const item of allTraversedNeighbors) {
-							if (!traversedEntityIdsMap.has(item.neighbor.entityId)) {
-								traversedEntityIdsMap.set(item.neighbor.entityId, item);
-							}
-						}
-
-						const uniqueTraversedEntityIds = Array.from(
-							traversedEntityIdsMap.keys()
-						);
-
-						if (
-							includeTraversedEntities &&
-							uniqueTraversedEntityIds.length > 0
-						) {
-							// Fetch full entity details for traversed entities
-							const traversedEntities =
-								await daoFactory.entityDAO.listEntitiesByCampaign(campaignId, {
-									entityIds: uniqueTraversedEntityIds,
-									limit: 1000,
-									excludeShardStatuses: ["rejected", "deleted"],
-								});
-
-							// Filter out rejected/ignored/stub entities
-							const approvedTraversedEntities = traversedEntities.filter(
-								(entity) => {
-									try {
-										const metadata = entity.metadata
-											? (JSON.parse(entity.metadata as string) as Record<
-													string,
-													unknown
-												>)
-											: {};
-										const shardStatus = metadata.shardStatus;
-										const ignored = metadata.ignored === true;
-										const rejected = metadata.rejected === true;
-										const stub = isEntityStub({ metadata });
-										return (
-											shardStatus !== "rejected" &&
-											!ignored &&
-											!rejected &&
-											!stub
-										);
-									} catch {
-										return true; // Include if metadata parsing fails
-									}
-								}
-							);
-
-							// Fetch relationships for traversed entities
-							const traversedEntityRelationshipsMap = new Map<
-								string,
-								Awaited<
-									ReturnType<typeof graphService.getRelationshipsForEntity>
-								>
-							>();
-							const traversedRelatedEntityIds = new Set<string>();
-
-							await Promise.all(
-								approvedTraversedEntities.map(async (entity) => {
-									try {
-										const relationships =
-											await graphService.getRelationshipsForEntity(
-												campaignId,
-												entity.id
-											);
-										traversedEntityRelationshipsMap.set(
-											entity.id,
-											relationships
-										);
-										for (const rel of relationships) {
-											const otherId =
-												rel.fromEntityId === entity.id
-													? rel.toEntityId
-													: rel.fromEntityId;
-											traversedRelatedEntityIds.add(otherId);
-										}
-									} catch (_error) {
-										traversedEntityRelationshipsMap.set(entity.id, []);
-									}
-								})
-							);
-
-							// Batch-fetch related entity names
-							const traversedRelatedEntitiesMap = new Map<string, string>();
-							if (traversedRelatedEntityIds.size > 0) {
-								const allRelatedEntities =
-									await daoFactory.entityDAO.listEntitiesByCampaign(
-										campaignId,
-										{
-											limit: 1000,
-											entityIds: Array.from(traversedRelatedEntityIds),
-										}
-									);
-								for (const relatedEntity of allRelatedEntities) {
-									if (traversedRelatedEntityIds.has(relatedEntity.id)) {
-										traversedRelatedEntitiesMap.set(
-											relatedEntity.id,
-											relatedEntity.name
-										);
-									}
-								}
-							}
-
-							// Get source entity names for context
-							const sourceEntityMap = new Map<string, string>();
-							if (traverseFromEntityIds.length > 0) {
-								const allSourceEntities =
-									await daoFactory.entityDAO.listEntitiesByCampaign(
-										campaignId,
-										{
-											limit: 1000,
-											entityIds: traverseFromEntityIds,
-										}
-									);
-								for (const sourceEntity of allSourceEntities) {
-									if (traverseFromEntityIds.includes(sourceEntity.id)) {
-										sourceEntityMap.set(sourceEntity.id, sourceEntity.name);
-									}
-								}
-							}
-
-							// Transform traversed entities to match expected format
-							for (const entity of approvedTraversedEntities) {
-								const traversalInfo = traversedEntityIdsMap.get(entity.id);
-								const relationships =
-									traversedEntityRelationshipsMap.get(entity.id) || [];
-
-								// Build relationship summary
-								const relationshipSummary = relationships.map((rel) => {
-									const otherEntityId =
-										rel.fromEntityId === entity.id
-											? rel.toEntityId
-											: rel.fromEntityId;
-									const direction =
-										rel.fromEntityId === entity.id ? "outgoing" : "incoming";
-									const otherEntityName =
-										traversedRelatedEntitiesMap.get(otherEntityId) ||
-										otherEntityId;
-
-									return {
-										relationshipType: rel.relationshipType,
-										direction,
-										otherEntityId,
-										otherEntityName,
-									};
-								});
-
-								// Build relationship header with traversal context
-								const sourceEntityName = traversalInfo?.sourceEntityId
-									? sourceEntityMap.get(traversalInfo.sourceEntityId) ||
-										traversalInfo.sourceEntityId
-									: "unknown";
-								const depth = traversalInfo?.neighbor.depth || 1;
-
-								let relationshipHeader =
-									"═══════════════════════════════════════════════════════\n";
-								relationshipHeader +=
-									"EXPLICIT ENTITY RELATIONSHIPS (FROM ENTITY GRAPH)\n";
-								relationshipHeader +=
-									"═══════════════════════════════════════════════════════\n";
-								relationshipHeader += `Found via graph traversal from "${sourceEntityName}" at depth ${depth}.\n`;
-								relationshipHeader +=
-									"CRITICAL: Use ONLY these relationships. Do NOT infer relationships from the entity content text below.\n\n";
-
-								if (relationshipSummary.length > 0) {
-									const relationshipsByType = new Map<
-										string,
-										typeof relationshipSummary
-									>();
-									relationshipSummary.forEach((rel) => {
-										if (!relationshipsByType.has(rel.relationshipType)) {
-											relationshipsByType.set(rel.relationshipType, []);
-										}
-										relationshipsByType.get(rel.relationshipType)!.push(rel);
-									});
-
-									relationshipsByType.forEach((rels, relationshipType) => {
-										relationshipHeader += `${relationshipType.toUpperCase()}:\n`;
-										rels.forEach((rel) => {
-											const verb =
-												rel.direction === "outgoing"
-													? `${entity.name} ${relationshipType}`
-													: `${entity.name} is related via ${relationshipType} (incoming)`;
-											relationshipHeader += `  ${verb} ${rel.otherEntityName}\n`;
-										});
-										relationshipHeader += "\n";
-									});
-								} else {
-									relationshipHeader +=
-										"NONE - This entity has no relationships in the entity graph.\n";
-									relationshipHeader +=
-										"Do NOT infer relationships from content text below. Any relationship mentions in content are NOT verified.\n\n";
-								}
-
-								relationshipHeader +=
-									"═══════════════════════════════════════════════════════\n";
-								relationshipHeader +=
-									"ENTITY CONTENT (may contain unverified mentions):\n";
-								relationshipHeader +=
-									"═══════════════════════════════════════════════════════\n";
-
-								const traversedContentToSerialize =
-									shouldSanitizeForPlayer &&
-									entity.content &&
-									typeof entity.content === "object" &&
-									!Array.isArray(entity.content)
-										? sanitizeEntityContentForPlayer(
-												entity.content as Record<string, unknown>,
-												entity.entityType
-											)
-										: entity.content;
-
-								results.push({
-									type: "entity",
-									source: "graph_traversal",
-									entityType: entity.entityType,
-									title: entity.name,
-									text:
-										relationshipHeader +
-										JSON.stringify(traversedContentToSerialize),
-									score: 0.7 - depth * 0.1, // Lower score for deeper traversal
-									entityId: entity.id,
-									filename: entity.name,
-									relationships: relationshipSummary,
-									relationshipCount: relationships.length,
-									// Add traversal metadata
-									traversalDepth: depth,
-									traversedFrom: sourceEntityName,
-								} as any);
-							}
-						}
-					} catch (_error) {
-						// Continue even if traversal fails
-					}
-				}
-
-				// Check if we have semantic scores (non-default scores indicate semantic relevancy was computed)
-				// Default scores are 0.8 (entity matches), 0.7 (traversed entities), or 0 (no score)
-				const hasSemanticScores = results.some((r) => {
-					const score = r.score || 0;
-					return score !== 0.8 && score !== 0.7 && score !== 0 && score !== 1.0;
-				});
-
-				// Filter results to prioritize strong name matches when they exist
-				// This ensures queries like "tell me about [entity name]" focus on that specific entity
-				// For session readout we keep all results so encounter-detail entities (e.g. Ambush Mistake Encounter) are not dropped
-				// Note: entityNameSimilarityScores and hasStrongNameMatches are declared at function scope (line ~340)
-				let finalResults = results;
+				// Graph traversal: expand from the caller-supplied entities.
 				if (
-					!forSessionReadout &&
-					hasStrongNameMatches &&
-					entityNameSimilarityScores.size > 0
+					traverseFromEntityIds &&
+					traverseFromEntityIds.length > 0 &&
+					includeTraversedEntities
 				) {
-					const nameMatchedResults = results.filter((result) => {
-						const nameScore = entityNameSimilarityScores.get(
-							result.entityId || ""
-						);
-						return nameScore !== undefined && nameScore >= nameMatchThreshold;
-					});
-					if (nameMatchedResults.length > 0) {
-						finalResults = nameMatchedResults;
-					}
+					results.push(
+						...(await collectTraversedEntityResults({
+							daoFactory,
+							campaignId,
+							traverseFromEntityIds,
+							traverseDepth,
+							traverseRelationshipTypes,
+							shouldSanitizeForPlayer: Boolean(shouldSanitizeForPlayer),
+						}))
+					);
 				}
 
-				// Sort results by semantic relevancy (highest score first)
-				// All results should be sorted by relevancy to the query/prompt
-				finalResults.sort((a, b) => {
-					const scoreA = a.score || 0;
-					const scoreB = b.score || 0;
+				const hasSemanticScores = hasSemanticRelevanceScores(results);
 
-					// Primary sort: by semantic relevancy score (highest first) if available
-					if (hasSemanticScores && scoreB !== scoreA) {
-						return scoreB - scoreA;
-					}
-
-					// If no semantic scores or scores are equal, sort alphabetically by name
-					const nameA = (
-						a.title ||
-						a.name ||
-						a.display_name ||
-						a.id ||
-						""
-					).toLowerCase();
-					const nameB = (
-						b.title ||
-						b.name ||
-						b.display_name ||
-						b.id ||
-						""
-					).toLowerCase();
-					return nameA.localeCompare(nameB);
+				const finalResults = filterToStrongNameMatches(results, {
+					forSessionReadout,
+					hasStrongNameMatches,
+					similarityScores: entityNameSimilarityScores,
+					threshold: nameMatchThreshold,
 				});
+				sortByRelevance(finalResults, hasSemanticScores);
 
-				// Check if there are more results (for list-all queries, we requested limit+1)
-				let hasMore = false;
-				let actualResults = finalResults;
-				const limitHit =
-					queryIntent.isListAll && finalResults.length > effectiveLimit;
+				const { pageResults: actualResults, hasMore } = applyResultLimit(
+					finalResults,
+					effectiveLimit
+				);
 
-				if (limitHit) {
-					hasMore = true;
-					actualResults = finalResults.slice(0, effectiveLimit);
-				} else if (
-					!queryIntent.isListAll &&
-					finalResults.length > effectiveLimit
-				) {
-					// For search queries, check if we hit the limit
-					hasMore = true;
-					actualResults = finalResults.slice(0, effectiveLimit);
-				}
-
-				// Note: totalCount is already fetched above for list-all queries
-
-				const entityTypeLabel = queryIntent.entityType
-					? ` (${queryIntent.entityType})`
-					: "";
-
-				// Build clear pagination message
-				let paginationInfo = "";
-				const sortInfo = hasSemanticScores
-					? " Results are sorted from most to least relevant."
-					: " Results are sorted alphabetically by name.";
-
-				if (queryIntent.isListAll) {
-					if (limitHit && totalCount !== undefined) {
-						paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total shards. There are ${totalCount - actualResults.length} more shards not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
-					} else if (totalCount !== undefined) {
-						paginationInfo = ` (${totalCount} total)`;
-					}
-				} else {
-					if (hasMore && totalCount !== undefined) {
-						paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${totalCount} total results. There are ${totalCount - actualResults.length} more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
-					} else if (hasMore) {
-						paginationInfo = ` ⚠️ LIMIT REACHED: Showing ${actualResults.length} of ${finalResults.length}+ results. There are more results not shown. Use offset=${offset + effectiveLimit} to retrieve the next page.`;
-					} else if (totalCount !== undefined) {
-						paginationInfo = ` (${totalCount} total)`;
-					}
-				}
-
-				const readoutReminder = forSessionReadout
-					? " For session readout: include the full 'text' of each result in your reply; do not summarize."
-					: "";
 				return createToolSuccess(
-					`Found ${totalCount !== undefined ? totalCount : actualResults.length} results for "${query}"${entityTypeLabel}.${sortInfo}${paginationInfo}${readoutReminder}`,
+					buildSearchSummary({
+						query,
+						entityType: queryIntent.entityType,
+						isListAll: queryIntent.isListAll,
+						hasSemanticScores,
+						forSessionReadout,
+						hasMore,
+						totalCount,
+						shownCount: actualResults.length,
+						matchedCount: finalResults.length,
+						offset,
+						effectiveLimit,
+					}),
 					{
 						query,
 						queryIntent,

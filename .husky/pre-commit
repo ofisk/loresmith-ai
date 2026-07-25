@@ -1,3 +1,4 @@
-# Format, lint, and typecheck staged files; then run tests for immediate feedback on failure.
+# Format, lint, and typecheck staged files; gate complexity; then run tests for immediate feedback on failure.
 npx lint-staged
+npm run complexity:staged
 npx vitest run --run --testTimeout=30000
