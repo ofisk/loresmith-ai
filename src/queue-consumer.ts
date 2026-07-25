@@ -1,4 +1,4 @@
-import type { ExecutionContext, Message } from "@cloudflare/workers-types";
+import type { Message } from "@cloudflare/workers-types";
 import { MODEL_CONFIG, PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";

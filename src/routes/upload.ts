@@ -1,5 +1,4 @@
-import type { ExecutionContext } from "@cloudflare/workers-types";
-import type { Context } from "hono";
+import type { Context, ExecutionContext } from "hono";
 import { UPLOAD_CONFIG } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";

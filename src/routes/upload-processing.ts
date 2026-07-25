@@ -3,7 +3,7 @@
  * Extracted from upload.ts to reduce complexity and improve maintainability
  */
 
-import type { ExecutionContext } from "@cloudflare/workers-types";
+import type { ExecutionContext } from "hono";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
