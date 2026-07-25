@@ -19,11 +19,11 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 /**
  * Maximum tokens for entity extraction responses.
  *
- * Entity extraction uses PIPELINE_STRUCTURED (e.g. claude-sonnet-4-6 on Anthropic).
- * 8192 for Anthropic and 16384 for OpenAI reduce silent truncation on large chunks.
+ * Entity extraction uses PIPELINE_STRUCTURED (e.g. claude-sonnet-5 on Anthropic).
+ * Higher Anthropic budget leaves room for Sonnet 5 adaptive thinking + JSON.
  */
 const MAX_EXTRACTION_RESPONSE_TOKENS =
-	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 8192 : 16384;
+	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 16384 : 16384;
 
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
