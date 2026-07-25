@@ -10,6 +10,33 @@ test.describe("file upload", () => {
 		await page.emulateMedia({ reducedMotion: "reduce" });
 	});
 
+	// Clean up any sample.txt left by a failed attempt so retries don't hit 409.
+	test.afterEach(async ({ page }) => {
+		try {
+			const jwt = await page.evaluate(() =>
+				localStorage.getItem("loresmith-jwt")
+			);
+			if (!jwt) return;
+			const listRes = await page.request.get("/api/library/files", {
+				headers: { Authorization: `Bearer ${jwt}` },
+			});
+			if (!listRes.ok()) return;
+			const { files } = (await listRes.json()) as {
+				files: { file_key: string; file_name: string }[];
+			};
+			for (const file of files ?? []) {
+				if (file.file_name === "sample.txt") {
+					await page.request.delete(
+						`/api/library/files/${encodeURIComponent(file.file_key)}`,
+						{ headers: { Authorization: `Bearer ${jwt}` } }
+					);
+				}
+			}
+		} catch (_) {
+			// Best-effort cleanup; don't fail the test if this errors
+		}
+	});
+
 	test("upload small file and see it in library", async ({
 		page,
 		browserName,
