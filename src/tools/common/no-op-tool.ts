@@ -42,7 +42,7 @@ When in doubt, use the appropriate tool rather than this no-op tool.`,
 	strict: true,
 	execute: async (
 		input: z.infer<typeof noOpToolSchema>,
-		_options: ToolExecutionOptions
+		_options: ToolExecutionOptions<never>
 	): Promise<ToolResult> => {
 		const { reason } = input;
 		return createToolSuccess(

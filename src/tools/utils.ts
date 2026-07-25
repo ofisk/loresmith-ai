@@ -18,8 +18,11 @@ export type { ToolExecutionOptions };
 
 /**
  * Options passed to tool execute (v6). Base agent extends with env when running in Worker/DO.
+ * CONTEXT is `never` since no tool in this codebase uses the ai-sdk's user-defined tool context feature.
  */
-export type ToolExecuteOptions = ToolExecutionOptions & { env?: unknown };
+export type ToolExecuteOptions = ToolExecutionOptions<never> & {
+	env?: unknown;
+};
 
 /**
  * Minimal context passed to tool execute functions (e.g. from Durable Object).

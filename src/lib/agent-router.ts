@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
+import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
 import { AgentNotRegisteredError } from "@/lib/errors";
 import { createModel } from "./model-config";
 import { ModelManager } from "./model-manager";
@@ -229,15 +230,20 @@ Example format: "agent_type|confidence|reason"`;
 		}
 
 		// Use generateText for the routing decision (single turn, no tools)
+		const routedModelId =
+			(modelToUse as { modelId?: string })?.modelId ??
+			getGenerationModelForProvider("PIPELINE_LIGHT");
+		const sampling =
+			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+				? anthropicSamplingParams(routedModelId, 0)
+				: !MODEL_CONFIG.isReasoningModel(routedModelId.toLowerCase())
+					? { temperature: 0 }
+					: {};
 		const result = await generateText({
 			model: modelToUse,
 			system: systemPrompt,
 			messages: [{ role: "user", content: userMessage }],
-			...(!MODEL_CONFIG.isReasoningModel(
-				((modelToUse as { modelId?: string })?.modelId ?? "").toLowerCase()
-			) && {
-				temperature: 0,
-			}),
+			...sampling,
 		});
 
 		const trimmedResponse = (result.text ?? "").trim();
