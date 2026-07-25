@@ -88,15 +88,23 @@ export async function processFile(
 		// Force SYNCING state for UI responsiveness
 		await markFileAsSyncing(env, fileKey, userId, filename, fileDAO, scopedLog);
 
-		// Send completion notifications synchronously so FILE_UPLOAD.COMPLETED reaches
-		// the client before the 200 response is returned. Using waitUntil here risks
-		// the notification being dropped if background entity extraction crashes workerd.
+		// Send completion notifications (fire-and-forget, use waitUntil when available)
 		const { sendUploadCompleteNotifications: sendNotifications } = await import(
 			"./upload-notifications"
 		);
-		await sendNotifications(env, userId, fileKey, filename).catch((error) => {
+		const notificationsPromise = sendNotifications(
+			env,
+			userId,
+			fileKey,
+			filename
+		).catch((error) => {
 			scopedLog.error("Upload complete notifications failed", error);
 		});
+		if (executionCtx) {
+			executionCtx.waitUntil(notificationsPromise);
+		} else {
+			await notificationsPromise;
+		}
 	});
 }
 
