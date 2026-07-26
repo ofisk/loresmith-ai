@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS file_metadata (
   file_size integer,
   content_type text not null default '',
   status text default 'uploaded',
+  vector_id text, -- Vectorize id for the file's embeddings; set by persistFileTextChunks()
+  chunk_count integer, -- Number of RAG chunks stored for the file; set by persistFileTextChunks()
   content_summary text,
   key_topics text, -- JSON array of key topics/themes
   content_type_categories text, -- JSON array of content types e.g., ["map", "character", "adventure"]
