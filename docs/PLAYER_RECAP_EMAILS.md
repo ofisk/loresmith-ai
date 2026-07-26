@@ -149,7 +149,7 @@ mocked D1 cannot exercise any of them:
 
 ## Schema
 
-Migration `migrations/0029_player_recap_emails.sql`:
+Migration `migrations/0030_player_recap_emails.sql`:
 
 | Table                          | Purpose                                              |
 | ------------------------------ | ---------------------------------------------------- |
