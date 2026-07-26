@@ -3,6 +3,7 @@ import { APICallError, generateText, Output } from "ai";
 import { MODEL_CONFIG } from "@/app-constants";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
+import { toTokenBreakdown, totalUsageTokens } from "@/lib/llm-usage-breakdown";
 import type {
 	LLMOptions,
 	LLMProvider,
@@ -89,14 +90,14 @@ export class OpenAIProvider implements LLMProvider {
 					`OpenAI API returned empty response (model ${modelId}, finishReason ${result.finishReason ?? "unknown"})`
 				);
 			}
-			const tokens =
-				(result.usage as { totalTokens?: number })?.totalTokens ??
-				((result.usage as { promptTokens?: number })?.promptTokens ?? 0) +
-					((result.usage as { completionTokens?: number })?.completionTokens ??
-						0);
+			const tokens = totalUsageTokens(result.usage);
 			if (tokens > 0 && options.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount: 1 },
+					{
+						tokens,
+						queryCount: 1,
+						...toTokenBreakdown(result.usage, result.providerMetadata),
+					},
 					{ username: options.username, model: modelId }
 				);
 			}
@@ -221,14 +222,14 @@ export class OpenAIProvider implements LLMProvider {
 			if (output === undefined || output === null) {
 				throw new Error("OpenAI API returned empty structured output");
 			}
-			const tokens =
-				(result.usage as { totalTokens?: number })?.totalTokens ??
-				((result.usage as { promptTokens?: number })?.promptTokens ?? 0) +
-					((result.usage as { completionTokens?: number })?.completionTokens ??
-						0);
+			const tokens = totalUsageTokens(result.usage);
 			if (tokens > 0 && options.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount: 1 },
+					{
+						tokens,
+						queryCount: 1,
+						...toTokenBreakdown(result.usage, result.providerMetadata),
+					},
 					{ username: options.username, model: modelId }
 				);
 			}

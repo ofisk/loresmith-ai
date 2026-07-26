@@ -362,6 +362,7 @@ export const ENDPOINTS = {
 			DASHBOARD: "/admin/telemetry/dashboard",
 			OVERVIEW: "/admin/telemetry/overview",
 			ALERTS: "/admin/telemetry/alerts",
+			COST_ATTRIBUTION: "/admin/telemetry/cost-attribution",
 		},
 	},
 } as const;

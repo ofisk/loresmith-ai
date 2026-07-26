@@ -1,4 +1,5 @@
 import { EmbeddingGenerationError, LLMProviderAPIKeyError } from "@/lib/errors";
+import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_TEXT_LIMIT = 8191; // Max input tokens for text-embedding-3-small
@@ -8,7 +9,7 @@ const EXPECTED_DIMENSIONS = 1536; // OpenAI text-embedding-3-small returns 1536 
 export interface EmbeddingOptions {
 	username?: string;
 	onUsage?: (
-		usage: { tokens: number; queryCount: number },
+		usage: LlmUsageReport,
 		context?: { model?: string }
 	) => void | Promise<void>;
 }
@@ -68,7 +69,8 @@ export class OpenAIEmbeddingService {
 			const tokens = result.usage?.total_tokens ?? 0;
 			if (tokens > 0 && options?.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount: 1 },
+					// Embeddings bill input only — there are no completion tokens.
+					{ tokens, queryCount: 1, promptTokens: tokens, completionTokens: 0 },
 					{ model: EMBEDDING_MODEL }
 				);
 			}
@@ -124,7 +126,8 @@ export class OpenAIEmbeddingService {
 			const tokens = result.usage?.total_tokens ?? 0;
 			if (tokens > 0 && options?.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount: 1 },
+					// Embeddings bill input only — there are no completion tokens.
+					{ tokens, queryCount: 1, promptTokens: tokens, completionTokens: 0 },
 					{ model: EMBEDDING_MODEL }
 				);
 			}

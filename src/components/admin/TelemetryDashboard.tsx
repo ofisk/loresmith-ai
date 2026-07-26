@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { CostAttributionPanel } from "@/components/admin/CostAttributionPanel";
 import {
 	useAdminTelemetryOverview,
 	useTelemetryDashboard,
@@ -188,6 +189,10 @@ export function TelemetryDashboard() {
 				{new Date(overview.window.to).toLocaleString()} · Last updated:{" "}
 				{new Date(overview.lastUpdated).toLocaleString()}
 			</p>
+
+			{/* Cost attribution (issue #738) — lead with spend, since it is the
+			    question the rest of the dashboard cannot answer. */}
+			<CostAttributionPanel fromDate={fromDate} toDate={toDate} />
 
 			{/* Processing + GraphRAG telemetry */}
 			<div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 md:p-6 flex-shrink-0 space-y-6">

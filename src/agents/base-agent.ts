@@ -25,6 +25,13 @@ import {
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
+import {
+	addTokenBreakdowns,
+	type LlmTokenBreakdown,
+	pickTokenBreakdown,
+	toTokenBreakdown,
+	totalUsageTokens,
+} from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import {
 	isVerboseLlmSpendEnabled,
@@ -507,36 +514,29 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 	 */
 	private async recordSummarizationUsage(
 		clientJwt: string | null,
-		usage:
-			| {
-					totalTokens?: number;
-					promptTokens?: number;
-					completionTokens?: number;
-			  }
-			| undefined,
+		/** Raw AI SDK usage; `toTokenBreakdown` normalises the field naming. */
+		usage: unknown,
 		modelId: string
 	): Promise<void> {
 		try {
 			const username = parseUsernameFromClientJwt(clientJwt);
 			if (!username) return;
 
-			const tokens =
-				usage?.totalTokens ??
-				(usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
+			const tokens = totalUsageTokens(usage);
 			const envRecord = this.env as Record<string, unknown> | undefined;
 
 			if (tokens > 0 && this.env?.DB) {
 				const rateLimitService = getLLMRateLimitService(
 					this.env as Parameters<typeof getLLMRateLimitService>[0]
 				);
-				await rateLimitService.recordUsage(username, tokens, 1, undefined, {
+				await rateLimitService.recordUsage(username, tokens, 1, modelId, {
 					intent: LLM_SPEND_INTENT.conversation_summary,
 					source: "base_agent:buildConversationContext",
 					agent: this.constructor.name,
-					model: modelId,
-					promptTokens: usage?.promptTokens,
-					completionTokens: usage?.completionTokens,
-					totalTokens: usage?.totalTokens,
+					// summarizeConversation() resolves its model from this tier.
+					modelRole: "PIPELINE_LIGHT",
+					...toTokenBreakdown(usage),
+					totalTokens: tokens,
 				});
 			} else if (isVerboseLlmSpendEnabled(envRecord)) {
 				logVerboseLlmSpend(envRecord, {
@@ -1083,11 +1083,22 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 		const MESSAGE_COMPRESSION_THRESHOLD = 30;
 
-		type TurnUsage = {
-			totalTokens?: number;
-			promptTokens?: number;
-			completionTokens?: number;
-		};
+		/**
+		 * Normalised token split for a turn. The raw AI SDK shape is not used
+		 * directly: v7 reports `inputTokens`/`outputTokens` while older paths use
+		 * `promptTokens`/`completionTokens`, and cost attribution (#738) cannot
+		 * price a turn from the aggregate alone — output tokens cost ~5x input.
+		 */
+		type TurnUsage = LlmTokenBreakdown & { totalTokens?: number };
+
+		/** Normalise one raw AI SDK usage object (plus provider metadata). */
+		const toTurnUsage = (
+			usage: unknown,
+			providerMetadata?: unknown
+		): TurnUsage => ({
+			...toTokenBreakdown(usage, providerMetadata),
+			totalTokens: totalUsageTokens(usage),
+		});
 
 		const totalTokensOf = (usage: TurnUsage | undefined): number => {
 			if (!usage) return 0;
@@ -1139,13 +1150,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					const rateLimitService = getLLMRateLimitService(
 						this.env as Parameters<typeof getLLMRateLimitService>[0]
 					);
-					await rateLimitService.recordUsage(username, tokens, 1, undefined, {
+					await rateLimitService.recordUsage(username, tokens, 1, modelId, {
 						intent: LLM_SPEND_INTENT.user_prompt,
 						source,
 						agent: this.constructor.name,
-						promptTokens: usage?.promptTokens,
-						completionTokens: usage?.completionTokens,
-						totalTokens: usage?.totalTokens,
+						modelRole: "INTERACTIVE",
+						...pickTokenBreakdown(usage),
+						totalTokens: tokens,
 					});
 					return;
 				}
@@ -1261,7 +1272,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				});
 				// Record LLM usage for rate limiting (chat consumes quota)
 				await recordTurnUsage(
-					(args?.totalUsage ?? args?.usage) as TurnUsage | undefined,
+					toTurnUsage(args?.totalUsage ?? args?.usage, args?.providerMetadata),
 					args?.finishReason ?? null,
 					"base_agent:onChatMessage"
 				);
@@ -1303,16 +1314,13 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 				const abortedUsage = steps.reduce<TurnUsage>(
 					(acc, step: any) => {
-						const usage = step?.usage as TurnUsage | undefined;
+						const usage = toTurnUsage(step?.usage, step?.providerMetadata);
 						return {
-							promptTokens:
-								(acc.promptTokens ?? 0) + (usage?.promptTokens ?? 0),
-							completionTokens:
-								(acc.completionTokens ?? 0) + (usage?.completionTokens ?? 0),
-							totalTokens: (acc.totalTokens ?? 0) + (usage?.totalTokens ?? 0),
+							...addTokenBreakdowns(acc, usage),
+							totalTokens: (acc.totalTokens ?? 0) + (usage.totalTokens ?? 0),
 						};
 					},
-					{ promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+					{ totalTokens: 0 }
 				);
 				await recordTurnUsage(
 					abortedUsage,

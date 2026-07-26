@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import type { EnvWithSecrets } from "@/lib/env-utils";
 import { getEnvVar } from "@/lib/env-utils";
+import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 
@@ -57,7 +58,7 @@ export interface EvaluateExtractionChunkGateOptions {
 	username: string;
 	campaignId: string;
 	onUsage?: (
-		usage: { tokens: number; queryCount: number },
+		usage: LlmUsageReport,
 		context?: { model?: string }
 	) => void | Promise<void>;
 }

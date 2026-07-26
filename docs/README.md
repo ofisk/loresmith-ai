@@ -142,6 +142,7 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
 
 ### Operations & Maintenance
 
+- **[Cost Attribution](COST_ATTRIBUTION.md)** - Per-agent/per-intent LLM spend, cost per tier, and cost anomaly alerts
 - **[Clear Production Data](CLEAR_PRODUCTION_DATA.md)** - Data cleanup procedures
 
 ## Quick links

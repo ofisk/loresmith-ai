@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
+import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
 import { formatCharacterSheetDetectionPrompt } from "@/lib/prompts/character-sheet-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
@@ -62,10 +63,7 @@ export class CharacterSheetDetectionService {
 		textContent: string,
 		options?: {
 			username?: string;
-			onUsage?: (usage: {
-				tokens: number;
-				queryCount: number;
-			}) => void | Promise<void>;
+			onUsage?: (usage: LlmUsageReport) => void | Promise<void>;
 		}
 	): Promise<CharacterSheetDetectionResult> {
 		if (!textContent || textContent.trim().length === 0) {
@@ -128,10 +126,7 @@ export class CharacterSheetDetectionService {
 		chunkContent: string,
 		options?: {
 			username?: string;
-			onUsage?: (usage: {
-				tokens: number;
-				queryCount: number;
-			}) => void | Promise<void>;
+			onUsage?: (usage: LlmUsageReport) => void | Promise<void>;
 		}
 	): Promise<CharacterSheetDetectionResult> {
 		const prompt = formatCharacterSheetDetectionPrompt(chunkContent);

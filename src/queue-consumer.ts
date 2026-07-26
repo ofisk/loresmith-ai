@@ -382,6 +382,9 @@ async function runFastScheduledTasks(
 	try {
 		const daoFactory = getDAOFactory(env);
 		await daoFactory.llmUsageDAO.pruneOldRows();
+		// Cost attribution keeps a much longer horizon than the rate-limit ledger
+		// (90 days vs 25 hours) so month-over-month comparisons stay possible.
+		await daoFactory.llmCostEventDAO.pruneOldRows();
 	} catch (error) {
 		log.error("Failed to prune LLM usage log", error);
 	}

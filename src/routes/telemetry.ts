@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { resolveCostAlertThresholds } from "@/config/cost-alert-thresholds";
 import type { AdminAnalyticsQueryOptions } from "@/dao/admin-analytics-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { LibraryEntityDAO } from "@/dao/library-entity-dao";
@@ -8,6 +9,8 @@ import { getRequestLogger } from "@/lib/logger";
 import { ensureCampaignAccess } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
+import { AlertService } from "@/services/telemetry/alert-service";
+import { CostAttributionService } from "@/services/telemetry/cost-attribution-service";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import type { AdminTelemetryOverviewResponse } from "@/types/admin-analytics";
 import type {
@@ -559,12 +562,75 @@ export async function handleGetAlerts(c: ContextWithAuth) {
 		throw error;
 	}
 
+	if (!c.env.DB) {
+		return c.json({ error: "Database not configured" }, 500);
+	}
+
 	try {
-		// TODO: Implement alert service to get active alerts
-		// For now, return empty array
-		return c.json({ alerts: [] });
+		const alertService = new AlertService(
+			getDAOFactory(c.env).llmCostEventDAO,
+			resolveCostAlertThresholds(c.env as unknown as Record<string, unknown>)
+		);
+		return c.json(await alertService.getActiveAlerts());
 	} catch (error) {
 		getRequestLogger(c).error("[handleGetAlerts] Failed to get alerts", error);
+		return c.json(
+			{
+				error: error instanceof Error ? error.message : "Internal server error",
+			},
+			500
+		);
+	}
+}
+
+/**
+ * GET /api/admin/telemetry/cost-attribution
+ * Spend broken down by agent, intent, model role, surface, and tier (admin only)
+ */
+export async function handleGetCostAttribution(c: ContextWithAuth) {
+	try {
+		requireAdmin(c);
+	} catch (error) {
+		if (error instanceof UserAuthenticationMissingError) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
+		if (error instanceof Error && error.message === "Admin access required") {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+		throw error;
+	}
+
+	if (!c.env.DB) {
+		return c.json({ error: "Database not configured" }, 500);
+	}
+
+	const now = Date.now();
+	const fromDate =
+		c.req.query("fromDate") ||
+		new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+	const toDate = c.req.query("toDate") || new Date(now).toISOString();
+	const topN = Math.min(
+		50,
+		Math.max(1, Number.parseInt(c.req.query("topN") || "25", 10) || 25)
+	);
+	const spenderLimit = Math.min(
+		50,
+		Math.max(1, Number.parseInt(c.req.query("spenderLimit") || "10", 10) || 10)
+	);
+
+	try {
+		const service = new CostAttributionService(
+			getDAOFactory(c.env).llmCostEventDAO
+		);
+		const body = await service.getAttribution({
+			fromDate,
+			toDate,
+			topN,
+			spenderLimit,
+		});
+		return c.json(body);
+	} catch (error) {
+		getRequestLogger(c).error("[handleGetCostAttribution] Failed", error);
 		return c.json(
 			{
 				error: error instanceof Error ? error.message : "Internal server error",
