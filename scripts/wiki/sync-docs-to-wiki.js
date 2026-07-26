@@ -145,6 +145,11 @@ const FILE_MAPPINGS = [
 		process: true,
 	},
 	{
+		src: "docs/GENERATED_AUDIO.md",
+		dest: "Technical/Generated-Audio.md",
+		process: true,
+	},
+	{
 		src: "docs/LARGE_FILE_SUPPORT.md",
 		dest: "Technical/Large-File-Support.md",
 		process: true,
@@ -328,6 +333,7 @@ function createSidebar() {
 - [[Technical/Continuity-Checker|Continuity checker]]
 - [[Technical/Session-Runsheet|Session runsheet]]
 - [[Technical/Player-Recap-Emails|Player recap emails]]
+- [[Technical/Generated-Audio|Generated audio]]
 - [[Technical/Assessment-System|Assessment system]]
 - [[Technical/Checklist-Status-System|Checklist status system]]
 

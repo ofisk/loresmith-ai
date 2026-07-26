@@ -80,8 +80,8 @@ function makeEnv(overrides: Record<string, unknown> = {}) {
 		},
 		AI: { run: vi.fn().mockResolvedValue(new Uint8Array(48_000).fill(7)) },
 		...overrides,
-		// biome-ignore lint/suspicious/noExplicitAny: test env stand-in
-	} as any;
+		// A stand-in for the Worker Env; only the bindings used here are real.
+	} as unknown as Parameters<typeof runAudioGeneration>[0];
 }
 
 beforeEach(() => {
