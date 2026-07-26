@@ -150,6 +150,7 @@ graph TB
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System architecture deep dive
 - **[GraphRAG Integration](docs/GRAPHRAG_INTEGRATION.md)** - How GraphRAG powers campaign queries
 - **[API Documentation](docs/API.md)** - API endpoint reference
+- **[Tool System](docs/TOOL_SYSTEM.md)** - Tool architecture and how to add a new AI tool
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Testing documentation
 
 ### Technical Documentation
