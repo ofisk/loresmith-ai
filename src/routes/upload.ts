@@ -182,7 +182,11 @@ export async function handleDirectUpload(c: ContextWithAuth) {
 			directUploadLog.debug("Inserted file metadata", { key });
 		} catch (error) {
 			directUploadLog.error("Failed to insert file metadata", error);
-			// Don't fail the upload if metadata insertion fails
+			// The metadata row is a hard prerequisite, not optional bookkeeping:
+			// SyncQueueService.processFileUpload() looks it up via getFileForRag() and
+			// throws "File metadata not found in database" without it. Swallowing here
+			// hid a schema drift for months behind that misleading downstream error.
+			throw error;
 		}
 
 		// Extract JWT token from Authorization header
@@ -821,7 +825,10 @@ export async function handleCompleteLargeUpload(c: ContextWithAuth) {
 			log.debug("Inserted file metadata", { fileKey: session.fileKey });
 		} catch (error) {
 			log.error("Failed to insert file metadata", error);
-			// Don't fail the upload if metadata insertion fails
+			// See handleDirectUpload: the metadata row is required by
+			// SyncQueueService.processFileUpload(), so a failure here must surface now
+			// rather than resurfacing as "File metadata not found in database".
+			throw error;
 		}
 
 		// Extract JWT token from Authorization header
