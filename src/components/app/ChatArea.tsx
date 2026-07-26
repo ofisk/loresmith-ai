@@ -60,6 +60,8 @@ interface ChatAreaProps {
 	onWorkOnNextStep?: (stepLabel: string) => void;
 	/** When provided, used as step labels for "Work on this" buttons (e.g. from planning-tasks API). */
 	openPlanningTaskTitles?: string[];
+	/** Resumes the newest reply that was stopped before it finished. */
+	onContinueGeneration?: () => void;
 }
 
 /**
@@ -90,6 +92,7 @@ export function ChatArea({
 	onRegenerate,
 	onWorkOnNextStep,
 	openPlanningTaskTitles,
+	onContinueGeneration,
 }: ChatAreaProps) {
 	const [placeholder] = useState(() => getRandomPrompt());
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
@@ -378,6 +381,8 @@ export function ChatArea({
 					invisibleUserContents={invisibleUserContents}
 					onWorkOnNextStep={onWorkOnNextStep}
 					openPlanningTaskTitles={openPlanningTaskTitles}
+					onContinueGeneration={onContinueGeneration}
+					isStreaming={isLoading}
 				/>
 
 				{/* Thinking Spinner - shown when agent is processing */}
@@ -418,12 +423,16 @@ export function ChatArea({
 							style={{ height: textareaHeight }}
 						/>
 						<div className="absolute bottom-1 right-1 p-1.5 w-fit flex flex-row justify-end">
-							{isLoading ? (
+							{/* While streaming, an empty box offers Stop. Once the user types,
+							    it turns back into Send — which interrupts the current reply
+							    before sending, matching what Enter does. */}
+							{isLoading && !(input ?? "").trim() ? (
 								<button
 									type="button"
 									onClick={onStop}
 									className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 h-fit border border-primary/35 dark:border-primary/40 shadow-sm backdrop-blur-sm"
 									aria-label="Stop generation"
+									title="Stop generating"
 								>
 									<Stop size={16} />
 								</button>
@@ -435,6 +444,11 @@ export function ChatArea({
 										pendingToolCallConfirmation || !(input ?? "").trim()
 									}
 									aria-label="Send message"
+									title={
+										isLoading
+											? "Send — this stops the current reply"
+											: undefined
+									}
 								>
 									<PaperPlaneRight size={16} />
 								</button>

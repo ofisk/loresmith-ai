@@ -32,6 +32,19 @@ const toolsRequiringConfirmation: (
 
 const CHAT_HISTORY_PAGE_SIZE = 50;
 
+/**
+ * How long to wait for an interrupted turn to unwind before sending the next
+ * one. `stop()` resolves as soon as it calls `abort()`, not when the stream has
+ * actually torn down, so we wait for the hook's own status to go idle. The
+ * server-side supersede guard covers us if this ever times out.
+ */
+const INTERRUPT_SETTLE_TIMEOUT_MS = 2000;
+const INTERRUPT_SETTLE_POLL_MS = 25;
+
+/** Hidden prompt used by "Continue" to resume an interrupted response. */
+const CONTINUE_GENERATION_PROMPT =
+	"Please continue your previous response from where it was interrupted. Do not repeat what you already said.";
+
 function extractMessageText(msg: Message): string {
 	if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
 	if (msg.parts?.length) {
@@ -203,6 +216,59 @@ export function useChatSession(options: UseChatSessionOptions) {
 	const isLoading = chatStatus === "submitted" || chatStatus === "streaming";
 	const setShowAuthModal = modalState.setShowAuthModal;
 
+	// Read during callbacks that must not re-create themselves on every status
+	// change. Assigned in the render body so it tracks the committed status.
+	const isLoadingRef = useRef(isLoading);
+	isLoadingRef.current = isLoading;
+
+	/**
+	 * Tag the in-flight assistant message as interrupted so the pane can show a
+	 * "Stopped" badge and a Continue action. The server persists the same flag on
+	 * the partial message, so the state survives a reload.
+	 */
+	const markLastAssistantInterrupted = useCallback(() => {
+		setChatMessages((prev) => {
+			const list = prev as Message[];
+			const lastIndex = list.length - 1;
+			const last = list[lastIndex];
+			if (!last || last.role !== "assistant") return prev;
+			if ((last.data as { interrupted?: boolean } | undefined)?.interrupted)
+				return prev;
+			return [
+				...list.slice(0, lastIndex),
+				{ ...last, data: { ...last.data, interrupted: true } },
+			] as typeof prev;
+		});
+	}, [setChatMessages]);
+
+	/** Stop the current turn. Safe to call when nothing is streaming. */
+	const handleStop = useCallback(() => {
+		if (!isLoadingRef.current) return;
+		void stop();
+		markLastAssistantInterrupted();
+		setAgentStatus(null);
+	}, [stop, markLastAssistantInterrupted]);
+
+	/**
+	 * Interrupt the in-flight turn and wait for it to settle.
+	 *
+	 * Sending a second message while one is streaming used to start a concurrent
+	 * request: the AI SDK overwrites its `activeResponse`, so both streams write
+	 * into the same message list and the pane fills with interleaved output.
+	 * A new message now always supersedes the turn before it.
+	 */
+	const interruptActiveTurn = useCallback(async () => {
+		if (!isLoadingRef.current) return;
+		handleStop();
+
+		const deadline = Date.now() + INTERRUPT_SETTLE_TIMEOUT_MS;
+		while (isLoadingRef.current && Date.now() < deadline) {
+			await new Promise((resolve) =>
+				setTimeout(resolve, INTERRUPT_SETTLE_POLL_MS)
+			);
+		}
+	}, [handleStop]);
+
 	const invisibleUserContentsRef = useRef<Set<string>>(new Set());
 	const [invisibleUserContentsVersion, setInvisibleUserContentsVersion] =
 		useState(0);
@@ -242,7 +308,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 	);
 
 	const append = useCallback(
-		(message: {
+		async (message: {
 			id?: string;
 			role: string;
 			content: string;
@@ -253,7 +319,11 @@ export function useChatSession(options: UseChatSessionOptions) {
 			const enrichedData = { ...baseData, sessionId: conversationId };
 
 			if (message.role === "user") {
-				void sendMessage({
+				// Every user-message path (typing, suggestions, help, recap, next
+				// steps, "Work on this") funnels through here, so this is the one
+				// place that has to guarantee a single in-flight turn.
+				await interruptActiveTurn();
+				await sendMessage({
 					text: text || " ",
 					metadata: enrichedData,
 				});
@@ -268,7 +338,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 				setChatMessages((prev) => [...prev, newMsg] as typeof prev);
 			}
 		},
-		[sendMessage, setChatMessages, conversationId]
+		[sendMessage, setChatMessages, conversationId, interruptActiveTurn]
 	);
 
 	const dispatchedCreateCampaignIdsRef = useRef<Set<string>>(new Set());
@@ -534,7 +604,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 			const jwt = authState.getStoredJwt();
 			addToInvisible(suggestion);
 
-			append({
+			void append({
 				role: "user",
 				content: suggestion,
 				data: jwt
@@ -558,7 +628,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 			if (action === "open_help") {
 				const cached = getCachedHelp("open_help");
 				if (cached) {
-					append({
+					void append({
 						role: "assistant",
 						content: cached,
 						data: authState.getStoredJwt()
@@ -575,7 +645,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 				const helpPrompt =
 					"I need help with LoreSmith. Please act as a help agent: explain what you can help me with, give example questions I can ask, and share guidance on app functionality and best practices. Base your response on the product documentation and how the app is designed to be used.";
 				addToInvisible(helpPrompt);
-				append({
+				void append({
 					role: "user",
 					content: helpPrompt,
 					data: jwt
@@ -598,7 +668,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 			}
 			const jwt = authState.getStoredJwt();
 			const response = getHelpContent(action);
-			append({
+			void append({
 				role: "assistant",
 				content: response,
 				data: jwt
@@ -698,7 +768,9 @@ export function useChatSession(options: UseChatSessionOptions) {
 
 		const jwt = authState.getStoredJwt();
 
-		append({
+		// `append` interrupts any in-flight turn first, so the input can be cleared
+		// immediately — the message is already captured.
+		void append({
 			role: "user",
 			content: agentInput ?? "",
 			data: jwt
@@ -736,6 +808,31 @@ export function useChatSession(options: UseChatSessionOptions) {
 		[submitAgentMessage]
 	);
 
+	/**
+	 * Resume an interrupted response. The model still has its own partial text in
+	 * context, so it picks up where it stopped rather than starting over. The
+	 * prompt itself is hidden from the transcript.
+	 */
+	const handleContinueGeneration = useCallback(() => {
+		if (isLoadingRef.current) return;
+		const jwt = authState.getStoredJwt();
+		addToInvisible(CONTINUE_GENERATION_PROMPT);
+		void append({
+			role: "user",
+			content: CONTINUE_GENERATION_PROMPT,
+			data: jwt
+				? { jwt, campaignId: selectedCampaignId ?? null }
+				: { campaignId: selectedCampaignId ?? null },
+		});
+		scrollToBottom();
+	}, [
+		append,
+		authState.getStoredJwt,
+		selectedCampaignId,
+		addToInvisible,
+		scrollToBottom,
+	]);
+
 	return {
 		messages: agentMessages,
 		isLoading,
@@ -748,7 +845,8 @@ export function useChatSession(options: UseChatSessionOptions) {
 		handleHelpAction,
 		handleSessionRecapRequest,
 		handleNextStepsRequest,
-		stop,
+		stop: handleStop,
+		handleContinueGeneration,
 		pendingToolCallConfirmation,
 		formatTime,
 		chatHistoryLoaded,

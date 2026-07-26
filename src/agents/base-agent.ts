@@ -644,7 +644,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 	 * - Streaming response generation
 	 *
 	 * @param onFinish - Callback function called when the response is complete
-	 * @param _options - Optional configuration including abort signal
+	 * @param options - Optional configuration including an abort signal. When the
+	 *   signal fires (user pressed Stop, or a newer turn superseded this one) the
+	 *   in-flight LLM call and tool loop are cancelled and whatever text was
+	 *   generated so far is persisted as an interrupted assistant message.
 	 *
 	 * @returns Promise that resolves when the response is complete
 	 *
@@ -657,8 +660,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 	 */
 	async onChatMessage(
 		onFinish: (message: any) => void | Promise<void>,
-		_options?: { abortSignal?: AbortSignal }
+		options?: { abortSignal?: AbortSignal }
 	): Promise<Response> {
+		const abortSignal = options?.abortSignal;
 		const log = createLogger(
 			this.env as Record<string, unknown>,
 			`[${this.constructor.name}]`
@@ -1079,6 +1083,131 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 
 		const MESSAGE_COMPRESSION_THRESHOLD = 30;
 
+		type TurnUsage = {
+			totalTokens?: number;
+			promptTokens?: number;
+			completionTokens?: number;
+		};
+
+		const totalTokensOf = (usage: TurnUsage | undefined): number => {
+			if (!usage) return 0;
+			return (
+				usage.totalTokens ??
+				(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
+			);
+		};
+
+		/** Diagnostic payload for spends that were not written to D1. */
+		const buildVerboseUsageExtras = (
+			usage: TurnUsage | undefined,
+			finishReason: string | null,
+			tokens: number
+		): Record<string, unknown> => {
+			const extras: Record<string, unknown> = {
+				finishReason: finishReason ?? null,
+				agent: this.constructor.name,
+			};
+			if (usage) {
+				extras.promptTokens = usage.promptTokens;
+				extras.completionTokens = usage.completionTokens;
+				extras.totalTokens = usage.totalTokens;
+			} else {
+				extras.usageUnavailable = true;
+			}
+			if (tokens > 0 && !this.env?.DB) extras.d1Unavailable = true;
+			if (tokens === 0) extras.zeroTokenFinish = true;
+			return extras;
+		};
+
+		/**
+		 * Record token spend for this turn. Called from both the normal finish
+		 * path and the abort path — an interrupted turn still burned the tokens
+		 * it produced before the user stopped it, so it still counts against quota.
+		 */
+		const recordTurnUsage = async (
+			usage: TurnUsage | undefined,
+			finishReason: string | null,
+			source: string
+		) => {
+			if (!clientJwt || isHelpRequestForUsage) return;
+			try {
+				const username = parseUsernameFromClientJwt(clientJwt);
+				const tokens = totalTokensOf(usage);
+				const envRecord = this.env as Record<string, unknown> | undefined;
+
+				if (username && tokens > 0 && this.env?.DB) {
+					const rateLimitService = getLLMRateLimitService(
+						this.env as Parameters<typeof getLLMRateLimitService>[0]
+					);
+					await rateLimitService.recordUsage(username, tokens, 1, undefined, {
+						intent: LLM_SPEND_INTENT.user_prompt,
+						source,
+						agent: this.constructor.name,
+						promptTokens: usage?.promptTokens,
+						completionTokens: usage?.completionTokens,
+						totalTokens: usage?.totalTokens,
+					});
+					return;
+				}
+
+				if (!username || !isVerboseLlmSpendEnabled(envRecord)) return;
+				logVerboseLlmSpend(envRecord, {
+					intent: LLM_SPEND_INTENT.user_prompt,
+					source,
+					username,
+					tokens,
+					queryCount: 1,
+					extras: buildVerboseUsageExtras(usage, finishReason, tokens),
+				});
+			} catch (err) {
+				log.warn("Failed to record LLM usage", err);
+			}
+		};
+
+		/**
+		 * Persist an assistant turn to D1. Shared by the finish and abort paths so
+		 * a stopped turn keeps the text it already streamed to the user instead of
+		 * disappearing on the next history load.
+		 */
+		const persistAssistantTurn = async (
+			text: string,
+			extra?: {
+				explainability?: Explainability | null;
+				interrupted?: boolean;
+			}
+		) => {
+			const content = sanitizeGeneratedAssistantText(text);
+			if (!content.trim()) return;
+			if (!(this.env && "DB" in this.env && this.env.DB)) return;
+
+			const assistantData: {
+				jwt?: string | null;
+				campaignId?: string | null;
+				sessionId?: string;
+				explainability?: Explainability | null;
+				interrupted?: boolean;
+			} = {};
+			if (clientJwt) assistantData.jwt = clientJwt;
+			if (selectedCampaignId) assistantData.campaignId = selectedCampaignId;
+			const sessionIdFromUser = (lastUserMessage as any)?.data?.sessionId;
+			assistantData.sessionId =
+				(typeof sessionIdFromUser === "string" &&
+					sessionIdFromUser.length > 0 &&
+					sessionIdFromUser) ||
+				this.ctx?.id?.toString() ||
+				`session-${Date.now()}`;
+			if (extra?.explainability)
+				assistantData.explainability = extra.explainability;
+			if (extra?.interrupted) assistantData.interrupted = true;
+
+			const assistantMessage: ChatMessage = {
+				role: "assistant",
+				content,
+				data: assistantData,
+			};
+			await this.storeMessageToDatabase(assistantMessage);
+		};
+
 		const sampling =
 			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
 				? anthropicSamplingParams(
@@ -1095,6 +1224,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			tools: enhancedTools,
 			...sampling,
 			maxOutputTokens: MODEL_CONFIG.PARAMETERS.MAX_TOKENS,
+			// Cancels the provider call and the multi-step tool loop when the user
+			// stops the turn. Without this a "stopped" turn keeps generating (and
+			// keeps billing) server-side long after the client stopped listening.
+			...(abortSignal ? { abortSignal } : {}),
 			stopWhen: stepCountIs(MAX_AGENT_STEPS),
 			prepareStep: async ({ messages }) => {
 				if (messages.length > MESSAGE_COMPRESSION_THRESHOLD) {
@@ -1127,72 +1260,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					durationMs: Date.now() - turnStartedAt,
 				});
 				// Record LLM usage for rate limiting (chat consumes quota)
-				if (clientJwt && !isHelpRequestForUsage) {
-					try {
-						const username = parseUsernameFromClientJwt(clientJwt);
-						const usage = (args?.totalUsage ?? args?.usage) as
-							| {
-									totalTokens?: number;
-									promptTokens?: number;
-									completionTokens?: number;
-							  }
-							| undefined;
-						const tokens = usage
-							? (usage.totalTokens ??
-								(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0))
-							: 0;
-						const envRecord = this.env as Record<string, unknown> | undefined;
-						const verbose = isVerboseLlmSpendEnabled(envRecord);
-
-						if (username && tokens > 0 && this.env?.DB) {
-							const rateLimitService = getLLMRateLimitService(
-								this.env as Parameters<typeof getLLMRateLimitService>[0]
-							);
-							await rateLimitService.recordUsage(
-								username,
-								tokens,
-								1,
-								undefined,
-								{
-									intent: LLM_SPEND_INTENT.user_prompt,
-									source: "base_agent:onChatMessage",
-									agent: this.constructor.name,
-									promptTokens: usage?.promptTokens,
-									completionTokens: usage?.completionTokens,
-									totalTokens: usage?.totalTokens,
-								}
-							);
-						} else if (verbose && username) {
-							const extras: Record<string, unknown> = {
-								finishReason: args?.finishReason ?? null,
-								agent: this.constructor.name,
-							};
-							if (usage) {
-								extras.promptTokens = usage.promptTokens;
-								extras.completionTokens = usage.completionTokens;
-								extras.totalTokens = usage.totalTokens;
-							} else {
-								extras.usageUnavailable = true;
-							}
-							if (tokens > 0 && !this.env?.DB) {
-								extras.d1Unavailable = true;
-							}
-							if (tokens === 0) {
-								extras.zeroTokenFinish = true;
-							}
-							logVerboseLlmSpend(envRecord, {
-								intent: LLM_SPEND_INTENT.user_prompt,
-								source: "base_agent:onChatMessage",
-								username,
-								tokens,
-								queryCount: 1,
-								extras,
-							});
-						}
-					} catch (err) {
-						log.warn("Failed to record LLM usage", err);
-					}
-				}
+				await recordTurnUsage(
+					(args?.totalUsage ?? args?.usage) as TurnUsage | undefined,
+					args?.finishReason ?? null,
+					"base_agent:onChatMessage"
+				);
 				// Persist assistant message with explainability
 				try {
 					const fullText = await result.text;
@@ -1202,39 +1274,60 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					} catch (e) {
 						log.warn("Failed to build explainability", e);
 					}
-					const assistantData: {
-						jwt?: string | null;
-						campaignId?: string | null;
-						sessionId?: string;
-						explainability?: Explainability | null;
-					} = {};
-					if (clientJwt) assistantData.jwt = clientJwt;
-					if (selectedCampaignId) assistantData.campaignId = selectedCampaignId;
-					const sessionIdFromUser = (lastUserMessage as any)?.data?.sessionId;
-					assistantData.sessionId =
-						(typeof sessionIdFromUser === "string" &&
-							sessionIdFromUser.length > 0 &&
-							sessionIdFromUser) ||
-						this.ctx?.id?.toString() ||
-						`session-${Date.now()}`;
-					if (explainability) assistantData.explainability = explainability;
-					const assistantMessage: ChatMessage = {
-						role: "assistant",
-						content: sanitizeGeneratedAssistantText(fullText),
-						data: assistantData,
-					};
-					if (this.env && "DB" in this.env && this.env.DB) {
-						this.storeMessageToDatabase(assistantMessage).catch((error) => {
+					void persistAssistantTurn(fullText, { explainability }).catch(
+						(error) => {
 							log.error(
 								"Failed to store assistant message to database:",
 								error
 							);
-						});
-					}
+						}
+					);
 				} catch (persistError) {
 					log.error("Error while persisting assistant message:", persistError);
 				}
 				await (onFinish ?? (() => {}))(args);
+			},
+			onAbort: async ({ steps }) => {
+				// The user pressed Stop, or a newer message superseded this turn.
+				// Keep whatever was already generated so the conversation reflects
+				// reality instead of silently dropping a half-finished answer.
+				const partialText = steps
+					.map((step: any) => step?.text ?? "")
+					.join("")
+					.trim();
+				log.info("LLM turn aborted", {
+					stepCount: steps.length,
+					partialTextLength: partialText.length,
+					durationMs: Date.now() - turnStartedAt,
+				});
+
+				const abortedUsage = steps.reduce<TurnUsage>(
+					(acc, step: any) => {
+						const usage = step?.usage as TurnUsage | undefined;
+						return {
+							promptTokens:
+								(acc.promptTokens ?? 0) + (usage?.promptTokens ?? 0),
+							completionTokens:
+								(acc.completionTokens ?? 0) + (usage?.completionTokens ?? 0),
+							totalTokens: (acc.totalTokens ?? 0) + (usage?.totalTokens ?? 0),
+						};
+					},
+					{ promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+				);
+				await recordTurnUsage(
+					abortedUsage,
+					"abort",
+					"base_agent:onChatMessage_aborted"
+				);
+
+				try {
+					await persistAssistantTurn(partialText, { interrupted: true });
+				} catch (persistError) {
+					log.error(
+						"Error while persisting interrupted assistant message:",
+						persistError
+					);
+				}
 			},
 			onError: (errorObj) => {
 				const error = errorObj.error as Error & Record<string, any>;

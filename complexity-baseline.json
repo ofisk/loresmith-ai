@@ -17,10 +17,6 @@
 			"ccn": 19,
 			"count": 1
 		},
-		"src/agents/base-agent.ts::onFinish": {
-			"ccn": 41,
-			"count": 1
-		},
 		"src/components/BlockingAuthenticationModal.tsx::handleGoogleCompleteSignup": {
 			"ccn": 17,
 			"count": 1
