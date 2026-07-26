@@ -83,7 +83,12 @@ describe("usePlayerRecaps", () => {
 
 	it("loads the audience preview", async () => {
 		const recipients = [
-			{ username: "ana", email: "ana@example.com", eligible: true, reason: "ok" },
+			{
+				username: "ana",
+				email: "ana@example.com",
+				eligible: true,
+				reason: "ok",
+			},
 			{ username: "bo", email: null, eligible: false, reason: "no_email" },
 		];
 		makeRequestWithData.mockResolvedValue({ recipients });
