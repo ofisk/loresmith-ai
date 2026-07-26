@@ -6,6 +6,11 @@ import { getMessageHistory } from "@/tools/message-history-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {
+	checkCampaignContinuityTool,
+	listContinuityFindingsTool,
+	resolveContinuityFindingTool,
+} from "./continuity-tools";
+import {
 	checkHouseRuleConflictTool,
 	defineHouseRuleTool,
 	deleteEntityTool,
@@ -60,6 +65,9 @@ export const campaignContextToolsBundle = {
 	listHouseRulesTool,
 	updateHouseRuleTool,
 	checkHouseRuleConflictTool,
+	checkCampaignContinuityTool,
+	listContinuityFindingsTool,
+	resolveContinuityFindingTool,
 	getMessageHistory,
 	getChecklistStatusTool,
 	recordPlanningTasks,

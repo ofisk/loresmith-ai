@@ -45,6 +45,12 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
 
 - **[Library entity pipeline](LIBRARY_ENTITY_PIPELINE.md)** - Library-scoped discovery, campaign copy, API fields, retries, and schema notes
 
+- **[Campaign Continuity Checker](CONTINUITY_CHECKER.md)** - Finding contradictions across digests, world state and entities
+  - Detection types and data sources
+  - False-positive controls and dismissal memory
+  - Incremental scans and the two-tier cost model
+  - API, agent tools and tuning constants
+
 - **[Authentication Flow](AUTHENTICATION_FLOW.md)** - Authentication system documentation
   - JWT-based authentication
   - API key management
