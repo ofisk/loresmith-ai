@@ -61,3 +61,52 @@ export function logVerboseLlmSpend(
 		...(extras && Object.keys(extras).length > 0 ? { extras } : {}),
 	});
 }
+
+export type VerboseAudioSpendPayload = {
+	intent: LlmSpendIntent;
+	source?: string;
+	username?: string;
+	/** Seconds of audio produced — the billed unit for generative audio. */
+	seconds: number;
+	/**
+	 * True when `seconds` was derived from encoded byte length rather than
+	 * reported by the provider. Surfaced so a cost view never presents an
+	 * estimate as a measurement.
+	 */
+	secondsAreEstimate: boolean;
+	provider: string;
+	model?: string;
+	campaignId?: string;
+	/** Small, bounded context — never full prompts */
+	extras?: Record<string, unknown>;
+};
+
+/**
+ * Structured info log for generated-audio spend (issue #756).
+ *
+ * Deliberately a separate event from `llm_token_spend` rather than a token log
+ * with `tokens: 0`. Audio is priced per second of output, and folding seconds
+ * into a token field would silently corrupt every token total that greps this
+ * drain. Same verbose flag and same `intent` vocabulary, different unit — so the
+ * per-intent cost view can show audio alongside text without ever adding the two
+ * numbers together.
+ */
+export function logVerboseAudioSpend(
+	env: EnvWithSecrets | Record<string, unknown> | undefined,
+	payload: VerboseAudioSpendPayload
+): void {
+	if (!readVerboseFlag(env as Record<string, unknown> | undefined)) {
+		return;
+	}
+	const log = createLogger(
+		env as Record<string, unknown> | undefined,
+		"[LLM_USAGE]"
+	);
+	const { extras, ...rest } = payload;
+	log.info("audio_seconds_spend", {
+		event: "audio_seconds_spend",
+		unit: "seconds",
+		...rest,
+		...(extras && Object.keys(extras).length > 0 ? { extras } : {}),
+	});
+}

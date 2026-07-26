@@ -3,6 +3,11 @@
 import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import { searchVisualInspirationTool } from "@/tools/campaign/file-tools";
 import { getMessageHistory } from "@/tools/message-history-tools";
+import {
+	deleteCampaignAudioTool,
+	generateCampaignAudioTool,
+	listCampaignAudioTool,
+} from "./audio-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {
@@ -77,6 +82,11 @@ export const campaignContextToolsBundle = {
 	captureConversationalContext,
 	generateHandoutTool,
 	exportHandoutTool,
+	// Generated audio (#756). GM-only: a track title is built from campaign
+	// entities, so listing tracks reveals what is coming.
+	generateCampaignAudioTool,
+	listCampaignAudioTool,
+	deleteCampaignAudioTool,
 };
 
 /** Player-facing subset: search, list (sanitized), campaign details, message history */

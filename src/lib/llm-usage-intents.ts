@@ -16,6 +16,14 @@
  * | session_plan_readout | Session plan readout (stitch / single-shot plan LLM) |
  * | conversation_summary | Rolling summarization of older chat turns |
  * | agent_routing | Agent selection classifier (per-message routing tax) |
+ * | audio_ambience | Generated scene ambience (per second of audio, not tokens) |
+ * | audio_music | Generated campaign/faction theme music (per second) |
+ * | audio_voice | NPC voice and creature vocalization TTS (per second) |
+ *
+ * The three `audio_*` intents share this vocabulary so audio lands in the same
+ * per-intent cost view as everything else, but they are metered in SECONDS of
+ * output rather than tokens — see `logVerboseAudioSpend` in
+ * `src/lib/llm-usage-verbose-log.ts`. Do not add them to token-based totals.
  */
 export const LLM_SPEND_INTENT = {
 	user_prompt: "user_prompt",
@@ -30,10 +38,27 @@ export const LLM_SPEND_INTENT = {
 	session_plan_readout: "session_plan_readout",
 	conversation_summary: "conversation_summary",
 	agent_routing: "agent_routing",
+	audio_ambience: "audio_ambience",
+	audio_music: "audio_music",
+	audio_voice: "audio_voice",
 } as const;
 
 export type LlmSpendIntent =
 	(typeof LLM_SPEND_INTENT)[keyof typeof LLM_SPEND_INTENT];
+
+/**
+ * Map an audio kind onto its spend intent.
+ *
+ * Creature vocalizations bill as `audio_voice` regardless of which provider
+ * serves them, because the cost line the user cares about is "sounds coming out
+ * of a mouth", not which model happened to make it.
+ */
+export const AUDIO_KIND_SPEND_INTENT = {
+	ambience: LLM_SPEND_INTENT.audio_ambience,
+	music: LLM_SPEND_INTENT.audio_music,
+	voice: LLM_SPEND_INTENT.audio_voice,
+	creature: LLM_SPEND_INTENT.audio_voice,
+} as const satisfies Record<string, LlmSpendIntent>;
 
 /**
  * Whether spend blocks a user (`interactive`) or runs in the background

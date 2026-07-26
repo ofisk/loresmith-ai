@@ -10,6 +10,7 @@ import { EntityImportanceService } from "@/services/graph/entity-importance-serv
 import { RebuildTriggerService } from "@/services/graph/rebuild-trigger-service";
 import { AdminAnalyticsDAO } from "./admin-analytics-dao";
 import { AuthUserDAO } from "./auth-user-dao";
+import { CampaignAudioDAO } from "./campaign-audio-dao";
 import { CampaignDAO } from "./campaign-dao";
 import { CampaignResourceProposalDAO } from "./campaign-resource-proposal-dao";
 import { CampaignShareLinkDAO } from "./campaign-share-link-dao";
@@ -58,6 +59,7 @@ export interface DAOFactory {
 	authUserDAO: AuthUserDAO;
 	userDAO: UserDAO;
 	campaignDAO: CampaignDAO;
+	campaignAudioDAO: CampaignAudioDAO;
 	fileDAO: FileDAO;
 	shardDAO: ShardDAO;
 	entityDAO: EntityDAO;
@@ -136,6 +138,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly fileRetryUsageDAO: FileRetryUsageDAO;
 	public readonly resourceAddLogDAO: ResourceAddLogDAO;
 	public readonly runsheetDAO: RunsheetDAO;
+	public readonly campaignAudioDAO: CampaignAudioDAO;
 	private _entityGraphService: EntityGraphService | null = null;
 	private _entityImportanceService: EntityImportanceService | null = null;
 	private _rebuildTriggerService: RebuildTriggerService | null = null;
@@ -178,6 +181,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.fileRetryUsageDAO = new FileRetryUsageDAO(db);
 		this.resourceAddLogDAO = new ResourceAddLogDAO(db);
 		this.runsheetDAO = new RunsheetDAO(db);
+		this.campaignAudioDAO = new CampaignAudioDAO(db);
 	}
 
 	async getStorageUsage(username: string): Promise<UserStorageUsage> {
