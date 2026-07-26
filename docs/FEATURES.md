@@ -142,6 +142,26 @@ LoreSmith automatically generates rich metadata for uploaded files:
 - Recent world state changes
 - Session history integration
 
+**Answer Sources ("why this answer")**
+
+Every assistant response that consulted your materials carries a **Sources** panel
+showing what the retrieval actually read:
+
+![Answer sources panel](images/answer-sources-panel.png)
+
+- Entities, session digest sections, and document excerpts, each with a snippet
+- A relevance percentage, shown only for genuine semantic scores — the fallback
+  paths (name match, graph traversal, lexical scan) assign fixed placeholders and
+  are deliberately left unscored rather than presented as confidence
+- Click an entity or document to open it
+- An explicit **"No campaign sources"** banner when retrieval ran and found
+  nothing, so an ungrounded answer never reads like a grounded one
+- A thumbs up/down that records context accuracy against the retrieval it rates
+  (`POST /api/telemetry/context-accuracy`)
+
+Sources are derived from tool results that have already passed the role-based
+sanitizers, so a player never sees a GM-only source in a citation list.
+
 **Semantic Search**
 
 - Meaning-based search (not just keywords)

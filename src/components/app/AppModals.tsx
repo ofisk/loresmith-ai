@@ -3,6 +3,7 @@ import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
 import { BlockingAuthenticationModal } from "@/components/BlockingAuthenticationModal";
 import { QuotaWarningModal } from "@/components/billing/QuotaWarningModal";
 import { Button } from "@/components/button/Button";
+import { SourceEntityModal } from "@/components/graph/SourceEntityModal";
 import { Modal } from "@/components/modal/Modal";
 import {
 	RateLimitReachedModal,
@@ -671,6 +672,9 @@ export function AppModals({
 				onClose={modalState.handleUsageLimitsClose}
 				limits={billingLimits}
 			/>
+
+			{/* Entity opened from a source cited in a chat response */}
+			<SourceEntityModal />
 		</>
 	);
 }

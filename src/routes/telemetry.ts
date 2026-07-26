@@ -5,6 +5,7 @@ import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { UserAuthenticationMissingError } from "@/lib/errors";
 import { getRequestLogger } from "@/lib/logger";
+import { ensureCampaignAccess } from "@/lib/route-utils";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
@@ -89,7 +90,7 @@ export async function handleRecordSatisfactionRating(c: ContextWithAuth) {
  */
 export async function handleRecordContextAccuracy(c: ContextWithAuth) {
 	try {
-		getUserAuth(c); // Verify authentication
+		const userAuth = getUserAuth(c);
 		const body = (await c.req.json()) as ContextAccuracy;
 
 		if (!body.campaignId || !body.queryId || body.accuracy === undefined) {
@@ -101,6 +102,16 @@ export async function handleRecordContextAccuracy(c: ContextWithAuth) {
 
 		if (body.accuracy < 0 || body.accuracy > 1) {
 			return c.json({ error: "accuracy must be between 0 and 1" }, 400);
+		}
+
+		// Ratings are written per campaign, so the rater must be a member of it.
+		const hasAccess = await ensureCampaignAccess(
+			c,
+			body.campaignId,
+			userAuth.username
+		);
+		if (!hasAccess) {
+			return c.json({ error: "Campaign not found or access denied" }, 403);
 		}
 
 		const telemetryService = getTelemetryService(c);
