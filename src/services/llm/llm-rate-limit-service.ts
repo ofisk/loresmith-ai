@@ -1,4 +1,5 @@
 import type { TextGenerationTier } from "@/app-constants";
+import { deriveBatchRequestBudget } from "@/config/anthropic-org-rate-budget";
 import { estimateCostUsd } from "@/config/model-pricing";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { CostEventInsert } from "@/dao/llm-cost-event-dao";
@@ -10,6 +11,7 @@ import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
 import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
+import { LLM_BATCH_BUDGET_WINDOW_SECONDS } from "@/services/llm/llm-batch-config";
 
 /**
  * Attribution for a unit of LLM spend. `intent` is required; everything else is
@@ -368,6 +370,70 @@ export class LLMRateLimitService {
 			reason: result.reason,
 			nextResetAt: result.nextResetAt,
 		};
+	}
+
+	/**
+	 * Check the **batch** request budget before submitting a message batch.
+	 *
+	 * Batch requests draw on `ANTHROPIC_ORG_LIMITS.batchRequestsPerMinute`, which
+	 * is separate from the interactive RPM the per-tier `qph`/`qpd` limits are
+	 * derived from — so background indexing is not charged against the budget a
+	 * user's chat spends, and vice versa. Token caps are still enforced: batch
+	 * token usage is recorded by {@link recordBatchUsage} and so counts toward
+	 * `tph`/`tpd` and the free-tier monthly/lifetime caps.
+	 */
+	async checkBatchRequestBudget(
+		username: string,
+		requestCount: number,
+		isAdmin: boolean = false
+	): Promise<CheckLimitResult> {
+		if (isAdmin) {
+			return { allowed: true };
+		}
+
+		const dao = getDAOFactory(this.env).llmBatchJobDAO;
+		if (!(await dao.isSchemaReady())) {
+			// No batch table means the batch path is inert; nothing to gate.
+			return { allowed: true };
+		}
+
+		const { requestsPerMinutePerUser } = deriveBatchRequestBudget();
+		const recent = await dao.getRequestCountSince(
+			username,
+			LLM_BATCH_BUDGET_WINDOW_SECONDS
+		);
+
+		if (recent + requestCount > requestsPerMinutePerUser) {
+			return {
+				allowed: false,
+				reason: `Batch request budget (${requestsPerMinutePerUser} per minute) would be exceeded: ${recent} already submitted, ${requestCount} requested.`,
+				limitType: "hour",
+			};
+		}
+		return { allowed: true };
+	}
+
+	/**
+	 * Record token spend for a completed batch.
+	 *
+	 * Tokens are recorded verbatim (the row is also the analytics source of
+	 * truth), but `queryCount` is 0: the batch's request volume was already
+	 * gated by {@link checkBatchRequestBudget} against the separate batch budget
+	 * line, and counting it again here would double-charge it to the interactive
+	 * query budget.
+	 */
+	async recordBatchUsage(
+		username: string,
+		tokens: number,
+		model: string | undefined,
+		meta: LlmSpendLogMeta & { batchRequestCount: number }
+	): Promise<void> {
+		const { batchRequestCount, ...logMeta } = meta;
+		await this.recordUsage(username, tokens, 0, model, {
+			...logMeta,
+			batchRequestCount,
+			billingMode: "batch",
+		});
 	}
 
 	async recordUsage(

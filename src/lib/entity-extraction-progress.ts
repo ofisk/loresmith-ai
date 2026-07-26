@@ -52,6 +52,41 @@ export function entityExtractionProgressPercent(
 	return chunkProgressPercent(parsed.processed, parsed.total);
 }
 
+/**
+ * `BATCH:<chunkCount>:<submittedAtIso>` — set while the chunks in the current
+ * window are waiting on an Anthropic message batch (issue #735).
+ *
+ * Batching coarsens progress granularity: `PROGRESS:a/b` cannot advance until a
+ * whole batch lands, so a chunk-percent bar alone would look stalled for
+ * minutes. This marker lets the UI say what is actually happening instead.
+ */
+const BATCH_IN_MESSAGE = /BATCH:(\d+):(\S+)/;
+
+/** Line appended to `queue_message` while a batch is in flight. */
+export function formatBatchWaitingMarker(
+	chunkCount: number,
+	submittedAt: string
+): string {
+	return `BATCH:${chunkCount}:${submittedAt}`;
+}
+
+/**
+ * Parses the batch marker. Returns null when no batch is in flight, so callers
+ * can treat "no marker" as the ordinary per-chunk path.
+ */
+export function parseEntityExtractionBatchState(
+	value: string | null | undefined
+): { chunkCount: number; submittedAt: string } | null {
+	if (!value) return null;
+	const match = BATCH_IN_MESSAGE.exec(value);
+	if (!match) return null;
+	const chunkCount = Number.parseInt(match[1], 10);
+	if (!Number.isFinite(chunkCount) || chunkCount <= 0) {
+		return null;
+	}
+	return { chunkCount, submittedAt: match[2] };
+}
+
 /** Percent complete from chunk counts (same formula as PROGRESS:a/b). */
 export function chunkProgressPercent(
 	processed: number,

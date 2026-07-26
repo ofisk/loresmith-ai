@@ -105,10 +105,6 @@
 			"ccn": 22,
 			"count": 1
 		},
-		"src/components/upload/LibraryEntityIndexingProgress.tsx::LibraryEntityIndexingProgress": {
-			"ccn": 18,
-			"count": 1
-		},
 		"src/dao/entity-dao.ts::createEntity": {
 			"ccn": 19,
 			"count": 1
@@ -285,10 +281,6 @@
 			"ccn": 47,
 			"count": 1
 		},
-		"src/services/campaign/entity-staging-service.ts::processChunk": {
-			"ccn": 17,
-			"count": 1
-		},
 		"src/services/campaign/entity-staging-service.ts::stageEntitiesFromResourceImpl": {
 			"ccn": 36,
 			"count": 1
@@ -302,7 +294,7 @@
 			"count": 1
 		},
 		"src/services/campaign/library-entity-discovery-queue-service.ts::processQueue": {
-			"ccn": 49,
+			"ccn": 47,
 			"count": 1
 		},
 		"src/services/character-sheet/character-sheet-parser-service.ts::mergeParsedResults": {
@@ -366,7 +358,7 @@
 			"count": 1
 		},
 		"src/services/llm/anthropic-provider.ts::generateStructuredOutput": {
-			"ccn": 19,
+			"ccn": 18,
 			"count": 1
 		},
 		"src/services/llm/llm-rate-limit-service.ts::checkLimit": {
@@ -387,10 +379,6 @@
 		},
 		"src/services/rag/entity-extraction-service.ts::(anonymous)": {
 			"ccn": 19,
-			"count": 1
-		},
-		"src/services/rag/entity-extraction-service.ts::extractEntities": {
-			"ccn": 20,
 			"count": 1
 		},
 		"src/services/rag/historical-context-service.ts::applyHistoricalOverlay": {

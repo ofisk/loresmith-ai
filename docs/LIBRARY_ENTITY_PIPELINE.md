@@ -16,6 +16,8 @@ This document describes how **library-scoped entity discovery** works, how it ti
 2. **Library entity discovery**  
    `LibraryEntityDiscoveryQueueService` processes rows in `library_entity_discovery` (`pending` → `processing` → `complete` | `failed`). On success, candidates and relationships are stored library-side for later copy into campaigns.
 
+   Each scheduled run handles a bounded window of chunks and requeues the row until the document is finished. When `LLM_BATCH_EXTRACTION_ENABLED=true`, that window's chunks are sent as one Anthropic message batch and collected on a later run instead of one request per chunk — see [LLM batch processing](./LLM_BATCH_PROCESSING.md). Waiting on a batch requeues the row at the same cursor and does not consume `retry_count`.
+
 3. **Campaign add**  
    When a resource is added to a campaign (`handleAddResourceToCampaign`):
 
@@ -90,3 +92,4 @@ Discovery failures are recorded on `library_entity_discovery` with retry metadat
 - [GraphRAG integration](./GRAPHRAG_INTEGRATION.md) — how staged entities feed the graph
 - [API reference](./API.md) — endpoint summary
 - [D1 indexes](./database/d1-indexes.md) — tables and indexes
+- [LLM batch processing](./LLM_BATCH_PROCESSING.md) — batching the extraction requests this pipeline makes

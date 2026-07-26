@@ -1,5 +1,6 @@
 import {
 	chunkProgressPercent,
+	parseEntityExtractionBatchState,
 	parseEntityExtractionProgress,
 } from "@/lib/entity-extraction-progress";
 import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
@@ -48,6 +49,42 @@ function ProgressBar(props: {
 }
 
 /**
+ * Discovery section: a chunk-percent bar once `PROGRESS:a/b` exists, otherwise a
+ * plain status line.
+ *
+ * Chunks sent as one Anthropic message batch complete together, so the percent
+ * cannot advance until the batch lands — a correct-but-frozen bar reads as a
+ * stall, so a pending batch is always named explicitly (issue #735).
+ */
+function DiscoveryProgress({ queueMessage }: { queueMessage?: string | null }) {
+	const prog = parseEntityExtractionProgress(queueMessage ?? null);
+	const batchState = parseEntityExtractionBatchState(queueMessage ?? null);
+	const pct = prog ? chunkProgressPercent(prog.processed, prog.total) : null;
+
+	if (pct === null || !prog) {
+		return (
+			<p className="text-xs text-neutral-600 dark:text-neutral-400">
+				{batchState
+					? `${batchState.chunkCount} chunks queued for batch processing…`
+					: "Extracting entities…"}
+			</p>
+		);
+	}
+
+	const chunks = `${prog.processed} of ${prog.total} chunks`;
+	const queued = batchState
+		? ` — ${batchState.chunkCount} queued for batch processing`
+		: "";
+	return (
+		<ProgressBar
+			pct={pct}
+			ariaLabel={`Entity extraction progress ${pct} percent`}
+			caption={`${pct}% extracted (${chunks})${queued}`}
+		/>
+	);
+}
+
+/**
  * Chunk-level ingestion (vectorize) and library entity discovery (PROGRESS:a/b in queue_message).
  */
 export function LibraryEntityIndexingProgress({
@@ -70,11 +107,6 @@ export function LibraryEntityIndexingProgress({
 
 	const discoveryInFlight =
 		discoveryStatus === "pending" || discoveryStatus === "processing";
-	const prog = parseEntityExtractionProgress(queueMessage ?? null);
-	const discPct =
-		discoveryInFlight && prog
-			? chunkProgressPercent(prog.processed, prog.total)
-			: null;
 
 	if (!showIngestion && !discoveryInFlight) {
 		return null;
@@ -93,17 +125,7 @@ export function LibraryEntityIndexingProgress({
 			)}
 			{discoveryInFlight && (
 				<div>
-					{discPct !== null && prog ? (
-						<ProgressBar
-							pct={discPct}
-							ariaLabel={`Entity extraction progress ${discPct} percent`}
-							caption={`${discPct}% extracted (${prog.processed} of ${prog.total} chunks)`}
-						/>
-					) : (
-						<p className="text-xs text-neutral-600 dark:text-neutral-400">
-							Extracting entities…
-						</p>
-					)}
+					<DiscoveryProgress queueMessage={queueMessage} />
 				</div>
 			)}
 		</div>
