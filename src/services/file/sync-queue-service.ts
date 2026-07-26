@@ -30,6 +30,28 @@ function fireFileProcessingTelemetry(
 }
 
 export class SyncQueueService {
+	// Best-effort: callers have already persisted STATUS.COMPLETED, so a failure
+	// here must not propagate and let an outer catch flip the file back to error.
+	private static async queueDiscoveryBestEffort(
+		env: any,
+		fileKey: string,
+		username: string
+	): Promise<void> {
+		try {
+			await LibraryEntityDiscoveryQueueService.queueDiscoveryAfterIndexing(
+				env,
+				fileKey,
+				username
+			);
+		} catch (discoveryError) {
+			createLogger(env, "[SyncQueue]").error(
+				"Failed to queue entity discovery after indexing",
+				discoveryError,
+				{ fileKey, username }
+			);
+		}
+	}
+
 	/**
 	 * Process a file upload - index file directly with LibraryRAGService
 	 */
@@ -175,11 +197,7 @@ export class SyncQueueService {
 			// Update file status to completed (fully indexed and searchable)
 			await fileDAO.updateFileRecord(fileKey, FileDAO.STATUS.COMPLETED);
 
-			await LibraryEntityDiscoveryQueueService.queueDiscoveryAfterIndexing(
-				env,
-				fileKey,
-				username
-			);
+			await SyncQueueService.queueDiscoveryBestEffort(env, fileKey, username);
 
 			fireFileProcessingTelemetry(env, Date.now() - uploadStartedAt, {
 				pipeline: "library_direct",
@@ -337,7 +355,7 @@ export class SyncQueueService {
 							item.file_key,
 							FileDAO.STATUS.COMPLETED
 						);
-						await LibraryEntityDiscoveryQueueService.queueDiscoveryAfterIndexing(
+						await SyncQueueService.queueDiscoveryBestEffort(
 							env,
 							item.file_key,
 							username
@@ -441,7 +459,7 @@ export class SyncQueueService {
 
 				// Update file status to COMPLETED (fully indexed and searchable)
 				await fileDAO.updateFileRecord(item.file_key, FileDAO.STATUS.COMPLETED);
-				await LibraryEntityDiscoveryQueueService.queueDiscoveryAfterIndexing(
+				await SyncQueueService.queueDiscoveryBestEffort(
 					env,
 					item.file_key,
 					username

@@ -425,12 +425,22 @@ export class FileDAO extends BaseDAOClass {
 		fileKey: string,
 		reason: string = "Processing timeout"
 	): Promise<void> {
+		const errorData = {
+			code: "PROCESSING_TIMEOUT",
+			message: reason,
+			timestamp: new Date().toISOString(),
+		};
+
 		const sql = `
-      UPDATE file_metadata 
-      SET status = ?, analysis_error = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE file_metadata
+      SET status = ?, processing_error = ?, updated_at = CURRENT_TIMESTAMP
       WHERE file_key = ?
     `;
-		await this.execute(sql, [FileDAO.STATUS.ERROR, reason, fileKey]);
+		await this.execute(sql, [
+			FileDAO.STATUS.ERROR,
+			JSON.stringify(errorData),
+			fileKey,
+		]);
 	}
 
 	async updateFileStatus(
