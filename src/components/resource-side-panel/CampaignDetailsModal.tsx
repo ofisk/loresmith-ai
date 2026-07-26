@@ -5,7 +5,7 @@ import { PendingProposalsSection } from "@/components/campaign/PendingProposalsS
 import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { PlayerCharacterRosterPanel } from "@/components/campaign/PlayerCharacterRosterPanel";
 import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
-import { CampaignAudioPanel } from "@/components/campaign-audio/CampaignAudioPanel";
+import { LazyCampaignAudioPanel } from "@/components/campaign-audio/LazyCampaignAudioPanel";
 import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationModal";
 import { Modal } from "@/components/modal/Modal";
 import { RunsheetPanel } from "@/components/session/RunsheetPanel";
@@ -169,7 +169,7 @@ function AudioTabPanel({
 			aria-labelledby="tab-audio"
 			className="mt-2"
 		>
-			<CampaignAudioPanel campaignId={campaignId} />
+			<LazyCampaignAudioPanel campaignId={campaignId} />
 		</div>
 	);
 }

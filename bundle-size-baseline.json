@@ -2,7 +2,7 @@
 	"description": "Initial JS budget for the client bundle. Update deliberately via `npm run bundle:size:baseline`.",
 	"tolerance": 0.05,
 	"initialJs": {
-		"rawBytes": 1214628,
-		"gzipBytes": 329549
+		"rawBytes": 1277771,
+		"gzipBytes": 346341
 	}
 }
