@@ -174,6 +174,38 @@ export const handleGetLlmUsage = async (
 	}
 };
 
+export const handleGetFileStats = async (
+	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
+) => {
+	const log = getRequestLogger(c);
+	try {
+		const userAuth = (c as any).userAuth;
+		if (!userAuth) {
+			return c.json({ error: "Authentication required" }, 401);
+		}
+
+		const fileDAO = getDAOFactory(c.env).fileDAO;
+		const statusRows = await fileDAO.getFileStatsByUser(userAuth.username);
+
+		const filesByStatus: Record<string, number> = {};
+		let totalFiles = 0;
+		for (const row of statusRows) {
+			filesByStatus[row.status] = row.count;
+			totalFiles += row.count;
+		}
+
+		return c.json({
+			success: true,
+			username: userAuth.username,
+			totalFiles,
+			filesByStatus,
+		});
+	} catch (error) {
+		log.error("[handleGetFileStats] Failed to get file stats", error);
+		return c.json({ error: "Failed to get file stats" }, 500);
+	}
+};
+
 export const handleGetFileDetails = async (
 	c: Context<{ Bindings: any; Variables: { userAuth: AuthPayload } }>
 ) => {

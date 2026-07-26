@@ -6,6 +6,7 @@ import {
 	handleDeleteFile,
 	handleGetFileDetails,
 	handleGetFileDownload,
+	handleGetFileStats,
 	handleGetLlmUsage,
 	handleGetStorageUsage,
 	handleRegenerateFileMetadata,
@@ -17,6 +18,7 @@ import {
 	routeDeleteFile,
 	routeGetFileDetails,
 	routeGetFileDownload,
+	routeGetFileStats,
 	routeGetFileStatus,
 	routeGetFiles,
 	routeGetLlmUsage,
@@ -38,6 +40,7 @@ export function registerLibraryRoutes(
 		handleGetStorageUsage as unknown as Handler
 	);
 	app.openapi(routeGetLlmUsage, handleGetLlmUsage as unknown as Handler);
+	app.openapi(routeGetFileStats, handleGetFileStats as unknown as Handler);
 	app.openapi(routeGetFileDetails, handleGetFileDetails as unknown as Handler);
 	app.openapi(routeUpdateFile, handleUpdateFile as unknown as Handler);
 	app.openapi(routeDeleteFile, handleDeleteFile as unknown as Handler);

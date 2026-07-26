@@ -50,6 +50,14 @@ export const routeGetLlmUsage = createRoute({
 	responses: { 200: jsonDesc("LLM usage"), ...E401, ...E500 },
 });
 
+export const routeGetFileStats = createRoute({
+	method: "get",
+	path: toApiRoutePath(API_CONFIG.ENDPOINTS.LIBRARY.STATS),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	responses: { 200: jsonDesc("File stats"), ...E401, ...E500 },
+});
+
 export const routeGetFileDetails = createRoute({
 	method: "get",
 	path: toApiRoutePath("/library/files/{fileId}"),
