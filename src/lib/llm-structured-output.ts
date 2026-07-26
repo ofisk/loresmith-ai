@@ -51,9 +51,20 @@ export function parseStructuredSchema(
 	}
 }
 
+/**
+ * Matches a fenced code block, optionally tagged `json`.
+ *
+ * The fence is written as `{3} rather than three literal backticks on purpose:
+ * the complexity gate's analyser (lizard) treats a backtick inside a regex
+ * literal as the start of a template literal and swallows every function
+ * boundary until the next one, which reports a file's complexity against
+ * whichever function happens to sit at the seam.
+ */
+const CODE_FENCE_RE = /^`{3}(?:json)?\s*([\s\S]*?)\s*`{3}$/i;
+
 export function stripMarkdownCodeFence(text: string): string {
 	const trimmed = text.trim();
-	const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+	const fenceMatch = trimmed.match(CODE_FENCE_RE);
 	return fenceMatch ? fenceMatch[1].trim() : trimmed;
 }
 

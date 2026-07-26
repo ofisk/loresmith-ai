@@ -35,6 +35,41 @@ interface ScanState {
 }
 
 /**
+ * JSON escapes for the control characters models emit verbatim when they paste
+ * multi-line prose into a string field. Anything else below U+0020 falls back
+ * to a \\uXXXX escape.
+ */
+const CONTROL_CHAR_ESCAPES: Record<string, string> = {
+	"\n": "\\n",
+	"\r": "\\r",
+	"\t": "\\t",
+};
+
+/** Render one character of a string literal, escaping it if JSON requires that. */
+function escapeStringChar(ch: string): string {
+	const mapped = CONTROL_CHAR_ESCAPES[ch];
+	if (mapped) return mapped;
+	if (ch < " ") {
+		return `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`;
+	}
+	return ch;
+}
+
+/** Index just past a `//` or block comment starting at `i`, or -1 if unterminated. */
+function commentEnd(text: string, i: number): number | null {
+	if (text[i] !== "/") return null;
+	if (text[i + 1] === "/") {
+		const newline = text.indexOf("\n", i);
+		return newline === -1 ? -1 : newline - 1;
+	}
+	if (text[i + 1] === "*") {
+		const end = text.indexOf("*/", i + 2);
+		return end === -1 ? -1 : end + 1;
+	}
+	return null;
+}
+
+/**
  * Single pass that strips comments and escapes raw control characters found
  * inside string literals, tracking string/escape state so it never edits
  * characters that are legitimately part of a string.
@@ -48,40 +83,10 @@ function stripCommentsAndEscapeControlChars(text: string): string {
 		const ch = text[i];
 
 		if (inString) {
-			if (escaped) {
-				out += ch;
-				escaped = false;
-				continue;
-			}
-			if (ch === "\\") {
-				out += ch;
-				escaped = true;
-				continue;
-			}
-			if (ch === '"') {
-				out += ch;
-				inString = false;
-				continue;
-			}
-			// Raw control characters are illegal inside JSON strings; models emit
-			// them when they paste multi-line prose into a field.
-			if (ch === "\n") {
-				out += "\\n";
-				continue;
-			}
-			if (ch === "\r") {
-				out += "\\r";
-				continue;
-			}
-			if (ch === "\t") {
-				out += "\\t";
-				continue;
-			}
-			if (ch < " ") {
-				out += `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`;
-				continue;
-			}
-			out += ch;
+			out += escaped || ch === "\\" || ch === '"' ? ch : escapeStringChar(ch);
+			if (escaped) escaped = false;
+			else if (ch === "\\") escaped = true;
+			else if (ch === '"') inString = false;
 			continue;
 		}
 
@@ -90,16 +95,11 @@ function stripCommentsAndEscapeControlChars(text: string): string {
 			inString = true;
 			continue;
 		}
-		if (ch === "/" && text[i + 1] === "/") {
-			const newline = text.indexOf("\n", i);
-			if (newline === -1) break;
-			i = newline - 1;
-			continue;
-		}
-		if (ch === "/" && text[i + 1] === "*") {
-			const end = text.indexOf("*/", i + 2);
-			if (end === -1) break;
-			i = end + 1;
+
+		const skipTo = commentEnd(text, i);
+		if (skipTo !== null) {
+			if (skipTo === -1) break;
+			i = skipTo;
 			continue;
 		}
 		out += ch;
