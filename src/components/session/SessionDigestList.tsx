@@ -1,4 +1,9 @@
-import { Eye, PencilSimple, Trash } from "@phosphor-icons/react";
+import {
+	Eye,
+	PaperPlaneTilt,
+	PencilSimple,
+	Trash,
+} from "@phosphor-icons/react";
 import type { SessionDigestWithData } from "@/types/session-digest";
 
 interface SessionDigestListProps {
@@ -8,6 +13,8 @@ interface SessionDigestListProps {
 	onView?: (digest: SessionDigestWithData) => void;
 	onEdit?: (digest: SessionDigestWithData) => void;
 	onDelete?: (digest: SessionDigestWithData) => void;
+	/** Opens the GM review step for a player-facing recap email. */
+	onSendRecap?: (digest: SessionDigestWithData) => void;
 	className?: string;
 }
 
@@ -18,6 +25,7 @@ export function SessionDigestList({
 	onView,
 	onEdit,
 	onDelete,
+	onSendRecap,
 	className = "",
 }: SessionDigestListProps) {
 	if (loading) {
@@ -103,6 +111,16 @@ export function SessionDigestList({
 									title="View digest"
 								>
 									<Eye size={18} />
+								</button>
+							)}
+							{onSendRecap && (
+								<button
+									type="button"
+									onClick={() => onSendRecap(digest)}
+									className="p-2 text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+									title="Review and send a player recap"
+								>
+									<PaperPlaneTilt size={18} />
 								</button>
 							)}
 							{onEdit && (

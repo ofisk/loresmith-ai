@@ -50,6 +50,7 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - False-positive controls and dismissal memory
   - Incremental scans and the two-tier cost model
   - API, agent tools and tuning constants
+- **[Player recap emails](PLAYER_RECAP_EMAILS.md)** - Between-session recaps mailed to players: allowlist spoiler filtering, GM review-before-send, recipient eligibility, unsubscribe
 
 - **[Authentication Flow](AUTHENTICATION_FLOW.md)** - Authentication system documentation
   - JWT-based authentication

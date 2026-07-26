@@ -803,6 +803,7 @@ export function CampaignDetailsModal({
 								aria-labelledby="tab-digests"
 							>
 								<CampaignDigestsTab
+									campaignId={campaign.campaignId}
 									digests={digests}
 									loading={digestsLoading}
 									error={digestsError}
