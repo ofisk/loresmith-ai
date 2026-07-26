@@ -1,14 +1,33 @@
+import type { TextGenerationTier } from "@/app-constants";
+import { estimateCostUsd } from "@/config/model-pricing";
 import { getDAOFactory } from "@/dao/dao-factory";
+import type { CostEventInsert } from "@/dao/llm-cost-event-dao";
+import type { LlmTokenBreakdown } from "@/lib/llm-usage-breakdown";
+import { hasPriceableSplit } from "@/lib/llm-usage-breakdown";
 import type { LlmSpendIntent } from "@/lib/llm-usage-intents";
+import { surfaceForIntent } from "@/lib/llm-usage-intents";
 import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
+import { createLogger } from "@/lib/logger";
 import type { Env } from "@/middleware/auth";
 import { getSubscriptionService } from "@/services/billing/subscription-service";
 
-/** Optional attribution for verbose token logs (intent required when passed). */
+/**
+ * Attribution for a unit of LLM spend. `intent` is required; everything else is
+ * best-effort. Fields listed here are persisted as columns on `llm_cost_events`;
+ * anything else lands in the verbose log's `extras` bag.
+ */
 export type LlmSpendLogMeta = {
 	intent: LlmSpendIntent;
 	source?: string;
-} & Record<string, unknown>;
+	/** Agent class name, when the spend happened inside an agent. */
+	agent?: string;
+	/** Model id, when the caller could not pass it as the `model` argument. */
+	model?: string;
+	/** Tier the model was selected from — lets us verify cheap-tier routing. */
+	modelRole?: TextGenerationTier;
+	provider?: string;
+} & LlmTokenBreakdown &
+	Record<string, unknown>;
 
 export interface CheckLimitResult {
 	allowed: boolean;
@@ -52,6 +71,59 @@ function addHours(isoOrSqlite: string, hours: number): string {
 	const d = new Date(isoOrSqlite.replace(" ", "T"));
 	d.setHours(d.getHours() + hours);
 	return d.toISOString();
+}
+
+/** D1 stores absent attribution as NULL, not undefined. */
+function orNull<T>(value: T | undefined | null): T | null {
+	return value ?? null;
+}
+
+function orZero(value: number | undefined): number {
+	return value ?? 0;
+}
+
+/** Shape one attributed, priced `llm_cost_events` row from spend metadata. */
+function buildCostEvent(
+	username: string,
+	tier: string,
+	tokens: number,
+	queryCount: number,
+	model: string | undefined,
+	meta: LlmSpendLogMeta
+): CostEventInsert {
+	const resolvedModel = orNull(model ?? meta.model);
+	const breakdown: LlmTokenBreakdown = {
+		promptTokens: meta.promptTokens,
+		completionTokens: meta.completionTokens,
+		cachedInputTokens: meta.cachedInputTokens,
+		cacheWriteTokens: meta.cacheWriteTokens,
+	};
+	// Without an input/output split we cannot price the call: output tokens cost
+	// ~5x input, so guessing a ratio would invent dollars. Record the event
+	// unpriced instead — the dashboard surfaces that gap explicitly.
+	const estimate = hasPriceableSplit(breakdown)
+		? estimateCostUsd(resolvedModel, breakdown)
+		: { costUsd: 0, priced: false, unverified: false };
+
+	return {
+		username,
+		tier,
+		intent: meta.intent,
+		source: orNull(meta.source),
+		agent: orNull(meta.agent),
+		model: resolvedModel,
+		provider: orNull(meta.provider),
+		modelRole: orNull(meta.modelRole),
+		surface: surfaceForIntent(meta.intent),
+		promptTokens: orZero(breakdown.promptTokens),
+		completionTokens: orZero(breakdown.completionTokens),
+		cachedInputTokens: orZero(breakdown.cachedInputTokens),
+		cacheWriteTokens: orZero(breakdown.cacheWriteTokens),
+		totalTokens: tokens,
+		queryCount,
+		costUsd: estimate.costUsd,
+		priced: estimate.priced,
+	};
 }
 
 export class LLMRateLimitService {
@@ -309,14 +381,28 @@ export class LLMRateLimitService {
 		await dao.llmUsageDAO.insertUsage(username, tokens, queryCount, model);
 
 		if (meta) {
-			const { intent, source, ...extras } = meta;
+			const {
+				intent,
+				source,
+				agent,
+				model: metaModel,
+				modelRole,
+				provider,
+				promptTokens,
+				completionTokens,
+				cachedInputTokens,
+				cacheWriteTokens,
+				...extras
+			} = meta;
 			logVerboseLlmSpend(this.env, {
 				intent,
 				source,
 				username,
 				tokens,
 				queryCount,
-				model,
+				model: model ?? metaModel,
+				promptTokens,
+				completionTokens,
 				extras:
 					Object.keys(extras).length > 0
 						? (extras as Record<string, unknown>)
@@ -328,10 +414,49 @@ export class LLMRateLimitService {
 		const subService = getSubscriptionService(this.env);
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
+
+		// Attribution is derived from the same tier lookup, so it costs no extra read.
+		if (meta) {
+			await this.recordCostEvent(
+				username,
+				tier,
+				tokens,
+				queryCount,
+				model,
+				meta
+			);
+		}
+
 		if (limits.lifetimeTokens !== undefined) {
 			await dao.userFreeTierUsageDAO.incrementUsage(username, tokens);
 		} else if (limits.monthlyTokens !== undefined) {
 			await dao.userMonthlyUsageDAO.incrementUsage(username, tokens);
+		}
+	}
+
+	/**
+	 * Persist one attributed, priced spend event for the admin dashboard.
+	 *
+	 * Best-effort by design: accounting must never break a user's turn, and this
+	 * runs after the rate-limit ledger has already been written.
+	 */
+	private async recordCostEvent(
+		username: string,
+		tier: string,
+		tokens: number,
+		queryCount: number,
+		model: string | undefined,
+		meta: LlmSpendLogMeta
+	): Promise<void> {
+		try {
+			await getDAOFactory(this.env).llmCostEventDAO.insertEvent(
+				buildCostEvent(username, tier, tokens, queryCount, model, meta)
+			);
+		} catch (error) {
+			createLogger(
+				this.env as unknown as Record<string, unknown>,
+				"[LLMRateLimit]"
+			).warn("Failed to record cost attribution event", error);
 		}
 	}
 

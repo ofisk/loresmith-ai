@@ -5,6 +5,7 @@ import type { Env } from "@/routes/env";
 import {
 	handleGetAdminTelemetryOverview,
 	handleGetAlerts,
+	handleGetCostAttribution,
 	handleGetDashboard,
 	handleGetMetrics,
 	handleRecordContextAccuracy,
@@ -13,6 +14,7 @@ import {
 import {
 	routeGetAdminTelemetryOverview,
 	routeGetAlerts,
+	routeGetCostAttribution,
 	routeGetDashboard,
 	routeGetMetrics,
 	routeRecordContextAccuracy,
@@ -37,4 +39,8 @@ export function registerTelemetryRoutes(
 		handleGetAdminTelemetryOverview as unknown as Handler
 	);
 	app.openapi(routeGetAlerts, handleGetAlerts as unknown as Handler);
+	app.openapi(
+		routeGetCostAttribution,
+		handleGetCostAttribution as unknown as Handler
+	);
 }

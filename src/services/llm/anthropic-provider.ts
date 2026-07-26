@@ -4,6 +4,11 @@ import { MODEL_CONFIG } from "@/app-constants";
 import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
+import {
+	addTokenBreakdowns,
+	toTokenBreakdown,
+	totalUsageTokens,
+} from "@/lib/llm-usage-breakdown";
 import type {
 	LLMOptions,
 	LLMProvider,
@@ -27,18 +32,7 @@ function parseStructuredSchema(
 	}
 }
 
-function getUsageTokens(usage: unknown): number {
-	const typed = usage as
-		| {
-				totalTokens?: number;
-				inputTokens?: number;
-				outputTokens?: number;
-		  }
-		| undefined;
-	return (
-		typed?.totalTokens ?? (typed?.inputTokens ?? 0) + (typed?.outputTokens ?? 0)
-	);
-}
+const getUsageTokens = totalUsageTokens;
 
 function stripMarkdownCodeFence(text: string): string {
 	const trimmed = text.trim();
@@ -126,7 +120,11 @@ export class AnthropicProvider implements LLMProvider {
 			const tokens = getUsageTokens(result.usage);
 			if (tokens > 0 && options.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount: 1 },
+					{
+						tokens,
+						queryCount: 1,
+						...toTokenBreakdown(result.usage, result.providerMetadata),
+					},
 					{ username: options.username, model: modelId }
 				);
 			}
@@ -205,6 +203,7 @@ export class AnthropicProvider implements LLMProvider {
 			}
 			let output: T;
 			let repairResultUsage: typeof result.usage | undefined;
+			let repairBreakdown: ReturnType<typeof toTokenBreakdown> | undefined;
 			try {
 				output = JSON.parse(jsonText) as T;
 			} catch (parseError) {
@@ -233,6 +232,10 @@ export class AnthropicProvider implements LLMProvider {
 					maxOutputTokens: Math.max(maxTokens, 3000),
 				});
 				repairResultUsage = repairResult.usage;
+				repairBreakdown = toTokenBreakdown(
+					repairResult.usage,
+					repairResult.providerMetadata
+				);
 
 				const repairedText = extractJsonObjectText(repairResult.text || "");
 				if (!repairedText) {
@@ -250,7 +253,16 @@ export class AnthropicProvider implements LLMProvider {
 			const queryCount = repairResultUsage !== undefined ? 2 : 1;
 			if (tokens > 0 && options.onUsage) {
 				await options.onUsage(
-					{ tokens, queryCount },
+					{
+						tokens,
+						queryCount,
+						// A JSON-repair retry is real spend on the same intent — fold it
+						// into the same event rather than losing it.
+						...addTokenBreakdowns(
+							toTokenBreakdown(result.usage, result.providerMetadata),
+							repairBreakdown
+						),
+					},
 					{ username: options.username, model: modelId }
 				);
 			}

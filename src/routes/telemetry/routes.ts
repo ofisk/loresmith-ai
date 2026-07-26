@@ -70,3 +70,11 @@ export const routeGetAlerts = createRoute({
 	security: [{ bearerAuth: [] }],
 	responses: { 200: jsonDesc("Alerts"), ...E401, ...E500 },
 });
+
+export const routeGetCostAttribution = createRoute({
+	method: "get",
+	path: toApiRoutePath(API_CONFIG.ENDPOINTS.ADMIN.TELEMETRY.COST_ATTRIBUTION),
+	middleware: [requireUserJwt],
+	security: [{ bearerAuth: [] }],
+	responses: { 200: jsonDesc("Cost attribution"), ...E401, ...E500 },
+});

@@ -877,6 +877,38 @@ CREATE TABLE IF NOT EXISTS continuity_scan_state (
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
 );
 
+-- LLM cost attribution (migration 0030): per-agent / per-intent spend.
+-- Separate from llm_usage_log, which is the rate-limit ledger and is pruned
+-- every 25 hours; this table is pruned on a 90-day horizon.
+CREATE TABLE IF NOT EXISTS llm_cost_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  tier TEXT,
+  intent TEXT NOT NULL,
+  source TEXT,
+  agent TEXT,
+  model TEXT,
+  provider TEXT,
+  model_role TEXT,
+  surface TEXT NOT NULL,
+  prompt_tokens INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  total_tokens INTEGER NOT NULL DEFAULT 0,
+  query_count INTEGER NOT NULL DEFAULT 1,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  priced INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_cost_events_time
+  ON llm_cost_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_llm_cost_events_user_time
+  ON llm_cost_events(username, created_at);
+CREATE INDEX IF NOT EXISTS idx_llm_cost_events_intent_time
+  ON llm_cost_events(intent, created_at);
+
 -- Create a view for easy querying of analyzed files
 CREATE VIEW IF NOT EXISTS analyzed_files AS
 select 

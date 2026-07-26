@@ -23,6 +23,7 @@ import { EntityImportanceDAO } from "./entity-importance-dao";
 import { FileDAO } from "./file/file-dao";
 import { FileRetryUsageDAO } from "./file-retry-usage-dao";
 import { GraphRebuildDirtyDAO } from "./graph-rebuild-dirty-dao";
+import { LLMCostEventDAO } from "./llm-cost-event-dao";
 import { LLMUsageDAO } from "./llm-usage-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
@@ -61,6 +62,7 @@ export interface DAOFactory {
 	entityDAO: EntityDAO;
 	graphRebuildDirtyDAO: GraphRebuildDirtyDAO;
 	llmUsageDAO: LLMUsageDAO;
+	llmCostEventDAO: LLMCostEventDAO;
 	communityDAO: CommunityDAO;
 	communitySummaryDAO: CommunitySummaryDAO;
 	continuityFindingDAO: ContinuityFindingDAO;
@@ -106,6 +108,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly entityDAO: EntityDAO;
 	public readonly graphRebuildDirtyDAO: GraphRebuildDirtyDAO;
 	public readonly llmUsageDAO: LLMUsageDAO;
+	public readonly llmCostEventDAO: LLMCostEventDAO;
 	public readonly communityDAO: CommunityDAO;
 	public readonly communitySummaryDAO: CommunitySummaryDAO;
 	public readonly continuityFindingDAO: ContinuityFindingDAO;
@@ -146,6 +149,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.entityDAO = new EntityDAO(db);
 		this.graphRebuildDirtyDAO = new GraphRebuildDirtyDAO(db);
 		this.llmUsageDAO = new LLMUsageDAO(db);
+		this.llmCostEventDAO = new LLMCostEventDAO(db);
 		this.communityDAO = new CommunityDAO(db);
 		this.communitySummaryDAO = new CommunitySummaryDAO(db);
 		this.continuityFindingDAO = new ContinuityFindingDAO(db);

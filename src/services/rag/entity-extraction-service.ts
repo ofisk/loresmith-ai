@@ -10,6 +10,7 @@ import {
 	type RelationshipType,
 } from "@/lib/entity/relationship-types";
 import { EntityExtractionError, LLMProviderAPIKeyError } from "@/lib/errors";
+import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
 import type { StructuredPromptParts } from "@/services/llm/llm-provider";
@@ -84,7 +85,7 @@ export interface ExtractEntitiesOptions {
 	username?: string;
 	/** Callback to record usage (tokens, queryCount) for rate limiting */
 	onUsage?: (
-		usage: { tokens: number; queryCount: number },
+		usage: LlmUsageReport,
 		context?: { model?: string }
 	) => void | Promise<void>;
 	/** Called when Anthropic JSON repair pass runs (after first-pass parse failure). */

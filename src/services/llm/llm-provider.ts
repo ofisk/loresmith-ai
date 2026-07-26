@@ -1,3 +1,5 @@
+import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
+
 /**
  * Usage callback for recording LLM token/query usage (rate limiting, analytics)
  */
@@ -22,9 +24,13 @@ export interface LLMOptions {
 	timeout?: number | { totalMs?: number; stepMs?: number };
 	/** Username for rate limit attribution (passed to onUsage context) */
 	username?: string;
-	/** Callback invoked after generation with token and query counts (for rate limiting) */
+	/**
+	 * Callback invoked after generation with token and query counts (for rate
+	 * limiting). `usage` also carries the input/output/cached split when the
+	 * provider reports it, which cost attribution needs to price the call.
+	 */
 	onUsage?: (
-		usage: { tokens: number; queryCount: number },
+		usage: LlmUsageReport,
 		context?: UsageCallbackContext
 	) => void | Promise<void>;
 }
