@@ -264,21 +264,17 @@ export class PlayerRecapService {
 	// --- Sending ------------------------------------------------------------
 
 	/**
-	 * Send a reviewed draft to the campaign's eligible players.
+	 * Everything that must hold before a single email leaves, checked in one
+	 * place. Throws on the first failure — each one is a caller error, not a
+	 * partial-send condition.
 	 *
-	 * The draft is claimed atomically before the first email goes out, so a
-	 * double-click or a retried request cannot mail the party twice.
+	 * Returns the mailer alongside the recap because the API key check is what
+	 * proves the mailer can be built at all.
 	 */
-	async send(params: {
-		campaignId: string;
-		campaignName: string;
-		recapId: string;
-		sentBy: string;
-		/** GM's address, so player replies reach a human. */
-		replyTo?: string;
-	}): Promise<PlayerRecapSendResult> {
-		const { campaignId, campaignName, recapId, sentBy } = params;
-
+	private async prepareSend(
+		campaignId: string,
+		recapId: string
+	): Promise<{ recap: PlayerRecapEmail; emailService: EmailService }> {
 		const settings = await this.dao.getSettings(campaignId);
 		if (!settings.enabled) {
 			throw new RecapNotEnabledError();
@@ -297,6 +293,89 @@ export class PlayerRecapService {
 			);
 		}
 
+		return { recap, emailService: new EmailService(this.resendApiKey) };
+	}
+
+	/**
+	 * Mail one player and record the attempt. Delivery failures are recorded,
+	 * not thrown: one bad address must not strand the rest of the party.
+	 *
+	 * @returns true if the email was accepted for delivery.
+	 */
+	private async deliverRecap(params: {
+		emailService: EmailService;
+		campaignId: string;
+		campaignName: string;
+		recap: PlayerRecapEmail;
+		recipient: PlayerRecapRecipient;
+		email: string;
+		replyTo?: string;
+	}): Promise<boolean> {
+		const { emailService, campaignId, campaignName, recap, recipient, email } =
+			params;
+
+		const token = await this.dao.ensureUnsubscribeToken(
+			campaignId,
+			recipient.username,
+			crypto.randomUUID()
+		);
+		const unsubscribeUrl = `${this.appOrigin}/recap-unsubscribe/${encodeURIComponent(token)}`;
+
+		const renderParams = {
+			campaignName,
+			bodyMarkdown: recap.bodyMarkdown,
+			unsubscribeUrl,
+			appUrl: this.appOrigin,
+		};
+
+		let result: { ok: boolean; error?: string };
+		try {
+			result = await emailService.sendPlayerRecapEmail({
+				to: email,
+				subject: recap.subject,
+				html: renderRecapEmailHtml(renderParams),
+				text: renderRecapEmailText(renderParams),
+				fromAddress: this.fromAddress,
+				replyTo: params.replyTo,
+				unsubscribeUrl,
+			});
+		} catch (error) {
+			result = {
+				ok: false,
+				error: error instanceof Error ? error.message : "Unknown error",
+			};
+		}
+
+		await this.dao.recordDelivery({
+			id: crypto.randomUUID(),
+			recapId: recap.id,
+			username: recipient.username,
+			email,
+			status: result.ok ? "sent" : "failed",
+			error: result.ok ? null : (result.error ?? "Unknown error"),
+		});
+
+		return result.ok;
+	}
+
+	/**
+	 * Send a reviewed draft to the campaign's eligible players.
+	 *
+	 * The draft is claimed atomically before the first email goes out, so a
+	 * double-click or a retried request cannot mail the party twice.
+	 */
+	async send(params: {
+		campaignId: string;
+		campaignName: string;
+		recapId: string;
+		sentBy: string;
+		/** GM's address, so player replies reach a human. */
+		replyTo?: string;
+	}): Promise<PlayerRecapSendResult> {
+		const { campaignId, campaignName, recapId, sentBy } = params;
+
+		const { recap, emailService } = await this.prepareSend(campaignId, recapId);
+
 		const recipients = await this.getRecipients(campaignId);
 		const eligible = recipients.filter((r) => r.eligible && r.email);
 		if (eligible.length === 0) {
@@ -309,59 +388,20 @@ export class PlayerRecapService {
 			throw new RecapAlreadySentError();
 		}
 
-		const emailService = new EmailService(this.resendApiKey);
 		let sent = 0;
-		let failed = 0;
-
 		for (const recipient of eligible) {
-			const email = recipient.email as string;
-			const token = await this.dao.ensureUnsubscribeToken(
+			const delivered = await this.deliverRecap({
+				emailService,
 				campaignId,
-				recipient.username,
-				crypto.randomUUID()
-			);
-			const unsubscribeUrl = `${this.appOrigin}/recap-unsubscribe/${encodeURIComponent(token)}`;
-
-			const renderParams = {
 				campaignName,
-				bodyMarkdown: recap.bodyMarkdown,
-				unsubscribeUrl,
-				appUrl: this.appOrigin,
-			};
-
-			let result: { ok: boolean; error?: string };
-			try {
-				result = await emailService.sendPlayerRecapEmail({
-					to: email,
-					subject: recap.subject,
-					html: renderRecapEmailHtml(renderParams),
-					text: renderRecapEmailText(renderParams),
-					fromAddress: this.fromAddress,
-					replyTo: params.replyTo,
-					unsubscribeUrl,
-				});
-			} catch (error) {
-				result = {
-					ok: false,
-					error: error instanceof Error ? error.message : "Unknown error",
-				};
-			}
-
-			if (result.ok) {
-				sent++;
-			} else {
-				failed++;
-			}
-
-			await this.dao.recordDelivery({
-				id: crypto.randomUUID(),
-				recapId,
-				username: recipient.username,
-				email,
-				status: result.ok ? "sent" : "failed",
-				error: result.ok ? null : (result.error ?? "Unknown error"),
+				recap,
+				recipient,
+				email: recipient.email as string,
+				replyTo: params.replyTo,
 			});
+			if (delivered) sent++;
 		}
+		const failed = eligible.length - sent;
 
 		// Only a total failure is retryable. A partial success stays 'sent' so a
 		// retry cannot re-mail the players who already received it.
