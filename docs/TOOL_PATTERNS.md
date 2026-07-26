@@ -1,5 +1,7 @@
 # Tool patterns
 
+> New to the tool system? Start with [TOOL_SYSTEM.md](./TOOL_SYSTEM.md) for the architecture overview, bundle organization, confirmation flow, and a step-by-step guide to adding a tool. This document covers the shared implementation patterns you use *inside* `execute`.
+
 ## ToolContext
 
 Tool execute functions receive an optional **context** object. Use the **ToolContext** type (`src/tools/utils.ts`): `{ env?: unknown; toolCallId?: string }`. Prefer `context?: ToolContext` over `context?: any` in signatures. `context.env` is set when running inside a Durable Object/Worker; `context.toolCallId` is set by the runtime for correlating results.

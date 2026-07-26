@@ -79,6 +79,13 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - BaseAgent behavior
   - Tool invocation lifecycle
 
+- **[Tool System](TOOL_SYSTEM.md)** - Tool architecture and how to add a new tool
+  - Tool anatomy and result envelope
+  - Context object and auto-injected parameters
+  - Tool bundles and agent registration
+  - Confirmation flow
+  - Step-by-step "add a tool" guide
+
 - **[Tool Patterns](TOOL_PATTERNS.md)** - Shared tool implementation patterns
   - Env vs API execution paths
   - Auth and response helpers
