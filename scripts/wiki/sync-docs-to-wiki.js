@@ -90,6 +90,11 @@ const FILE_MAPPINGS = [
 		process: true,
 	},
 	{
+		src: "docs/LLM_BATCH_PROCESSING.md",
+		dest: "Technical/LLM-Batch-Processing.md",
+		process: true,
+	},
+	{
 		src: "docs/FILE_UPLOAD_SYSTEM.md",
 		dest: "Technical/File-Upload-System.md",
 		process: true,
@@ -329,6 +334,7 @@ function createSidebar() {
 ## Content Pipeline
 - [[Technical/GraphRAG-Integration|GraphRAG Integration]]
 - [[Technical/Library-Entity-Pipeline|Library entity pipeline]]
+- [[Technical/LLM-Batch-Processing|LLM batch processing]]
 - [[Technical/File-Upload-System|File upload system]]
 - [[Technical/File-Analysis-System|File analysis system]]
 - [[Technical/Large-File-Support|Large file support]]
