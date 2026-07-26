@@ -66,6 +66,12 @@ export class OpenAIProvider implements LLMProvider {
 		const temperature = options.temperature ?? this.defaultTemperature;
 		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 
+		// OpenAI caches automatically on the request prefix, so there is no
+		// breakpoint to mark: concatenating reproduces the original prompt exactly.
+		const effectivePrompt = options.structuredPromptParts
+			? `${options.structuredPromptParts.cacheablePrefix}${options.structuredPromptParts.variableSuffix}`
+			: prompt;
+
 		try {
 			const openaiWithKey = createOpenAI({ apiKey: this.apiKey });
 			const model = openaiWithKey(modelId as any);
@@ -73,7 +79,7 @@ export class OpenAIProvider implements LLMProvider {
 			// Reasoning models (gpt-5-mini, gpt-5.2, etc.) do not support temperature
 			const result = await generateText({
 				model,
-				prompt,
+				prompt: effectivePrompt,
 				maxOutputTokens: maxTokens,
 				...(options.maxRetries != null
 					? { maxRetries: options.maxRetries }

@@ -24,6 +24,7 @@ import {
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
+import { readVisionTitleHeader } from "@/lib/shard/vision-title";
 import {
 	normalizeResourceForShardGeneration,
 	validateShardGenerationOptions,
@@ -201,6 +202,69 @@ function asMergeableObject(value: unknown): Record<string, unknown> {
  * served from an Anthropic message batch is never gated — its result is already
  * paid for, so gating it could only throw the result away (issue #735).
  */
+/**
+ * Pick the display title for a visual_inspiration shard.
+ *
+ * Prefers the title the vision pass produced in the same call that described
+ * the image; only content extracted before that pass emitted one falls through
+ * to the ANALYSIS-tier title model, and a filename-derived label backstops both.
+ */
+async function resolveVisualInspirationTitle(params: {
+	fileContent: string;
+	fallbackName: string;
+	env: Env;
+	llmApiKey?: string;
+	username: string;
+	campaignId: string;
+	fileKey?: string;
+	libraryMode: boolean;
+}): Promise<{
+	displayName: string;
+	titleSource: "llm" | "filename" | "vision";
+}> {
+	// The vision pass now names the image in the same call that describes it.
+	// When that title is present, the ANALYSIS-tier title call is pure waste —
+	// it would re-read a description to invent what we already have.
+	const visionTitle = readVisionTitleHeader(params.fileContent);
+	if (visionTitle) {
+		return { displayName: visionTitle, titleSource: "vision" };
+	}
+
+	if (!params.llmApiKey) {
+		return { displayName: params.fallbackName, titleSource: "filename" };
+	}
+
+	try {
+		const rateLimitService = getLLMRateLimitService(params.env);
+		const generated = await generateVisualInspirationTitle({
+			descriptionText: params.fileContent,
+			apiKey: params.llmApiKey,
+			onUsage: async (usage) => {
+				await rateLimitService.recordUsage(
+					params.username,
+					usage.tokens,
+					usage.queryCount,
+					undefined,
+					{
+						intent: LLM_SPEND_INTENT.visual_inspiration_title,
+						source: "entity_staging:visual_inspiration_title",
+						...pickTokenBreakdown(usage),
+						campaignId: params.campaignId,
+						fileKey: params.fileKey,
+						libraryMode: params.libraryMode,
+					}
+				);
+			},
+		});
+		if (generated.trim()) {
+			return { displayName: generated.trim(), titleSource: "llm" };
+		}
+	} catch (_err) {
+		// Keep the filename-based label.
+	}
+	return { displayName: params.fallbackName, titleSource: "filename" };
+}
+
 async function resolveChunkGate(params: {
 	env: Env;
 	telemetry: TelemetryService;
@@ -263,6 +327,7 @@ async function resolveChunkGate(params: {
 		llmApiKey,
 		username,
 		campaignId,
+		env,
 		onUsage: async (usage, ctx) => {
 			await rateLimitService.recordUsage(
 				username,
@@ -523,40 +588,16 @@ async function stageEntitiesFromResourceImpl(
 				normalizedResource.file_name ||
 				(normalizedResource as { display_name?: string }).display_name ||
 				"Visual inspiration";
-			let displayName = prettifyLibraryImageFilename(String(nameSource));
-			let titleSource: "llm" | "filename" = "filename";
-
-			if (llmApiKey) {
-				try {
-					const rateLimitService = getLLMRateLimitService(env);
-					const generated = await generateVisualInspirationTitle({
-						descriptionText: fileContent,
-						apiKey: llmApiKey,
-						onUsage: async (usage) => {
-							await rateLimitService.recordUsage(
-								username,
-								usage.tokens,
-								usage.queryCount,
-								undefined,
-								{
-									intent: LLM_SPEND_INTENT.visual_inspiration_title,
-									source: "entity_staging:visual_inspiration_title",
-									...pickTokenBreakdown(usage),
-									campaignId,
-									fileKey: normalizedResource.file_key || undefined,
-									libraryMode,
-								}
-							);
-						},
-					});
-					if (generated.trim()) {
-						displayName = generated.trim();
-						titleSource = "llm";
-					}
-				} catch (_err) {
-					// Keep filename-based displayName
-				}
-			}
+			const { displayName, titleSource } = await resolveVisualInspirationTitle({
+				fileContent,
+				fallbackName: prettifyLibraryImageFilename(String(nameSource)),
+				env,
+				llmApiKey,
+				username,
+				campaignId,
+				fileKey: normalizedResource.file_key || undefined,
+				libraryMode,
+			});
 
 			const contentPayload = {
 				text: fileContent,

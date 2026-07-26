@@ -98,7 +98,7 @@ function buildSessionScriptPromptBody(params: {
 	campaignResourcesSection: string;
 	encounterContextSection: string;
 	endGoalInstruction: string;
-}): string {
+}): SessionScriptPromptParts {
 	const {
 		campaignName,
 		sessionTitle,
@@ -114,9 +114,13 @@ function buildSessionScriptPromptBody(params: {
 		endGoalInstruction,
 	} = params;
 
-	return `You are an expert game master assistant creating a detailed, actionable session script for a tabletop roleplaying game campaign.
-
-## Campaign Context
+	// Instructions first, campaign data second. This is the wrong way round for
+	// readability but the only way round that caches: a `cache_control`
+	// breakpoint hashes everything *before* it, so any per-session text ahead of
+	// the requirements block would give every call a unique prefix and a 0% hit
+	// rate. `endGoalInstruction` has exactly two values (one-off vs arc), so it
+	// stays in the prefix — two cache entries, both still reused.
+	const variableSuffix = `## Campaign Context
 
 Campaign: ${campaignName}
 Session Title: ${sessionTitle}
@@ -140,6 +144,12 @@ ${characterContext}
 ${encounterContextSection}
 
 ${campaignResourcesSection}
+
+Generate the complete session script now, ensuring all requirements are met.`;
+
+	const cacheablePrefix = `You are an expert game master assistant creating a detailed, actionable session script for a tabletop roleplaying game campaign.
+
+The campaign context for this session follows the requirements below.
 
 ## CRITICAL REQUIREMENTS
 
@@ -210,12 +220,12 @@ If an encounter specification is provided, integrate it into scene flow and incl
 
 Generate a complete session script in markdown format following this structure:
 
-# ${sessionTitle}
+# [Session Title, exactly as given in the Campaign Context]
 
 ## Session Overview
 - **End Goal**: [Clear goal relating to campaign arc or self-contained for one-off]
 - **Sub-Goals**: [List of flexible sub-goals with multiple achievement paths]
-- **Estimated Duration**: ${estimatedDuration} hours
+- **Estimated Duration**: [Estimated Duration, exactly as given in the Campaign Context]
 
 ## Session Script
 
@@ -254,17 +264,29 @@ Generate a complete session script in markdown format following this structure:
 [Memorable ending moment]
 
 ### Session Resolution
-[Wrap-up and next session hooks]
+[Wrap-up and next session hooks]`;
 
-Generate the complete session script now, ensuring all requirements are met.`;
+	return { cacheablePrefix, variableSuffix };
 }
 
 /**
- * Generate a comprehensive prompt for creating a detailed session script
+ * Split session-script prompt: `cacheablePrefix` is identical across every
+ * session of the same type (~1.3k tokens, comfortably over Sonnet 5's 1,024
+ * token cache minimum); `variableSuffix` is the campaign data.
  */
-export function formatSessionScriptPrompt(
+export interface SessionScriptPromptParts {
+	cacheablePrefix: string;
+	variableSuffix: string;
+}
+
+/**
+ * Generate a comprehensive prompt for creating a detailed session script,
+ * split for prompt caching. Pass straight to `generateSummary`'s
+ * `structuredPromptParts`.
+ */
+export function formatSessionScriptPromptParts(
 	context: SessionScriptContext
-): string {
+): SessionScriptPromptParts {
 	const {
 		campaignName,
 		sessionTitle,
@@ -417,6 +439,20 @@ ${(encounterSpec.sourceContext?.planningSignals ?? []).map((signal) => `- ${sign
 	});
 }
 
+/**
+ * Single-string form of {@link formatSessionScriptPromptParts}, for providers
+ * with no explicit cache breakpoint (OpenAI caches on the request prefix
+ * automatically, so the concatenation is equivalent).
+ */
+export function formatSessionScriptPrompt(
+	context: SessionScriptContext
+): string {
+	const { cacheablePrefix, variableSuffix } =
+		formatSessionScriptPromptParts(context);
+	return `${cacheablePrefix}\n\n${variableSuffix}`;
+}
+
 export const SESSION_SCRIPT_PROMPTS = {
 	formatSessionScriptPrompt,
+	formatSessionScriptPromptParts,
 };

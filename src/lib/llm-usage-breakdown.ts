@@ -42,15 +42,44 @@ type AiSdkUsage = {
 /**
  * Anthropic reports cache *writes* in provider metadata rather than in `usage`
  * (cache reads land on `usage.cachedInputTokens`).
+ *
+ * On `@ai-sdk/anthropic` v4 the number lives inside the raw usage blob the SDK
+ * forwards verbatim at `providerMetadata.anthropic.usage`, so it arrives in the
+ * API's snake_case — `AnthropicMessageMetadata` has no top-level
+ * `cacheCreationInputTokens`. Reading only the top-level camelCase field would
+ * report 0 cache writes on every call, which is indistinguishable from a
+ * breakpoint that is never being honoured. Check every shape so a naming change
+ * upstream degrades to zero rather than silently hiding cache activity.
  */
 function readCacheWriteTokens(providerMetadata: unknown): number {
 	const anthropic = (
 		providerMetadata as
-			| { anthropic?: { cacheCreationInputTokens?: unknown } }
+			| {
+					anthropic?: {
+						cacheCreationInputTokens?: unknown;
+						usage?: unknown;
+					};
+			  }
 			| undefined
 	)?.anthropic;
-	const raw = anthropic?.cacheCreationInputTokens;
-	return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : 0;
+	if (!anthropic) return 0;
+
+	const candidates: unknown[] = [anthropic.cacheCreationInputTokens];
+	const rawUsage = anthropic.usage;
+	if (rawUsage && typeof rawUsage === "object") {
+		const usage = rawUsage as Record<string, unknown>;
+		candidates.push(
+			usage.cache_creation_input_tokens,
+			usage.cacheCreationInputTokens
+		);
+	}
+
+	for (const raw of candidates) {
+		if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+			return raw;
+		}
+	}
+	return 0;
 }
 
 function num(value: unknown): number {

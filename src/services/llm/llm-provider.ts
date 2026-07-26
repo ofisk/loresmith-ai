@@ -33,11 +33,24 @@ export interface LLMOptions {
 		usage: LlmUsageReport,
 		context?: UsageCallbackContext
 	) => void | Promise<void>;
+	/**
+	 * When set (Anthropic), uses message parts + an ephemeral cache breakpoint on
+	 * the prefix.
+	 *
+	 * Lives on `LLMOptions`, not `StructuredOutputOptions`, so plain-text
+	 * generation can cache too — several long prompts in this repo are a large
+	 * stable instruction block followed by variable campaign data, and the
+	 * parent type is what `generateSummary` accepts.
+	 *
+	 * The prefix must clear the model's minimum cacheable length or the API
+	 * silently drops the breakpoint; see `lib/prompt-cache-guard.ts`.
+	 */
+	structuredPromptParts?: StructuredPromptParts;
 }
 
 /**
  * Split prompt for Anthropic prompt caching: identical `cacheablePrefix` across
- * chunks (cached); `variableSuffix` is the document chunk + CONTENT END.
+ * calls (cached); `variableSuffix` carries the per-call content.
  */
 export interface StructuredPromptParts {
 	cacheablePrefix: string;
@@ -49,9 +62,7 @@ export interface StructuredPromptParts {
  */
 export interface StructuredOutputOptions extends LLMOptions {
 	schema?: string; // JSON schema as string for structured output
-	/** When set (Anthropic), uses message parts + ephemeral cache on the prefix. */
-	structuredPromptParts?: StructuredPromptParts;
-	/** Invoked when a JSON repair LLM pass runs after first-pass parse failure. */
+	/** Invoked when a JSON repair pass runs after first-pass parse failure. */
 	onJsonRepair?: () => void | Promise<void>;
 }
 

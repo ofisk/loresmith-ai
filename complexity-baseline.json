@@ -282,7 +282,7 @@
 			"count": 1
 		},
 		"src/services/campaign/entity-staging-service.ts::stageEntitiesFromResourceImpl": {
-			"ccn": 36,
+			"ccn": 34,
 			"count": 1
 		},
 		"src/services/campaign/impl/direct-file-content-extraction-provider.ts::extractContent": {
@@ -357,20 +357,12 @@
 			"ccn": 31,
 			"count": 1
 		},
-		"src/services/llm/anthropic-provider.ts::generateStructuredOutput": {
-			"ccn": 18,
-			"count": 1
-		},
 		"src/services/llm/llm-rate-limit-service.ts::checkLimit": {
 			"ccn": 22,
 			"count": 1
 		},
 		"src/services/llm/llm-rate-limit-service.ts::getUsageStatus": {
 			"ccn": 45,
-			"count": 1
-		},
-		"src/services/llm/openai-provider.ts::generateSummary": {
-			"ccn": 19,
 			"count": 1
 		},
 		"src/services/rag/entity-extraction-pipeline.ts::run": {
