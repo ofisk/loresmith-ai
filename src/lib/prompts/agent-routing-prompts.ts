@@ -1,29 +1,35 @@
 /**
  * Agent Routing Prompts
  * Prompts for routing user messages to the appropriate specialized agent
+ *
+ * The prompt is split into a **cacheable prefix** (agent descriptions, routing
+ * rules, examples — identical on every request for a given deploy) and a
+ * **variable suffix** (this message and its recent context). The variable part
+ * used to sit in the middle of the template, which meant no reusable prefix
+ * existed at all. Keeping it strictly last is what makes a provider-side cache
+ * breakpoint possible; see `AgentRouter.callLLM`.
  */
 
+/** The stable and per-request halves of the routing prompt. */
+export interface AgentRoutingPromptParts {
+	/** Invariant for a given deploy — safe to place behind a cache breakpoint. */
+	cacheablePrefix: string;
+	/** This request's message and context. Must stay after the breakpoint. */
+	variableSuffix: string;
+}
+
 /**
- * Generate a prompt for routing a user message to the appropriate agent
- * @param agentDescriptions - Descriptions of all available agents
- * @param userMessage - The user's message to route
- * @param recentContext - Optional recent conversation context
- * @param registeredAgents - List of registered agent type names
- * @returns Formatted prompt string for agent routing
+ * Build the invariant half of the routing prompt.
+ *
+ * Derives entirely from the static agent registry, so the output is
+ * byte-identical across requests. Do not interpolate anything per-request here
+ * — a single changed byte invalidates the whole cached prefix.
  */
-export function formatAgentRoutingPrompt(
-	agentDescriptions: string,
-	userMessage: string,
-	recentContext: string | undefined,
-	_registeredAgents: string[]
-): string {
+export function formatAgentRoutingPrefix(agentDescriptions: string): string {
 	return `Based on the user's message, determine which agent should handle this request.
 
 Available agents:
 ${agentDescriptions}
-
-User message: "${userMessage}"
-${recentContext ? `Recent context: "${recentContext}"` : ""}
 
 Routing rules:
 - **Persisted LoreSmith chat (this campaign):** Route to **"campaign-context"** when fulfilling the request requires searching, recalling, summarizing, or paging through prior messages stored for this campaign in LoreSmith (any topic or downstream task). Prefer **"campaign-context"** over **"entity-graph"** whenever that archival chat work is part of the task, even if the user also mentions entities, PCs, or the graph.
@@ -44,7 +50,6 @@ Routing rules:
 - General help/how-to questions about using the application → "onboarding"
 - Boost/credits selection (which boost, help me choose, running out of capacity when adding documents, need more room for documents) → "onboarding"
 
-Respond with: agent_name|confidence|reason
 Format: agent_name|confidence|reason
 
 Examples:
@@ -71,6 +76,56 @@ Examples:
 - "which boost should I get?" / "help me choose a boost" / "I'm running out of capacity" → onboarding|90|Boost selection`;
 }
 
+/**
+ * Build the per-request half of the routing prompt.
+ */
+export function formatAgentRoutingSuffix(
+	userMessage: string,
+	recentContext: string | undefined
+): string {
+	const context = recentContext ? `\nRecent context: "${recentContext}"` : "";
+	return `User message: "${userMessage}"${context}
+
+Respond with: agent_name|confidence|reason`;
+}
+
+/**
+ * Build both halves of the routing prompt.
+ */
+export function formatAgentRoutingPromptParts(
+	agentDescriptions: string,
+	userMessage: string,
+	recentContext?: string
+): AgentRoutingPromptParts {
+	return {
+		cacheablePrefix: formatAgentRoutingPrefix(agentDescriptions),
+		variableSuffix: formatAgentRoutingSuffix(userMessage, recentContext),
+	};
+}
+
+/**
+ * Single-string form of the routing prompt.
+ *
+ * Retained for callers that cannot use a cache breakpoint (and for tests that
+ * assert on the prompt's routing rules). Prefer
+ * `formatAgentRoutingPromptParts` on any path that hits the provider.
+ */
+export function formatAgentRoutingPrompt(
+	agentDescriptions: string,
+	userMessage: string,
+	recentContext?: string
+): string {
+	const { cacheablePrefix, variableSuffix } = formatAgentRoutingPromptParts(
+		agentDescriptions,
+		userMessage,
+		recentContext
+	);
+	return `${cacheablePrefix}\n\n${variableSuffix}`;
+}
+
 export const AGENT_ROUTING_PROMPTS = {
 	formatAgentRoutingPrompt,
+	formatAgentRoutingPromptParts,
+	formatAgentRoutingPrefix,
+	formatAgentRoutingSuffix,
 };

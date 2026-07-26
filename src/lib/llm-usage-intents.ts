@@ -15,6 +15,7 @@
  * | vision_image_extract | Vision image description for extraction |
  * | session_plan_readout | Session plan readout (stitch / single-shot plan LLM) |
  * | conversation_summary | Rolling summarization of older chat turns |
+ * | agent_routing | Agent selection classifier (per-message routing tax) |
  */
 export const LLM_SPEND_INTENT = {
 	user_prompt: "user_prompt",
@@ -28,6 +29,7 @@ export const LLM_SPEND_INTENT = {
 	vision_image_extract: "vision_image_extract",
 	session_plan_readout: "session_plan_readout",
 	conversation_summary: "conversation_summary",
+	agent_routing: "agent_routing",
 } as const;
 
 export type LlmSpendIntent =

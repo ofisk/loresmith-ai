@@ -15,7 +15,13 @@ export interface UseAppEventHandlersArgs {
 	append: (message: {
 		role: "user";
 		content: string;
-		data: { type: string; campaignId: string | null; jwt: string | null };
+		data: {
+			type: string;
+			campaignId: string | null;
+			jwt: string | null;
+			/** Skips server-side routing classification when the intent is known. */
+			agentType?: string;
+		};
 	}) => void;
 	authState: { getStoredJwt: () => string | null };
 	/** Called before sending a context recap request so the app can hide the placeholder user message from the UI */
@@ -141,6 +147,8 @@ export function useAppEventHandlers({
 				content: CONTEXT_RECAP_PLACEHOLDER,
 				data: {
 					type: "context_recap_request",
+					// Intent is known here — skip the routing classifier server-side.
+					agentType: "recap",
 					campaignId: selectedCampaignId,
 					jwt: jwt || null,
 				},
@@ -181,6 +189,8 @@ export function useAppEventHandlers({
 				content: CONTEXT_RECAP_PLACEHOLDER,
 				data: {
 					type: "context_recap_request",
+					// Intent is known here — skip the routing classifier server-side.
+					agentType: "recap",
 					campaignId: selectedCampaignId,
 					jwt: jwt || null,
 				},
