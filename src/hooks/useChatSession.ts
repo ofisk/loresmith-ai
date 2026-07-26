@@ -2,7 +2,10 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, generateId } from "ai";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CONTEXT_RECAP_PLACEHOLDER } from "@/app-constants";
+import {
+	CONTEXT_RECAP_PLACEHOLDER,
+	UI_INITIATED_PROMPTS,
+} from "@/app-constants";
 import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
@@ -642,8 +645,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 					return;
 				}
 				const jwt = authState.getStoredJwt();
-				const helpPrompt =
-					"I need help with LoreSmith. Please act as a help agent: explain what you can help me with, give example questions I can ask, and share guidance on app functionality and best practices. Base your response on the product documentation and how the app is designed to be used.";
+				const helpPrompt = UI_INITIATED_PROMPTS.HELP;
 				addToInvisible(helpPrompt);
 				void append({
 					role: "user",
@@ -653,10 +655,12 @@ export function useChatSession(options: UseChatSessionOptions) {
 								jwt,
 								campaignId: selectedCampaignId ?? null,
 								isHelpRequest: true,
+								agentType: "onboarding",
 							}
 						: {
 								campaignId: selectedCampaignId ?? null,
 								isHelpRequest: true,
+								agentType: "onboarding",
 							},
 				});
 				setInput("");
@@ -692,8 +696,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 			const jwt = authState.getStoredJwt();
 			if (!jwt) return;
 
-			const recapMessage =
-				"I want to record a session recap. Can you guide me through creating a session digest?";
+			const recapMessage = UI_INITIATED_PROMPTS.SESSION_RECAP;
 			addToInvisible(recapMessage);
 
 			await append({
@@ -703,6 +706,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 				data: {
 					jwt: jwt,
 					campaignId: selectedCampaignId,
+					agentType: "session-digest",
 				},
 			});
 		} catch (_error) {}
@@ -718,8 +722,8 @@ export function useChatSession(options: UseChatSessionOptions) {
 			const isPlayerRole = role !== null && PLAYER_ROLES.has(role as never);
 
 			const nextStepsMessage = isPlayerRole
-				? "What should I do next with my character and at the table?"
-				: "What should I do next for this campaign?";
+				? UI_INITIATED_PROMPTS.NEXT_STEPS_PLAYER
+				: UI_INITIATED_PROMPTS.NEXT_STEPS_GM;
 			addToInvisible(nextStepsMessage);
 
 			await append({
@@ -729,6 +733,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 				data: {
 					jwt: jwt,
 					campaignId: selectedCampaignId,
+					agentType: "recap",
 				},
 			});
 		} catch (_error) {}

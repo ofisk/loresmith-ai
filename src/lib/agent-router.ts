@@ -1,10 +1,23 @@
 import { generateText } from "ai";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
+import {
+	matchAdvisoryRoute,
+	matchDecisiveRoute,
+	type RoutingDecisionSource,
+	resolveExplicitAgentHint,
+} from "@/lib/agent-routing-fast-path";
+import { logRoutingDecision } from "@/lib/agent-routing-telemetry";
 import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
+import type { EnvWithSecrets } from "@/lib/env-utils";
 import { AgentNotRegisteredError } from "@/lib/errors";
+import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
+import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
 import { createModel } from "./model-config";
 import { ModelManager } from "./model-manager";
-import { AGENT_ROUTING_PROMPTS } from "./prompts/agent-routing-prompts";
+import {
+	AGENT_ROUTING_PROMPTS,
+	type AgentRoutingPromptParts,
+} from "./prompts/agent-routing-prompts";
 
 export type AgentType =
 	| "campaign"
@@ -26,6 +39,22 @@ export interface AgentIntent {
 	agent: AgentType;
 	confidence: number;
 	reason: string;
+	/**
+	 * Which layer produced this decision. Useful for callers that want to know
+	 * whether a model call happened; always logged regardless.
+	 */
+	source?: RoutingDecisionSource;
+}
+
+/** Optional inputs that let `routeMessage` skip the classifier or log better. */
+export interface RouteMessageOptions {
+	/**
+	 * The `data` blob from the last user message. Read for an `agentType` hint
+	 * when the client already knows which agent it wants.
+	 */
+	messageData?: unknown;
+	/** Worker env, used only for routing-decision logging. */
+	env?: EnvWithSecrets | Record<string, unknown>;
 }
 
 export interface AgentRegistry {
@@ -132,19 +161,72 @@ export class AgentRouter {
 	 *
 	 * And makes routing decisions based on these descriptions rather than hardcoded rules.
 	 *
+	 * Before reaching the classifier, two cheaper layers get a chance to answer:
+	 * an explicit `agentType` hint from the caller, then a deterministic rules
+	 * pass over phrases with exactly one sensible destination. Both are exact —
+	 * genuinely ambiguous messages still reach the model.
+	 *
 	 * @param userMessage - The user's message to route
 	 * @param recentContext - Optional recent context for routing decisions
 	 * @param ragService - Optional RAG service for enhanced routing
+	 * @param model - Optional model override
+	 * @param options - Caller-supplied intent hint and env for logging
 	 * @returns Promise<AgentIntent> - The routing decision with agent, confidence, and reason
 	 */
 	static async routeMessage(
 		userMessage: string,
 		recentContext?: string,
 		_ragService?: any,
-		model?: any
+		model?: any,
+		options?: RouteMessageOptions
 	): Promise<AgentIntent> {
-		// Build dynamic prompt based on registered agents
 		const registeredAgents = AgentRouter.getRegisteredAgentTypes();
+		const env = options?.env;
+		const startedAt = Date.now();
+
+		// Layer 1: the caller already knows the intent (UI-initiated actions).
+		const hintedAgent = resolveExplicitAgentHint(
+			options?.messageData,
+			registeredAgents
+		);
+		if (hintedAgent) {
+			const intent: AgentIntent = {
+				agent: hintedAgent as AgentType,
+				confidence: 100,
+				reason: "Explicit agent hint from client",
+				source: "explicit-hint",
+			};
+			logRoutingDecision(env, {
+				source: "explicit-hint",
+				agent: intent.agent,
+				confidence: intent.confidence,
+				reason: intent.reason,
+				latencyMs: Date.now() - startedAt,
+			});
+			return intent;
+		}
+
+		// Layer 2: deterministic rules for unambiguous phrasing.
+		const decisive = matchDecisiveRoute(userMessage);
+		if (decisive && registeredAgents.includes(decisive.agent)) {
+			const intent: AgentIntent = {
+				agent: decisive.agent as AgentType,
+				confidence: decisive.confidence,
+				reason: decisive.reason,
+				source: "deterministic",
+			};
+			logRoutingDecision(env, {
+				source: "deterministic",
+				agent: intent.agent,
+				confidence: intent.confidence,
+				reason: intent.reason,
+				rule: decisive.rule,
+				latencyMs: Date.now() - startedAt,
+			});
+			return intent;
+		}
+
+		// Layer 3: genuinely ambiguous — ask the classifier.
 		const agentDescriptions = registeredAgents
 			.map(
 				(agentType) =>
@@ -152,67 +234,115 @@ export class AgentRouter {
 			)
 			.join("\n");
 
-		const prompt = AGENT_ROUTING_PROMPTS.formatAgentRoutingPrompt(
+		const promptParts = AGENT_ROUTING_PROMPTS.formatAgentRoutingPromptParts(
 			agentDescriptions,
 			userMessage,
-			recentContext,
-			registeredAgents
+			recentContext
 		);
 
+		// Evaluated but never routed on — this is the disagreement signal that
+		// tells us which advisory rules are safe to promote to decisive.
+		const advisory = matchAdvisoryRoute(userMessage);
+
+		const finish = (
+			intent: AgentIntent,
+			routedModelId?: string,
+			tokens?: number
+		) => {
+			logRoutingDecision(env, {
+				source: intent.source ?? "llm",
+				agent: intent.agent,
+				confidence: intent.confidence,
+				reason: intent.reason,
+				advisoryAgent: advisory?.agent,
+				advisoryAgreed: advisory ? advisory.agent === intent.agent : undefined,
+				rule: advisory?.rule,
+				latencyMs: Date.now() - startedAt,
+				model: routedModelId,
+			});
+			if (tokens !== undefined && routedModelId) {
+				logVerboseLlmSpend(env, {
+					intent: LLM_SPEND_INTENT.agent_routing,
+					source: "AgentRouter.routeMessage",
+					tokens,
+					model: routedModelId,
+					extras: { agent: intent.agent, confidence: intent.confidence },
+				});
+			}
+			return intent;
+		};
+
 		try {
-			// Use a simple LLM call to determine intent
-			// This could be replaced with your actual LLM service
-			const response = await AgentRouter.callLLM(prompt, model);
-			const [agent, confidenceStr, reason] = response.split("|");
+			const { text, modelId, tokens } = await AgentRouter.callLLM(
+				promptParts,
+				model
+			);
+			const [agent, confidenceStr, reason] = text.split("|");
 
 			// Validate that the agent is registered
 			if (!registeredAgents.includes(agent)) {
-				return {
-					agent: "resources" as AgentType,
-					confidence: 30,
-					reason: "Invalid agent, defaulting to resources",
-				};
+				return finish(
+					{
+						agent: "resources" as AgentType,
+						confidence: 30,
+						reason: "Invalid agent, defaulting to resources",
+						source: "fallback",
+					},
+					modelId,
+					tokens
+				);
 			}
 
-			return {
-				agent: agent as AgentType,
-				confidence: parseInt(confidenceStr, 10) || 50,
-				reason: reason || "LLM-based routing",
-			};
+			return finish(
+				{
+					agent: agent as AgentType,
+					confidence: parseInt(confidenceStr, 10) || 50,
+					reason: reason || "LLM-based routing",
+					source: "llm",
+				},
+				modelId,
+				tokens
+			);
 		} catch (_error) {
 			// Default to resources for file-related operations
-			return {
+			return finish({
 				agent: "resources" as AgentType,
 				confidence: 30,
 				reason: "LLM routing failed, defaulting to resources",
-			};
+				source: "fallback",
+			});
 		}
 	}
 
+	/**
+	 * Run the routing classifier.
+	 *
+	 * The stable half of the prompt (agent descriptions, routing rules,
+	 * examples) is sent as a cache-marked text part so the provider can serve it
+	 * from its prompt cache; only the message and its recent context follow the
+	 * breakpoint.
+	 *
+	 * Caveat worth knowing before optimizing further: that prefix currently
+	 * measures ~1.9k tokens, and Anthropic's minimum cacheable prefix on
+	 * claude-haiku-4-5 (the PIPELINE_LIGHT tier this uses) is 4096 tokens. Below
+	 * the minimum the breakpoint is silently ignored — no error, no cost, and no
+	 * cache either. It is kept because it costs nothing and starts working the
+	 * moment the prefix crosses that threshold or the tier moves to a
+	 * Sonnet/Opus model (1024 / 512 minimum respectively). The saving that is
+	 * real today is the deduplication below.
+	 *
+	 * The system prompt is deliberately short and static — the agent
+	 * descriptions used to be duplicated here *and* in the user message, so
+	 * every routing call shipped the registry twice.
+	 */
 	private static async callLLM(
-		userMessage: string,
+		promptParts: AgentRoutingPromptParts,
 		model?: any
-	): Promise<string> {
-		// Get all registered agents and their descriptions
-		const registeredAgents = AgentRouter.getRegisteredAgentTypes();
-		const agentDescriptions = registeredAgents
-			.map((agentType) => {
-				const description = AgentRouter.getAgentDescription(agentType);
-				return `${agentType}: ${description}`;
-			})
-			.join("\n");
-
-		// Create a generic system prompt that only uses agent descriptions
-		const systemPrompt = `You are an intelligent router that determines which AI agent should handle a user's request.
-
-Available agents and their capabilities:
-${agentDescriptions}
-
-Analyze the user's message and determine which agent would best serve their request. Consider the agent descriptions and user intent.
-
-Respond with ONLY the agent type followed by a confidence score (0-100) and a brief reason, separated by pipes.
-
-Example format: "agent_type|confidence|reason"`;
+	): Promise<{ text: string; modelId?: string; tokens?: number }> {
+		const systemPrompt =
+			"You are an intelligent router that determines which AI agent should handle a user's request. " +
+			"Respond with ONLY the agent type followed by a confidence score (0-100) and a brief reason, separated by pipes. " +
+			'Example format: "agent_type|confidence|reason"';
 
 		// Prefer PIPELINE_LIGHT for routing (faster, lower cost) when API key is available
 		const modelManager = ModelManager.getInstance();
@@ -226,7 +356,9 @@ Example format: "agent_type|confidence|reason"`;
 
 		// If no model is available, we can't route the message
 		if (!modelToUse) {
-			return "campaign|50|No model available for routing, using default agent";
+			return {
+				text: "campaign|50|No model available for routing, using default agent",
+			};
 		}
 
 		// Use generateText for the routing decision (single turn, no tools)
@@ -242,12 +374,40 @@ Example format: "agent_type|confidence|reason"`;
 		const result = await generateText({
 			model: modelToUse,
 			system: systemPrompt,
-			messages: [{ role: "user", content: userMessage }],
+			messages: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: promptParts.cacheablePrefix,
+							providerOptions: {
+								anthropic: { cacheControl: { type: "ephemeral" } },
+							},
+						},
+						{ type: "text", text: promptParts.variableSuffix },
+					],
+				},
+			],
 			...sampling,
 		});
 
-		const trimmedResponse = (result.text ?? "").trim();
-		return trimmedResponse;
+		const usage = result.usage as
+			| {
+					totalTokens?: number;
+					promptTokens?: number;
+					completionTokens?: number;
+			  }
+			| undefined;
+		const tokens =
+			usage?.totalTokens ??
+			(usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
+
+		return {
+			text: (result.text ?? "").trim(),
+			modelId: routedModelId,
+			tokens,
+		};
 	}
 
 	static getAgentDescription(agentType: string): string {

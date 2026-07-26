@@ -93,6 +93,24 @@ export const UPLOAD_CONFIG = {
 // Context recap: user message content for automatic recap (hidden in UI; routing uses it to send to recap agent)
 export const CONTEXT_RECAP_PLACEHOLDER = "[Context recap requested]" as const;
 
+/**
+ * Prompt text for chat turns the UI initiates on the user's behalf.
+ *
+ * These live here (rather than inline in the hooks) so the deterministic
+ * pre-router in `agent-routing-fast-path.ts` can match them without a second
+ * copy of the string drifting out of sync. New UI-initiated turns should also
+ * pass an explicit `agentType` hint in message data — the phrase table is the
+ * fallback for chat history replays and clients that predate the hint.
+ */
+export const UI_INITIATED_PROMPTS = {
+	HELP: "I need help with LoreSmith. Please act as a help agent: explain what you can help me with, give example questions I can ask, and share guidance on app functionality and best practices. Base your response on the product documentation and how the app is designed to be used.",
+	SESSION_RECAP:
+		"I want to record a session recap. Can you guide me through creating a session digest?",
+	NEXT_STEPS_GM: "What should I do next for this campaign?",
+	NEXT_STEPS_PLAYER:
+		"What should I do next with my character and at the table?",
+} as const;
+
 // Library path constants - centralized for consistency across upload and search
 export const LIBRARY_CONFIG = {
 	// Always use "library" as the base path for file storage

@@ -386,6 +386,13 @@ export class Chat extends SimpleChatAgent<Env> {
 			return "recap";
 		}
 
+		const messageData =
+			lastUserMessage &&
+			typeof lastUserMessage === "object" &&
+			"data" in lastUserMessage
+				? (lastUserMessage as { data?: unknown }).data
+				: undefined;
+
 		const intent = await AgentRouter.routeMessage(
 			userMessage,
 			this.messages
@@ -393,7 +400,8 @@ export class Chat extends SimpleChatAgent<Env> {
 				.map((msg) => (msg as { content?: string }).content ?? "")
 				.join(" "),
 			null,
-			model
+			model,
+			{ messageData, env: this.env as Record<string, unknown> }
 		);
 
 		return intent.agent;
