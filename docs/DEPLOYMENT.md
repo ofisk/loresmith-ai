@@ -4,7 +4,7 @@
 
 1. Developer works and tests locally.
 2. Developer may optionally deploy to dev before opening a PR: `npm run deploy:dev` (runs bootstrap, D1 migrations for dev, and `wrangler deploy --config wrangler.dev.jsonc`).
-3. Developer pushes and opens a PR; CI and sanity checks run automatically. Optional: PR preview Workers via `.github/workflows/deploy-preview.yml` (requires GitHub Actions secrets; see below).
+3. Developer pushes and opens a PR; CI and sanity checks run automatically.
 4. When checks pass, developer merges the PR to `main`.
 5. **Production:** Cloudflare **Workers Builds** (GitHub integration on the `loresmith-ai` Worker) builds and deploys from `main`. Configure build env vars, install/build commands, and any deploy steps in the Cloudflare dashboard so they match this repo (see `package.json` scripts and previous `deploy.yml` logic for D1 migrations if you run them in CI).
 
@@ -16,44 +16,7 @@ There is **no** separate GitHub Actions `deploy.yml` for production—Cloudflare
 - For production, ensure DLQ queues exist: `wrangler queues create graph-rebuild-dlq` and `wrangler queues create shard-embedding-dlq` (file-processing-dlq is created with main queues).
 - For a fresh dev database, run `npm run migrate:bootstrap:dev` once (applies `d1-bootstrap.sql` and records existing migration files in `d1_migrations`), then `npm run migrate:dev` whenever you pull new migrations. `npm run deploy:dev` runs bootstrap before migrations for dev.
 
-### Preview deployments (PR)
-
-Each pull request can deploy a **preview Worker** so you can test the full app (FE + API) before merge.
-
-**How it works:** One Worker serves both the SPA and the API (same origin). The workflow builds the frontend with `VITE_API_URL` set to the preview URL, then deploys a Worker with a unique name (e.g. `loresmith-ai-preview-123`). That Worker uses the **same dev D1, R2, Queues, and Vectorize** as staging—no per-PR databases or migrations. The workflow comments on the PR with the preview URL.
-
-**Workflow:** `.github/workflows/deploy-preview.yml` runs on `pull_request` (opened, synchronize). It generates `wrangler.preview.generated.jsonc` from the template `wrangler.preview.jsonc` (placeholders `__PREVIEW_WORKER_NAME__` and `__PREVIEW_URL__`), builds with the correct API URL, deploys, and posts/updates a comment with the link.
-
-**Required GitHub secrets (same token/account ID as in the section below):**
-- `CLOUDFLARE_API_TOKEN` – API token with Workers and D1 deploy permissions
-- `CLOUDFLARE_ACCOUNT_ID` – Cloudflare account ID
-
-**Optional:** `CLOUDFLARE_WORKERS_SUBDOMAIN` – Your account’s workers.dev subdomain (e.g. `oren-t-fisk`). If unset, the workflow uses `oren-t-fisk` so it works for this repo out of the box.
-
-**Worker secrets:** Each preview Worker is a new script (e.g. `loresmith-ai-preview-123`) and starts with no secrets. To make auth work on previews, either add a GitHub secret `PREVIEW_JWT_SECRET` (the workflow will set `JWT_SECRET` for the Worker) or set any required secrets (e.g. `JWT_SECRET`) in the Cloudflare Dashboard for each new preview Worker (once per PR number).
-**Trade-offs:** Previews share dev data (D1, R2). That’s fine for smoke-testing and demos; for isolated data per PR you’d need to create a D1 database (and optionally R2 prefix) per PR and run migrations in the workflow.
-
----
-
-**Required GitHub secrets (for PR preview deploy only — `.github/workflows/deploy-preview.yml`):**
-- `CLOUDFLARE_API_TOKEN` – API token with Workers and D1 deploy permissions
-- `CLOUDFLARE_ACCOUNT_ID` – Cloudflare account ID
-
-Production deploy from `main` uses **Cloudflare Workers Builds** and does not need these in GitHub unless you also use the preview workflow.
-
-**How to add GitHub secrets (copy/paste):**
-
-1. **Open the repo on GitHub** → **Settings** → **Secrets and variables** → **Actions**.
-2. Click **New repository secret** for each of these:
-
-   | Secret name | Where to get the value |
-   |-------------|------------------------|
-   | `CLOUDFLARE_ACCOUNT_ID` | [Cloudflare Dashboard](https://dash.cloudflare.com) → right-hand sidebar under "Account ID", or **Workers & Pages** → any Worker → the ID is in the URL or in the overview. Copy the 32-character hex string. |
-   | `CLOUDFLARE_API_TOKEN` | [Cloudflare Dashboard](https://dash.cloudflare.com) → **My Profile** (top right) → **API Tokens** → **Create Token**. Use "Edit Cloudflare Workers" template or create a custom token with **Account** → **Cloudflare Workers Scripts** (Edit) and **Account** → **D1** (Edit). Create the token, then **Copy** the value (you only see it once). |
-   | `PREVIEW_JWT_SECRET` (optional) | Generate one: run `openssl rand -hex 32` in a terminal and paste the output. Or reuse the same secret you use for dev (e.g. from `wrangler secret list --config wrangler.dev.jsonc` you can’t see the value; set a new one and use it here). |
-   | `CLOUDFLARE_WORKERS_SUBDOMAIN` (optional) | After your first deploy, the Worker URL looks like `https://loresmith-ai-dev.XXXX.workers.dev`. The `XXXX` part is your subdomain (e.g. `oren-t-fisk`). Paste that. If you don’t set this, the preview workflow uses `oren-t-fisk`. |
-
-3. Paste each value into the **Secret** field and click **Add secret**. You won’t be able to see the values again; you can update a secret by creating a new one with the same name.
+**GitHub secrets:** none required. CI (`ci.yml`, `sanity-check.yml`) uses only the built-in `GITHUB_TOKEN`, and the production deploy from `main` runs through **Cloudflare Workers Builds**, which authenticates via the Cloudflare–GitHub integration rather than repository secrets.
 
 **Required Worker secrets (dev and prod):** Set these in the Cloudflare Dashboard (Workers & Pages → your-worker → Settings → Variables and Secrets) or via `wrangler secret put`:
 - `JWT_SECRET` – Secret for signing/verifying auth tokens. Without this, login and API auth return 500/401. To set for dev: `wrangler secret put JWT_SECRET --config wrangler.dev.jsonc`
