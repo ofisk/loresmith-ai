@@ -1,3 +1,13 @@
+# Block commits directly on main; every change goes through a branch + PR.
+# Checked first so a wrong-branch commit fails instantly instead of after the slower gates below.
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$branch" = "main" ] && [ "$ALLOW_MAIN_COMMIT" != "1" ]; then
+  echo "✖ Direct commits to main are not allowed."
+  echo "  Create a branch:  git checkout -b <type>/<slug>"
+  echo "  Your staged changes carry over. Override (rare): ALLOW_MAIN_COMMIT=1 git commit ..."
+  exit 1
+fi
+
 # Format, lint, and typecheck staged files; gate complexity; then run tests for immediate feedback on failure.
 npx lint-staged
 npm run complexity:staged

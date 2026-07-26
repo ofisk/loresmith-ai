@@ -212,12 +212,21 @@ refactor: Standardize imports to use @/ alias
 
 ### Making Changes
 
-1. **Create a branch**: `git checkout -b feature/your-feature-name`
-2. **Make incremental changes**: Small, focused commits
-3. **Follow linting rules**: Run `npm run check` before committing
+1. **Never commit to `main`**: All work happens on a branch and lands via pull request. A `.husky/pre-commit` hook fails commits made on `main`.
+2. **Create a branch** off an up-to-date `main`:
+
+   ```bash
+   git fetch origin
+   git checkout -b <type>/<issue#>-<slug> origin/main
+   ```
+
+   Use the same prefixes as commit messages — `feat/`, `fix/`, `docs/`, `refactor/`, `test/`, `chore/` — and include the issue number when one exists (e.g. `fix/576-stuck-sync-queue`, `docs/tool-system-architecture`).
+
+3. **Make incremental changes**: Small, focused commits
+4. **Follow linting rules**: Run `npm run check` before committing
    - Keep functions at or below CCN 15; see [Code Complexity](./CODE_COMPLEXITY.md)
-4. **Write tests**: Add tests for new functionality
-5. **Update documentation**: Update relevant docs if needed
+5. **Write tests**: Add tests for new functionality
+6. **Update documentation**: Update relevant docs if needed
 
 ### Code Review Checklist
 
@@ -232,11 +241,13 @@ refactor: Standardize imports to use @/ alias
 
 ### Pull Request Process
 
-1. **Update branch**: Rebase on latest `main` branch
+1. **Update branch**: Rebase on latest `main` branch (rebase, don't merge `main` in — history stays linear)
 2. **Write clear description**: Explain what and why
 3. **Link related issues**: Reference any related issues
 4. **Request review**: Tag relevant maintainers
 5. **Address feedback**: Respond to review comments promptly
+6. **Wait for CI**: `ci.yml` (`npm run validate`, e2e) and `sanity-check.yml` (`npm run check`, build, tests) must be green
+7. **Squash-merge and delete the branch**: Merging to `main` triggers a production deploy via Cloudflare Workers Builds — see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ## File Organization
 
