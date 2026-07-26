@@ -93,6 +93,7 @@
 		},
 		{
 			"includes": [
+				"src/lib/logger.ts",
 				"src/lib/zod-utils.ts",
 				"src/lib/notifications.ts",
 				"src/lib/shard-generation-utils.ts",
