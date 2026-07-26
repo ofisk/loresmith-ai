@@ -5,6 +5,7 @@ import { PendingProposalsSection } from "@/components/campaign/PendingProposalsS
 import { PlanningTasksPanel } from "@/components/campaign/PlanningTasksPanel";
 import { PlayerCharacterRosterPanel } from "@/components/campaign/PlayerCharacterRosterPanel";
 import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
+import { CampaignAudioPanel } from "@/components/campaign-audio/CampaignAudioPanel";
 import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationModal";
 import { Modal } from "@/components/modal/Modal";
 import { RunsheetPanel } from "@/components/session/RunsheetPanel";
@@ -122,6 +123,57 @@ function RunsheetTabPanel({
 	);
 }
 
+/**
+ * Audio is GM-only for the same reason runsheets are: a track's title is built
+ * from campaign entities, so a list of tracks is a list of what is coming.
+ */
+function AudioTabButton({
+	isActive,
+	isPlayerRole,
+	onSelect,
+}: RunsheetTabProps & { onSelect: () => void }) {
+	const stateClass = isPlayerRole
+		? "border-transparent text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
+		: isActive
+			? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
+			: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300";
+
+	return (
+		<button
+			type="button"
+			role="tab"
+			aria-selected={isActive}
+			aria-controls="tabpanel-audio"
+			id="tab-audio"
+			onClick={onSelect}
+			disabled={isPlayerRole}
+			title={isPlayerRole ? "Campaign audio is GM-only" : undefined}
+			className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${stateClass}`}
+		>
+			Audio
+		</button>
+	);
+}
+
+function AudioTabPanel({
+	isActive,
+	isPlayerRole,
+	campaignId,
+}: RunsheetTabProps & { campaignId: string }) {
+	if (!isActive || isPlayerRole) return null;
+
+	return (
+		<div
+			role="tabpanel"
+			id="tabpanel-audio"
+			aria-labelledby="tab-audio"
+			className="mt-2"
+		>
+			<CampaignAudioPanel campaignId={campaignId} />
+		</div>
+	);
+}
+
 export function CampaignDetailsModal({
 	campaign,
 	isOpen,
@@ -143,7 +195,13 @@ export function CampaignDetailsModal({
 	);
 	const [isUpdating, setIsUpdating] = useState(false);
 	const [activeTab, setActiveTab] = useState<
-		"details" | "party" | "digests" | "nextSteps" | "runsheet" | "resources"
+		| "details"
+		| "party"
+		| "digests"
+		| "nextSteps"
+		| "runsheet"
+		| "audio"
+		| "resources"
 	>("details");
 	const [isDigestModalOpen, setIsDigestModalOpen] = useState(false);
 	const [editingDigest, setEditingDigest] =
@@ -739,6 +797,11 @@ export function CampaignDetailsModal({
 								isPlayerRole={isPlayerRole}
 								onSelect={() => setActiveTab("runsheet")}
 							/>
+							<AudioTabButton
+								isActive={activeTab === "audio"}
+								isPlayerRole={isPlayerRole}
+								onSelect={() => setActiveTab("audio")}
+							/>
 							<button
 								type="button"
 								role="tab"
@@ -832,6 +895,12 @@ export function CampaignDetailsModal({
 							isPlayerRole={isPlayerRole}
 							campaignId={campaign.campaignId}
 							canEdit={canShare}
+						/>
+
+						<AudioTabPanel
+							isActive={activeTab === "audio"}
+							isPlayerRole={isPlayerRole}
+							campaignId={campaign.campaignId}
 						/>
 
 						{activeTab === "resources" && (
