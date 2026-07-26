@@ -131,6 +131,14 @@ export const ENDPOINTS = {
 			DETAILS: (campaignId: string, templateId: string) =>
 				`/campaigns/${campaignId}/session-digest-templates/${templateId}`,
 		},
+		/** GM-only session runsheets. Never exposed through the player share flow. */
+		RUNSHEETS: {
+			BASE: (campaignId: string) => `/campaigns/${campaignId}/runsheets`,
+			DETAILS: (campaignId: string, runsheetId: string) =>
+				`/campaigns/${campaignId}/runsheets/${runsheetId}`,
+			EXPORT_HTML: (campaignId: string, runsheetId: string) =>
+				`/campaigns/${campaignId}/runsheets/${runsheetId}/export.html`,
+		},
 		PLANNING_TASKS: {
 			BASE: (campaignId: string) => `/campaigns/${campaignId}/planning-tasks`,
 			DETAILS: (campaignId: string, taskId: string) =>
