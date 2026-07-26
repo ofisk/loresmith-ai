@@ -109,17 +109,117 @@ const FILE_MAPPINGS = [
 		dest: "Technical/D1-Indexes.md",
 		process: true,
 	},
+	{
+		src: "docs/AGENT_DESIGN.md",
+		dest: "Technical/Agent-Design.md",
+		process: true,
+	},
+	{
+		src: "docs/TOOL_SYSTEM.md",
+		dest: "Technical/Tool-System.md",
+		process: true,
+	},
+	{
+		src: "docs/TOOL_PATTERNS.md",
+		dest: "Technical/Tool-Patterns.md",
+		process: true,
+	},
+	{
+		src: "docs/CONTINUITY_CHECKER.md",
+		dest: "Technical/Continuity-Checker.md",
+		process: true,
+	},
+	{
+		src: "docs/PLAYER_RECAP_EMAILS.md",
+		dest: "Technical/Player-Recap-Emails.md",
+		process: true,
+	},
+	{
+		src: "docs/SESSION_RUNSHEET.md",
+		dest: "Technical/Session-Runsheet.md",
+		process: true,
+	},
+	{
+		src: "docs/LARGE_FILE_SUPPORT.md",
+		dest: "Technical/Large-File-Support.md",
+		process: true,
+	},
+	{
+		src: "docs/DAO_LAYER.md",
+		dest: "Technical/DAO-Layer.md",
+		process: true,
+	},
+	{
+		src: "docs/EVENT_BUS_ARCHITECTURE.md",
+		dest: "Technical/Event-Bus-Architecture.md",
+		process: true,
+	},
+	{
+		src: "docs/EVENT_BUS_GUIDE.md",
+		dest: "Technical/Event-Bus-Guide.md",
+		process: true,
+	},
+	{
+		src: "docs/NOTIFICATION_SYSTEM.md",
+		dest: "Technical/Notification-System.md",
+		process: true,
+	},
+	{
+		src: "docs/ASSESSMENT_SYSTEM.md",
+		dest: "Technical/Assessment-System.md",
+		process: true,
+	},
+	{
+		src: "docs/SHARD_APPROVAL_SYSTEM.md",
+		dest: "Technical/Shard-Approval-System.md",
+		process: true,
+	},
+	{
+		src: "docs/SHARD_UI_COMPONENTS.md",
+		dest: "Technical/Shard-UI-Components.md",
+		process: true,
+	},
+	{
+		src: "docs/COMMUNITY_DETECTION_MEMORY.md",
+		dest: "Technical/Community-Detection-Memory.md",
+		process: true,
+	},
+	// Operations
+	{
+		src: "docs/CLEAR_PRODUCTION_DATA.md",
+		dest: "Clear-Production-Data.md",
+		process: true,
+	},
 ];
 
-/** Map docs/ relative paths (e.g. API.md, database/d1-indexes.md) to wiki page paths without .md */
+/**
+ * Map docs/ relative paths (e.g. API.md, database/d1-indexes.md) to the wiki
+ * page names to link to.
+ *
+ * GitHub flattens wiki page paths: `Technical/Tool-System.md` is published as
+ * the page `Tool-System`, and `/wiki/Technical/Tool-System` 404s. `[[a/b|c]]`
+ * wiki-links are resolved by GitHub and tolerate the folder, but `[text](a/b)`
+ * is a plain relative URL the browser resolves against the current page — so
+ * markdown links must use the flattened name, without the folder prefix.
+ */
 function buildDocsToWikiLinkMap() {
 	const map = new Map();
+	const takenBy = new Map();
 	for (const { src, dest } of FILE_MAPPINGS) {
 		if (!src.startsWith("docs/")) {
 			continue;
 		}
 		const rel = src.slice("docs/".length);
-		const wikiPath = dest.replace(/\.md$/, "");
+		const wikiPath = dest.replace(/\.md$/, "").split("/").pop();
+		// Because names flatten, two mappings in different folders that share a
+		// basename would resolve to the same wiki page. Fail loudly rather than
+		// publish links that silently point at the wrong page.
+		if (takenBy.has(wikiPath)) {
+			throw new Error(
+				`Wiki page name collision: "${dest}" and "${takenBy.get(wikiPath)}" both flatten to "${wikiPath}"`
+			);
+		}
+		takenBy.set(wikiPath, dest);
 		map.set(rel, wikiPath);
 	}
 	return map;
@@ -130,6 +230,15 @@ function exec(cmd, options = {}) {
 		console.log(`[DRY RUN] Would execute: ${cmd}`);
 		return "";
 	}
+	return execAlways(cmd, options);
+}
+
+/**
+ * Run a command even under --dry-run. Only for commands that leave the wiki
+ * repository untouched (e.g. the initial clone), which the dry run still needs
+ * in order to diff the local docs against the published pages.
+ */
+function execAlways(cmd, options = {}) {
 	try {
 		return execSync(cmd, { encoding: "utf-8", stdio: "inherit", ...options });
 	} catch (error) {
@@ -202,21 +311,44 @@ function createSidebar() {
 - [[Testing-Guide|Testing Guide]]
 - [[Contributing|Contributing]]
 
-## Technical Documentation
+## Agents & Tools
+- [[Technical/Agent-Design|Agent design]]
+- [[Technical/Tool-System|Tool system]]
+- [[Technical/Tool-Patterns|Tool patterns]]
+
+## Campaign Features
+- [[Technical/Campaign-Shard-Flow|Campaign shard flow]]
+- [[Technical/Shard-Approval-System|Shard approval system]]
+- [[Technical/Shard-UI-Components|Shard UI components]]
+- [[Technical/Continuity-Checker|Continuity checker]]
+- [[Technical/Session-Runsheet|Session runsheet]]
+- [[Technical/Player-Recap-Emails|Player recap emails]]
+- [[Technical/Assessment-System|Assessment system]]
+- [[Technical/Checklist-Status-System|Checklist status system]]
+
+## Content Pipeline
 - [[Technical/GraphRAG-Integration|GraphRAG Integration]]
 - [[Technical/Library-Entity-Pipeline|Library entity pipeline]]
 - [[Technical/File-Upload-System|File upload system]]
-- [[Technical/Campaign-Shard-Flow|Campaign shard flow]]
-- [[Technical/D1-Indexes|D1 indexes]]
+- [[Technical/File-Analysis-System|File analysis system]]
+- [[Technical/Large-File-Support|Large file support]]
+- [[Technical/Community-Detection-Memory|Community detection memory]]
+- [[Technical/Entity-Search-Caching|Entity search caching]]
+
+## Platform
 - [[Technical/Authentication-Flow|Authentication Flow]]
 - [[Technical/Storage-Strategy|Storage Strategy]]
-- [[Technical/File-Analysis-System|File Analysis System]]
+- [[Technical/DAO-Layer|DAO layer]]
+- [[Technical/Event-Bus-Architecture|Event bus architecture]]
+- [[Technical/Event-Bus-Guide|Event bus guide]]
+- [[Technical/Notification-System|Notification system]]
 - [[Technical/Model-Configuration|Model Configuration]]
-- [[Technical/Checklist-Status-System|Checklist Status System]]
-- [[Technical/Entity-Search-Caching|Entity search caching]]
+- [[Technical/D1-Indexes|D1 indexes]]
 
 ## Operations
 - [[Deployment|Deployment]]
+- [[Limits|Limits]]
+- [[Clear-Production-Data|Clear production data]]
 `;
 }
 
@@ -237,15 +369,14 @@ if (!existsSync(DOCS_DIR)) {
 // Clean up any existing wiki clone
 if (existsSync(WIKI_DIR)) {
 	console.log("🧹 Cleaning up existing wiki clone...");
-	if (!DRY_RUN) {
-		rmSync(WIKI_DIR, { recursive: true, force: true });
-	}
+	rmSync(WIKI_DIR, { recursive: true, force: true });
 }
 
-// Clone the wiki repository
+// Clone the wiki repository. This runs under --dry-run too: the dry run needs a
+// real checkout to diff against, and cloning changes nothing on the remote.
 console.log("📥 Cloning wiki repository...");
 try {
-	exec(`git clone "${WIKI_URL}" "${WIKI_DIR}"`, { stdio: "pipe" });
+	execAlways(`git clone "${WIKI_URL}" "${WIKI_DIR}"`, { stdio: "pipe" });
 } catch (_error) {
 	console.error("❌ Failed to clone wiki repository");
 	console.error("");
@@ -417,7 +548,5 @@ try {
 	}
 } finally {
 	process.chdir(originalCwd);
-	if (!DRY_RUN) {
-		rmSync(WIKI_DIR, { recursive: true, force: true });
-	}
+	rmSync(WIKI_DIR, { recursive: true, force: true });
 }

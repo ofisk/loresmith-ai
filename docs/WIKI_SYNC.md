@@ -43,19 +43,27 @@ npm run wiki:sync:dry-run
 ### Manual Execution
 
 ```bash
-# Using the Node.js script (cross-platform)
+# Sync
 node scripts/wiki/sync-docs-to-wiki.js
-
-# Using the bash script (Unix/macOS/Linux)
-./scripts/wiki/sync-docs-to-wiki.sh
 
 # Dry run to preview changes
 node scripts/wiki/sync-docs-to-wiki.js --dry-run
 ```
 
+The dry run clones the wiki and writes the processed pages into `.wiki-temp/`,
+then prints the `git status` diff against the published wiki without committing
+or pushing.
+
 ## What Gets Synced
 
-The script automatically maps documentation files to wiki pages:
+`FILE_MAPPINGS` in `scripts/wiki/sync-docs-to-wiki.js` is an explicit
+allowlist — it is **not** a glob over `docs/`. Docs that are internal
+(operational runbooks, tooling notes) stay out of the wiki, and the published
+set tracks the index in [docs/README.md](README.md).
+
+**When you add a doc that belongs on the wiki, add it to `FILE_MAPPINGS` and to
+`createSidebar()` in the same PR.** Nothing fails if you forget; the page is
+just silently absent from the wiki.
 
 | Source File             | Wiki Page            |
 | ----------------------- | -------------------- |
@@ -68,34 +76,73 @@ The script automatically maps documentation files to wiki pages:
 | `docs/TESTING_GUIDE.md` | `Testing-Guide.md`   |
 | `docs/CONTRIBUTING.md`  | `Contributing.md`    |
 
-**Technical Documentation** (in `Technical/` folder):
+**Operations** (top-level pages):
 
+- `docs/DEPLOYMENT.md` → `Deployment.md`
+- `docs/LIMITS.md` → `Limits.md`
+- `docs/CLEAR_PRODUCTION_DATA.md` → `Clear-Production-Data.md`
+
+**Technical Documentation** (in the `Technical/` folder):
+
+- `docs/AGENT_DESIGN.md` → `Technical/Agent-Design.md`
+- `docs/TOOL_SYSTEM.md` → `Technical/Tool-System.md`
+- `docs/TOOL_PATTERNS.md` → `Technical/Tool-Patterns.md`
 - `docs/GRAPHRAG_INTEGRATION.md` → `Technical/GraphRAG-Integration.md`
-- `docs/AUTHENTICATION_FLOW.md` → `Technical/Authentication-Flow.md`
-- `docs/STORAGE_STRATEGY.md` → `Technical/Storage-Strategy.md`
-- `docs/FILE_ANALYSIS_SYSTEM.md` → `Technical/File-Analysis-System.md`
-- `docs/MODEL_CONFIGURATION.md` → `Technical/Model-Configuration.md`
-- `docs/CHECKLIST_STATUS_SYSTEM.md` → `Technical/Checklist-Status-System.md`
-- `docs/ENTITY_SEARCH_CACHING.md` → `Technical/Entity-Search-Caching.md`
 - `docs/LIBRARY_ENTITY_PIPELINE.md` → `Technical/Library-Entity-Pipeline.md`
 - `docs/FILE_UPLOAD_SYSTEM.md` → `Technical/File-Upload-System.md`
-- `docs/DEPLOYMENT.md` → `Deployment.md`
+- `docs/FILE_ANALYSIS_SYSTEM.md` → `Technical/File-Analysis-System.md`
+- `docs/LARGE_FILE_SUPPORT.md` → `Technical/Large-File-Support.md`
+- `docs/COMMUNITY_DETECTION_MEMORY.md` → `Technical/Community-Detection-Memory.md`
+- `docs/ENTITY_SEARCH_CACHING.md` → `Technical/Entity-Search-Caching.md`
 - `docs/CAMPAIGN_SHARD_FLOW.md` → `Technical/Campaign-Shard-Flow.md`
+- `docs/SHARD_APPROVAL_SYSTEM.md` → `Technical/Shard-Approval-System.md`
+- `docs/SHARD_UI_COMPONENTS.md` → `Technical/Shard-UI-Components.md`
+- `docs/CONTINUITY_CHECKER.md` → `Technical/Continuity-Checker.md`
+- `docs/SESSION_RUNSHEET.md` → `Technical/Session-Runsheet.md`
+- `docs/PLAYER_RECAP_EMAILS.md` → `Technical/Player-Recap-Emails.md`
+- `docs/ASSESSMENT_SYSTEM.md` → `Technical/Assessment-System.md`
+- `docs/CHECKLIST_STATUS_SYSTEM.md` → `Technical/Checklist-Status-System.md`
+- `docs/AUTHENTICATION_FLOW.md` → `Technical/Authentication-Flow.md`
+- `docs/STORAGE_STRATEGY.md` → `Technical/Storage-Strategy.md`
+- `docs/DAO_LAYER.md` → `Technical/DAO-Layer.md`
+- `docs/EVENT_BUS_ARCHITECTURE.md` → `Technical/Event-Bus-Architecture.md`
+- `docs/EVENT_BUS_GUIDE.md` → `Technical/Event-Bus-Guide.md`
+- `docs/NOTIFICATION_SYSTEM.md` → `Technical/Notification-System.md`
+- `docs/MODEL_CONFIGURATION.md` → `Technical/Model-Configuration.md`
 - `docs/database/d1-indexes.md` → `Technical/D1-Indexes.md`
 
 The script also automatically creates/updates:
 
 - `_Sidebar.md` - Navigation sidebar for the wiki
 - Processes relative links to work in wiki format
+- Copies `docs/images/` to `images/` in the wiki
 
 ## Link Processing
 
 The script automatically converts documentation links to wiki-friendly format:
 
-- `[text](docs/FILE.md)` → `[text](Wiki-Page-Name)` (or the mapped path for known files)
-- `[text](./Some-Doc.md)` / `[text](Some-Doc.md)` under `docs/` → mapped wiki paths when the source file is in the sync list
+- `[text](docs/FILE.md)` → `[text](Wiki-Page-Name)` (or the mapped page for known files)
+- `[text](./Some-Doc.md)` / `[text](Some-Doc.md)` under `docs/` → mapped wiki pages when the source file is in the sync list
 - Relative image paths are preserved
 - The main title is removed from `Home.md`
+
+### Page names are flat, even inside `Technical/`
+
+GitHub flattens wiki page paths. `Technical/Tool-System.md` is published as the
+page `Tool-System`, reachable at `/wiki/Tool-System`; `/wiki/Technical/Tool-System`
+returns a 404. The folder only groups the files in the wiki repository.
+
+That matters because the two link syntaxes resolve differently:
+
+- `[[Technical/Tool-System|Tool system]]` — GitHub's wiki resolver strips the
+  folder and finds the page. Works. This is what `_Sidebar.md` uses.
+- `[text](Technical/Tool-System)` — a plain relative URL the browser resolves
+  against the current page. Resolves to `/wiki/Technical/Tool-System` and 404s.
+
+So `buildDocsToWikiLinkMap()` rewrites markdown links to the **flattened** page
+name (`Tool-System`, not `Technical/Tool-System`). A consequence: two mapped
+docs may not share a basename, even in different folders. The script throws on
+such a collision rather than publishing links that point at the wrong page.
 
 ## Troubleshooting
 
