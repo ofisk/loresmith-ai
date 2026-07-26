@@ -1,4 +1,3 @@
-import * as mammoth from "mammoth";
 import { getDocument } from "pdfjs-serverless";
 import { PROCESSING_LIMITS } from "@/app-constants";
 import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
@@ -303,6 +302,9 @@ export class FileExtractionService {
 	 */
 	async extractDocxText(buffer: ArrayBuffer): Promise<ExtractionResult> {
 		try {
+			// Imported on demand so `mammoth` (~350KB) is not parsed on every
+			// Worker cold start — only DOCX uploads ever reach this path.
+			const mammoth = await import("mammoth");
 			const result = await mammoth.extractRawText({ arrayBuffer: buffer });
 			const extractedText = result.value || "";
 

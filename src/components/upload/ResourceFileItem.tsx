@@ -1,8 +1,8 @@
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { FileStatusIndicator } from "@/components/upload/FileStatusIndicator";
-import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 import { cn } from "@/lib/utils";
 import { AuthService } from "@/services/core/auth-service";
@@ -51,15 +51,16 @@ export function ResourceFileItem({
 	);
 
 	const stillWorkingOnLibraryPipeline =
-		file.status === FileDAO.STATUS.COMPLETED &&
+		file.status === FILE_UPLOAD_STATUS.COMPLETED &&
 		(file.library_pipeline_ready === false ||
 			(file.library_pipeline_ready === undefined &&
 				isLibraryEntityDiscoveryInFlight(
 					file.library_entity_discovery_status
 				)));
 	const statusForDisplayProgress =
-		file.status === FileDAO.STATUS.COMPLETED && stillWorkingOnLibraryPipeline
-			? FileDAO.STATUS.INDEXING
+		file.status === FILE_UPLOAD_STATUS.COMPLETED &&
+		stillWorkingOnLibraryPipeline
+			? FILE_UPLOAD_STATUS.INDEXING
 			: file.status;
 
 	const progressPercentage = (() => {
@@ -75,19 +76,19 @@ export function ResourceFileItem({
 
 		// Progress based on status
 		switch (statusForDisplayProgress) {
-			case FileDAO.STATUS.UPLOADING:
+			case FILE_UPLOAD_STATUS.UPLOADING:
 				return 20;
-			case FileDAO.STATUS.UPLOADED:
+			case FILE_UPLOAD_STATUS.UPLOADED:
 				return 40;
-			case FileDAO.STATUS.SYNCING:
+			case FILE_UPLOAD_STATUS.SYNCING:
 				return 60;
-			case FileDAO.STATUS.PROCESSING:
+			case FILE_UPLOAD_STATUS.PROCESSING:
 				return 80;
-			case FileDAO.STATUS.INDEXING:
+			case FILE_UPLOAD_STATUS.INDEXING:
 				return 90;
-			case FileDAO.STATUS.COMPLETED:
+			case FILE_UPLOAD_STATUS.COMPLETED:
 				return 100;
-			case FileDAO.STATUS.ERROR:
+			case FILE_UPLOAD_STATUS.ERROR:
 				return 100;
 			default:
 				return undefined;

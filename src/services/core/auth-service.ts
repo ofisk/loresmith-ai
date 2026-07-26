@@ -5,7 +5,6 @@ import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { extractJwtFromHeader } from "@/lib/auth-utils";
 import { getEnvVar } from "@/lib/env-utils";
 import { logger } from "@/lib/logger";
-import { getAuthService } from "@/lib/service-factory";
 import type { Env } from "@/middleware/auth";
 
 export interface AuthPayload extends JWTPayload {
@@ -53,6 +52,47 @@ export interface AuthContext {
  */
 export class AuthService {
 	constructor(private env: Env) {}
+
+	/**
+	 * Per-env instance cache.
+	 *
+	 * This lives here rather than in `@/lib/service-factory` so that
+	 * `auth-service` has no import edge back into the factory. That edge was a
+	 * cycle (`service-factory` imports `AuthService`) and it dragged the entire
+	 * server service graph — including `LibraryRAGService` and its `mammoth` /
+	 * `pdfjs-serverless` dependencies — into the browser bundle, because client
+	 * components import the browser-side helpers exported from this file.
+	 *
+	 * `ServiceFactory.getAuthService` delegates here, so there is still exactly
+	 * one cache.
+	 */
+	private static instancesByEnv = new WeakMap<object, AuthService>();
+	private static instancesByKey = new Map<string, AuthService>();
+
+	/** Get or create the cached AuthService for `env`. */
+	static forEnv(env: Env): AuthService {
+		if (env && typeof env === "object") {
+			const cached = AuthService.instancesByEnv.get(env as object);
+			if (cached) return cached;
+			const created = new AuthService(env);
+			AuthService.instancesByEnv.set(env as object, created);
+			return created;
+		}
+
+		// Fallback for unexpected non-object env shapes
+		const key = `auth-${String(env)}`;
+		const cached = AuthService.instancesByKey.get(key);
+		if (cached) return cached;
+		const created = new AuthService(env);
+		AuthService.instancesByKey.set(key, created);
+		return created;
+	}
+
+	/** Drop all cached instances (called between requests to avoid leaks). */
+	static clearInstanceCache(): void {
+		AuthService.instancesByEnv = new WeakMap();
+		AuthService.instancesByKey.clear();
+	}
 
 	/**
 	 * Get JWT secret from environment
@@ -137,7 +177,7 @@ export class AuthService {
 		authHeader: string | null | undefined,
 		env: any
 	): Promise<AuthPayload | null> {
-		const authService = getAuthService(env);
+		const authService = AuthService.forEnv(env);
 		return authService.extractAuthFromHeader(authHeader);
 	}
 
@@ -146,7 +186,7 @@ export class AuthService {
 		env: Env,
 		payload: { email: string; sub: string }
 	): Promise<string> {
-		const authService = getAuthService(env);
+		const authService = AuthService.forEnv(env);
 		const secret = await authService.getJwtSecret();
 		return new SignJWT({
 			type: "google-pending",
@@ -165,7 +205,7 @@ export class AuthService {
 		token: string
 	): Promise<{ email: string; sub: string } | null> {
 		try {
-			const authService = getAuthService(env);
+			const authService = AuthService.forEnv(env);
 			const secret = await authService.getJwtSecret();
 			const { payload } = await jwtVerify(token, secret);
 			if (payload.type !== "google-pending" || !payload.email || !payload.sub) {

@@ -16,14 +16,13 @@ import { ModelManager } from "./model-manager";
 // Service factory class with per-request caching
 export class ServiceFactory {
 	private static services = new Map<string, any>();
-	private static authServicesByEnv = new WeakMap<object, AuthService>();
 	private static dbKeyByDb = new WeakMap<object, string>();
 	private static dbKeyCounter = 0;
 
 	// Clear services (called between requests to prevent memory leaks)
 	static clearCache(): void {
 		ServiceFactory.services.clear();
-		ServiceFactory.authServicesByEnv = new WeakMap();
+		AuthService.clearInstanceCache();
 		ServiceFactory.dbKeyByDb = new WeakMap();
 		ServiceFactory.dbKeyCounter = 0;
 	}
@@ -58,22 +57,12 @@ export class ServiceFactory {
 		return ServiceFactory.services.get(key) as AssessmentService;
 	}
 
-	// Get or create AuthService
+	// Get or create AuthService.
+	// The cache lives on AuthService itself so that `auth-service` needs no
+	// import edge back into this factory — that cycle pulled the whole server
+	// service graph into the browser bundle. See AuthService.forEnv.
 	static getAuthService(env: Env): AuthService {
-		if (env && typeof env === "object") {
-			const cached = ServiceFactory.authServicesByEnv.get(env as object);
-			if (cached) return cached;
-			const created = new AuthService(env);
-			ServiceFactory.authServicesByEnv.set(env as object, created);
-			return created;
-		}
-
-		// Fallback for unexpected non-object env shapes
-		const key = `auth-${String(env)}`;
-		if (!ServiceFactory.services.has(key)) {
-			ServiceFactory.services.set(key, new AuthService(env));
-		}
-		return ServiceFactory.services.get(key) as AuthService;
+		return AuthService.forEnv(env);
 	}
 
 	// Get or create MetadataService

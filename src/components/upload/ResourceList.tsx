@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
-import { FileDAO } from "@/dao";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { useResourceFileEvents } from "@/hooks/useResourceFileEvents";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useRetryLimitStatus } from "@/hooks/useRetryLimitStatus";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import { logger } from "@/lib/logger";
 import { matchesResourceSearch } from "@/lib/resource-tags";
 import {
@@ -121,9 +121,9 @@ export function ResourceList({
 	const retryEligibleFileKeys = files
 		.filter((f) => {
 			const isFailed =
-				f.status === FileDAO.STATUS.ERROR ||
+				f.status === FILE_UPLOAD_STATUS.ERROR ||
 				f.status === "failed" ||
-				f.status === FileDAO.STATUS.UNINDEXED;
+				f.status === FILE_UPLOAD_STATUS.UNINDEXED;
 			if (!isFailed) return false;
 			try {
 				const err = f.processing_error ? JSON.parse(f.processing_error) : null;
@@ -197,7 +197,7 @@ export function ResourceList({
 						if (file.file_key === fileKey) {
 							return {
 								...file,
-								status: FileDAO.STATUS.SYNCING,
+								status: FILE_UPLOAD_STATUS.SYNCING,
 								updated_at: new Date().toISOString(),
 							};
 						}

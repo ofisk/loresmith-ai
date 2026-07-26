@@ -1,8 +1,8 @@
-import { FileDAO } from "@/dao";
 import {
 	chunkProgressPercent,
 	parseEntityExtractionProgress,
 } from "@/lib/entity-extraction-progress";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 
 interface LibraryEntityIndexingProgressProps {
 	fileStatus: string;
@@ -57,7 +57,7 @@ export function LibraryEntityIndexingProgress({
 	status: discoveryStatus,
 }: LibraryEntityIndexingProgressProps) {
 	const showIngestion =
-		fileStatus !== FileDAO.STATUS.COMPLETED &&
+		fileStatus !== FILE_UPLOAD_STATUS.COMPLETED &&
 		ingestionChunkStats != null &&
 		ingestionChunkStats.total > 0;
 	const ingPct =
