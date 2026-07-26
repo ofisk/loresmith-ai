@@ -20,6 +20,12 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install lizard
+      - name: Cyclomatic complexity gate
+        run: npm run complexity
       - run: npm run validate
 
   e2e:
