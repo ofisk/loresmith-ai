@@ -1,12 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
+import { createToolSuccess } from "@/tools/tool-utils";
 import { MAX_CONTEXT_SOURCES } from "@/types/explainability";
 
-function searchStep(results: unknown[]) {
+let nextCallId = 0;
+
+/**
+ * A step in the shape `streamText` actually produces.
+ *
+ * The envelope comes from the real `createToolSuccess` so the fixture cannot
+ * drift from what tools return, and the AI SDK's own nesting is reproduced
+ * here: the tool's return value lands in `output`, not `result`. Hand-written
+ * fixtures previously flattened that away, which hid a bug where every
+ * retrieval turn reported "no campaign sources".
+ */
+function toolStep(toolName: string, data: Record<string, unknown>) {
+	const toolCallId = `call-${nextCallId++}`;
 	return {
-		toolCalls: [{ toolName: "searchCampaignContext", args: {} }],
-		toolResults: [{ result: { success: true, data: { results } } }],
+		toolCalls: [{ toolCallId, toolName, args: {} }],
+		toolResults: [
+			{
+				type: "tool-result" as const,
+				toolCallId,
+				toolName,
+				input: {},
+				output: createToolSuccess("ok", data, toolCallId),
+			},
+		],
 	};
+}
+
+function searchStep(results: unknown[]) {
+	return toolStep("searchCampaignContext", { results });
 }
 
 /** Mirrors the banner the search tools wrap around entity content. */
@@ -31,13 +56,9 @@ describe("explainability-builder", () => {
 		});
 
 		it("returns null when no retrieval tool ran", () => {
-			const steps = [
-				{
-					toolCalls: [{ toolName: "otherTool", args: {} }],
-					toolResults: [{ result: { success: true } }],
-				},
-			];
-			expect(buildExplainabilityFromSteps(steps)).toBe(null);
+			expect(buildExplainabilityFromSteps([toolStep("otherTool", {})])).toBe(
+				null
+			);
 		});
 
 		it("builds explainability from searchCampaignContext results", () => {
@@ -253,31 +274,21 @@ describe("explainability-builder", () => {
 
 		it("maps rules citations onto context sources", () => {
 			const result = buildExplainabilityFromSteps([
-				{
-					toolCalls: [{ toolName: "searchRulesTool", args: {} }],
-					toolResults: [
+				toolStep("searchRulesTool", {
+					results: [
 						{
-							result: {
-								success: true,
-								data: {
-									results: [
-										{
-											id: "r1",
-											title: "Grappling",
-											excerpt: "You can use the Attack action to grapple.",
-											score: 0.77,
-											citation: {
-												source: "PHB",
-												fileKey: "phb-key",
-												chunkIndex: 12,
-											},
-										},
-									],
-								},
+							id: "r1",
+							title: "Grappling",
+							excerpt: "You can use the Attack action to grapple.",
+							score: 0.77,
+							citation: {
+								source: "PHB",
+								fileKey: "phb-key",
+								chunkIndex: 12,
 							},
 						},
 					],
-				},
+				}),
 			]);
 			const source = result?.contextSources[0];
 			expect(source?.type).toBe("file_content");
@@ -289,24 +300,14 @@ describe("explainability-builder", () => {
 
 		it("maps getDocumentContent chunks onto context sources", () => {
 			const result = buildExplainabilityFromSteps([
-				{
-					toolCalls: [{ toolName: "getDocumentContent", args: {} }],
-					toolResults: [
-						{
-							result: {
-								success: true,
-								data: {
-									fileKey: "f9",
-									displayName: "Session Prep.pdf",
-									chunks: [
-										{ index: 0, text: "Chapter one." },
-										{ index: 1, text: "Chapter two." },
-									],
-								},
-							},
-						},
+				toolStep("getDocumentContent", {
+					fileKey: "f9",
+					displayName: "Session Prep.pdf",
+					chunks: [
+						{ index: 0, text: "Chapter one." },
+						{ index: 1, text: "Chapter two." },
 					],
-				},
+				}),
 			]);
 			expect(result?.contextSources).toHaveLength(2);
 			expect(result?.contextSources[0].fileKey).toBe("f9");
@@ -314,6 +315,121 @@ describe("explainability-builder", () => {
 			expect(result?.contextSources.map((s) => s.chunkIndex).sort()).toEqual([
 				0, 1,
 			]);
+		});
+
+		it("reads the payload from the SDK's `output` envelope, not `result`", () => {
+			// Regression: the builder read `toolResults[i].result.data`, one level
+			// above where the AI SDK puts a tool's return value. Every retrieval
+			// turn therefore harvested nothing and was labelled ungrounded.
+			const step = searchStep([
+				{
+					type: "entity",
+					source: "entity_graph",
+					entityId: "e1",
+					title: "Big Bosta",
+					score: 0.71,
+				},
+			]);
+			expect(step.toolResults[0]).not.toHaveProperty("result");
+			expect(step.toolResults[0].output).toHaveProperty("result.data.results");
+
+			const result = buildExplainabilityFromSteps([step]);
+			expect(result?.grounding).toBe("grounded");
+			expect(result?.contextSources[0].title).toBe("Big Bosta");
+		});
+
+		it("still reads an already-unwrapped result envelope", () => {
+			const result = buildExplainabilityFromSteps([
+				{
+					toolCalls: [{ toolName: "searchCampaignContext", args: {} }],
+					toolResults: [
+						{
+							result: {
+								success: true,
+								data: {
+									results: [
+										{ type: "entity", source: "entity_graph", entityId: "e1" },
+									],
+								},
+							},
+						},
+					],
+				},
+			]);
+			expect(result?.contextSources).toHaveLength(1);
+		});
+
+		it("pairs calls with results by toolCallId, not position", () => {
+			// A tool that threw contributes no entry to `toolResults`, so the
+			// surviving result sits at an index that belongs to another call.
+			const result = buildExplainabilityFromSteps([
+				{
+					toolCalls: [
+						{ toolCallId: "c1", toolName: "recordWorldEventTool", args: {} },
+						{ toolCallId: "c2", toolName: "searchCampaignContext", args: {} },
+					],
+					toolResults: [
+						{
+							toolCallId: "c2",
+							toolName: "searchCampaignContext",
+							output: createToolSuccess(
+								"ok",
+								{
+									results: [
+										{
+											type: "entity",
+											source: "entity_graph",
+											entityId: "e1",
+											title: "Splinter",
+										},
+									],
+								},
+								"c2"
+							),
+						},
+					],
+				},
+			]);
+			expect(result?.contextSources).toHaveLength(1);
+			expect(result?.contextSources[0].title).toBe("Splinter");
+		});
+
+		it("counts listAllEntities rows as entity sources", () => {
+			const result = buildExplainabilityFromSteps([
+				toolStep("listAllEntities", {
+					entityType: "npcs",
+					results: [
+						{
+							id: "e1",
+							type: "npc",
+							name: "Dur the Anchorhorn",
+							title: "Dur the Anchorhorn",
+							text: JSON.stringify({
+								description: "Structural engineer of the Platform.",
+							}),
+							// listAllEntities stamps every row with this placeholder.
+							score: 1.0,
+						},
+						{
+							id: "e2",
+							type: "npc",
+							name: "Mael Firstburn",
+							title: "Mael Firstburn",
+							text: JSON.stringify({ description: "Keeper of the shrine." }),
+							score: 1.0,
+						},
+					],
+				}),
+			]);
+			expect(result?.contextSources).toHaveLength(2);
+			expect(result?.rationale).toContain("2 entities");
+			expect(result?.contextSources[0].entityType).toBe("npc");
+			expect(result?.contextSources[0].snippet).toBe(
+				"Structural engineer of the Platform."
+			);
+			// The placeholder score must not read as a perfect semantic match.
+			expect(result?.topScore).toBeUndefined();
+			expect(result?.grounding).toBe("weak");
 		});
 	});
 });

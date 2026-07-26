@@ -9,12 +9,23 @@ import {
 	WEAK_GROUNDING_SCORE_THRESHOLD,
 } from "@/types/explainability";
 
-/** Step shape from AI SDK streamText onFinish args */
+/**
+ * Step shape from AI SDK streamText onFinish args.
+ *
+ * `output` is deliberately `unknown`: the SDK stores whatever `execute`
+ * returned and types it as such, so its shape is narrowed at runtime in
+ * `unwrapToolData` rather than asserted here. Declaring a concrete shape is
+ * what let the original bug compile — it read a `result` property the SDK
+ * never sets, which TypeScript accepted as a merely-absent optional field.
+ */
 interface StreamStep {
-	toolCalls?: Array<{ toolName: string; args?: unknown }>;
+	toolCalls?: Array<{ toolCallId?: string; toolName: string; args?: unknown }>;
 	toolResults?: Array<{
+		toolCallId?: string;
 		toolName?: string;
-		result?: { success?: boolean; data?: Record<string, unknown> };
+		output?: unknown;
+		/** Only set by callers that already unwrapped the SDK envelope. */
+		result?: unknown;
 	}>;
 }
 
@@ -25,6 +36,7 @@ interface StreamStep {
  */
 const RETRIEVAL_TOOL_NAMES = new Set([
 	"searchCampaignContext",
+	"listAllEntities",
 	"getDocumentContent",
 	"searchRulesTool",
 	"lookupStatBlockTool",
@@ -182,6 +194,35 @@ function extractContextSourcesFromSearchResults(
 	return sources;
 }
 
+/**
+ * listAllEntities returns raw entity rows rather than search hits: `type` is
+ * the entity type ("npc"), there is no `source`, and every row carries a
+ * placeholder score of 1.0. Map them onto entity sources with no semantic
+ * score, so a listing-backed answer reads as weakly grounded rather than as a
+ * wall of perfect matches.
+ */
+function extractContextSourcesFromEntityList(
+	results: unknown[]
+): ContextSource[] {
+	const sources: ContextSource[] = [];
+	for (const r of results) {
+		const item = (r ?? {}) as Record<string, unknown>;
+		const id = asString(item.id);
+		const title = asString(item.title) ?? asString(item.name);
+		if (!id && !title) continue;
+
+		sources.push({
+			type: "entity",
+			source: "entity_graph",
+			id,
+			title,
+			entityType: asString(item.type),
+			snippet: extractSnippet(item.text, "entity"),
+		});
+	}
+	return sources;
+}
+
 /** getDocumentContent returns whole-document chunks for a single file. */
 function extractContextSourcesFromDocumentContent(
 	data: Record<string, unknown>
@@ -316,6 +357,9 @@ function extractSourcesForTool(
 	if (toolName === "searchCampaignContext") {
 		return extractContextSourcesFromSearchResults(results);
 	}
+	if (toolName === "listAllEntities") {
+		return extractContextSourcesFromEntityList(results);
+	}
 	if (toolName === "searchRulesTool" || toolName === "lookupStatBlockTool") {
 		return extractContextSourcesFromRulesResults(results);
 	}
@@ -329,6 +373,57 @@ interface HarvestedSteps {
 	retrievalAttempted: boolean;
 }
 
+type ToolResultEntry = NonNullable<StreamStep["toolResults"]>[number];
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+/**
+ * Dig the tool's `{ success, data }` payload out of an SDK tool result.
+ *
+ * The AI SDK stores whatever `execute` returned under `output`, and our tools
+ * return the `{ toolCallId, result }` envelope from `createToolSuccess` — so
+ * the payload sits at `output.result.data`. The shallower shapes are accepted
+ * too, for tools that return a bare envelope and for callers that hand us an
+ * already-unwrapped result.
+ */
+function unwrapToolData(
+	entry: ToolResultEntry | undefined
+): Record<string, unknown> | undefined {
+	const record = asRecord(entry);
+	if (!record) return undefined;
+
+	const envelope = asRecord(record.output) ?? record;
+	const inner = asRecord(envelope.result) ?? envelope;
+	return asRecord(inner.data);
+}
+
+/**
+ * Pair a call with its result. Ids are authoritative — within a step, a tool
+ * that threw produces a `tool-error` part and no entry in `toolResults`, so a
+ * positional match would silently attribute one tool's results to another.
+ * Positional matching stays as the fallback for results that carry no id.
+ */
+function findResultForCall(
+	toolResults: ToolResultEntry[],
+	toolCallId: string | undefined,
+	toolName: string,
+	index: number
+): ToolResultEntry | undefined {
+	if (toolCallId) {
+		const byId = toolResults.find((r) => r?.toolCallId === toolCallId);
+		if (byId) return byId;
+	}
+	const positional = toolResults[index];
+	if (positional && (positional.toolName ?? toolName) === toolName) {
+		return positional;
+	}
+	return toolResults.find((r) => r?.toolName === toolName);
+}
+
 function harvestSteps(steps: StreamStep[]): HarvestedSteps {
 	const rawSources: ContextSource[] = [];
 	const toolsUsed: string[] = [];
@@ -339,13 +434,16 @@ function harvestSteps(steps: StreamStep[]): HarvestedSteps {
 		const toolResults = step.toolResults ?? [];
 
 		for (let i = 0; i < toolCalls.length; i++) {
-			const toolName = toolCalls[i]?.toolName;
+			const call = toolCalls[i];
+			const toolName = call?.toolName;
 			if (!toolName) continue;
 
 			toolsUsed.push(toolName);
 			if (RETRIEVAL_TOOL_NAMES.has(toolName)) retrievalAttempted = true;
 
-			const data = toolResults[i]?.result?.data;
+			const data = unwrapToolData(
+				findResultForCall(toolResults, call?.toolCallId, toolName, i)
+			);
 			if (data) rawSources.push(...extractSourcesForTool(toolName, data));
 		}
 	}
