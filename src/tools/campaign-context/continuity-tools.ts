@@ -210,9 +210,12 @@ export const checkCampaignContinuityTool = tool({
 				env: env as Record<string, unknown>,
 			});
 			const result = await service.scan(input.campaignId, {
-				mode: input.mode,
+				mode: input.mode ?? "incremental",
 				types: input.types as never,
-				minConfidence: input.minConfidence,
+				// Schema defaults only apply when the AI SDK validates input, so
+				// restate them here; the service would otherwise fall back to
+				// persisting low-confidence findings.
+				minConfidence: input.minConfidence ?? "medium",
 				maxCandidates: input.maxCandidates,
 			});
 
@@ -269,25 +272,31 @@ export const listContinuityFindingsTool = tool({
 			);
 			if (access.error) return access.error;
 
+			const status = input.status ?? "open";
 			const findings = await getDAOFactory(
 				env
 			).continuityFindingDAO.listFindingsForCampaign(input.campaignId, {
-				status: input.status,
+				status,
 				types: input.types as never,
-				limit: input.limit,
+				limit: input.limit ?? 25,
 			});
-			const visible = input.highConfidenceOnly
+
+			// Default to the quiet behaviour on an omitted flag rather than
+			// relying on the schema default — a caller that invokes execute()
+			// directly must not accidentally get the noisy report.
+			const highConfidenceOnly = input.highConfidenceOnly !== false;
+			const visible = highConfidenceOnly
 				? findings.filter((finding) => finding.confidence === "high")
 				: findings;
 
 			return createToolSuccess(
 				visible.length === 0
-					? `No ${input.status} continuity findings for "${access.campaignName}".`
-					: `${visible.length} ${input.status} continuity finding(s) for "${access.campaignName}".`,
+					? `No ${status} continuity findings for "${access.campaignName}".`
+					: `${visible.length} ${status} continuity finding(s) for "${access.campaignName}".`,
 				{
 					total: findings.length,
 					shown: visible.length,
-					highConfidenceOnly: input.highConfidenceOnly,
+					highConfidenceOnly,
 					findings: visible.map(summarizeFinding),
 				},
 				toolCallId
