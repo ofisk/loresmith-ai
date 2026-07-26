@@ -43,7 +43,7 @@ Include relevant context from the conversation in the subject and body (what the
 	inputSchema: submitSupportRequestSchema,
 	execute: async (
 		input: z.infer<typeof submitSupportRequestSchema>,
-		options?: ToolExecutionOptions & { env?: unknown }
+		options?: ToolExecutionOptions<never> & { env?: unknown }
 	): Promise<any> => {
 		const toolCallId = options?.toolCallId ?? "unknown";
 
