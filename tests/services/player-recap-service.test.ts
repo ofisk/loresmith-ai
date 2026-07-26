@@ -406,6 +406,37 @@ describe("send", () => {
 		expect(dao.markSendFailed).not.toHaveBeenCalled();
 	});
 
+	it("does not mail a player who unsubscribed from an earlier recap", async () => {
+		const dao = makeDao({
+			listPlayerMembers: vi.fn().mockResolvedValue([
+				VERIFIED_PLAYER,
+				{
+					username: "dan",
+					email: "dan@example.com",
+					email_verified_at: "2026-01-01T00:00:00.000Z",
+					unsubscribed_at: "2026-06-01T00:00:00.000Z",
+				},
+			]),
+		} as Partial<PlayerRecapDAO>);
+
+		await makeService(dao).send({
+			campaignId: "campaign-1",
+			campaignName: "Campaign",
+			recapId: "recap-1",
+			sentBy: "gm",
+		});
+
+		const addressed = sendMock.mock.calls.flatMap((call) => call[0].to);
+		expect(addressed).toEqual(["alice@example.com"]);
+		expect(addressed).not.toContain("dan@example.com");
+		// Nor may a send touch their subscription row and revive them.
+		expect(dao.ensureUnsubscribeToken).not.toHaveBeenCalledWith(
+			"campaign-1",
+			"dan",
+			expect.anything()
+		);
+	});
+
 	it("fails loudly when email delivery is not configured", async () => {
 		const dao = makeDao({
 			listPlayerMembers: vi.fn().mockResolvedValue([VERIFIED_PLAYER]),
@@ -458,5 +489,42 @@ describe("updateDraft", () => {
 		await expect(
 			makeService(dao).updateDraft("recap-1", { subject: "new" })
 		).rejects.toBeInstanceOf(RecapNotEditableError);
+	});
+});
+
+describe("unsubscribe", () => {
+	it("resolves the token to the campaign and player it belongs to", async () => {
+		const dao = makeDao({
+			unsubscribeByToken: vi
+				.fn()
+				.mockResolvedValue({ campaignId: "campaign-1", username: "alice" }),
+		} as Partial<PlayerRecapDAO>);
+
+		await expect(makeService(dao).unsubscribe("tok-1")).resolves.toEqual({
+			campaignId: "campaign-1",
+			username: "alice",
+		});
+		expect(dao.unsubscribeByToken).toHaveBeenCalledWith("tok-1");
+	});
+
+	it("returns null for an unknown token rather than throwing", async () => {
+		await expect(
+			makeService(makeDao()).unsubscribe("nope")
+		).resolves.toBeNull();
+	});
+
+	it("does not require the campaign to have recaps enabled", async () => {
+		// A GM may switch recaps off after mailing. Links already in players'
+		// inboxes must keep working regardless.
+		const dao = makeDao({
+			getSettings: vi
+				.fn()
+				.mockResolvedValue({ campaignId: "campaign-1", enabled: false }),
+			unsubscribeByToken: vi
+				.fn()
+				.mockResolvedValue({ campaignId: "campaign-1", username: "alice" }),
+		} as Partial<PlayerRecapDAO>);
+
+		await expect(makeService(dao).unsubscribe("tok-1")).resolves.not.toBeNull();
 	});
 });

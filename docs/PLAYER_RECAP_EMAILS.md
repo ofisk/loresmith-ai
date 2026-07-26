@@ -88,6 +88,24 @@ problem and a deliverability one.
 The review UI shows every exclusion and its reason, so the GM knows the exact
 audience before confirming.
 
+### Consent model: opt-out, by decision
+
+Players are **not** asked to opt in. The address used is their LoreSmith account
+email, collected at signup (`src/routes/auth.ts` — password register, or Google
+OAuth), and by the time anyone can be a campaign member it is verified: the
+password path blocks login until verification, and the Google path marks it
+verified at signup.
+
+A per-player opt-in checkbox at campaign-join time was considered and
+deliberately rejected. The unsubscribe link in every email is the consent
+control, on the reasoning that this is low-volume mail from a GM the player
+already knows and plays with, and a join-time checkbox mostly adds friction to
+the flow that gets players into a campaign.
+
+That places real weight on unsubscribe working correctly, which is why
+`tests/dao/player-recap-dao.test.ts` runs the unsubscribe path against real
+SQLite rather than a mocked D1 — see "Unsubscribe" below.
+
 ## Send guarantees
 
 - **Single-flight.** `claimForSend` runs
@@ -117,6 +135,17 @@ Gmail and Outlook use — surfacing native unsubscribe keeps recipients out of t
 
 The unsubscribe link is added by the renderer, not stored in the editable body,
 so a GM cannot remove it while editing.
+
+Because unsubscribe is the only consent control, these properties are covered by
+tests running against real SQLite (`tests/dao/player-recap-dao.test.ts`) — a
+mocked D1 cannot exercise any of them:
+
+- Unsubscribing excludes the player from every later send.
+- A later send does **not** undo an unsubscribe. `ensureUnsubscribeToken` uses
+  `ON CONFLICT DO NOTHING`, so re-running it for an existing row is inert.
+- The token does not rotate, so links in older emails keep working.
+- Repeat unsubscribes are idempotent, so a duplicated one-click POST is safe.
+- Unsubscribing is scoped to one campaign, not the player's whole account.
 
 ## Schema
 
@@ -165,3 +194,5 @@ deliverability cannot affect verification-email delivery.
   self-defeating, since this is the feature that drives organic reach. Left
   ungated; `campaign_recap_settings` is where a gate would go.
 - **Scheduled sending.** Deliberately absent — see the top of this document.
+- **Per-player opt-in at join time.** Considered and rejected; unsubscribe is the
+  consent control. See "Consent model" above.
