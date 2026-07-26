@@ -125,6 +125,13 @@ export const ENDPOINTS = {
 			REJECT: (campaignId: string, digestId: string) =>
 				`/campaigns/${campaignId}/session-digests/${digestId}/reject`,
 		},
+		CONTINUITY: {
+			SCAN: (campaignId: string) => `/campaigns/${campaignId}/continuity/scan`,
+			FINDINGS: (campaignId: string) =>
+				`/campaigns/${campaignId}/continuity/findings`,
+			RESOLVE_FINDING: (campaignId: string, findingId: string) =>
+				`/campaigns/${campaignId}/continuity/findings/${findingId}/resolve`,
+		},
 		SESSION_DIGEST_TEMPLATES: {
 			BASE: (campaignId: string) =>
 				`/campaigns/${campaignId}/session-digest-templates`,

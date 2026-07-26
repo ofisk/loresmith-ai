@@ -17,6 +17,7 @@ import { CharacterSheetDAO } from "./character-sheet-dao";
 import { ChecklistStatusDAO } from "./checklist-status-dao";
 import { CommunityDAO } from "./community-dao";
 import { CommunitySummaryDAO } from "./community-summary-dao";
+import { ContinuityFindingDAO } from "./continuity-finding-dao";
 import { EntityDAO } from "./entity-dao";
 import { EntityImportanceDAO } from "./entity-importance-dao";
 import { FileDAO } from "./file/file-dao";
@@ -61,6 +62,7 @@ export interface DAOFactory {
 	llmUsageDAO: LLMUsageDAO;
 	communityDAO: CommunityDAO;
 	communitySummaryDAO: CommunitySummaryDAO;
+	continuityFindingDAO: ContinuityFindingDAO;
 	entityImportanceDAO: EntityImportanceDAO;
 	sessionDigestDAO: SessionDigestDAO;
 	sessionDigestTemplateDAO: SessionDigestTemplateDAO;
@@ -104,6 +106,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly llmUsageDAO: LLMUsageDAO;
 	public readonly communityDAO: CommunityDAO;
 	public readonly communitySummaryDAO: CommunitySummaryDAO;
+	public readonly continuityFindingDAO: ContinuityFindingDAO;
 	public readonly entityImportanceDAO: EntityImportanceDAO;
 	public readonly sessionDigestDAO: SessionDigestDAO;
 	public readonly sessionDigestTemplateDAO: SessionDigestTemplateDAO;
@@ -142,6 +145,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.llmUsageDAO = new LLMUsageDAO(db);
 		this.communityDAO = new CommunityDAO(db);
 		this.communitySummaryDAO = new CommunitySummaryDAO(db);
+		this.continuityFindingDAO = new ContinuityFindingDAO(db);
 		this.entityImportanceDAO = new EntityImportanceDAO(db);
 		this.sessionDigestDAO = new SessionDigestDAO(db);
 		this.sessionDigestTemplateDAO = new SessionDigestTemplateDAO(db);

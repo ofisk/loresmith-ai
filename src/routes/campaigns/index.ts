@@ -2,6 +2,7 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
 import { registerCampaignCommunitiesRoutes } from "./communities-routes";
+import { registerCampaignContinuityRoutes } from "./continuity-routes";
 import { registerCampaignCoreRoutes } from "./core-routes";
 import { registerCampaignEntitiesRoutes } from "./entities-routes";
 import { registerCampaignGraphRebuildRoutes } from "./graph-rebuild-routes";
@@ -21,6 +22,7 @@ export function registerCampaignRoutes(
 	registerCampaignWorldStateRoutes(app);
 	registerCampaignSessionDigestsRoutes(app);
 	registerCampaignRunsheetRoutes(app);
+	registerCampaignContinuityRoutes(app);
 	registerCampaignEntitiesRoutes(app);
 	registerCampaignCommunitiesRoutes(app);
 	registerCampaignGraphragRoutes(app);
