@@ -7,6 +7,7 @@ import { registerCampaignEntitiesRoutes } from "./entities-routes";
 import { registerCampaignGraphRebuildRoutes } from "./graph-rebuild-routes";
 import { registerCampaignGraphragRoutes } from "./graphrag-routes";
 import { registerCampaignPlanningRoutes } from "./planning-routes";
+import { registerCampaignRunsheetRoutes } from "./runsheet-routes";
 import { registerCampaignSessionDigestsRoutes } from "./session-digests-routes";
 import { registerCampaignShareRoutes } from "./share-routes";
 import { registerCampaignWorldStateRoutes } from "./world-state-routes";
@@ -19,6 +20,7 @@ export function registerCampaignRoutes(
 	registerCampaignShareRoutes(app);
 	registerCampaignWorldStateRoutes(app);
 	registerCampaignSessionDigestsRoutes(app);
+	registerCampaignRunsheetRoutes(app);
 	registerCampaignEntitiesRoutes(app);
 	registerCampaignCommunitiesRoutes(app);
 	registerCampaignGraphragRoutes(app);

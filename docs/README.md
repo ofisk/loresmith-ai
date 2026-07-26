@@ -128,6 +128,7 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
 - **[Notification System](NOTIFICATION_SYSTEM.md)** - Real-time notifications
 - **[Assessment System](ASSESSMENT_SYSTEM.md)** - Campaign assessment features
 - **[Campaign Shard Flow](CAMPAIGN_SHARD_FLOW.md)** - Shard-based campaign system
+- **[Session Runsheet](SESSION_RUNSHEET.md)** - GM-only printable page assembled from digests, planning tasks, the entity graph and house rules
 - **[Shard Approval System](SHARD_APPROVAL_SYSTEM.md)** - Entity approval workflow
 - **[Shard UI Components](SHARD_UI_COMPONENTS.md)** - Shard UI implementation
 - **[Community Detection Memory](COMMUNITY_DETECTION_MEMORY.md)** - Community detection algorithms

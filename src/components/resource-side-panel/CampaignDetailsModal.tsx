@@ -7,6 +7,7 @@ import { PlayerCharacterRosterPanel } from "@/components/campaign/PlayerCharacte
 import { ShareCampaignModal } from "@/components/campaign/ShareCampaignModal";
 import { GraphVisualizationModal } from "@/components/graph/GraphVisualizationModal";
 import { Modal } from "@/components/modal/Modal";
+import { RunsheetPanel } from "@/components/session/RunsheetPanel";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
 import { Tooltip } from "@/components/tooltip/Tooltip";
@@ -61,6 +62,66 @@ interface CampaignDetailsModalProps {
 	addLocalNotification?: (type: string, title: string, message: string) => void;
 }
 
+interface RunsheetTabProps {
+	isActive: boolean;
+	/** Runsheets are GM-only; player roles see the tab disabled. */
+	isPlayerRole: boolean;
+}
+
+/**
+ * Extracted from the modal body so the tab's disabled/active styling branches
+ * stay out of the (already large) render function.
+ */
+function RunsheetTabButton({
+	isActive,
+	isPlayerRole,
+	onSelect,
+}: RunsheetTabProps & { onSelect: () => void }) {
+	const stateClass = isPlayerRole
+		? "border-transparent text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
+		: isActive
+			? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400"
+			: "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300";
+
+	return (
+		<button
+			type="button"
+			role="tab"
+			aria-selected={isActive}
+			aria-controls="tabpanel-runsheet"
+			id="tab-runsheet"
+			onClick={onSelect}
+			disabled={isPlayerRole}
+			title={
+				isPlayerRole ? "Runsheets are GM-only and contain spoilers" : undefined
+			}
+			className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${stateClass}`}
+		>
+			Runsheet
+		</button>
+	);
+}
+
+function RunsheetTabPanel({
+	isActive,
+	isPlayerRole,
+	campaignId,
+	canEdit,
+}: RunsheetTabProps & { campaignId: string; canEdit: boolean }) {
+	if (!isActive || isPlayerRole) return null;
+
+	return (
+		<div
+			role="tabpanel"
+			id="tabpanel-runsheet"
+			aria-labelledby="tab-runsheet"
+			className="mt-2"
+		>
+			<RunsheetPanel campaignId={campaignId} canEdit={canEdit} />
+		</div>
+	);
+}
+
 export function CampaignDetailsModal({
 	campaign,
 	isOpen,
@@ -82,7 +143,7 @@ export function CampaignDetailsModal({
 	);
 	const [isUpdating, setIsUpdating] = useState(false);
 	const [activeTab, setActiveTab] = useState<
-		"details" | "party" | "digests" | "nextSteps" | "resources"
+		"details" | "party" | "digests" | "nextSteps" | "runsheet" | "resources"
 	>("details");
 	const [isDigestModalOpen, setIsDigestModalOpen] = useState(false);
 	const [editingDigest, setEditingDigest] =
@@ -673,6 +734,11 @@ export function CampaignDetailsModal({
 							>
 								Next steps
 							</button>
+							<RunsheetTabButton
+								isActive={activeTab === "runsheet"}
+								isPlayerRole={isPlayerRole}
+								onSelect={() => setActiveTab("runsheet")}
+							/>
 							<button
 								type="button"
 								role="tab"
@@ -759,6 +825,13 @@ export function CampaignDetailsModal({
 								<PlanningTasksPanel campaignId={campaign.campaignId} />
 							</div>
 						)}
+
+						<RunsheetTabPanel
+							isActive={activeTab === "runsheet"}
+							isPlayerRole={isPlayerRole}
+							campaignId={campaign.campaignId}
+							canEdit={canShare}
+						/>
 
 						{activeTab === "resources" && (
 							<div
