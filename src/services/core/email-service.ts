@@ -45,6 +45,48 @@ export class EmailService {
 		return { ok: true };
 	}
 
+	/**
+	 * Send one player-facing session recap.
+	 *
+	 * Unlike the transactional mail above, this is bulk-ish and player-directed,
+	 * so it carries `List-Unsubscribe` headers. Gmail and Outlook surface those
+	 * as a native one-click unsubscribe, which keeps recipients out of the
+	 * "mark as spam" path and protects the sending domain's reputation.
+	 */
+	async sendPlayerRecapEmail(params: {
+		to: string;
+		subject: string;
+		html: string;
+		text: string;
+		fromAddress: string;
+		replyTo?: string;
+		unsubscribeUrl: string;
+	}): Promise<EmailServiceResult> {
+		const resend = new Resend(this.apiKey);
+
+		const { error } = await resend.emails.send({
+			from: params.fromAddress,
+			to: [params.to],
+			replyTo: params.replyTo ? [params.replyTo] : undefined,
+			subject: params.subject,
+			html: params.html,
+			text: params.text,
+			headers: {
+				"List-Unsubscribe": `<${params.unsubscribeUrl}>`,
+				"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+			},
+		});
+
+		if (error) {
+			return {
+				ok: false,
+				error: typeof error === "string" ? error : JSON.stringify(error),
+			};
+		}
+
+		return { ok: true };
+	}
+
 	async sendSupportEmail(params: {
 		subject: string;
 		body: string;

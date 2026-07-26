@@ -132,6 +132,25 @@ export const ENDPOINTS = {
 			RESOLVE_FINDING: (campaignId: string, findingId: string) =>
 				`/campaigns/${campaignId}/continuity/findings/${findingId}/resolve`,
 		},
+		PLAYER_RECAPS: {
+			/** Per-campaign opt-in for player recap emails. */
+			SETTINGS: (campaignId: string) =>
+				`/campaigns/${campaignId}/player-recaps/settings`,
+			/** List recap drafts and sends for a campaign. */
+			BASE: (campaignId: string) => `/campaigns/${campaignId}/player-recaps`,
+			DETAILS: (campaignId: string, recapId: string) =>
+				`/campaigns/${campaignId}/player-recaps/${recapId}`,
+			/** Generate (or regenerate) the draft for one session digest. */
+			GENERATE: (campaignId: string, digestId: string) =>
+				`/campaigns/${campaignId}/session-digests/${digestId}/player-recap`,
+			SEND: (campaignId: string, recapId: string) =>
+				`/campaigns/${campaignId}/player-recaps/${recapId}/send`,
+			RETRY: (campaignId: string, recapId: string) =>
+				`/campaigns/${campaignId}/player-recaps/${recapId}/retry`,
+			/** Audience preview: who will and will not be mailed, and why. */
+			RECIPIENTS: (campaignId: string) =>
+				`/campaigns/${campaignId}/player-recaps/recipients`,
+		},
 		SESSION_DIGEST_TEMPLATES: {
 			BASE: (campaignId: string) =>
 				`/campaigns/${campaignId}/session-digest-templates`,
@@ -328,6 +347,11 @@ export const ENDPOINTS = {
 		PUBLISH: "/notifications/publish",
 		STREAM_SUBSCRIBE: "/notifications/stream/subscribe",
 	},
+	/**
+	 * Public, unauthenticated unsubscribe for player recap emails.
+	 * Outside /api because it is opened directly from an email client.
+	 */
+	PLAYER_RECAP_UNSUBSCRIBE: (token: string) => `/recap-unsubscribe/${token}`,
 	TELEMETRY: {
 		RATINGS: "/telemetry/ratings",
 		CONTEXT_ACCURACY: "/telemetry/context-accuracy",

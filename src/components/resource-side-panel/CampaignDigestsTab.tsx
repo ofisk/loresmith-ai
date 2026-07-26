@@ -1,9 +1,14 @@
 import { Plus } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/button/Button";
+import { PlayerRecapReviewModal } from "@/components/session/PlayerRecapReviewModal";
 import { SessionDigestList } from "@/components/session/SessionDigestList";
+import { Toggle } from "@/components/toggle/Toggle";
+import { usePlayerRecaps } from "@/hooks/usePlayerRecaps";
 import type { SessionDigestWithData } from "@/types/session-digest";
 
 interface CampaignDigestsTabProps {
+	campaignId: string;
 	digests: SessionDigestWithData[];
 	loading: boolean;
 	error: string | null;
@@ -15,9 +20,13 @@ interface CampaignDigestsTabProps {
 }
 
 /**
- * Session digests tab: list, create, bulk import.
+ * Session digests tab: list, create, bulk import, and player recap emails.
+ *
+ * Recaps are opt-in per campaign; the send action only appears once the GM has
+ * turned them on, so no campaign gains an outbound email path by upgrading.
  */
 export function CampaignDigestsTab({
+	campaignId,
 	digests,
 	loading,
 	error,
@@ -27,6 +36,19 @@ export function CampaignDigestsTab({
 	onCreate,
 	onBulkImport,
 }: CampaignDigestsTabProps) {
+	const { settings, fetchSettings, updateSettings } = usePlayerRecaps();
+	const [recapDigest, setRecapDigest] = useState<SessionDigestWithData | null>(
+		null
+	);
+
+	useEffect(() => {
+		if (canManageDigests) {
+			void fetchSettings(campaignId);
+		}
+	}, [campaignId, canManageDigests, fetchSettings]);
+
+	const recapsEnabled = settings?.enabled ?? false;
+
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -54,12 +76,41 @@ export function CampaignDigestsTab({
 					</div>
 				)}
 			</div>
+
+			{canManageDigests && (
+				<div className="flex items-start justify-between gap-4 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
+					<div>
+						<p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+							Player recap emails
+						</p>
+						<p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+							Send a spoiler-filtered recap to your players after a session. You
+							review and edit every email before it goes out.
+						</p>
+					</div>
+					<Toggle
+						toggled={recapsEnabled}
+						onClick={() => void updateSettings(campaignId, !recapsEnabled)}
+					/>
+				</div>
+			)}
+
 			<SessionDigestList
 				digests={digests}
 				loading={loading}
 				error={error}
 				onEdit={canManageDigests ? onEdit : undefined}
 				onDelete={canManageDigests ? onDelete : undefined}
+				onSendRecap={
+					canManageDigests && recapsEnabled ? setRecapDigest : undefined
+				}
+			/>
+
+			<PlayerRecapReviewModal
+				isOpen={recapDigest !== null}
+				onClose={() => setRecapDigest(null)}
+				campaignId={campaignId}
+				digest={recapDigest}
 			/>
 		</div>
 	);
