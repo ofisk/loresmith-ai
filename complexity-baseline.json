@@ -38,7 +38,7 @@
 			"count": 1
 		},
 		"src/components/chat/ChatMessageList.tsx::(anonymous)": {
-			"ccn": 23,
+			"ccn": 22,
 			"count": 1
 		},
 		"src/components/join/JoinCampaignPage.tsx::checkLink": {
@@ -139,10 +139,6 @@
 		},
 		"src/lib/entity/entity-content-merge.ts::mergeEntityContent": {
 			"ccn": 27,
-			"count": 1
-		},
-		"src/lib/explainability-builder.ts::buildExplainabilityFromSteps": {
-			"ccn": 20,
 			"count": 1
 		},
 		"src/lib/file/file-upload-security.ts::detectMagicType": {

@@ -422,11 +422,14 @@ export function useChatSession(options: UseChatSessionOptions) {
 								lastPrev.data?.explainability
 							)
 								return prev;
+							// campaignId rides along: the sources panel needs it to open a
+							// cited entity and to attribute a context-accuracy rating.
+							const campaignId = lastServer?.data?.campaignId;
 							return [
 								...prevList.slice(0, -1),
 								{
 									...lastPrev,
-									data: { ...lastPrev.data, explainability },
+									data: { ...lastPrev.data, campaignId, explainability },
 								},
 							] as typeof prev;
 						});

@@ -423,11 +423,14 @@ export function ChatMessageList({
 															</Card>
 															{isLastTextPart &&
 																!isUser &&
-																m.data?.explainability &&
-																m.data.explainability.contextSources?.length >
-																	0 && (
+																m.data?.explainability && (
 																	<ExplainabilitySection
 																		explainability={m.data.explainability}
+																		campaignId={
+																			typeof m.data.campaignId === "string"
+																				? m.data.campaignId
+																				: null
+																		}
 																		collapsedByDefault
 																	/>
 																)}

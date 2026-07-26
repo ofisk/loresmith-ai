@@ -19,6 +19,7 @@ import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useResourceFiles } from "@/hooks/useResourceFiles";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { buildStagingFileKey } from "@/lib/file/file-utils";
+import type { OpenSourceResourceDetail } from "@/lib/source-navigation";
 import { cn } from "@/lib/utils";
 import { AuthService, getStoredJwt } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
@@ -178,6 +179,41 @@ export function LibrarySection({
 	const [isFileDragOver, setIsFileDragOver] = useState(false);
 	const [librarySearchQuery, setLibrarySearchQuery] = useState("");
 	const librarySearchInputId = useId();
+
+	// Deep link from a source cited in a chat response: open the library and
+	// narrow it to the cited file so the user lands on it.
+	const openSourceStateRef = useRef({ isOpen, onToggle, files });
+	openSourceStateRef.current = { isOpen, onToggle, files };
+	useEffect(() => {
+		const handleOpenSourceResource = (event: Event) => {
+			const detail = (event as CustomEvent<OpenSourceResourceDetail>).detail;
+			if (!detail) return;
+			const {
+				isOpen: sectionOpen,
+				onToggle: toggleSection,
+				files: currentFiles,
+			} = openSourceStateRef.current;
+
+			const match = detail.fileKey
+				? currentFiles.find((f) => f.file_key === detail.fileKey)
+				: undefined;
+			const searchTerm =
+				match?.display_name || match?.file_name || detail.fileName;
+			if (searchTerm) setLibrarySearchQuery(searchTerm);
+			if (!sectionOpen) toggleSection();
+			fetchResourcesRef.current();
+		};
+		window.addEventListener(
+			APP_EVENT_TYPE.OPEN_SOURCE_RESOURCE,
+			handleOpenSourceResource as EventListener
+		);
+		return () => {
+			window.removeEventListener(
+				APP_EVENT_TYPE.OPEN_SOURCE_RESOURCE,
+				handleOpenSourceResource as EventListener
+			);
+		};
+	}, []);
 
 	const handleLibraryDragEnter = useCallback((e: React.DragEvent) => {
 		e.preventDefault();

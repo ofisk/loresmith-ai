@@ -11,8 +11,16 @@ export type SearchResult = Record<string, any>;
 // entities (0.7), exact name matches (1.0), and unscored results (0).
 const DEFAULT_SCORES = new Set([0, 0.7, 0.8, 1.0]);
 
+/**
+ * True when a score looks like a real semantic similarity rather than one of
+ * the fixed placeholders the non-semantic paths assign.
+ */
+export function isSemanticScore(score: number | undefined): boolean {
+	return !DEFAULT_SCORES.has(score || 0);
+}
+
 export function hasSemanticRelevanceScores(results: SearchResult[]): boolean {
-	return results.some((r) => !DEFAULT_SCORES.has(r.score || 0));
+	return results.some((r) => isSemanticScore(r.score));
 }
 
 /**
