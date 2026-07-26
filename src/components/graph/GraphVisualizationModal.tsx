@@ -10,9 +10,9 @@ import type {
 	GraphViewMode,
 } from "@/types/graph-visualization";
 import { CommunityEntityView } from "./CommunityEntityView";
-import { CytoscapeGraph } from "./CytoscapeGraph";
 import { EntityDetailPanel } from "./EntityDetailPanel";
 import { GraphControls } from "./GraphControls";
+import { LazyCytoscapeGraph } from "./LazyCytoscapeGraph";
 
 interface GraphVisualizationModalProps {
 	campaignId: string;
@@ -292,7 +292,7 @@ export function GraphVisualizationModal({
 											selectedEntityId && "w-2/3"
 										)}
 									>
-										<CytoscapeGraph
+										<LazyCytoscapeGraph
 											data={filteredCommunityGraphData}
 											layout={layout}
 											onNodeClick={handleCommunityNodeClick}

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/app-constants";
-import { FileDAO } from "@/dao";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
 import { parseTags } from "@/lib/resource-tags";
 import {
@@ -46,11 +46,11 @@ interface UseResourceFilesOptions {
 }
 
 const PROCESSING_STATUSES: Set<string> = new Set([
-	FileDAO.STATUS.UPLOADING,
-	FileDAO.STATUS.UPLOADED,
-	FileDAO.STATUS.SYNCING,
-	FileDAO.STATUS.PROCESSING,
-	FileDAO.STATUS.INDEXING,
+	FILE_UPLOAD_STATUS.UPLOADING,
+	FILE_UPLOAD_STATUS.UPLOADED,
+	FILE_UPLOAD_STATUS.SYNCING,
+	FILE_UPLOAD_STATUS.PROCESSING,
+	FILE_UPLOAD_STATUS.INDEXING,
 ]);
 
 interface UseResourceFilesReturn {
@@ -201,7 +201,7 @@ export function useResourceFiles(
 		() =>
 			files.filter((f) => {
 				if (PROCESSING_STATUSES.has(f.status)) return true;
-				if (f.status !== FileDAO.STATUS.COMPLETED) return false;
+				if (f.status !== FILE_UPLOAD_STATUS.COMPLETED) return false;
 				if (f.library_pipeline_ready === true) return false;
 				if (f.library_pipeline_ready === false) return true;
 				return isLibraryEntityDiscoveryInFlight(

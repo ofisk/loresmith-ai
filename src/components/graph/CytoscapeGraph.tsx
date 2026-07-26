@@ -8,7 +8,7 @@ import type {
 } from "@/types/graph-visualization";
 import { GraphNavigationControls } from "./GraphNavigationControls";
 
-interface CytoscapeGraphProps {
+export interface CytoscapeGraphProps {
 	data: CommunityGraphData | EntityGraphData;
 	layout?: CytoscapeLayout;
 	onNodeClick?: (nodeId: string) => void;

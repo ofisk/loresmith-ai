@@ -61,6 +61,8 @@
 		"complexity:staged": "node scripts/check/check-complexity.mjs --staged",
 		"complexity:baseline": "node scripts/check/check-complexity.mjs --update-baseline",
 		"complexity:report": "python3 -m lizard src scripts --CCN 15 --sort cyclomatic_complexity",
+		"bundle:size": "npm run build && node scripts/check/check-bundle-size.mjs",
+		"bundle:size:baseline": "npm run build && node scripts/check/check-bundle-size.mjs --update-baseline",
 		"validate": "npm run check && npm run test:coverage",
 		"postinstall": "node scripts/skills/postinstall-skills.mjs",
 		"prepare": "husky",

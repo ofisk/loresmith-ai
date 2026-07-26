@@ -5,8 +5,8 @@ import type {
 	CytoscapeLayout,
 	EntityGraphData,
 } from "@/types/graph-visualization";
-import { CytoscapeGraph } from "./CytoscapeGraph";
 import { EntityDetailPanel } from "./EntityDetailPanel";
+import { LazyCytoscapeGraph } from "./LazyCytoscapeGraph";
 
 interface CommunityEntityViewProps {
 	campaignId: string;
@@ -99,7 +99,7 @@ export function CommunityEntityView({
 			</div>
 			<div className="flex-1 min-h-0 flex">
 				<div className={cn("flex-1 min-w-0", selectedEntityId && "w-2/3")}>
-					<CytoscapeGraph
+					<LazyCytoscapeGraph
 						data={entityGraphData}
 						layout={layout}
 						onNodeClick={handleEntityNodeClick}

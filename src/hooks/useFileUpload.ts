@@ -7,7 +7,6 @@ import {
 	shouldUseLargeFileUpload,
 	uploadLargeFile,
 } from "@/lib/file/large-file-upload-helper";
-import { splitPdfIntoParts } from "@/lib/file/pdf-split-helper";
 import {
 	AuthService,
 	authenticatedFetchWithExpiration,
@@ -208,6 +207,12 @@ export function useFileUpload({
 					source: "useFileUpload",
 				} as FileUploadEvent);
 
+				// Loaded on demand: pulls in `pdf-lib`, which is only ever needed
+				// for oversized PDFs. The "splitting" progress event above is
+				// already on screen while this chunk downloads.
+				const { splitPdfIntoParts } = await import(
+					"@/lib/file/pdf-split-helper"
+				);
 				const parts = await splitPdfIntoParts(file, maxPdfBytes);
 				for (let i = 0; i < parts.length; i++) {
 					if (i > 0) {

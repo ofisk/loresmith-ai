@@ -27,6 +27,8 @@ jobs:
       - name: Cyclomatic complexity gate
         run: npm run complexity
       - run: npm run validate
+      - name: Initial JS bundle size gate
+        run: npm run bundle:size
 
   e2e:
     runs-on: ubuntu-latest

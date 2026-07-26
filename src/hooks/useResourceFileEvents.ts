@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileDAO } from "@/dao";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import type { FileUploadEvent } from "@/lib/event-bus";
 import { EVENT_TYPES, useEventBus } from "@/lib/event-bus";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import { parseTags } from "@/lib/resource-tags";
 import {
 	AuthService,
@@ -300,7 +300,7 @@ export function useResourceFileEvents(
 					if (file.file_key === key) {
 						return {
 							...file,
-							status: FileDAO.STATUS.ERROR, // Use standard ERROR status constant
+							status: FILE_UPLOAD_STATUS.ERROR, // Use standard ERROR status constant
 							updated_at: new Date().toISOString(),
 						};
 					}
@@ -380,11 +380,11 @@ export function useResourceFileEvents(
 				files
 					.filter(
 						(f) =>
-							f.status === FileDAO.STATUS.UPLOADING ||
-							f.status === FileDAO.STATUS.UPLOADED ||
-							f.status === FileDAO.STATUS.SYNCING ||
-							f.status === FileDAO.STATUS.PROCESSING ||
-							f.status === FileDAO.STATUS.INDEXING
+							f.status === FILE_UPLOAD_STATUS.UPLOADING ||
+							f.status === FILE_UPLOAD_STATUS.UPLOADED ||
+							f.status === FILE_UPLOAD_STATUS.SYNCING ||
+							f.status === FILE_UPLOAD_STATUS.PROCESSING ||
+							f.status === FILE_UPLOAD_STATUS.INDEXING
 					)
 					.map((f) => f.file_key)
 			);

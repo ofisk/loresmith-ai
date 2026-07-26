@@ -2,8 +2,8 @@ import { useState } from "react";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import { Tooltip } from "@/components/tooltip/Tooltip";
-import { FileDAO } from "@/dao";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
+import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import {
 	isFileReadyForCampaignAdd,
 	isLibraryEntityDiscoveryInFlight,
@@ -58,7 +58,7 @@ export function ResourceFileDetails({
 		file.library_entity_discovery_status
 	);
 	const showRetryEntityExtraction =
-		file.status === FileDAO.STATUS.COMPLETED &&
+		file.status === FILE_UPLOAD_STATUS.COMPLETED &&
 		!discoveryInFlight &&
 		(file.library_entity_discovery_status === "failed" ||
 			file.library_pipeline_ready === false);
@@ -169,7 +169,7 @@ export function ResourceFileDetails({
 						MB
 					</span>
 				</div>
-				{file.status === FileDAO.STATUS.COMPLETED &&
+				{file.status === FILE_UPLOAD_STATUS.COMPLETED &&
 					file.library_entity_discovery_status && (
 						<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
 							<span className="text-neutral-600 dark:text-neutral-400">
@@ -239,8 +239,8 @@ export function ResourceFileDetails({
 
 					// Show retry button for error/unindexed/failed statuses, but not for memory limit errors
 					const isFailedStatus =
-						file.status === FileDAO.STATUS.UNINDEXED ||
-						file.status === FileDAO.STATUS.ERROR ||
+						file.status === FILE_UPLOAD_STATUS.UNINDEXED ||
+						file.status === FILE_UPLOAD_STATUS.ERROR ||
 						file.status === "failed" ||
 						file.status === "error";
 
