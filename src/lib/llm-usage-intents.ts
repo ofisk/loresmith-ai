@@ -14,6 +14,7 @@
  * | embedding_index | File embedding (Vectorize indexing path) |
  * | vision_image_extract | Vision image description for extraction |
  * | session_plan_readout | Session plan readout (stitch / single-shot plan LLM) |
+ * | conversation_summary | Rolling summarization of older chat turns |
  */
 export const LLM_SPEND_INTENT = {
 	user_prompt: "user_prompt",
@@ -26,6 +27,7 @@ export const LLM_SPEND_INTENT = {
 	embedding_index: "embedding_index",
 	vision_image_extract: "vision_image_extract",
 	session_plan_readout: "session_plan_readout",
+	conversation_summary: "conversation_summary",
 } as const;
 
 export type LlmSpendIntent =
