@@ -31,6 +31,12 @@
 # Production sets `LORESMITH_VERBOSE_LLM_USAGE` in wrangler.jsonc `vars`; override locally if needed.
 # LORESMITH_VERBOSE_LLM_USAGE=1
 
+# Rolling summarization of older chat turns (on by default). Once a conversation
+# grows past ~18 user/assistant messages, older turns are condensed by the light
+# model into a summary block instead of being sent verbatim. Set to 0/false/no/off
+# to disable and fall back to plain trailing-window truncation.
+# LORESMITH_CONVERSATION_SUMMARY=0
+
 # CORS allowed origins for production
 CORS_ALLOWED_ORIGINS=https://yourdomain.com
 

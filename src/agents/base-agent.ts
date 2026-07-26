@@ -12,6 +12,16 @@ import {
 } from "@/lib/agent-role-utils";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
+import {
+	buildSummaryState,
+	CONVERSATION_SUMMARY_STORAGE_KEY,
+	type ConversationSummaryState,
+	formatSummaryBlock,
+	isConversationSummarizationEnabled,
+	planConversationContext,
+	type SummarizableMessage,
+	summarizeConversation,
+} from "@/lib/conversation-summarization";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildExplainabilityFromSteps } from "@/lib/explainability-builder";
 import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
@@ -22,6 +32,7 @@ import {
 } from "@/lib/llm-usage-verbose-log";
 import { createLogger } from "@/lib/logger";
 import { messageHistoryInjectionFlags } from "@/lib/message-history-injection";
+import { ModelManager } from "@/lib/model-manager";
 import { getAgentRoleContext } from "@/lib/prompts/agent-role-context";
 import {
 	buildPlayerCharacterOnboardingAgentGuidelines,
@@ -346,6 +357,207 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 	protected getToolsForRole?(_role: CampaignRole | null): Record<string, any>;
 
 	/**
+	 * Resolve the provider API key for auxiliary (non-chat) LLM calls.
+	 * Prefers the key the Chat DO initialized `ModelManager` with (which may be a
+	 * user-supplied key) and falls back to the server-configured key.
+	 */
+	private async resolveAuxiliaryApiKey(): Promise<string | null> {
+		const fromManager = ModelManager.getInstance().getApiKey();
+		if (fromManager) return fromManager;
+		try {
+			const envVar =
+				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+					? "ANTHROPIC_API_KEY"
+					: "OPENAI_API_KEY";
+			const raw = await getEnvVar(
+				this.env as unknown as Record<string, unknown>,
+				envVar,
+				false
+			);
+			return raw.trim() || null;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Build the conversation history to send this turn.
+	 *
+	 * Long conversations are compressed with a rolling summary: the most recent
+	 * turns stay verbatim while older ones are folded into a condensed block that
+	 * is injected as system context. The summary is persisted in DO storage and
+	 * only regenerated once a batch of messages has aged out, so the typical turn
+	 * costs nothing extra.
+	 *
+	 * Summarization is strictly best-effort — any failure (no API key, provider
+	 * error, storage error) falls back to the plain trailing-window behaviour.
+	 *
+	 * @returns the messages to send and an optional summary block for the system prompt
+	 */
+	protected async buildConversationContext(
+		userAssistantMessages: ChatMessage[],
+		maxContextMessages: number,
+		clientJwt: string | null
+	): Promise<{ messages: ChatMessage[]; summaryBlock: string | null }> {
+		const log = createLogger(
+			this.env as Record<string, unknown>,
+			`[${this.constructor.name}]`
+		);
+		const fallback = {
+			messages: userAssistantMessages.slice(-maxContextMessages),
+			summaryBlock: null,
+		};
+
+		if (
+			!isConversationSummarizationEnabled(
+				this.env as unknown as Record<string, unknown>
+			)
+		) {
+			return fallback;
+		}
+
+		const storage = this.ctx?.storage;
+		if (!storage) return fallback;
+
+		try {
+			const summarizable = userAssistantMessages as SummarizableMessage[];
+			const storedState =
+				(await storage.get<ConversationSummaryState>(
+					CONVERSATION_SUMMARY_STORAGE_KEY
+				)) ?? null;
+
+			const plan = planConversationContext(summarizable, storedState);
+
+			// Nothing aged out this turn: reuse the persisted summary (zero LLM cost).
+			if (!plan.needsSummarization) {
+				return {
+					messages: (plan.verbatimMessages as ChatMessage[]).slice(
+						-maxContextMessages
+					),
+					summaryBlock: plan.priorSummary
+						? formatSummaryBlock(plan.priorSummary)
+						: null,
+				};
+			}
+
+			const apiKey = await this.resolveAuxiliaryApiKey();
+			if (!apiKey) {
+				log.debug("Skipping conversation summarization: no provider API key");
+				// Without a summary we must not drop the aged-out messages, so fall
+				// back to the plain trailing window (carrying any prior summary).
+				return {
+					messages: fallback.messages,
+					summaryBlock: plan.priorSummary
+						? formatSummaryBlock(plan.priorSummary)
+						: null,
+				};
+			}
+
+			const startedAt = Date.now();
+			const { summary, usage, modelId } = await summarizeConversation({
+				messagesToSummarize: plan.messagesToSummarize,
+				priorSummary: plan.priorSummary,
+				apiKey,
+			});
+
+			if (!summary) {
+				log.warn("Conversation summarization returned empty text");
+				return fallback;
+			}
+
+			await storage.put(
+				CONVERSATION_SUMMARY_STORAGE_KEY,
+				buildSummaryState(
+					summary,
+					summarizable,
+					plan.nextCoveredCount,
+					Date.now()
+				)
+			);
+
+			log.info("Summarized older conversation turns", {
+				summarizedMessages: plan.messagesToSummarize.length,
+				coveredCount: plan.nextCoveredCount,
+				verbatimMessages: plan.verbatimMessages.length,
+				hadPriorSummary: !!plan.priorSummary,
+				summaryChars: summary.length,
+				durationMs: Date.now() - startedAt,
+			});
+
+			await this.recordSummarizationUsage(clientJwt, usage, modelId);
+
+			return {
+				messages: (plan.verbatimMessages as ChatMessage[]).slice(
+					-maxContextMessages
+				),
+				summaryBlock: formatSummaryBlock(summary),
+			};
+		} catch (error) {
+			log.warn(
+				"Conversation summarization failed; falling back to trailing window",
+				error
+			);
+			return fallback;
+		}
+	}
+
+	/**
+	 * Attribute summarization tokens to the user, same as chat tokens.
+	 * Best-effort: never let accounting break the turn.
+	 */
+	private async recordSummarizationUsage(
+		clientJwt: string | null,
+		usage:
+			| {
+					totalTokens?: number;
+					promptTokens?: number;
+					completionTokens?: number;
+			  }
+			| undefined,
+		modelId: string
+	): Promise<void> {
+		try {
+			const username = parseUsernameFromClientJwt(clientJwt);
+			if (!username) return;
+
+			const tokens =
+				usage?.totalTokens ??
+				(usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
+			const envRecord = this.env as Record<string, unknown> | undefined;
+
+			if (tokens > 0 && this.env?.DB) {
+				const rateLimitService = getLLMRateLimitService(
+					this.env as Parameters<typeof getLLMRateLimitService>[0]
+				);
+				await rateLimitService.recordUsage(username, tokens, 1, undefined, {
+					intent: LLM_SPEND_INTENT.conversation_summary,
+					source: "base_agent:buildConversationContext",
+					agent: this.constructor.name,
+					model: modelId,
+					promptTokens: usage?.promptTokens,
+					completionTokens: usage?.completionTokens,
+					totalTokens: usage?.totalTokens,
+				});
+			} else if (isVerboseLlmSpendEnabled(envRecord)) {
+				logVerboseLlmSpend(envRecord, {
+					intent: LLM_SPEND_INTENT.conversation_summary,
+					source: "base_agent:buildConversationContext",
+					username,
+					tokens,
+					queryCount: 1,
+					model: modelId,
+					extras: { usageUnavailable: !usage, d1Unavailable: !this.env?.DB },
+				});
+			}
+		} catch (error) {
+			createLogger(
+				this.env as Record<string, unknown>,
+				`[${this.constructor.name}]`
+			).warn("Failed to record summarization usage", error);
+		}
+	}
+
+	/**
 	 * Override addMessage to store messages in database for persistent history
 	 * Database storage happens asynchronously (fire-and-forget) to keep the method synchronous
 	 */
@@ -583,14 +795,27 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		// references ("these", "that", "try again"). Conversation is keyed by userId+campaignId.
 		// Keep only user/assistant messages for Anthropic compatibility.
 
+		// Beyond MAX_CONTEXT_MESSAGES, older turns are folded into a rolling summary
+		// (see buildConversationContext) rather than simply dropped.
 		const MAX_CONTEXT_MESSAGES = 32;
 
 		const userAssistantMessages = this.messages.filter(
 			(msg) => msg.role === "user" || msg.role === "assistant"
 		);
-		const recentMessages = userAssistantMessages.slice(-MAX_CONTEXT_MESSAGES);
+		const { messages: recentMessages, summaryBlock } =
+			await this.buildConversationContext(
+				userAssistantMessages,
+				MAX_CONTEXT_MESSAGES,
+				clientJwt
+			);
 		const processedMessages: typeof this.messages = [...recentMessages];
 		const supplementalSystemContext: string[] = [];
+
+		// Summary of older turns goes first so it reads as background, not as a
+		// late-breaking instruction that could override the system prompt.
+		if (summaryBlock) {
+			supplementalSystemContext.push(summaryBlock);
+		}
 
 		// Include role context so agents tailor for GM vs player.
 		// Anthropic does not support interleaved system messages in history.
@@ -695,6 +920,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		log.debug("Built minimal message context", {
 			totalMessages: this.messages.length,
 			processedMessages: processedMessages.length,
+			hasConversationSummary: !!summaryBlock,
 		});
 
 		// Determine whether the most recent user command is stale
