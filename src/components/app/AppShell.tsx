@@ -132,6 +132,7 @@ export function AppShell() {
 								onKeyDown={ctx.onKeyDown}
 								isLoading={ctx.isLoading}
 								onStop={ctx.onStop}
+								onContinueGeneration={ctx.onContinueGeneration}
 								formatTime={ctx.formatTime}
 								onSuggestionSubmit={ctx.onSuggestionSubmit}
 								onWorkOnNextStep={ctx.onWorkOnNextStep}

@@ -2,6 +2,7 @@ import { CaretRight } from "@phosphor-icons/react";
 import { Card } from "@/components/card/Card";
 import { CopyAsMarkdownButton } from "@/components/chat/CopyAsMarkdownButton";
 import { ExplainabilitySection } from "@/components/chat/ExplainabilitySection";
+import { InterruptedNotice } from "@/components/chat/InterruptedNotice";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 import type { Message } from "@/types/ai-message";
 
@@ -14,6 +15,10 @@ interface ChatMessageListProps {
 	onWorkOnNextStep?: (stepLabel: string) => void;
 	/** When provided, used as the list of step labels for buttons (from planning-tasks API). Message text is still used as a hint for whether to show buttons. */
 	openPlanningTaskTitles?: string[];
+	/** When provided, the newest stopped reply offers a Continue button. */
+	onContinueGeneration?: () => void;
+	/** Suppresses the Continue button while a turn is already in flight. */
+	isStreaming?: boolean;
 }
 
 /**
@@ -169,293 +174,305 @@ export function ChatMessageList({
 	invisibleUserContents,
 	onWorkOnNextStep,
 	openPlanningTaskTitles,
+	onContinueGeneration,
+	isStreaming,
 }: ChatMessageListProps) {
+	const visibleMessages = messages.filter((m: Message) => {
+		if (m.role === "system") return false;
+		if (m.role === "user" && m.content === "Get started") return false;
+		if (m.role === "user" && invisibleUserContents?.has(getMessageText(m)))
+			return false;
+		if (!hasVisibleContent(m)) return false;
+		return true;
+	});
+
 	return (
 		<>
-			{messages
-				.filter((m: Message) => {
-					if (m.role === "system") return false;
-					if (m.role === "user" && m.content === "Get started") return false;
-					if (
-						m.role === "user" &&
-						invisibleUserContents?.has(getMessageText(m))
-					)
-						return false;
-					if (!hasVisibleContent(m)) return false;
-					return true;
-				})
-				.map((m: Message, _index) => {
-					const isUser = m.role === "user";
+			{visibleMessages.map((m: Message, index) => {
+				const isUser = m.role === "user";
+				const isInterrupted =
+					!isUser &&
+					(m.data as { interrupted?: boolean } | undefined)?.interrupted ===
+						true;
+				// Only the newest reply can be resumed — continuing something further
+				// back in the transcript would append to the wrong place.
+				const canContinue =
+					isInterrupted &&
+					index === visibleMessages.length - 1 &&
+					!isStreaming &&
+					onContinueGeneration != null;
+				const continueHandler = canContinue ? onContinueGeneration : undefined;
 
-					return (
-						<div key={m.id}>
+				return (
+					<div key={m.id}>
+						<div
+							className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}
+						>
 							<div
-								className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}
+								className={`min-w-0 ${isUser ? "flex flex-row-reverse gap-2 max-w-[85%]" : "w-full"}`}
 							>
-								<div
-									className={`min-w-0 ${isUser ? "flex flex-row-reverse gap-2 max-w-[85%]" : "w-full"}`}
-								>
-									<div className={`min-w-0 ${isUser ? "flex-1" : "w-full"}`}>
-										<div>
-											{(() => {
-												// Find the index of the last text part in the original parts array
-												const parts = m.parts || [];
-												let lastTextPartIndex = -1;
-												for (let j = parts.length - 1; j >= 0; j--) {
-													if (parts[j]?.type === "text") {
-														lastTextPartIndex = j;
-														break;
-													}
+								<div className={`min-w-0 ${isUser ? "flex-1" : "w-full"}`}>
+									<div>
+										{(() => {
+											// Find the index of the last text part in the original parts array
+											const parts = m.parts || [];
+											let lastTextPartIndex = -1;
+											for (let j = parts.length - 1; j >= 0; j--) {
+												if (parts[j]?.type === "text") {
+													lastTextPartIndex = j;
+													break;
 												}
+											}
 
-												return parts.map((part, i) => {
-													const hasTopLevelRender = false;
-													if (part.type === "text" && hasTopLevelRender) {
-														return null;
-													}
-													if (
-														part.type === "text" &&
-														typeof part.text === "string" &&
-														part.text.trim() !== ""
-													) {
-														const isLastTextPart = i === lastTextPartIndex;
-														const occurrenceIndex = parts
-															.slice(0, i + 1)
-															.filter(
-																(p) =>
-																	p.type === "text" &&
-																	typeof p.text === "string" &&
-																	p.text === part.text
-															).length;
-														const partKey = `${m.id}-text-${part.text}-n${occurrenceIndex}`;
+											return parts.map((part, i) => {
+												const hasTopLevelRender = false;
+												if (part.type === "text" && hasTopLevelRender) {
+													return null;
+												}
+												if (
+													part.type === "text" &&
+													typeof part.text === "string" &&
+													part.text.trim() !== ""
+												) {
+													const isLastTextPart = i === lastTextPartIndex;
+													const occurrenceIndex = parts
+														.slice(0, i + 1)
+														.filter(
+															(p) =>
+																p.type === "text" &&
+																typeof p.text === "string" &&
+																p.text === part.text
+														).length;
+													const partKey = `${m.id}-text-${part.text}-n${occurrenceIndex}`;
 
-														return (
-															<div key={partKey} className="min-w-0">
-																<Card
-																	className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm min-w-0 ${
-																		isUser
-																			? "rounded-br-none"
-																			: "rounded-bl-none border-assistant-border"
-																	} ${
-																		part.text.startsWith("scheduled message")
-																			? "border-accent/50"
-																			: ""
-																	} relative shadow-sm border border-neutral-200/50 dark:border-neutral-700/50`}
-																>
-																	{part.text.startsWith(
-																		"scheduled message"
-																	) && (
-																		<span
-																			className="absolute -top-3 -left-2 text-base"
-																			aria-hidden="true"
-																		>
-																			🕒
-																		</span>
-																	)}
-																	{!isUser && (
-																		<CopyAsMarkdownButton
-																			markdown={part.text.replace(
-																				/^scheduled message: /,
-																				""
-																			)}
-																		/>
-																	)}
-																	{!isUser &&
-																		onWorkOnNextStep &&
-																		messageSuggestsNextSteps(part.text) &&
-																		(() => {
-																			const stepLabels =
-																				openPlanningTaskTitles &&
-																				openPlanningTaskTitles.length > 0
-																					? openPlanningTaskTitles
-																					: parseNextStepLabels(part.text);
-																			const segments =
-																				parseNextStepsSegments(part.text) ??
-																				(stepLabels.length > 0
-																					? segmentsFromLabelSearch(
-																							part.text,
-																							stepLabels
-																						)
-																					: null);
-																			if (
-																				stepLabels.length === 0 &&
-																				(!segments ||
-																					segments.listItemLines.length === 0)
-																			)
-																				return (
-																					<MemoizedMarkdown
-																						content={part.text.replace(
-																							/^scheduled message: /,
-																							""
-																						)}
-																					/>
-																				);
-																			// Render with "Work on this" next to each list item
-																			if (
-																				segments &&
-																				segments.listItemLines.length > 0
-																			) {
-																				const labels =
-																					stepLabels.length >=
-																					segments.listItemLines.length
-																						? stepLabels
-																						: [
-																								...stepLabels,
-																								...parseNextStepLabels(
-																									part.text
-																								).slice(stepLabels.length),
-																							];
-																				return (
-																					<>
-																						{segments.beforeList && (
-																							<MemoizedMarkdown
-																								content={segments.beforeList}
-																							/>
-																						)}
-																						<ul className="list-disc pl-5 my-2 space-y-1.5">
-																							{segments.listItemLines.map(
-																								(line, i) => {
-																									const label =
-																										labels[i] ??
-																										line
-																											.replace(
-																												LIST_ITEM_START,
-																												""
-																											)
-																											.replace(/\*\*/g, "")
-																											.trim()
-																											.split(" - ")[0]
-																											?.trim() ??
-																										line;
-																									return (
-																										<li
-																											key={`${label}::${line}`}
-																											className="flex items-center gap-2 [&>span]:min-w-0 [&>span]:flex-1"
-																										>
-																											<button
-																												type="button"
-																												onClick={() =>
-																													onWorkOnNextStep(
-																														label
-																													)
-																												}
-																												className="shrink-0 inline-flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
-																												aria-label={`Work on this step: ${label}`}
-																												title="Work on this"
-																											>
-																												<CaretRight
-																													size={16}
-																													weight="bold"
-																													aria-hidden
-																												/>
-																											</button>
-																											<span>
-																												<MemoizedMarkdown
-																													content={line}
-																												/>
-																											</span>
-																										</li>
-																									);
-																								}
-																							)}
-																						</ul>
-																						{segments.afterList && (
-																							<MemoizedMarkdown
-																								content={segments.afterList}
-																							/>
-																						)}
-																					</>
-																				);
-																			}
-																			// Fallback: single block + buttons below
+													return (
+														<div key={partKey} className="min-w-0">
+															<Card
+																className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm min-w-0 ${
+																	isUser
+																		? "rounded-br-none"
+																		: "rounded-bl-none border-assistant-border"
+																} ${
+																	part.text.startsWith("scheduled message")
+																		? "border-accent/50"
+																		: ""
+																} relative shadow-sm border border-neutral-200/50 dark:border-neutral-700/50`}
+															>
+																{part.text.startsWith("scheduled message") && (
+																	<span
+																		className="absolute -top-3 -left-2 text-base"
+																		aria-hidden="true"
+																	>
+																		🕒
+																	</span>
+																)}
+																{!isUser && (
+																	<CopyAsMarkdownButton
+																		markdown={part.text.replace(
+																			/^scheduled message: /,
+																			""
+																		)}
+																	/>
+																)}
+																{!isUser &&
+																	onWorkOnNextStep &&
+																	messageSuggestsNextSteps(part.text) &&
+																	(() => {
+																		const stepLabels =
+																			openPlanningTaskTitles &&
+																			openPlanningTaskTitles.length > 0
+																				? openPlanningTaskTitles
+																				: parseNextStepLabels(part.text);
+																		const segments =
+																			parseNextStepsSegments(part.text) ??
+																			(stepLabels.length > 0
+																				? segmentsFromLabelSearch(
+																						part.text,
+																						stepLabels
+																					)
+																				: null);
+																		if (
+																			stepLabels.length === 0 &&
+																			(!segments ||
+																				segments.listItemLines.length === 0)
+																		)
+																			return (
+																				<MemoizedMarkdown
+																					content={part.text.replace(
+																						/^scheduled message: /,
+																						""
+																					)}
+																				/>
+																			);
+																		// Render with "Work on this" next to each list item
+																		if (
+																			segments &&
+																			segments.listItemLines.length > 0
+																		) {
+																			const labels =
+																				stepLabels.length >=
+																				segments.listItemLines.length
+																					? stepLabels
+																					: [
+																							...stepLabels,
+																							...parseNextStepLabels(
+																								part.text
+																							).slice(stepLabels.length),
+																						];
 																			return (
 																				<>
-																					<MemoizedMarkdown
-																						content={part.text.replace(
-																							/^scheduled message: /,
-																							""
+																					{segments.beforeList && (
+																						<MemoizedMarkdown
+																							content={segments.beforeList}
+																						/>
+																					)}
+																					<ul className="list-disc pl-5 my-2 space-y-1.5">
+																						{segments.listItemLines.map(
+																							(line, i) => {
+																								const label =
+																									labels[i] ??
+																									line
+																										.replace(
+																											LIST_ITEM_START,
+																											""
+																										)
+																										.replace(/\*\*/g, "")
+																										.trim()
+																										.split(" - ")[0]
+																										?.trim() ??
+																									line;
+																								return (
+																									<li
+																										key={`${label}::${line}`}
+																										className="flex items-center gap-2 [&>span]:min-w-0 [&>span]:flex-1"
+																									>
+																										<button
+																											type="button"
+																											onClick={() =>
+																												onWorkOnNextStep(label)
+																											}
+																											className="shrink-0 inline-flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																											aria-label={`Work on this step: ${label}`}
+																											title="Work on this"
+																										>
+																											<CaretRight
+																												size={16}
+																												weight="bold"
+																												aria-hidden
+																											/>
+																										</button>
+																										<span>
+																											<MemoizedMarkdown
+																												content={line}
+																											/>
+																										</span>
+																									</li>
+																								);
+																							}
 																						)}
-																					/>
-																					<div className="mt-2 flex flex-wrap gap-1.5">
-																						{stepLabels.map((label) => (
-																							<button
-																								key={label}
-																								type="button"
-																								onClick={() =>
-																									onWorkOnNextStep(label)
-																								}
-																								className="shrink-0 inline-flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
-																								aria-label={`Work on this step: ${label}`}
-																								title="Work on this"
-																							>
-																								<CaretRight
-																									size={16}
-																									weight="bold"
-																									aria-hidden
-																								/>
-																							</button>
-																						))}
-																					</div>
+																					</ul>
+																					{segments.afterList && (
+																						<MemoizedMarkdown
+																							content={segments.afterList}
+																						/>
+																					)}
 																				</>
 																			);
-																		})()}
-																	{(!onWorkOnNextStep ||
-																		!messageSuggestsNextSteps(part.text)) && (
-																		<MemoizedMarkdown
-																			content={part.text.replace(
-																				/^scheduled message: /,
-																				""
-																			)}
-																		/>
-																	)}
-																</Card>
-																{isLastTextPart &&
-																	!isUser &&
-																	m.data?.explainability &&
-																	m.data.explainability.contextSources?.length >
-																		0 && (
-																		<ExplainabilitySection
-																			explainability={m.data.explainability}
-																			collapsedByDefault
-																		/>
-																	)}
-																{isLastTextPart &&
-																	(() => {
-																		const createdAt = m.createdAt as
-																			| string
-																			| Date
-																			| undefined;
-																		const date =
-																			createdAt != null
-																				? new Date(createdAt)
-																				: null;
-																		const isValid =
-																			date != null &&
-																			!Number.isNaN(date.getTime());
-																		return isValid ? (
-																			<p
-																				className={`text-xs text-muted-foreground mt-2 px-1 ${
-																					isUser ? "text-right" : "text-left"
-																				}`}
-																			>
-																				{formatTime(date)}
-																			</p>
-																		) : null;
+																		}
+																		// Fallback: single block + buttons below
+																		return (
+																			<>
+																				<MemoizedMarkdown
+																					content={part.text.replace(
+																						/^scheduled message: /,
+																						""
+																					)}
+																				/>
+																				<div className="mt-2 flex flex-wrap gap-1.5">
+																					{stepLabels.map((label) => (
+																						<button
+																							key={label}
+																							type="button"
+																							onClick={() =>
+																								onWorkOnNextStep(label)
+																							}
+																							className="shrink-0 inline-flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-100 dark:focus:ring-offset-neutral-900 transition-colors"
+																							aria-label={`Work on this step: ${label}`}
+																							title="Work on this"
+																						>
+																							<CaretRight
+																								size={16}
+																								weight="bold"
+																								aria-hidden
+																							/>
+																						</button>
+																					))}
+																				</div>
+																			</>
+																		);
 																	})()}
-															</div>
-														);
-													}
+																{(!onWorkOnNextStep ||
+																	!messageSuggestsNextSteps(part.text)) && (
+																	<MemoizedMarkdown
+																		content={part.text.replace(
+																			/^scheduled message: /,
+																			""
+																		)}
+																	/>
+																)}
+															</Card>
+															{isLastTextPart &&
+																!isUser &&
+																m.data?.explainability &&
+																m.data.explainability.contextSources?.length >
+																	0 && (
+																	<ExplainabilitySection
+																		explainability={m.data.explainability}
+																		collapsedByDefault
+																	/>
+																)}
+															<InterruptedNotice
+																interrupted={isInterrupted}
+																isLastTextPart={isLastTextPart}
+																onContinue={continueHandler}
+															/>
+															{isLastTextPart &&
+																(() => {
+																	const createdAt = m.createdAt as
+																		| string
+																		| Date
+																		| undefined;
+																	const date =
+																		createdAt != null
+																			? new Date(createdAt)
+																			: null;
+																	const isValid =
+																		date != null &&
+																		!Number.isNaN(date.getTime());
+																	return isValid ? (
+																		<p
+																			className={`text-xs text-muted-foreground mt-2 px-1 ${
+																				isUser ? "text-right" : "text-left"
+																			}`}
+																		>
+																			{formatTime(date)}
+																		</p>
+																	) : null;
+																})()}
+														</div>
+													);
+												}
 
-													return null;
-												});
-											})()}
-										</div>
+												return null;
+											});
+										})()}
 									</div>
 								</div>
 							</div>
 						</div>
-					);
-				})}
+					</div>
+				);
+			})}
 		</>
 	);
 }

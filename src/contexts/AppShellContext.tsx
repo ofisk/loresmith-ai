@@ -91,6 +91,8 @@ export interface AppShellContextValue {
 	onKeyDown: (e: React.KeyboardEvent) => void;
 	isLoading: boolean;
 	onStop: () => void;
+	/** Resume the newest reply that was stopped before it finished. */
+	onContinueGeneration: () => void;
 	formatTime: (date: Date) => string;
 	agentStatus: string | null;
 	onSuggestionSubmit: (suggestion: string) => void;
@@ -237,6 +239,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		handleSessionRecapRequest,
 		handleNextStepsRequest,
 		stop,
+		handleContinueGeneration,
 		pendingToolCallConfirmation,
 		formatTime,
 		chatHistoryLoaded,
@@ -385,6 +388,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			onKeyDown: handleKeyDown,
 			isLoading,
 			onStop: stop,
+			onContinueGeneration: handleContinueGeneration,
 			formatTime,
 			agentStatus,
 			onSuggestionSubmit: handleSuggestionSubmit,
@@ -460,6 +464,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			handleKeyDown,
 			isLoading,
 			stop,
+			handleContinueGeneration,
 			formatTime,
 			agentStatus,
 			handleSuggestionSubmit,

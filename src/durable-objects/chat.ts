@@ -52,6 +52,17 @@ interface Env extends AuthEnv {
 export class Chat extends SimpleChatAgent<Env> {
 	private agents: Map<string, any> = new Map();
 
+	/**
+	 * Abort controller for the turn currently in flight, if any.
+	 *
+	 * A conversation maps to exactly one durable object instance, and every turn
+	 * mutates the shared `this.messages` array plus the cached agent instance's
+	 * messages. Two overlapping turns therefore clobber each other's context and
+	 * interleave their output into the same chat pane. Turns are single-flight:
+	 * a newer message always supersedes an older in-flight one.
+	 */
+	private activeTurn: AbortController | null = null;
+
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 
@@ -160,6 +171,43 @@ export class Chat extends SimpleChatAgent<Env> {
 	}
 
 	/**
+	 * Begin a new turn, superseding any turn still in flight for this
+	 * conversation, and return the signal that scopes the new turn.
+	 *
+	 * Aborting an already-finished controller is a no-op, so completed turns need
+	 * no bookkeeping here.
+	 */
+	private beginTurn(request: Request): AbortSignal {
+		this.activeTurn?.abort(
+			new DOMException(
+				"Superseded by a newer message in this conversation",
+				"AbortError"
+			)
+		);
+
+		const controller = new AbortController();
+		this.activeTurn = controller;
+
+		// Best-effort: bridge a client disconnect (the Stop button aborting the
+		// fetch) into the turn. Not every runtime surfaces this reliably, which is
+		// why the supersede path above is the primary guarantee.
+		const clientSignal = request.signal;
+		if (clientSignal) {
+			if (clientSignal.aborted) {
+				controller.abort(clientSignal.reason);
+			} else {
+				clientSignal.addEventListener(
+					"abort",
+					() => controller.abort(clientSignal.reason),
+					{ once: true }
+				);
+			}
+		}
+
+		return controller.signal;
+	}
+
+	/**
 	 * Handle HTTP requests to the Chat durable object (PartyServer onRequest hook).
 	 */
 	async onRequest(request: Request): Promise<Response> {
@@ -171,6 +219,9 @@ export class Chat extends SimpleChatAgent<Env> {
 
 		// Handle POST chat message (e.g. from AI SDK useChat)
 		if (request.method === "POST") {
+			// Supersede any in-flight turn *before* touching `this.messages` below,
+			// so the older turn stops reading state the new one is about to rewrite.
+			const turnSignal = this.beginTurn(request);
 			try {
 				const body = (await request.json()) as {
 					messages?: Array<{
@@ -254,7 +305,9 @@ export class Chat extends SimpleChatAgent<Env> {
 						};
 					}
 				}
-				const response = await this.onChatMessage(() => {});
+				const response = await this.onChatMessage(() => {}, {
+					abortSignal: turnSignal,
+				});
 				return response;
 			} catch (err) {
 				createLogger(this.env as Record<string, unknown>, "[ChatDO]").error(
@@ -349,10 +402,11 @@ export class Chat extends SimpleChatAgent<Env> {
 	/**
 	 * Handles incoming chat messages and routes to appropriate specialized agent
 	 * @param onFinish - Callback function executed when streaming completes
+	 * @param options - Optional configuration including the turn's abort signal
 	 */
 	async onChatMessage(
 		onFinish: (message: any) => void | Promise<void>,
-		_options?: { abortSignal?: AbortSignal }
+		options?: { abortSignal?: AbortSignal }
 	) {
 		try {
 			const messages = this.messages as Array<{
@@ -433,7 +487,7 @@ export class Chat extends SimpleChatAgent<Env> {
 				const targetAgentInstance = this.getAgentInstance(defaultAgent);
 				targetAgentInstance.messages = [...messages];
 				return targetAgentInstance.onChatMessage(onFinish, {
-					abortSignal: _options?.abortSignal,
+					abortSignal: options?.abortSignal,
 				});
 			}
 
@@ -472,7 +526,7 @@ export class Chat extends SimpleChatAgent<Env> {
 			targetAgentInstance.messages = [...messages];
 
 			return targetAgentInstance.onChatMessage(onFinish, {
-				abortSignal: _options?.abortSignal,
+				abortSignal: options?.abortSignal,
 			});
 		} catch (error) {
 			// AuthenticationRequiredError: user must sign in - send notification that triggers auth modal
