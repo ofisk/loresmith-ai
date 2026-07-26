@@ -307,10 +307,19 @@ export class FileDAO extends BaseDAOClass {
 	async getStuckProcessingFiles(
 		timeoutMinutes: number = 1
 	): Promise<ParsedFileMetadata[]> {
-		const timeoutDate = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+		// `updated_at` is TEXT, so this is a lexicographic string comparison.
+		// Every writer sets it via CURRENT_TIMESTAMP / datetime('now'), which
+		// yields "YYYY-MM-DD HH:MM:SS". A JS `toISOString()` cutoff yields
+		// "YYYY-MM-DDTHH:MM:SS.mmmZ": identical for 10 chars, then ' ' (0x20) vs
+		// 'T' (0x54). Space sorts lower, so every same-day row compared as older
+		// than the cutoff regardless of elapsed time -- in-flight uploads were
+		// marked ERROR by the very next cron tick, minutes into a 10-minute
+		// timeout. Build the cutoff in SQL so both sides share one format.
 		const sql = `
-      SELECT * FROM file_metadata 
-      WHERE status IN (?, ?, ?, ?) AND updated_at < ?
+      SELECT * FROM file_metadata
+      WHERE status IN (?, ?, ?, ?)
+        AND updated_at IS NOT NULL
+        AND updated_at < datetime('now', ?)
       ORDER BY updated_at ASC
     `;
 		return this.queryAndParseMultipleFileMetadata(sql, [
@@ -318,7 +327,7 @@ export class FileDAO extends BaseDAOClass {
 			FileDAO.STATUS.SYNCING,
 			FileDAO.STATUS.INDEXING,
 			FileDAO.STATUS.UPLOADED,
-			timeoutDate.toISOString(),
+			`-${timeoutMinutes} minutes`,
 		]);
 	}
 
