@@ -7,6 +7,19 @@ export interface RetryLimitResult {
 	reason?: string;
 }
 
+/**
+ * Per-file retry caps (`retriesPerFilePerDay` / `retriesPerFilePerMonth`) for
+ * user-initiated retries of a file.
+ *
+ * These count **user retries of a whole file**, not individual model calls, so
+ * routing extraction through the Anthropic Message Batches API (issue #735)
+ * does not change the accounting — provided a partly-failed batch never
+ * surfaces to the user as a failed file. It does not: chunks a batch fails to
+ * return are re-extracted inline within the same pipeline run, and a batch that
+ * errors, expires, or blows its deadline falls back to the synchronous path
+ * without touching either this counter or the discovery job's `retry_count`.
+ * See `EntityExtractionBatchService`.
+ */
 export class RetryLimitService {
 	/**
 	 * Check if user can retry (read-only, does not increment).

@@ -17,7 +17,10 @@ import {
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
 import { getLibrarySyntheticCampaignId } from "@/lib/library-entity-id";
-import { pickTokenBreakdown } from "@/lib/llm-usage-breakdown";
+import {
+	type LlmUsageReport,
+	pickTokenBreakdown,
+} from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
@@ -41,6 +44,7 @@ import {
 import { TelemetryService } from "@/services/telemetry/telemetry-service";
 import { SemanticDuplicateDetectionService } from "@/services/vectorize/semantic-duplicate-detection-service";
 import type { ContentExtractionProvider } from "./content-extraction-provider";
+import type { EntityExtractionBatchCoordinator } from "./entity-extraction-batch-coordinator";
 import { DirectFileContentExtractionProvider } from "./impl/direct-file-content-extraction-provider";
 import { generateVisualInspirationTitle } from "./visual-inspiration-title";
 
@@ -69,6 +73,15 @@ export interface EntityStagingResult {
 	nextChunkIndex?: number;
 	/** Anthropic JSON repair passes across all chunks in this staging run (observability). */
 	jsonRepairCount?: number;
+	/**
+	 * Set when this run submitted (or is still waiting on) an Anthropic message
+	 * batch and produced no entities yet. The caller must leave the job queued
+	 * and call again later — it is not a failure and not a completion.
+	 * Always accompanied by `completed: false`.
+	 */
+	awaitingBatch?: boolean;
+	/** Chunks in this run served from batch results instead of an inline call. */
+	batchServedChunks?: number;
 }
 
 export interface EntityStagingOptions {
@@ -96,6 +109,11 @@ export interface EntityStagingOptions {
 	resumeFromChunk?: number;
 	/** Maximum chunks to process for this invocation. */
 	maxChunksPerRun?: number;
+	/**
+	 * Routes this run's chunk extraction through the Anthropic Message Batches
+	 * API when supplied (issue #735). Omit for the synchronous per-chunk path.
+	 */
+	batchCoordinator?: EntityExtractionBatchCoordinator;
 	/** Optional callback for durable chunk checkpoints. */
 	onChunkCheckpoint?: (progress: {
 		/** Cumulative chunks finished for the document (not just this invocation). */
@@ -134,6 +152,186 @@ function cosineSimilarity(a: number[], b: number[]): number {
 	}
 	if (magA === 0 || magB === 0) return 0;
 	return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+/**
+ * Merge one chunk's entities into the run's accumulator, keyed by entity id.
+ * The same entity often appears in several chunks of a document; content and
+ * metadata are shallow-merged and relations are unioned by target id.
+ */
+function mergeChunkEntities(
+	accumulator: Map<string, ExtractedEntity>,
+	chunkEntities: ExtractedEntity[]
+): void {
+	for (const entity of chunkEntities) {
+		const existing = accumulator.get(entity.id);
+		if (!existing) {
+			accumulator.set(entity.id, entity);
+			continue;
+		}
+		existing.content = {
+			...asMergeableObject(existing.content),
+			...asMergeableObject(entity.content),
+		};
+		const existingTargetIds = new Set(
+			existing.relations.map((r) => r.targetId)
+		);
+		for (const rel of entity.relations) {
+			if (!existingTargetIds.has(rel.targetId)) {
+				existing.relations.push(rel);
+				existingTargetIds.add(rel.targetId);
+			}
+		}
+		existing.metadata = { ...existing.metadata, ...entity.metadata };
+	}
+}
+
+function asMergeableObject(value: unknown): Record<string, unknown> {
+	return typeof value === "object" && value !== null
+		? (value as Record<string, unknown>)
+		: {};
+}
+
+/**
+ * Decide whether a chunk needs full extraction, recording the chunk-gate
+ * telemetry either way.
+ *
+ * `"skip"` means the chunk contributes nothing and needs no model call: it is
+ * blank, or the cheap gate model judged it non-substantive. A chunk already
+ * served from an Anthropic message batch is never gated — its result is already
+ * paid for, so gating it could only throw the result away (issue #735).
+ */
+async function resolveChunkGate(params: {
+	env: Env;
+	telemetry: TelemetryService;
+	recordTelemetry: (fn: () => Promise<void>) => void;
+	campaignId: string;
+	chunk: string;
+	chunkIndex: number;
+	llmApiKey: string;
+	username: string;
+	fileKey?: string;
+	rateLimitService: ReturnType<typeof getLLMRateLimitService>;
+	servedFromBatch: boolean;
+}): Promise<"skip" | "run"> {
+	const {
+		env,
+		telemetry,
+		recordTelemetry,
+		campaignId,
+		chunk,
+		chunkIndex,
+		llmApiKey,
+		username,
+		fileKey,
+		rateLimitService,
+		servedFromBatch,
+	} = params;
+
+	if (chunk.trim().length === 0) {
+		recordTelemetry(() =>
+			telemetry.recordExtractionChunkGateSkip({
+				campaignId,
+				metadata: { emptyChunk: true },
+			})
+		);
+		return "skip";
+	}
+
+	if (servedFromBatch) {
+		recordTelemetry(() =>
+			telemetry.recordExtractionChunkGateRun({
+				campaignId,
+				metadata: { servedFromBatch: true },
+			})
+		);
+		return "run";
+	}
+
+	if (!(await isExtractionChunkGateEnabled(env))) {
+		recordTelemetry(() =>
+			telemetry.recordExtractionChunkGateRun({
+				campaignId,
+				metadata: { gateDisabled: true },
+			})
+		);
+		return "run";
+	}
+
+	const gateResult = await evaluateExtractionChunkGate({
+		chunkText: chunk,
+		llmApiKey,
+		username,
+		campaignId,
+		onUsage: async (usage, ctx) => {
+			await rateLimitService.recordUsage(
+				username,
+				usage.tokens,
+				usage.queryCount,
+				ctx?.model,
+				{
+					intent: LLM_SPEND_INTENT.entity_extraction,
+					source: "entity_staging:extraction_chunk_gate",
+					...pickTokenBreakdown(usage),
+					phase: "chunk_gate",
+					campaignId,
+					fileKey,
+					chunkIndex,
+				}
+			);
+		},
+	});
+	const gateErrorMetadata = gateResult.gateError
+		? { gateError: true }
+		: undefined;
+	recordTelemetry(() =>
+		telemetry.recordExtractionChunkGateLatency(gateResult.latencyMs, {
+			campaignId,
+			metadata: gateErrorMetadata,
+		})
+	);
+	if (!gateResult.runFullExtraction) {
+		recordTelemetry(() =>
+			telemetry.recordExtractionChunkGateSkip({ campaignId })
+		);
+		return "skip";
+	}
+	recordTelemetry(() =>
+		telemetry.recordExtractionChunkGateRun({
+			campaignId,
+			metadata: gateErrorMetadata,
+		})
+	);
+	return "run";
+}
+
+/**
+ * Classify a failed chunk so `processChunk` can choose between "treat as empty",
+ * "abort the whole run", and "retry".
+ */
+function classifyChunkError(error: unknown): {
+	isRateLimit: boolean;
+	isAuthenticationError: boolean;
+	isNoOutput: boolean;
+	message: string;
+} {
+	const message = error instanceof Error ? error.message : "Unknown error";
+	return {
+		message,
+		isRateLimit:
+			message.includes("rate limit") ||
+			message.includes("429") ||
+			message.includes("Too Many Requests"),
+		isAuthenticationError:
+			message.includes("invalid x-api-key") ||
+			message.includes("authentication_error") ||
+			message.includes("invalid api key") ||
+			message.includes("unauthorized") ||
+			(message.includes("401") && message.includes("api")),
+		isNoOutput:
+			message.includes("No output generated") ||
+			message.includes("AI_NoOutputGeneratedError"),
+	};
 }
 
 function isContextLengthError(error: unknown): boolean {
@@ -242,6 +440,7 @@ async function stageEntitiesFromResourceImpl(
 		attribution,
 		resumeFromChunk = 0,
 		maxChunksPerRun,
+		batchCoordinator,
 		onChunkCheckpoint,
 	} = options;
 	const libraryMode = libraryScope !== null;
@@ -603,10 +802,42 @@ async function stageEntitiesFromResourceImpl(
 			}));
 		const hasMoreChunks = endChunkExclusive < chunks.length;
 
+		// Anthropic Message Batches (issue #735): ask the coordinator whether this
+		// run's chunks are batchable, already batched, or should run inline. Any
+		// answer other than "ready" leaves the per-chunk path below untouched.
+		let batchOutputsByChunkIndex: Map<number, unknown> | null = null;
+		if (batchCoordinator && chunksToProcess.length > 0) {
+			const decision = await batchCoordinator.resolveChunkOutputs({
+				chunks: chunksToProcess,
+				totalChunks: chunks.length,
+				chunkWindowStart: startChunkIndex,
+				chunkWindowEnd: endChunkExclusive,
+				sourceName: normalizedResource.file_name || normalizedResource.id,
+			});
+			if (decision.status === "awaiting") {
+				// Batch is in flight. Report no progress so the resume cursor stays put
+				// and the caller re-enters this window once results are available.
+				return {
+					success: true,
+					entityCount: 0,
+					stagedEntities: [],
+					completed: false,
+					awaitingBatch: true,
+					nextChunkIndex: startChunkIndex,
+					totalChunks: chunks.length,
+					jsonRepairCount: 0,
+				};
+			}
+			if (decision.status === "ready") {
+				batchOutputsByChunkIndex = decision.outputsByChunkIndex;
+			}
+		}
+
 		// Extract entities from each chunk and merge results
 		const extractionService = new EntityExtractionService(llmApiKey);
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 		let jsonRepairCount = 0;
+		let batchServedChunks = 0;
 
 		// Parallel chunk extraction; tuned for ~10 concurrent active users (lower TPM contention than ~100-user caps).
 		const CHUNK_CONCURRENCY = 5;
@@ -653,8 +884,14 @@ async function stageEntitiesFromResourceImpl(
 		): Promise<boolean> => {
 			const chunkNumber = chunkIndex + 1;
 			const retryCount = chunkRetryCounts.get(chunkIndex) || 0;
+			// Already paid for in a batch: no provider call, so no TPM slot and no
+			// gate (gating a result we already have would only discard it).
+			const batchOutput = batchOutputsByChunkIndex?.get(chunkIndex);
+			const servedFromBatch = batchOutput !== undefined;
 
-			await acquireChunkSlot();
+			if (!servedFromBatch) {
+				await acquireChunkSlot();
+			}
 
 			// Add exponential backoff delay for retries
 			if (isRetry && retryCount > 0) {
@@ -672,75 +909,26 @@ async function stageEntitiesFromResourceImpl(
 					void fn().catch(() => {});
 				};
 
-				const gateEnabled = await isExtractionChunkGateEnabled(env);
-				const trimmedChunk = chunk.trim();
-				if (trimmedChunk.length === 0) {
-					recordTelemetry(() =>
-						telemetry.recordExtractionChunkGateSkip({
-							campaignId,
-							metadata: { emptyChunk: true },
-						})
-					);
+				const gateVerdict = await resolveChunkGate({
+					env,
+					telemetry,
+					recordTelemetry,
+					campaignId,
+					chunk,
+					chunkIndex,
+					llmApiKey,
+					username,
+					fileKey: normalizedResource.file_key || undefined,
+					rateLimitService,
+					servedFromBatch,
+				});
+				if (gateVerdict === "skip") {
 					completedCount++;
 					await emitChunkCheckpoint();
 					return true;
 				}
 
-				if (!gateEnabled) {
-					recordTelemetry(() =>
-						telemetry.recordExtractionChunkGateRun({
-							campaignId,
-							metadata: { gateDisabled: true },
-						})
-					);
-				} else {
-					const gateResult = await evaluateExtractionChunkGate({
-						chunkText: chunk,
-						llmApiKey,
-						username,
-						campaignId,
-						onUsage: async (usage, ctx) => {
-							await rateLimitService.recordUsage(
-								username,
-								usage.tokens,
-								usage.queryCount,
-								ctx?.model,
-								{
-									intent: LLM_SPEND_INTENT.entity_extraction,
-									source: "entity_staging:extraction_chunk_gate",
-									...pickTokenBreakdown(usage),
-									phase: "chunk_gate",
-									campaignId,
-									fileKey: normalizedResource.file_key || undefined,
-									chunkIndex: chunkIndex,
-								}
-							);
-						},
-					});
-					recordTelemetry(() =>
-						telemetry.recordExtractionChunkGateLatency(gateResult.latencyMs, {
-							campaignId,
-							metadata: gateResult.gateError ? { gateError: true } : undefined,
-						})
-					);
-					if (!gateResult.runFullExtraction) {
-						recordTelemetry(() =>
-							telemetry.recordExtractionChunkGateSkip({ campaignId })
-						);
-						completedCount++;
-						await emitChunkCheckpoint();
-						return true;
-					}
-					recordTelemetry(() =>
-						telemetry.recordExtractionChunkGateRun({
-							campaignId,
-							metadata: gateResult.gateError ? { gateError: true } : undefined,
-						})
-					);
-				}
-
-				const chunkEntities = await extractionService.extractEntities({
-					content: chunk,
+				const extractionRequest = {
 					sourceName: normalizedResource.file_name || normalizedResource.id,
 					campaignId,
 					sourceId: normalizedResource.id,
@@ -750,7 +938,7 @@ async function stageEntitiesFromResourceImpl(
 					onJsonRepair: () => {
 						jsonRepairCount += 1;
 					},
-					onUsage: async (usage, ctx) => {
+					onUsage: async (usage: LlmUsageReport, ctx?: { model?: string }) => {
 						await rateLimitService.recordUsage(
 							username,
 							usage.tokens,
@@ -775,42 +963,29 @@ async function stageEntitiesFromResourceImpl(
 						shardStatus: "staging",
 						chunkIndex: chunkIndex,
 						totalChunks: chunks.length,
+						...(servedFromBatch && { extractionMode: "batch" }),
 					},
-				});
+				};
 
-				// Merge entities by ID (same entity ID = merge content/metadata)
-				for (const entity of chunkEntities) {
-					const existing = allExtractedEntities.get(entity.id);
-					if (existing) {
-						// Merge: combine content, merge relations, update metadata
-						existing.content = {
-							...(typeof existing.content === "object" &&
-							existing.content !== null
-								? existing.content
-								: {}),
-							...(typeof entity.content === "object" && entity.content !== null
-								? entity.content
-								: {}),
-						};
-						// Merge relations (avoid duplicates)
-						const existingTargetIds = new Set(
-							existing.relations.map((r) => r.targetId)
-						);
-						for (const rel of entity.relations) {
-							if (!existingTargetIds.has(rel.targetId)) {
-								existing.relations.push(rel);
-								existingTargetIds.add(rel.targetId);
-							}
-						}
-						// Update metadata
-						existing.metadata = {
-							...existing.metadata,
-							...entity.metadata,
-						};
-					} else {
-						allExtractedEntities.set(entity.id, entity);
-					}
+				// A batch already produced this chunk's payload in an earlier
+				// invocation; map it through the same normalization the inline path
+				// uses. Token spend for the batch is recorded once by the coordinator.
+				const chunkEntities = servedFromBatch
+					? await extractionService.mapExtractionPayload(
+							batchOutput as Parameters<
+								typeof extractionService.mapExtractionPayload
+							>[0],
+							extractionRequest
+						)
+					: await extractionService.extractEntities({
+							...extractionRequest,
+							content: chunk,
+						});
+				if (servedFromBatch) {
+					batchServedChunks += 1;
 				}
+
+				mergeChunkEntities(allExtractedEntities, chunkEntities);
 
 				// Success - remove from retry tracking if it was a retry
 				if (isRetry) {
@@ -820,22 +995,12 @@ async function stageEntitiesFromResourceImpl(
 				await emitChunkCheckpoint();
 				return true;
 			} catch (chunkError) {
-				// Log error
-				const errorMessage =
-					chunkError instanceof Error ? chunkError.message : "Unknown error";
-				const isRateLimit =
-					errorMessage.includes("rate limit") ||
-					errorMessage.includes("429") ||
-					errorMessage.includes("Too Many Requests");
-				const isAuthenticationError =
-					errorMessage.includes("invalid x-api-key") ||
-					errorMessage.includes("authentication_error") ||
-					errorMessage.includes("invalid api key") ||
-					errorMessage.includes("unauthorized") ||
-					(errorMessage.includes("401") && errorMessage.includes("api"));
-				const isNoOutput =
-					errorMessage.includes("No output generated") ||
-					errorMessage.includes("AI_NoOutputGeneratedError");
+				const {
+					message: errorMessage,
+					isRateLimit,
+					isAuthenticationError,
+					isNoOutput,
+				} = classifyChunkError(chunkError);
 
 				// No output from model: treat as empty chunk (0 entities), don't retry
 				if (isNoOutput) {
@@ -969,6 +1134,7 @@ async function stageEntitiesFromResourceImpl(
 					nextChunkIndex: endChunkExclusive,
 					totalChunks: chunks.length,
 					jsonRepairCount,
+					batchServedChunks,
 				};
 			}
 			const notificationDetail =
@@ -990,6 +1156,7 @@ async function stageEntitiesFromResourceImpl(
 				entityCount: 0,
 				stagedEntities: [],
 				jsonRepairCount,
+				batchServedChunks,
 				...(failedChunks.length > 0 && {
 					failedChunks,
 					successfulChunks,
@@ -1122,6 +1289,7 @@ async function stageEntitiesFromResourceImpl(
 					nextChunkIndex: endChunkExclusive,
 					totalChunks: chunks.length,
 					jsonRepairCount,
+					batchServedChunks,
 				};
 			}
 			const stagedForLib: NonNullable<EntityStagingResult["stagedEntities"]> =
@@ -1169,6 +1337,7 @@ async function stageEntitiesFromResourceImpl(
 				completed: true,
 				totalChunks: chunks.length,
 				jsonRepairCount,
+				batchServedChunks,
 				...(failedChunks.length > 0
 					? {
 							warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,
@@ -1576,6 +1745,7 @@ async function stageEntitiesFromResourceImpl(
 			nextChunkIndex: hasMoreChunks ? endChunkExclusive : undefined,
 			totalChunks: chunks.length,
 			jsonRepairCount,
+			batchServedChunks,
 			...(failedChunks.length > 0
 				? {
 						warning: `Some chunks failed to process: ${failedChunks.join(", ")}`,

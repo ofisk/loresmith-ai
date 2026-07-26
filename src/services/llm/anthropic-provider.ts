@@ -5,6 +5,13 @@ import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
 import {
+	buildStructuredCacheablePrefix,
+	extractJsonObjectText,
+	parseStructuredSchema,
+	STRUCTURED_JSON_INTRO,
+	structuredSchemaInstructions,
+} from "@/lib/llm-structured-output";
+import {
 	addTokenBreakdowns,
 	toTokenBreakdown,
 	totalUsageTokens,
@@ -15,40 +22,7 @@ import type {
 	StructuredOutputOptions,
 } from "./llm-provider";
 
-function parseStructuredSchema(
-	schema?: string
-): Record<string, unknown> | null {
-	if (!schema?.trim()) {
-		return null;
-	}
-	try {
-		const parsed = JSON.parse(schema) as Record<string, unknown>;
-		if (!parsed || typeof parsed !== "object") {
-			return null;
-		}
-		return parsed;
-	} catch (_error) {
-		return null;
-	}
-}
-
 const getUsageTokens = totalUsageTokens;
-
-function stripMarkdownCodeFence(text: string): string {
-	const trimmed = text.trim();
-	const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-	return fenceMatch ? fenceMatch[1].trim() : trimmed;
-}
-
-function extractJsonObjectText(text: string): string | null {
-	const stripped = stripMarkdownCodeFence(text);
-	const firstBrace = stripped.indexOf("{");
-	const lastBrace = stripped.lastIndexOf("}");
-	if (firstBrace >= 0 && lastBrace > firstBrace) {
-		return stripped.slice(firstBrace, lastBrace + 1);
-	}
-	return null;
-}
 
 function truncateForPrompt(text: string, maxChars: number): string {
 	if (text.length <= maxChars) {
@@ -146,11 +120,7 @@ export class AnthropicProvider implements LLMProvider {
 		const temperature = options.temperature ?? this.defaultTemperature;
 		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 		const parsedSchema = parseStructuredSchema(options.schema);
-		const schemaInstructions = parsedSchema
-			? `\n\nYou MUST return JSON that conforms to this JSON Schema:\n${JSON.stringify(parsedSchema)}`
-			: "";
-		const jsonIntro =
-			"Respond with valid JSON only. Do not wrap the JSON in markdown fences.";
+		const schemaInstructions = structuredSchemaInstructions(parsedSchema);
 
 		const anthropic = createAnthropic({ apiKey: this.apiKey });
 		const model = anthropic(modelId as any);
@@ -160,7 +130,10 @@ export class AnthropicProvider implements LLMProvider {
 		let singlePrompt: string | undefined;
 
 		if (parts) {
-			const cacheableFull = `${jsonIntro}\n\n${parts.cacheablePrefix}${schemaInstructions}`;
+			const cacheableFull = buildStructuredCacheablePrefix(
+				parts.cacheablePrefix,
+				parsedSchema
+			);
 			const userMessage: ModelMessage = {
 				role: "user",
 				content: [
@@ -181,7 +154,7 @@ export class AnthropicProvider implements LLMProvider {
 			};
 			messages = [userMessage];
 		} else {
-			singlePrompt = `${jsonIntro}\n\n${prompt}${schemaInstructions}`;
+			singlePrompt = `${STRUCTURED_JSON_INTRO}\n\n${prompt}${schemaInstructions}`;
 		}
 
 		try {

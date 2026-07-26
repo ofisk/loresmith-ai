@@ -120,6 +120,7 @@
 		"@ai-sdk/anthropic": "^4.0.18",
 		"@ai-sdk/openai": "^4.0.17",
 		"@ai-sdk/react": "^4.0.37",
+		"@anthropic-ai/sdk": "^0.115.0",
 		"@hono/swagger-ui": "^0.6.1",
 		"@hono/zod-openapi": "^1.4.0",
 		"@phosphor-icons/react": "^2.1.10",

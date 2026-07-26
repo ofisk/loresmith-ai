@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	entityExtractionProgressPercent,
+	formatBatchWaitingMarker,
+	parseEntityExtractionBatchState,
 	parseEntityExtractionProgress,
 	queueMessageWithProgress,
 } from "@/lib/entity-extraction-progress";
@@ -54,5 +56,36 @@ describe("queueMessageWithProgress", () => {
 
 	it("returns detail only when no prior PROGRESS", () => {
 		expect(queueMessageWithProgress(null, "oops")).toBe("oops");
+	});
+});
+
+describe("batch marker (issue #735)", () => {
+	it("round-trips a batch waiting marker", () => {
+		const marker = formatBatchWaitingMarker(8, "2026-07-26T10:00:00.000Z");
+		expect(parseEntityExtractionBatchState(marker)).toEqual({
+			chunkCount: 8,
+			submittedAt: "2026-07-26T10:00:00.000Z",
+		});
+	});
+
+	it("coexists with a PROGRESS line without breaking either parser", () => {
+		const message = queueMessageWithProgress(
+			"PROGRESS:4/12",
+			formatBatchWaitingMarker(8, "2026-07-26T10:00:00.000Z")
+		);
+		expect(parseEntityExtractionProgress(message)).toEqual({
+			processed: 4,
+			total: 12,
+		});
+		expect(parseEntityExtractionBatchState(message)).toEqual({
+			chunkCount: 8,
+			submittedAt: "2026-07-26T10:00:00.000Z",
+		});
+	});
+
+	it("returns null when no batch is in flight", () => {
+		expect(parseEntityExtractionBatchState(null)).toBeNull();
+		expect(parseEntityExtractionBatchState("PROGRESS:4/12")).toBeNull();
+		expect(parseEntityExtractionBatchState("BATCH:0:now")).toBeNull();
 	});
 });

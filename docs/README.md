@@ -81,6 +81,11 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - Changing models
   - Performance tuning
 
+- **[LLM batch processing](LLM_BATCH_PROCESSING.md)** - Routing queue-driven extraction through the Anthropic Message Batches API
+  - Submit / poll / collect across cron ticks
+  - Inline fallback policy
+  - Batch rate budget and spend accounting
+
 - **[Agent Design](AGENT_DESIGN.md)** - Agent routing and execution design
   - Agent routing flow
   - BaseAgent behavior
@@ -161,6 +166,7 @@ docs/
 ├── API.md                  # API reference
 ├── GRAPHRAG_INTEGRATION.md # GraphRAG details
 ├── LIBRARY_ENTITY_PIPELINE.md # Library discovery and campaign copy
+├── LLM_BATCH_PROCESSING.md # Anthropic message batches for queue work
 ├── AUTHENTICATION_FLOW.md  # Auth system
 ├── STORAGE_STRATEGY.md     # Storage architecture
 └── ...                     # Additional technical docs

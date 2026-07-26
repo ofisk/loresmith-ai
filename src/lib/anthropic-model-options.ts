@@ -34,6 +34,30 @@ export function getAnthropicSonnet5ProviderOptions(
 }
 
 /**
+ * Same policy as {@link anthropicSamplingParams}, expressed in raw Messages API
+ * fields rather than AI SDK fields — for the Message Batches path, which builds
+ * request params directly instead of going through the AI SDK.
+ *
+ * On Sonnet 5+ `effort` lives inside `output_config`, and temperature is
+ * omitted because a non-default value is rejected with a 400.
+ */
+export function anthropicBatchModelParams(
+	modelId: string,
+	temperature?: number
+): {
+	temperature?: number;
+	output_config?: { effort: AnthropicEffort };
+} {
+	if (isSonnet5OrNewer(modelId)) {
+		return { output_config: { effort: DEFAULT_SONNET5_EFFORT } };
+	}
+	if (temperature === undefined) {
+		return {};
+	}
+	return { temperature };
+}
+
+/**
  * Build generateText / streamText sampling fields.
  * Omits temperature (and related) for Sonnet 5+; includes temperature otherwise.
  */

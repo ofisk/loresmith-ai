@@ -10,6 +10,7 @@ import {
 	type RelationshipType,
 } from "@/lib/entity/relationship-types";
 import { EntityExtractionError, LLMProviderAPIKeyError } from "@/lib/errors";
+import { extractJsonObjectText } from "@/lib/llm-structured-output";
 import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
 import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
@@ -23,7 +24,7 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
  * Entity extraction uses PIPELINE_STRUCTURED (e.g. claude-sonnet-5 on Anthropic).
  * Higher Anthropic budget leaves room for Sonnet 5 adaptive thinking + JSON.
  */
-const MAX_EXTRACTION_RESPONSE_TOKENS =
+export const MAX_EXTRACTION_RESPONSE_TOKENS =
 	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 16384 : 16384;
 
 // Zod schema for entity extraction response
@@ -108,6 +109,77 @@ export interface ExtractedEntity {
 	relations: ExtractedRelationship[];
 }
 
+/** Model tier + response budget shared by the inline and batch extraction paths. */
+export function extractionModelId(): string {
+	return getGenerationModelForProvider("PIPELINE_STRUCTURED");
+}
+
+/**
+ * Split the extraction prompt into the stable instruction prefix (identical for
+ * every chunk of every document from the same source name — the part worth
+ * caching) and the chunk-specific suffix.
+ *
+ * Exported so the Message Batches path builds byte-identical prompts to the
+ * inline path; see {@link import("@/lib/llm-structured-output")}.
+ */
+export function buildExtractionPromptParts(
+	sourceName: string,
+	content: string
+): StructuredPromptParts & { fullPrompt: string } {
+	const prompt =
+		RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(sourceName);
+	return {
+		cacheablePrefix: `${prompt}\n\nCONTENT START\n`,
+		variableSuffix: `${content}\nCONTENT END`,
+		fullPrompt: `${prompt}\n\nCONTENT START\n${content}\nCONTENT END`,
+	};
+}
+
+/**
+ * Validate a raw extraction payload (already-parsed JSON) against the schema.
+ * The batch path uses this on text returned by a batch result so both paths
+ * agree on what counts as usable model output.
+ */
+export function validateExtractionPayload(
+	payload: unknown
+): z.infer<typeof EntityExtractionSchema> {
+	return parseOrThrow(EntityExtractionSchema, payload, {
+		logPrefix: "[EntityExtractionService]",
+		messagePrefix: "Schema validation failed",
+		customError: (msg) => new EntityExtractionError(msg),
+	});
+}
+
+/**
+ * Parse the raw text a batch result returned into a validated extraction
+ * payload. Returns null for output that is empty or contains no JSON object —
+ * the same "treat this chunk as empty" outcome the inline path produces for
+ * unusable model output, rather than failing the whole document.
+ *
+ * Unlike the inline path there is no JSON-repair retry: a repair pass is an
+ * extra interactive request, which would defeat the point of batching. A chunk
+ * whose batch output cannot be parsed is reported to the caller so it can be
+ * re-extracted inline.
+ */
+export function parseExtractionResponseText(
+	text: string
+): z.infer<typeof EntityExtractionSchema> | null {
+	if (!text || text.trim().length === 0) {
+		return null;
+	}
+	const jsonText = extractJsonObjectText(text);
+	if (!jsonText) {
+		return null;
+	}
+	let payload: unknown;
+	try {
+		payload = JSON.parse(jsonText);
+	} catch {
+		return null;
+	}
+	return validateExtractionPayload(payload);
+}
+
 export class EntityExtractionService {
 	constructor(
 		private readonly llmApiKey: string | null = null,
@@ -124,36 +196,51 @@ export class EntityExtractionService {
 			);
 		}
 
-		const prompt = RPG_EXTRACTION_PROMPTS.formatStructuredContentPrompt(
-			options.sourceName
+		const promptParts = buildExtractionPromptParts(
+			options.sourceName,
+			options.content
 		);
-
-		const fullPrompt = `${prompt}
-
-CONTENT START
-${options.content}
-CONTENT END`;
 
 		const structuredPromptParts: StructuredPromptParts | undefined =
 			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
 				? {
-						cacheablePrefix: `${prompt}\n\nCONTENT START\n`,
-						variableSuffix: `${options.content}\nCONTENT END`,
+						cacheablePrefix: promptParts.cacheablePrefix,
+						variableSuffix: promptParts.variableSuffix,
 					}
 				: undefined;
 
 		// Use OpenAIProvider to generate structured JSON output
-		const parsed = await this.callStructuredModel(fullPrompt, apiKey, {
-			username: options.username,
-			onUsage: options.onUsage,
-			onJsonRepair: options.onJsonRepair,
-			structuredPromptParts,
-		});
+		const parsed = await this.callStructuredModel(
+			promptParts.fullPrompt,
+			apiKey,
+			{
+				username: options.username,
+				onUsage: options.onUsage,
+				onJsonRepair: options.onJsonRepair,
+				structuredPromptParts,
+			}
+		);
 
 		if (!parsed) {
 			return [];
 		}
 
+		return this.mapExtractionPayload(parsed, options);
+	}
+
+	/**
+	 * Turn a validated extraction payload into {@link ExtractedEntity}s and record
+	 * extraction telemetry.
+	 *
+	 * Split out of {@link extractEntities} so a payload produced by a message
+	 * batch — where the model call happened in an earlier Worker invocation —
+	 * goes through exactly the same normalization, ID scoping, and telemetry as
+	 * an inline extraction.
+	 */
+	async mapExtractionPayload(
+		parsed: z.infer<typeof EntityExtractionSchema>,
+		options: Omit<ExtractEntitiesOptions, "content"> & { content?: string }
+	): Promise<ExtractedEntity[]> {
 		const results: ExtractedEntity[] = [];
 		const entityCountsByType: Record<string, number> = {};
 
@@ -169,49 +256,13 @@ CONTENT END`;
 				if (!entry || typeof entry !== "object") {
 					continue;
 				}
-
-				const record = entry as Record<string, unknown>;
-				// Make entity IDs campaign-scoped from the start
-				const baseId =
-					typeof record.id === "string" && record.id.length > 0
-						? record.id
-						: crypto.randomUUID();
-				const entityId = `${options.campaignId}_${baseId}`;
-
-				// Extract name from standard fields - all entities should have name, title, or display_name
-				// The LLM is instructed to always provide at least one of these fields
-				const nameFields = ["name", "title", "display_name"];
-
-				// Check "id" as a last resort (before falling back to generated name)
-				nameFields.push("id");
-
-				const name =
-					this.getFirstString(record, nameFields) || `${type}-${entityId}`;
-
-				// Log warning if entity doesn't have a proper name field (shouldn't happen if LLM follows instructions)
-				if (!this.getFirstString(record, ["name", "title", "display_name"])) {
-				}
-
-				const relations = Array.isArray(record.relations)
-					? this.normalizeRelationships(record.relations)
-					: [];
-
-				if (relations.length > 0) {
-				}
-
-				results.push({
-					id: entityId,
-					entityType: type,
-					name,
-					content: record,
-					metadata: {
-						...options.metadata,
-						sourceId: options.sourceId,
-						sourceType: options.sourceType,
-						campaignId: options.campaignId,
-					},
-					relations,
-				});
+				results.push(
+					this.toExtractedEntity(
+						type,
+						entry as Record<string, unknown>,
+						options
+					)
+				);
 			}
 		}
 
@@ -308,11 +359,7 @@ CONTENT END`;
 			});
 
 			// Validate the result against our Zod schema (LLM output may be malformed)
-			return parseOrThrow(EntityExtractionSchema, result, {
-				logPrefix: "[EntityExtractionService]",
-				messagePrefix: "Schema validation failed",
-				customError: (msg) => new EntityExtractionError(msg),
-			});
+			return validateExtractionPayload(result);
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
@@ -334,6 +381,43 @@ CONTENT END`;
 			}
 			throw new EntityExtractionError(errorMessage);
 		}
+	}
+
+	/**
+	 * One extracted entity from one raw record. IDs are campaign-scoped from the
+	 * start, and the name falls back through title / display_name / id before a
+	 * generated one, because the model is only asked to supply one of them.
+	 */
+	private toExtractedEntity(
+		type: StructuredEntityType,
+		record: Record<string, unknown>,
+		options: Omit<ExtractEntitiesOptions, "content"> & { content?: string }
+	): ExtractedEntity {
+		const baseId =
+			typeof record.id === "string" && record.id.length > 0
+				? record.id
+				: crypto.randomUUID();
+		const entityId = `${options.campaignId}_${baseId}`;
+
+		const name =
+			this.getFirstString(record, ["name", "title", "display_name", "id"]) ||
+			`${type}-${entityId}`;
+
+		return {
+			id: entityId,
+			entityType: type,
+			name,
+			content: record,
+			metadata: {
+				...options.metadata,
+				sourceId: options.sourceId,
+				sourceType: options.sourceType,
+				campaignId: options.campaignId,
+			},
+			relations: Array.isArray(record.relations)
+				? this.normalizeRelationships(record.relations)
+				: [],
+		};
 	}
 
 	private normalizeRelationships(

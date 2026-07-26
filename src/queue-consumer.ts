@@ -27,6 +27,7 @@ import {
 import { RebuildQueueService } from "./services/graph/rebuild-queue-service";
 import { RebuildTriggerService } from "./services/graph/rebuild-trigger-service";
 import { ShardEmbeddingQueueProcessor } from "./services/graph/shard-embedding-queue-processor";
+import { cleanupStaleBatchJobs } from "./services/llm/entity-extraction-batch-service";
 import type { RebuildQueueMessage } from "./types/rebuild-queue";
 import type { ShardEmbeddingQueueMessage } from "./types/shard-embedding-queue";
 
@@ -393,6 +394,15 @@ async function runFastScheduledTasks(
 	await processor.cleanupStaging();
 
 	await processPendingSyncQueueItems(env);
+
+	// Release batch rows that can never resolve (lost mid-submit, or past their
+	// deadline) before the discovery queue runs, so an abandoned batch does not
+	// keep its file from being extracted inline on this tick.
+	try {
+		await cleanupStaleBatchJobs(env);
+	} catch (error) {
+		log.error("llm_batch_stale_cleanup_failed", error);
+	}
 
 	await LibraryEntityDiscoveryQueueService.processPendingQueueItems(env);
 

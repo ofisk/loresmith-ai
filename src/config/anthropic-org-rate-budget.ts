@@ -117,3 +117,34 @@ export function deriveSubscriptionTierRates(): {
 
 	return { free, basic, pro };
 }
+
+/**
+ * Per-user share of the org's **batch** request budget.
+ *
+ * Batch submissions draw on `ANTHROPIC_ORG_LIMITS.batchRequestsPerMinute`, a
+ * budget line separate from the interactive RPM/ITPM the tier limits above are
+ * derived from. Charging batch work against the interactive budget would let
+ * background indexing starve a user's chat, so the batch path checks this
+ * instead (see
+ * {@link import("@/services/llm/llm-rate-limit-service").LLMRateLimitService.checkBatchRequestBudget}).
+ *
+ * Uses the same concurrency and headroom assumptions as the interactive split
+ * so both budgets move together when `expectedConcurrentActiveUsers` changes.
+ */
+export function deriveBatchRequestBudget(): {
+	/** Batch requests per minute available to one user. */
+	requestsPerMinutePerUser: number;
+	/** Org-wide ceiling, for reporting. */
+	requestsPerMinuteOrg: number;
+} {
+	const n = Math.max(
+		1,
+		Math.floor(ORG_RATE_BUDGET_ASSUMPTIONS.expectedConcurrentActiveUsers)
+	);
+	const headroom = ORG_RATE_BUDGET_ASSUMPTIONS.headroom;
+	const org = ANTHROPIC_ORG_LIMITS.batchRequestsPerMinute;
+	return {
+		requestsPerMinutePerUser: Math.max(1, Math.floor((org * headroom) / n)),
+		requestsPerMinuteOrg: org,
+	};
+}
