@@ -23,13 +23,19 @@ async function fetchAdminJson<T>(url: string): Promise<T> {
 		if (response.status === 403) {
 			throw new Error("Admin access required");
 		}
+		// Parse, then throw — throwing inside the try would be caught by its own
+		// catch, silently discarding the server's message.
 		const errorText = await response.text();
+		let message = response.statusText;
 		try {
 			const errorData = JSON.parse(errorText) as { error?: string };
-			throw new Error(errorData.error || response.statusText);
+			if (errorData.error) {
+				message = errorData.error;
+			}
 		} catch {
-			throw new Error(response.statusText);
+			// Non-JSON body (HTML error page, proxy response): keep the status text.
 		}
+		throw new Error(message);
 	}
 
 	return (await response.json()) as T;
