@@ -38,7 +38,7 @@ function d1Adapter(db: DatabaseSync): D1Database {
 }
 
 const MIGRATION = readFileSync(
-	join(__dirname, "../../migrations/0026_player_recap_emails.sql"),
+	join(__dirname, "../../migrations/0029_player_recap_emails.sql"),
 	"utf8"
 );
 
