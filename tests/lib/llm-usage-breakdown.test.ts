@@ -39,6 +39,34 @@ describe("toTokenBreakdown", () => {
 		expect(result.cacheWriteTokens).toBe(500);
 	});
 
+	it("reads cache-write tokens from the raw usage blob the SDK actually forwards", () => {
+		// @ai-sdk/anthropic v4 puts the API's snake_case usage object at
+		// providerMetadata.anthropic.usage; there is no top-level camelCase
+		// mirror, so reading only that would report 0 writes on every call.
+		const result = toTokenBreakdown(
+			{ inputTokens: 10, outputTokens: 2 },
+			{ anthropic: { usage: { cache_creation_input_tokens: 4200 } } }
+		);
+		expect(result.cacheWriteTokens).toBe(4200);
+	});
+
+	it("accepts a camelCase mirror inside the raw usage blob", () => {
+		const result = toTokenBreakdown(
+			{ inputTokens: 10, outputTokens: 2 },
+			{ anthropic: { usage: { cacheCreationInputTokens: 7 } } }
+		);
+		expect(result.cacheWriteTokens).toBe(7);
+	});
+
+	it("ignores a malformed usage blob rather than throwing", () => {
+		expect(
+			toTokenBreakdown(
+				{ inputTokens: 1, outputTokens: 1 },
+				{ anthropic: { usage: "not-an-object" } }
+			).cacheWriteTokens
+		).toBe(0);
+	});
+
 	it("degrades to zeros on an unrecognised usage shape", () => {
 		expect(toTokenBreakdown(undefined)).toEqual({
 			promptTokens: 0,

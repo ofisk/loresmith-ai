@@ -7,8 +7,21 @@
  * Generate prompt for detecting if text content is a character sheet
  */
 export function formatCharacterSheetDetectionPrompt(
-	textContent: string
+	textContent: string,
+	options?: {
+		/**
+		 * Ask the model to explain its decision. Output is billed at 5x input on
+		 * every Anthropic model and nothing downstream reads the explanation, so
+		 * this is off unless LORESMITH_VERBOSE_LLM_USAGE is on and a human is
+		 * actually going to look at it.
+		 */
+		includeReasoning?: boolean;
+	}
 ): string {
+	const reasoningField = options?.includeReasoning
+		? "\n- reasoning: string (brief explanation of your decision)"
+		: "";
+
 	return `Analyze the following text content and determine if it is a character sheet from a tabletop role-playing game.
 
 The content may be from any file type (PDF, DOCX, Markdown, TXT, etc.) and any game system (D&D, Pathfinder, Call of Cthulhu, etc.).
@@ -38,8 +51,7 @@ Please respond with a JSON object containing:
 - isCharacterSheet: boolean (true if this appears to be a character sheet)
 - confidence: number (0.0 to 1.0, how confident you are)
 - characterName: string | null (the character's name if detected, otherwise null)
-- detectedGameSystem: string | null (the game system if identifiable, e.g., "D&D 5e", "Pathfinder 2e", otherwise null)
-- reasoning: string (brief explanation of your decision)
+- detectedGameSystem: string | null (the game system if identifiable, e.g., "D&D 5e", "Pathfinder 2e", otherwise null)${reasoningField}
 
 Respond with valid JSON only.`;
 }

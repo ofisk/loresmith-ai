@@ -343,8 +343,9 @@ export const planSession = tool({
 				encounterSpec,
 			};
 
-			const prompt =
-				SESSION_SCRIPT_PROMPTS.formatSessionScriptPrompt(scriptContext);
+			const promptParts =
+				SESSION_SCRIPT_PROMPTS.formatSessionScriptPromptParts(scriptContext);
+			const prompt = `${promptParts.cacheablePrefix}\n\n${promptParts.variableSuffix}`;
 
 			const llmProvider = createLLMProvider({
 				provider: MODEL_CONFIG.PROVIDER.DEFAULT,
@@ -359,6 +360,11 @@ export const planSession = tool({
 				model: getGenerationModelForProvider("SESSION_PLANNING"),
 				temperature: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_TEMPERATURE,
 				maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
+				// The requirements block is ~1.3k tokens and identical across every
+				// session of the same type — over Sonnet 5's 1,024-token minimum.
+				...(MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
+					? { structuredPromptParts: promptParts }
+					: {}),
 			});
 
 			const gaps = analyzeGaps(sessionScript, filteredEntities);

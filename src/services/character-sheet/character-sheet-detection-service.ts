@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
 import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
 import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
+import { isVerboseLlmSpendEnabled } from "@/lib/llm-usage-verbose-log";
 import { formatCharacterSheetDetectionPrompt } from "@/lib/prompts/character-sheet-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
@@ -129,7 +130,9 @@ export class CharacterSheetDetectionService {
 			onUsage?: (usage: LlmUsageReport) => void | Promise<void>;
 		}
 	): Promise<CharacterSheetDetectionResult> {
-		const prompt = formatCharacterSheetDetectionPrompt(chunkContent);
+		const prompt = formatCharacterSheetDetectionPrompt(chunkContent, {
+			includeReasoning: isVerboseLlmSpendEnabled(),
+		});
 
 		const llmProvider = createLLMProvider({
 			provider: MODEL_CONFIG.PROVIDER.DEFAULT,

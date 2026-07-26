@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
+import { normalizeVisualInspirationTitle } from "@/lib/shard/vision-title";
 import type { LLMOptions } from "@/services/llm/llm-provider";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
 
@@ -89,10 +90,5 @@ ${body}`;
 		throw new Error("Invalid title model response");
 	}
 
-	let title = parsed.data.title.trim();
-	title = title.replace(/^["'\s]+|["'\s]+$/g, "");
-	if (title.length > 120) {
-		title = `${title.slice(0, 117)}...`;
-	}
-	return title;
+	return normalizeVisualInspirationTitle(parsed.data.title);
 }

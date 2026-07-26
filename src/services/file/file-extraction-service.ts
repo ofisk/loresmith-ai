@@ -4,6 +4,10 @@ import { MemoryLimitError, PDFExtractionError } from "@/lib/errors";
 import { getPdfPageCount as getPdfPageCountUtil } from "@/lib/file/pdf-utils";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
+import {
+	splitVisionTitleAndDescription,
+	VISION_TITLE_HEADER,
+} from "@/lib/shard/vision-title";
 
 export interface ExtractionResult {
 	text: string;
@@ -122,8 +126,18 @@ export class FileExtractionService {
 								role: "user",
 								content: [
 									{
+										// The title is asked for here rather than in a second
+										// (ANALYSIS-tier) call over the description this produces:
+										// the model already has the image, and a ~10-word line is
+										// a rounding error against a 220-word description.
 										type: "text",
-										text: "Analyze this image and describe: mood and atmosphere, dominant colors, setting type, historical or fantasy style cues, notable visual motifs, and how it could inspire worldbuilding. Keep under 220 words.",
+										text: [
+											"Analyze this image.",
+											"",
+											'Line 1 of your response must be exactly `TITLE: <name>` where <name> is a 3-10 word sentence-case evocative name capturing mood, setting, and atmosphere. Capitalize only the first word plus proper nouns. No quotation marks, no trailing period, maximum 80 characters. Never use a generic label like "Image", "Visual reference", or "Picture".',
+											"",
+											"Then a blank line, then describe: mood and atmosphere, dominant colors, setting type, historical or fantasy style cues, notable visual motifs, and how it could inspire worldbuilding. Keep the description under 220 words.",
+										].join("\n"),
 									},
 									{
 										type: "image_url",
@@ -180,12 +194,17 @@ export class FileExtractionService {
 				throw new Error("Vision model returned an empty description");
 			}
 
+			const { title, description } = splitVisionTitleAndDescription(visionText);
+
 			return {
 				text: [
 					"Visual inspiration reference",
 					`Source type: ${contentType}`,
+					// Header lines sit before the first blank line, which every consumer
+					// of this blob already strips when building the description body.
+					...(title ? [`${VISION_TITLE_HEADER} ${title}`] : []),
 					"",
-					visionText,
+					description,
 				].join("\n"),
 			};
 		} catch (_error) {

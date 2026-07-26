@@ -61,6 +61,7 @@ vi.mock("@/services/campaign/visual-inspiration-title", () => ({
 }));
 
 import { getDAOFactory } from "@/dao/dao-factory";
+import { generateVisualInspirationTitle } from "@/services/campaign/visual-inspiration-title";
 
 describe("entity-staging-service context-length retry", () => {
 	const mockEnv = { DB: {} } as any;
@@ -202,5 +203,46 @@ describe("entity-staging-service context-length retry", () => {
 			text: "Visual inspiration reference\n\nMoody fog and amber light.",
 			title: "Ritual battle under a red moon",
 		});
+	});
+
+	it("uses the vision pass's own title and skips the title model entirely", async () => {
+		const createEntity = vi.fn().mockResolvedValue(undefined);
+		(getDAOFactory as any).mockReturnValue({
+			entityDAO: { createEntity },
+			entityImportanceDAO: {},
+		});
+
+		const contentProvider: ContentExtractionProvider = {
+			extractContent: async () => ({
+				success: true,
+				content:
+					"Visual inspiration reference\nSource type: image/png\nTitle: Amber fog over the low fens\n\nMoody fog and amber light.",
+				metadata: { isVisualInspiration: true, contentType: "image/png" },
+			}),
+		};
+
+		await stageEntitiesFromResource({
+			env: mockEnv,
+			username: "user-1",
+			campaignId: "campaign-1",
+			campaignName: "Test Campaign",
+			resource: {
+				...mockResource,
+				file_name: "mood_ref.png",
+				file_key: "library/u/mood_ref.png",
+			},
+			campaignRagBasePath: "/rag",
+			llmApiKey: "test-key",
+			contentExtractionProvider: contentProvider,
+		});
+
+		const arg = createEntity.mock.calls[0][0];
+		expect(arg.name).toBe("Amber fog over the low fens");
+		expect(
+			(arg.metadata as { visualInspirationTitleSource?: string })
+				.visualInspirationTitleSource
+		).toBe("vision");
+		// The whole point: no second ANALYSIS-tier call for a title we already have.
+		expect(generateVisualInspirationTitle).not.toHaveBeenCalled();
 	});
 });
