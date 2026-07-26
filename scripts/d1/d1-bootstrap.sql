@@ -877,7 +877,7 @@ CREATE TABLE IF NOT EXISTS continuity_scan_state (
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
 );
 
--- LLM cost attribution (migration 0030): per-agent / per-intent spend.
+-- LLM cost attribution (migration 0031): per-agent / per-intent spend.
 -- Separate from llm_usage_log, which is the rate-limit ledger and is pruned
 -- every 25 hours; this table is pruned on a 90-day horizon.
 CREATE TABLE IF NOT EXISTS llm_cost_events (

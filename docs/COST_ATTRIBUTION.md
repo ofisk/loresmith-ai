@@ -105,7 +105,7 @@ work.
 
 ## Schema
 
-`llm_cost_events` (migration `0030_llm_cost_attribution.sql`):
+`llm_cost_events` (migration `0031_llm_cost_attribution.sql`):
 
 | Column | Notes |
 |---|---|

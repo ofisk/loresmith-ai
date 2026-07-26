@@ -1272,10 +1272,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				});
 				// Record LLM usage for rate limiting (chat consumes quota)
 				await recordTurnUsage(
-					toTurnUsage(
-						args?.totalUsage ?? args?.usage,
-						args?.providerMetadata
-					),
+					toTurnUsage(args?.totalUsage ?? args?.usage, args?.providerMetadata),
 					args?.finishReason ?? null,
 					"base_agent:onChatMessage"
 				);

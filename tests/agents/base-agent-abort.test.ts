@@ -6,6 +6,27 @@ vi.mock("@/lib/agent-role-utils", () => ({
 }));
 
 const streamTextMock = vi.hoisted(() => vi.fn());
+const recordUsageMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock("@/services/llm/llm-rate-limit-service", async (importOriginal) => {
+	const actual =
+		await importOriginal<
+			typeof import("@/services/llm/llm-rate-limit-service")
+		>();
+	return {
+		...actual,
+		getLLMRateLimitService: () => ({ recordUsage: recordUsageMock }),
+	};
+});
+
+/** Unsigned JWT — base-agent only base64-decodes the payload for the username. */
+function jwtFor(username: string): string {
+	const payload = btoa(JSON.stringify({ username }))
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/, "");
+	return `header.${payload}.signature`;
+}
 
 vi.mock("ai", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("ai")>();
@@ -114,6 +135,48 @@ describe("BaseAgent interrupt handling", () => {
 		expect(stored.content).toContain("The party arrives at");
 		// Drives the "Stopped — this reply is incomplete" notice after a reload.
 		expect(stored.data.interrupted).toBe(true);
+	});
+
+	it("attributes an aborted turn's spend with the input/output split intact", async () => {
+		vi.spyOn(agent as any, "storeMessageToDatabase").mockResolvedValue(
+			undefined
+		);
+		agent.addMessage({
+			role: "user",
+			content: "Tell me about the campaign",
+			data: { jwt: jwtFor("tester") },
+		} as any);
+
+		await agent.onChatMessage(() => {}, {
+			abortSignal: new AbortController().signal,
+		});
+
+		const { onAbort } = streamTextMock.mock.calls[0][0];
+		await onAbort({
+			// AI SDK v7 field naming. Reading v4's promptTokens/completionTokens
+			// here yields a zero split, which would make the spend unpriceable —
+			// output tokens cost ~5x input, so the aggregate alone is not enough.
+			steps: [
+				{ text: "The party ", usage: { inputTokens: 100, outputTokens: 20 } },
+				{ text: "arrives at", usage: { inputTokens: 50, outputTokens: 10 } },
+			],
+		});
+
+		expect(recordUsageMock).toHaveBeenCalledTimes(1);
+		const [username, tokens, queryCount, model, meta] =
+			recordUsageMock.mock.calls[0];
+		expect(username).toBe("tester");
+		expect(tokens).toBe(180);
+		expect(queryCount).toBe(1);
+		// Pricing needs the model id; recording it as undefined leaves the event unpriced.
+		expect(model).toBeTruthy();
+		expect(meta).toMatchObject({
+			source: "base_agent:onChatMessage_aborted",
+			modelRole: "INTERACTIVE",
+			promptTokens: 150,
+			completionTokens: 30,
+			totalTokens: 180,
+		});
 	});
 
 	it("stores nothing when the turn is aborted before any text", async () => {

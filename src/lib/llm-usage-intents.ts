@@ -59,6 +59,10 @@ const INTERACTIVE_INTENTS = new Set<LlmSpendIntent>([
 	LLM_SPEND_INTENT.conversation_summary,
 	LLM_SPEND_INTENT.session_plan_readout,
 	LLM_SPEND_INTENT.graph_visualization,
+	// Routing runs before the answering agent on every message, so the user is
+	// blocked on it. Counting it as pipeline would hide the routing tax in the
+	// background bucket, which is the opposite of what #736 needs to watch.
+	LLM_SPEND_INTENT.agent_routing,
 ]);
 
 export function surfaceForIntent(intent: LlmSpendIntent): LlmSpendSurface {

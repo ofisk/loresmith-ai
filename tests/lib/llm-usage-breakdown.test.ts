@@ -126,6 +126,15 @@ describe("surfaceForIntent", () => {
 		);
 	});
 
+	it("treats the per-message routing classifier as interactive", () => {
+		// Routing (#736) runs before the answering agent on every message, so the
+		// user waits on it. The default fallback is `pipeline`, which would hide
+		// the routing tax in the background bucket.
+		expect(surfaceForIntent(LLM_SPEND_INTENT.agent_routing)).toBe(
+			LLM_SPEND_SURFACE.interactive
+		);
+	});
+
 	it("treats background indexing work as pipeline", () => {
 		expect(surfaceForIntent(LLM_SPEND_INTENT.entity_extraction)).toBe(
 			LLM_SPEND_SURFACE.pipeline
