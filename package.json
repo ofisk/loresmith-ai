@@ -138,7 +138,7 @@
 		"pdf-lib": "^1.17.1",
 		"pdfjs-serverless": "^1.1.0",
 		"react": "19.2.5",
-		"react-dom": "19.2.5",
+		"react-dom": "19.2.8",
 		"react-joyride": "^3.1.0",
 		"react-markdown": "^10.1.0",
 		"remark-gfm": "^4.0.1",
