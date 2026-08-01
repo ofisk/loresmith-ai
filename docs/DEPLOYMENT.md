@@ -6,7 +6,7 @@
 2. Developer may optionally deploy to dev before opening a PR: `npm run deploy:dev` (runs bootstrap, D1 migrations for dev, and `wrangler deploy --config wrangler.dev.jsonc`).
 3. Developer pushes and opens a PR; CI and sanity checks run automatically.
 4. When checks pass, developer merges the PR to `main`.
-5. **Production:** Cloudflare **Workers Builds** (GitHub integration on the `loresmith-ai` Worker) builds and deploys from `main`. Configure build env vars, install/build commands, and any deploy steps in the Cloudflare dashboard so they match this repo (see `package.json` scripts and previous `deploy.yml` logic for D1 migrations if you run them in CI).
+5. **Production:** Cloudflare **Workers Builds** (GitHub integration on the `loresmith-ai` Worker) builds and deploys from `main`. Its build command is `npm run build` and its deploy command is `npm run deploy:prod:ci`, which **applies pending D1 migrations and only then runs `wrangler deploy`** — so new code never starts against an old schema, and a migration failure aborts the deploy. This requires a build secret `CLOUDFLARE_API_TOKEN` with D1:Edit; see `docs/DATABASE_MIGRATIONS.md`. Configure build env vars in the Cloudflare dashboard so they match this repo.
 
 There is **no** separate GitHub Actions `deploy.yml` for production—Cloudflare’s integration is the source of truth for prod deploys from `main`.
 
@@ -53,6 +53,13 @@ Staging uses a dedicated D1 database (`loresmith-db-dev`). R2 and Vectorize are 
 **Test card:** Use `4242 4242 4242 4242`, any future expiry (e.g. `12/34`), any CVC.
 
 ### Database migrations
+
+**Production migrations are automatic.** Merging to `main` applies pending
+migrations before the new Worker goes live, via the Workers Builds deploy
+command above. Every PR is also gated by the `migrations` job in `ci.yml`.
+Local and dev remain manual. `docs/DATABASE_MIGRATIONS.md` is the full
+reference — including the one-time Cloudflare token setup that the automatic
+apply depends on. The rest of this section covers the manual commands.
 
 **New databases:** Run `npm run migrate:bootstrap:dev` (or `migrate:bootstrap:prod`) once. That applies `scripts/d1/d1-bootstrap.sql` (full current schema, including triggers via the shell wrapper) and **baselines** `d1_migrations` with every file already in `migrations/`, so `wrangler d1 migrations apply` does not replay history. After that, run `npm run migrate:dev` (or prod apply) whenever someone adds a **new** migration file—Wrangler applies only those.
 

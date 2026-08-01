@@ -105,6 +105,11 @@ const FILE_MAPPINGS = [
 		process: true,
 	},
 	{
+		src: "docs/DATABASE_MIGRATIONS.md",
+		dest: "Technical/Database-Migrations.md",
+		process: true,
+	},
+	{
 		src: "docs/CAMPAIGN_SHARD_FLOW.md",
 		dest: "Technical/Campaign-Shard-Flow.md",
 		process: true,
@@ -353,6 +358,7 @@ function createSidebar() {
 
 ## Operations
 - [[Deployment|Deployment]]
+- [[Technical/Database-Migrations|Database migrations]]
 - [[Limits|Limits]]
 - [[Clear-Production-Data|Clear production data]]
 `;

@@ -127,6 +127,11 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - Environment setup
   - Migration procedures
 
+- **[Database Migrations](DATABASE_MIGRATIONS.md)** - D1 schema changes
+  - Adding a migration and keeping `d1-bootstrap.sql` in sync
+  - The PR gate and the production apply-then-deploy order
+  - Recovering a broken migration state
+
 - **[Contributing](CONTRIBUTING.md)** - Contribution guidelines
   - Development workflow
   - Code standards
