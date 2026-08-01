@@ -231,7 +231,17 @@ export class LibraryRAGService extends BaseRAGService {
 					tags: [],
 				};
 			}
-		} catch (_aiError) {
+		} catch (aiError) {
+			// Metadata generation is best-effort — indexing still succeeds without
+			// it — but a swallowed failure here is precisely how library
+			// auto-naming broke unnoticed, so it must leave a trace.
+			createLogger(
+				this.env as unknown as Record<string, unknown>,
+				"[LibraryRAG]"
+			).error("Semantic metadata generation failed", aiError, {
+				fileKey: metadata.fileKey,
+				filename: metadata.filename,
+			});
 			result = {
 				displayName: undefined,
 				description: "",
