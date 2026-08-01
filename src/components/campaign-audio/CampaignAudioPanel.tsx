@@ -12,6 +12,7 @@ interface CampaignAudioPanelProps {
 
 const KIND_LABEL: Record<AudioKind, string> = {
 	ambience: "Scene ambience",
+	sfx: "Sound effect",
 	music: "Theme music",
 	creature: "Creature sound",
 	voice: "NPC voice",
@@ -19,6 +20,7 @@ const KIND_LABEL: Record<AudioKind, string> = {
 
 const KIND_PLACEHOLDER: Record<AudioKind, string> = {
 	ambience: "a flooded crypt, dripping water and distant chittering",
+	sfx: "a heavy iron portcullis slamming shut",
 	music: "the villain's theme — dread, low strings",
 	creature: "a wet, throaty roar from something very large",
 	voice: "Type the exact line the NPC should say",

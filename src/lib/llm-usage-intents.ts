@@ -17,10 +17,11 @@
  * | conversation_summary | Rolling summarization of older chat turns |
  * | agent_routing | Agent selection classifier (per-message routing tax) |
  * | audio_ambience | Generated scene ambience (per second of audio, not tokens) |
+ * | audio_sfx | Generated one-shot sound effects (per second) |
  * | audio_music | Generated campaign/faction theme music (per second) |
  * | audio_voice | NPC voice and creature vocalization TTS (per second) |
  *
- * The three `audio_*` intents share this vocabulary so audio lands in the same
+ * The four `audio_*` intents share this vocabulary so audio lands in the same
  * per-intent cost view as everything else, but they are metered in SECONDS of
  * output rather than tokens — see `logVerboseAudioSpend` in
  * `src/lib/llm-usage-verbose-log.ts`. Do not add them to token-based totals.
@@ -39,6 +40,7 @@ export const LLM_SPEND_INTENT = {
 	conversation_summary: "conversation_summary",
 	agent_routing: "agent_routing",
 	audio_ambience: "audio_ambience",
+	audio_sfx: "audio_sfx",
 	audio_music: "audio_music",
 	audio_voice: "audio_voice",
 } as const;
@@ -55,6 +57,7 @@ export type LlmSpendIntent =
  */
 export const AUDIO_KIND_SPEND_INTENT = {
 	ambience: LLM_SPEND_INTENT.audio_ambience,
+	sfx: LLM_SPEND_INTENT.audio_sfx,
 	music: LLM_SPEND_INTENT.audio_music,
 	voice: LLM_SPEND_INTENT.audio_voice,
 	creature: LLM_SPEND_INTENT.audio_voice,

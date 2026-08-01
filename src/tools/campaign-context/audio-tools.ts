@@ -128,7 +128,7 @@ const generateAudioSchema = z.object({
 	kind: z
 		.enum(AUDIO_KINDS)
 		.describe(
-			"ambience for background scene sound, music for a theme, creature for a monster vocalization, voice for spoken NPC dialogue"
+			"ambience for a continuous background bed under a scene, sfx for a one-shot sound effect fired on a beat (a door slam, a spell discharge), music for a theme, creature for a monster vocalization, voice for spoken NPC dialogue"
 		),
 	hint: z
 		.string()
@@ -140,7 +140,7 @@ const generateAudioSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Entity to draw detail from — a location for ambience, a monster for creature sound, an NPC for voice"
+			"Entity to draw detail from — a location for ambience, a monster for creature sound, an NPC for voice. Effects rarely need one."
 		),
 	scene: z
 		.string()
@@ -193,7 +193,7 @@ function toGenerationRequest(
 
 export const generateCampaignAudioTool = tool({
 	description:
-		"Generate a campaign audio track (scene ambience, theme music, creature sound, or spoken NPC dialogue) from campaign context. Generation is asynchronous — this starts the job and the GM is notified when the track is ready. GM-only.",
+		"Generate a campaign audio track (scene ambience, a one-shot sound effect, theme music, a creature sound, or spoken NPC dialogue) from campaign context. Generation is asynchronous — this starts the job and the GM is notified when the track is ready. GM-only.",
 	inputSchema: generateAudioSchema,
 	execute: async (
 		input: z.infer<typeof generateAudioSchema>,

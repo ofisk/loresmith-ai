@@ -15,7 +15,7 @@ import {
 	prepareAudioGeneration,
 } from "@/services/audio/audio-generation-service";
 import type { AudioKind, CampaignAudioRecord } from "@/types/campaign-audio";
-import { isAudioKind } from "@/types/campaign-audio";
+import { AUDIO_KINDS, isAudioKind } from "@/types/campaign-audio";
 
 /**
  * Generated campaign audio (issue #756).
@@ -139,8 +139,10 @@ function validateGenerateBody(
 	body: GenerateAudioBody
 ): Response | null {
 	if (!isAudioKind(body.kind)) {
+		// Listed from the source of truth rather than spelled out, so adding a kind
+		// cannot leave this message quietly describing the old set.
 		return c.json(
-			{ error: "kind must be one of: ambience, music, creature, voice" },
+			{ error: `kind must be one of: ${AUDIO_KINDS.join(", ")}` },
 			400
 		);
 	}

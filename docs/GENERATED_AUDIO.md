@@ -1,7 +1,8 @@
 # Generated audio
 
-Scene ambience, campaign theme music, and creature/NPC vocalizations, generated
-from campaign context, stored as campaign assets, and played at the table.
+Scene ambience, one-shot sound effects, campaign theme music, and creature/NPC
+vocalizations, generated from campaign context, stored as campaign assets, and
+played at the table.
 
 Issue: [#756](https://github.com/ofisk/loresmith-ai/issues/756).
 
@@ -15,8 +16,17 @@ currently contains.
 |---|---|---|
 | `voice` | A line of NPC dialogue, spoken | **Yes** — Deepgram Aura |
 | `creature` | A roar, a shriek, a whisper | **Approximated** — Aura is a voice model, not a sound-effect model |
-| `ambience` | Rain, a crypt, a tavern | **No** — needs an external sound model |
+| `ambience` | Rain, a crypt, a tavern — a bed that loops under a scene | **No** — needs an external sound model |
+| `sfx` | A door slam, a spell discharge — one shot, fired on a beat | **No** — needs an external sound model |
 | `music` | A campaign or villain theme | **No** — needs an external music model |
+
+`ambience` and `sfx` reach the same vendor endpoint but stay separate kinds
+because everything around them differs: an ambience bed is long, loops, and must
+survive a GM talking over it; an effect is short, transient, and fires once. They
+get different default durations, different loop defaults, and deliberately
+opposite prompts — one asks for "steady, no transitions", the other for "sharp
+transient, silence before and after". Collapsing them into one kind with a flag
+would make every one of those a caller's problem.
 
 So capability, not vendor preference, is what selects a provider. This is the
 one place the audio stack deliberately differs from
@@ -98,15 +108,26 @@ header.
 
 ### Looping is not `<audio loop>`
 
-Models emit short clips (the sound-effects endpoint caps at 22 seconds) but a
+Models emit short clips (the sound-effects endpoint caps at 30 seconds) but a
 scene at the table lasts ten minutes or more, so a clip has to wrap. `<audio
 loop>` leaves an audible gap at the seam because the element re-buffers on wrap;
 over a twenty-second bed that gap lands every twenty seconds and is the first
 thing a player notices.
 
-`LoopPlayer` therefore decodes to an `AudioBuffer` and schedules overlapping
-passes on the Web Audio clock, crossfading the tail of one into the head of the
-next. The crossfade curve is **equal-power** (`sin`/`cos`), not linear: for two
+Looping is therefore solved in two places, and the order matters:
+
+1. **Ask the model first.** The ElevenLabs v2 sound model accepts `loop: true`
+   and renders a clip whose end already matches its start. Any track stored as
+   `loopable` requests it. This is strictly better than fixing the seam at
+   playback, because no amount of fading reconciles a bed whose start and end
+   disagree.
+2. **Crossfade what comes back anyway.** `LoopPlayer` decodes to an
+   `AudioBuffer` and schedules overlapping passes on the Web Audio clock,
+   crossfading the tail of one pass into the head of the next. It still earns
+   its place: the Workers AI path has no loop flag, and a model asked for a
+   seamless wrap does not always deliver one.
+
+The crossfade curve is **equal-power** (`sin`/`cos`), not linear: for two
 uncorrelated signals a linear fade dips about 3 dB at the midpoint, which is
 heard as a dropout exactly at the loop point — the artifact the crossfade exists
 to remove.
@@ -148,18 +169,60 @@ which model made it.
 
 Voice and creature work with no configuration beyond the existing `AI` binding.
 
-Ambience and music require an external provider through Cloudflare AI Gateway,
-and are **inert until configured**. With `ELEVENLABS_API_KEY` unset, the provider
-is never constructed, the factory reports those kinds unavailable, and the UI
-explains why. Merging this feature commits the project to no vendor and no
+Ambience, effects, and music require an external provider through Cloudflare AI
+Gateway, and are **inert until configured**. With `ELEVENLABS_API_KEY` unset, the
+provider is never constructed, the factory reports those kinds unavailable, and
+the UI explains why. Merging this feature commits the project to no vendor and no
 spend; setting the secret is the deliberate act that turns it on.
 
-| Variable | Purpose |
-|---|---|
-| `ELEVENLABS_API_KEY` | Vendor key. Absent → ambience and music stay unavailable. |
-| `AI_GATEWAY_ACCOUNT_ID` | Cloudflare account id for the gateway path. |
-| `AI_GATEWAY_ID` | AI Gateway id. |
-| `AUDIO_GATEWAY_BASE_URL` | Overrides the gateway URL. For tests, or a different vendor. |
+| Variable | Required | Purpose |
+|---|---|---|
+| `ELEVENLABS_API_KEY` | Yes | Vendor key. Absent → ambience, sfx, and music stay unavailable. |
+| `AI_GATEWAY_ACCOUNT_ID` | Yes | Cloudflare account id for the gateway path. |
+| `AI_GATEWAY_ID` | Yes | AI Gateway id. |
+| `ELEVENLABS_VOICE_ID` | No | Voice used for NPC dialogue. Defaults to a premade voice. |
+| `AUDIO_VOICE_PROVIDER` | No | Set to `workers-ai` to keep NPC voice on the free model. |
+| `AUDIO_GATEWAY_BASE_URL` | No | Overrides the gateway URL. For tests, or a different vendor. |
+
+**An API key on its own does nothing.** All three required variables must be set
+together: without a gateway to route through, `createGatewayAudioProvider`
+returns `null` rather than falling back to calling the vendor directly. That is
+deliberate — the gateway is the whole reason the dependency is defensible, so
+there is no configuration in which a request silently bypasses it. Create one at
+**Cloudflare dashboard → AI → AI Gateway**; the account id and gateway id are
+both visible in that gateway's API endpoint URL.
+
+### Which endpoint each kind uses
+
+The vendor's contract is pinned by tests in `tests/services/audio-providers.test.ts`,
+because a wrong `model_id` is a 422 from the live service and a perfectly green
+local suite.
+
+| Kind | Endpoint | Model |
+|---|---|---|
+| `ambience`, `sfx`, `creature` | `/v1/sound-generation` | `eleven_text_to_sound_v2` |
+| `music` | `/v1/music` | `music_v1` |
+| `voice` | `/v1/text-to-speech/{voice_id}` | `eleven_multilingual_v2` |
+
+Two vendor behaviours are overridden on every request. Music is generated with
+`force_instrumental` on, because Eleven Music sings by default and a track with
+an AI vocalist is unusable under a GM who is themselves talking. Output format is
+requested explicitly as `mp3_44100_128` rather than left to the vendor default,
+because the reported track duration is derived by dividing byte length by that
+exact bitrate — a silent default change would silently corrupt every duration and
+every second of metered spend.
+
+### What configuring a vendor changes about voice
+
+Setting the key does not only enable the three unavailable kinds; it also moves
+`voice` and `creature` off Workers AI, because a dedicated speech model is
+audibly better than steering a generic TTS voice.
+
+That is worth a deliberate decision rather than a silent upgrade. Voice is the
+one kind whose volume is unbounded — ambience and music are generated a handful
+of times per campaign, but NPC dialogue is per line, and ElevenLabs bills per
+character. `AUDIO_VOICE_PROVIDER=workers-ai` pins voice back to the free
+first-party model while leaving ambience, effects, and music on the vendor.
 
 Routing through AI Gateway rather than calling the vendor directly is what makes
 the dependency defensible: caching, rate limiting, logging, and cost visibility

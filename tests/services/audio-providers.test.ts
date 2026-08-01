@@ -12,6 +12,10 @@ import {
 import {
 	buildGatewayBaseUrl,
 	createGatewayAudioProvider,
+	DEFAULT_ELEVENLABS_VOICE_ID,
+	DEFAULT_MUSIC_MODEL,
+	DEFAULT_SOUND_MODEL,
+	DEFAULT_SPEECH_MODEL,
 	GatewayAudioProvider,
 	MAX_SOUND_EFFECT_SEC,
 } from "@/services/audio/gateway-audio-provider";
@@ -218,6 +222,196 @@ describe("GatewayAudioProvider", () => {
 		vi.unstubAllGlobals();
 	});
 
+	/**
+	 * These pin the vendor's wire contract, which is the one thing unit tests
+	 * cannot otherwise catch: a wrong `model_id` is a 422 from the live service
+	 * and a perfectly green test suite. Each value here is taken from the
+	 * ElevenLabs API reference, not inferred.
+	 */
+	describe("vendor request contract", () => {
+		function bodyOf(fetchMock: ReturnType<typeof vi.fn>) {
+			return JSON.parse(fetchMock.mock.calls[0][1].body as string);
+		}
+
+		it("sends the music model id the endpoint actually accepts", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+			});
+
+			await provider.generate({
+				kind: "music",
+				prompt: "villain theme",
+				durationSec: 45,
+			});
+
+			const body = bodyOf(fetchMock);
+			expect(body.model_id).toBe(DEFAULT_MUSIC_MODEL);
+			expect(body.music_length_ms).toBe(45_000);
+			// Eleven Music sings unless told not to, and a vocal track is unusable
+			// under a GM who is themselves talking.
+			expect(body.force_instrumental).toBe(true);
+
+			vi.unstubAllGlobals();
+		});
+
+		it("lets a caller opt back into vocals", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+			});
+
+			await provider.generate({
+				kind: "music",
+				prompt: "a bard's drinking song",
+				instrumental: false,
+			});
+
+			expect(bodyOf(fetchMock).force_instrumental).toBe(false);
+
+			vi.unstubAllGlobals();
+		});
+
+		it("asks the model to render a seamless wrap for looping beds", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+			});
+
+			await provider.generate({
+				kind: "ambience",
+				prompt: "rain on stone",
+				loop: true,
+			});
+
+			const body = bodyOf(fetchMock);
+			expect(body.loop).toBe(true);
+			expect(body.model_id).toBe(DEFAULT_SOUND_MODEL);
+
+			vi.unstubAllGlobals();
+		});
+
+		it("omits loop for one-shot effects", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+			});
+
+			await provider.generate({ kind: "sfx", prompt: "a door slamming" });
+
+			const body = bodyOf(fetchMock);
+			expect(body.loop).toBeUndefined();
+			expect(fetchMock.mock.calls[0][0]).toContain("/v1/sound-generation");
+
+			vi.unstubAllGlobals();
+		});
+
+		// `loop` is only valid on the v2 sound model; sending it to v1 is a 422.
+		it("withholds loop from a sound model that cannot take it", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+				soundModel: "eleven_text_to_sound_v1",
+			});
+
+			await provider.generate({
+				kind: "ambience",
+				prompt: "rain",
+				loop: true,
+			});
+
+			expect(bodyOf(fetchMock).loop).toBeUndefined();
+
+			vi.unstubAllGlobals();
+		});
+
+		it("routes voice to text-to-speech under the configured voice id", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+			});
+
+			await provider.generate({
+				kind: "voice",
+				prompt: "You should not have come here.",
+			});
+
+			const url = fetchMock.mock.calls[0][0] as string;
+			expect(url).toContain(
+				`/v1/text-to-speech/${DEFAULT_ELEVENLABS_VOICE_ID}`
+			);
+
+			const body = bodyOf(fetchMock);
+			expect(body.model_id).toBe(DEFAULT_SPEECH_MODEL);
+			// The prompt is the literal line; nothing may be appended to it or the
+			// NPC reads the stage direction aloud.
+			expect(body.text).toBe("You should not have come here.");
+
+			vi.unstubAllGlobals();
+		});
+
+		it("uses a per-request voice over the configured default", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+				voiceId: "configured-default",
+			});
+
+			await provider.generate({
+				kind: "voice",
+				prompt: "Hold the line.",
+				voice: "per-request-voice",
+			});
+
+			expect(fetchMock.mock.calls[0][0]).toContain(
+				"/v1/text-to-speech/per-request-voice"
+			);
+
+			vi.unstubAllGlobals();
+		});
+
+		// The reported duration divides byte length by an assumed bitrate, so the
+		// format has to be requested rather than left to a vendor default.
+		it("pins the output format the duration estimate assumes", async () => {
+			const fetchMock = stubFetch(MP3_BYTES);
+			vi.stubGlobal("fetch", fetchMock);
+
+			const provider = new GatewayAudioProvider({
+				apiKey: "key",
+				baseUrl: "https://example.test/eleven",
+			});
+
+			await provider.generate({ kind: "ambience", prompt: "wind" });
+
+			expect(fetchMock.mock.calls[0][0]).toContain(
+				"output_format=mp3_44100_128"
+			);
+
+			vi.unstubAllGlobals();
+		});
+	});
+
 	it("does not leak the vendor's quota detail verbatim in the thrown type", async () => {
 		vi.stubGlobal("fetch", stubFetch(MP3_BYTES, false));
 
@@ -263,7 +457,7 @@ describe("audio capability matrix", () => {
 		expect(capabilities.every((c) => c.available)).toBe(true);
 	});
 
-	it("keeps voice on first-party Workers AI even when a vendor is configured", () => {
+	it("moves voice onto the vendor once one is configured", () => {
 		const provider = resolveAudioProvider(
 			{
 				AI: fakeAi(MP3_BYTES),
@@ -273,7 +467,36 @@ describe("audio capability matrix", () => {
 			"voice"
 		);
 
-		expect(provider.name).toBe("workers-ai");
+		expect(provider.name).toBe("ai-gateway:elevenlabs");
+	});
+
+	// Voice is the one kind whose volume is unbounded — it bills per line of NPC
+	// dialogue — so the vendor default has to be reversible without giving up
+	// ambience, effects, and music.
+	it("pins voice back to Workers AI when AUDIO_VOICE_PROVIDER says so", () => {
+		const env = {
+			AI: fakeAi(MP3_BYTES),
+			ELEVENLABS_API_KEY: "key",
+			AUDIO_GATEWAY_BASE_URL: "https://example.test/eleven",
+			AUDIO_VOICE_PROVIDER: "workers-ai",
+		};
+
+		expect(resolveAudioProvider(env, "voice").name).toBe("workers-ai");
+		// Only voice is pinned; the kinds Workers AI cannot serve are untouched.
+		expect(resolveAudioProvider(env, "music").name).toBe(
+			"ai-gateway:elevenlabs"
+		);
+		expect(resolveAudioProvider(env, "ambience").name).toBe(
+			"ai-gateway:elevenlabs"
+		);
+	});
+
+	it("reports sfx unavailable with a reason when no vendor is configured", () => {
+		const capabilities = describeAudioCapabilities({ AI: fakeAi(MP3_BYTES) });
+		const sfx = capabilities.find((c) => c.kind === "sfx");
+
+		expect(sfx?.available).toBe(false);
+		expect(sfx?.reason).toMatch(/sound-effect model/i);
 	});
 
 	it("prefers a real sound model over coerced TTS for creature", () => {

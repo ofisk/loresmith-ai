@@ -20,6 +20,16 @@ export interface AudioGenerationRequest {
 	durationSec?: number;
 	/** Provider-specific voice/speaker id, for the speech kinds. */
 	voice?: string;
+	/**
+	 * Ask the model to render a bed that wraps seamlessly.
+	 *
+	 * A hint, not a guarantee — providers that cannot do it ignore it, and
+	 * playback still crossfades. Worth asking for anyway: a model that renders the
+	 * loop point itself beats any amount of fading at the seam.
+	 */
+	loop?: boolean;
+	/** For `music`: suppress vocals. Defaults to instrumental for table use. */
+	instrumental?: boolean;
 }
 
 export interface GeneratedAudio {

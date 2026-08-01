@@ -8,15 +8,27 @@
  * transitions to `ready` or `failed` — because audio models take seconds to a
  * minute and must not block a chat turn.
  *
- * The four kinds are NOT interchangeable, and the split is a platform fact
+ * The five kinds are NOT interchangeable, and the split is a platform fact
  * rather than a design preference: Workers AI ships speech models but no
  * text-to-music or text-to-sound-effect model. `voice` and `creature` are
- * therefore servable today; `ambience` and `music` need an external model
- * reached through Cloudflare AI Gateway. See `AUDIO_KIND_CAPABILITY` below and
+ * therefore servable with no vendor; `ambience`, `sfx`, and `music` need an
+ * external model reached through Cloudflare AI Gateway. See
+ * `AUDIO_KIND_CAPABILITY` below and
  * `src/services/audio/audio-provider-factory.ts`.
+ *
+ * `ambience` and `sfx` hit the same vendor endpoint but are separate kinds
+ * because everything around them differs: ambience is a long loopable bed that
+ * plays under a scene, an effect is a short one-shot fired on a beat. They get
+ * different default durations, different loop defaults, and different prompts.
  */
 
-export const AUDIO_KINDS = ["ambience", "music", "creature", "voice"] as const;
+export const AUDIO_KINDS = [
+	"ambience",
+	"sfx",
+	"music",
+	"creature",
+	"voice",
+] as const;
 
 /** What the caller wants to hear, which also selects the provider. */
 export type AudioKind = (typeof AUDIO_KINDS)[number];
@@ -39,6 +51,7 @@ export const AUDIO_KIND_CAPABILITY: Record<
 	voice: "speech",
 	creature: "speech",
 	ambience: "sound",
+	sfx: "sound",
 	music: "music",
 };
 
@@ -129,8 +142,9 @@ export interface UpdateCampaignAudioInput {
 }
 
 /**
- * Ambience and music are looped under a scene for as long as it lasts; voice and
- * creature sounds are fired once. Used as the default when a caller does not say.
+ * Ambience and music are looped under a scene for as long as it lasts; effects,
+ * voice, and creature sounds are fired once on a beat. Used as the default when
+ * a caller does not say.
  */
 export function defaultLoopableForKind(kind: AudioKind): boolean {
 	return kind === "ambience" || kind === "music";
