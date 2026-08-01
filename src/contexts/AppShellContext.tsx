@@ -114,7 +114,6 @@ export interface AppShellContextValue {
 	onRegenerate: () => Promise<void>;
 
 	// Shard overlay
-	canReviewShards: boolean;
 	visibleShardGroups: StagedShardGroup[];
 	shardsLoading: boolean;
 	onShardsProcessed: (shardIds: string[]) => void;
@@ -194,7 +193,6 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		updateActivity,
 		authReady,
 		visibleShardGroups,
-		canReviewShards,
 		shardsLoading,
 		removeProcessedShards,
 		fetchAllStagedShards,
@@ -414,7 +412,6 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 					: undefined,
 			chatError,
 			onRegenerate: () => regenerate(),
-			canReviewShards: canReviewShards ?? false,
 			visibleShardGroups,
 			shardsLoading,
 			onShardsProcessed: removeProcessedShards,
@@ -484,7 +481,6 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			handleSessionRecapRequest,
 			chatError,
 			regenerate,
-			canReviewShards,
 			visibleShardGroups,
 			shardsLoading,
 			removeProcessedShards,

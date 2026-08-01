@@ -259,6 +259,30 @@ export function LibrarySection({
 		[onAddToLibrary]
 	);
 
+	// Close this dialog before opening the edit/add-to-campaign ones, so they
+	// navigate from one to the other instead of stacking.
+	const handleEditFile = useCallback(
+		(file: ResourceFileWithCampaigns) => {
+			onToggle();
+			onEditFile?.(file);
+		},
+		[onToggle, onEditFile]
+	);
+	const handleAddToCampaign = useCallback(
+		(file: ResourceFileWithCampaigns) => {
+			onToggle();
+			onAddToCampaign?.(file);
+		},
+		[onToggle, onAddToCampaign]
+	);
+	const handleOpenAddToLibrary = useCallback(
+		(initialFiles?: File[]) => {
+			onToggle();
+			onAddToLibrary(initialFiles);
+		},
+		[onToggle, onAddToLibrary]
+	);
+
 	return (
 		<>
 			<section
@@ -322,7 +346,7 @@ export function LibrarySection({
 								</h3>
 								<button
 									type="button"
-									onClick={() => onAddToLibrary()}
+									onClick={() => handleOpenAddToLibrary()}
 									className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
 								>
 									<Plus size={14} />
@@ -357,9 +381,9 @@ export function LibrarySection({
 									setError={setError}
 									setLoading={setLoading}
 									fetchResources={fetchResources}
-									onAddToCampaign={onAddToCampaign}
-									onEditFile={onEditFile}
-									onOpenAddToLibrary={onAddToLibrary}
+									onAddToCampaign={handleAddToCampaign}
+									onEditFile={handleEditFile}
+									onOpenAddToLibrary={handleOpenAddToLibrary}
 									campaigns={campaigns}
 									campaignAdditionProgress={campaignAdditionProgress}
 									_isAddingToCampaigns={isAddingToCampaigns}

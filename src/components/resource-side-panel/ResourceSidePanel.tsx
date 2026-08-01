@@ -4,7 +4,8 @@ import {
 	EnvelopeSimple,
 	SignOut,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AppHeader } from "@/components/app/AppHeader";
 import { TopBarNotifications } from "@/components/notifications/TopBarNotifications";
 import { useAppShellContextOptional } from "@/contexts/AppShellContext";
@@ -73,7 +74,6 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 		clearAllNotifications,
 		isDesktopSidebarCollapsed,
 		onToggleDesktopSidebarCollapse,
-		canReviewShards,
 		visibleShardGroups,
 		shardsLoading,
 		onShardsProcessed,
@@ -84,6 +84,27 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 	const isAdmin = AuthService.getJwtPayload()?.isAdmin === true;
 	const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 	const [isCampaignsOpen, setIsCampaignsOpen] = useState(false);
+
+	// Portal the user menu dropdown to <body>, positioned from the trigger's
+	// own rect. It used to be `position: absolute` inside the sidebar, which
+	// clips against AppShell's `overflow-hidden` ancestor once the collapsed
+	// rail makes the trigger (and thus the dropdown's containing block) much
+	// narrower than the menu itself.
+	const userMenuTriggerRef = useRef<HTMLDivElement>(null);
+	const [userMenuPosition, setUserMenuPosition] = useState<{
+		left: number;
+		bottom: number;
+	} | null>(null);
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
+	useEffect(() => {
+		if (!showUserMenu || !userMenuTriggerRef.current) return;
+		const rect = userMenuTriggerRef.current.getBoundingClientRect();
+		setUserMenuPosition({
+			left: rect.left,
+			bottom: window.innerHeight - rect.top + 8,
+		});
+	}, [showUserMenu]);
 
 	const closeUserMenu = useCallback(() => {
 		setShowUserMenu?.(false);
@@ -110,13 +131,6 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 		_isAuthenticated: isAuthenticated,
 		campaigns, // Pass campaigns from parent
 	});
-
-	// Open campaigns section by default when no campaigns exist (empty state onboarding)
-	useEffect(() => {
-		if (!campaignsLoading && managedCampaigns.length === 0) {
-			setIsCampaignsOpen(true);
-		}
-	}, [campaignsLoading, managedCampaigns.length]);
 
 	// Watch for external trigger to open file upload modal
 	useEffect(() => {
@@ -194,19 +208,17 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 						/>
 					</div>
 
-					{/* Pending shards (players/GMs with review access) */}
-					{canReviewShards && (
-						<div className="flex-shrink-0 w-full">
-							<ShardsSection
-								shards={visibleShardGroups}
-								isLoading={shardsLoading}
-								onShardsProcessed={onShardsProcessed}
-								getJwt={getStoredJwt}
-								onRefresh={onShardRefresh}
-								isCollapsed={isDesktopSidebarCollapsed}
-							/>
-						</div>
-					)}
+					{/* Pending shards - always shown; the dialog itself explains empty/loading states */}
+					<div className="flex-shrink-0 w-full">
+						<ShardsSection
+							shards={visibleShardGroups}
+							isLoading={shardsLoading}
+							onShardsProcessed={onShardsProcessed}
+							getJwt={getStoredJwt}
+							onRefresh={onShardRefresh}
+							isCollapsed={isDesktopSidebarCollapsed}
+						/>
+					</div>
 
 					{/* Telemetry (admin only) */}
 					{isAdmin && onAdminDashboardOpen && (
@@ -229,7 +241,10 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							: "flex-shrink-0 p-4"
 					}
 				>
-					<div className="relative user-menu-container tour-user-menu">
+					<div
+						ref={userMenuTriggerRef}
+						className="relative user-menu-container tour-user-menu"
+					>
 						{isDesktopSidebarCollapsed ? (
 							<button
 								type="button"
@@ -275,34 +290,45 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 						)}
 
 						{/* Dropdown Menu */}
-						{showUserMenu && (
-							<div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50">
-								<div className="py-1">
-									<a
-										href="/billing"
-										className="w-full px-4 py-2 text-left text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-2"
-									>
-										<CreditCard size={16} />
-										Billing
-									</a>
-									<a
-										href="mailto:support@loresmith.ai"
-										className="w-full px-4 py-2 text-left text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-2"
-									>
-										<EnvelopeSimple size={16} />
-										Contact support
-									</a>
-									<button
-										type="button"
-										onClick={handleLogout}
-										className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2 mt-1 border-t border-neutral-200 dark:border-neutral-700"
-									>
-										<SignOut size={16} />
-										Logout
-									</button>
-								</div>
-							</div>
-						)}
+						{showUserMenu &&
+							mounted &&
+							userMenuPosition &&
+							createPortal(
+								<div
+									style={{
+										position: "fixed",
+										left: userMenuPosition.left,
+										bottom: userMenuPosition.bottom,
+									}}
+									className="user-menu-container w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50"
+								>
+									<div className="py-1">
+										<a
+											href="/billing"
+											className="w-full px-4 py-2 text-left text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-2"
+										>
+											<CreditCard size={16} />
+											Billing
+										</a>
+										<a
+											href="mailto:support@loresmith.ai"
+											className="w-full px-4 py-2 text-left text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-2"
+										>
+											<EnvelopeSimple size={16} />
+											Contact support
+										</a>
+										<button
+											type="button"
+											onClick={handleLogout}
+											className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2 mt-1 border-t border-neutral-200 dark:border-neutral-700"
+										>
+											<SignOut size={16} />
+											Logout
+										</button>
+									</div>
+								</div>,
+								document.body
+							)}
 					</div>
 				</div>
 			)}

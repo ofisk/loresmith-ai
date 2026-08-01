@@ -33,6 +33,13 @@ export function CampaignsSection({
 	const [mounted, setMounted] = useState(false);
 	useEffect(() => setMounted(true), []);
 
+	// Close this dialog before opening the campaign details one, so they
+	// navigate from one to the other instead of stacking.
+	const handleCampaignItemClick = (campaign: Campaign) => {
+		onToggle();
+		onCampaignClick?.(campaign);
+	};
+
 	return (
 		<>
 			<Card className="tour-campaigns-section p-0 flex flex-col">
@@ -82,7 +89,10 @@ export function CampaignsSection({
 								</h3>
 								<button
 									type="button"
-									onClick={onCreateCampaign}
+									onClick={() => {
+										onToggle();
+										onCreateCampaign();
+									}}
 									className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
 								>
 									<Plus size={14} />
@@ -124,7 +134,7 @@ export function CampaignsSection({
 										<CampaignItem
 											key={campaign.campaignId}
 											campaign={campaign}
-											onCampaignClick={onCampaignClick}
+											onCampaignClick={handleCampaignItemClick}
 										/>
 									))
 								)}
