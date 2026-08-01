@@ -22,10 +22,16 @@ This document describes how **library-scoped entity discovery** works, how it ti
    When a resource is added to a campaign (`handleAddResourceToCampaign`):
 
    - If discovery is **complete** and the **content fingerprint** still matches the file, **`tryCopyLibraryEntitiesToCampaign`** inserts staged entities and relationships into that campaign.
-   - Otherwise **`ensureLibraryDiscoveryAndMarkResourcePending`** queues discovery (if needed) and sets `campaign_resources.entity_copy_status` to `pending_library`.
+   - Otherwise **`ensureLibraryDiscoveryAndMarkResourcePending`** sets `campaign_resources.entity_copy_status` to `pending_library` and queues discovery. The resource row is written **before** discovery is queued, so a fast discovery run cannot finish its pending sweep before the row it needs to find exists.
+
+   **A file that is still processing is queued, not rejected.** `isFileQueueableForCampaignAdd` accepts any file that is `completed` **or** still moving through the pipeline (`uploading`, `uploaded`, `syncing`, `processing`, `indexing`); only the terminal states `error` and `unindexed` are refused with `400` (which also auto-triggers a re-index). The response carries `pending: true` plus a `pendingReason` of `file_processing` or `entity_indexing` so clients can say "queued" instead of "failed".
+
+   When RAG has **not** finished, discovery is deliberately **not** queued yet — `SyncQueueService` queues it once indexing completes. Queueing early would only burn the discovery job's `retry_count` on "File not ready for discovery".
 
 4. **When discovery finishes**  
-   **`processPendingCampaignEntityCopiesForFile`** finds campaign rows waiting on that `file_key`, runs the copy, then sets `entity_copy_status` to `complete` or `failed`.
+   **`processPendingCampaignEntityCopiesForFile`** finds campaign rows waiting on that `file_key`, runs the copy, then sets `entity_copy_status` to `complete` or `failed`. The copy stages entities with `shardStatus: "staging"` and notifies campaign members, so shards from a deferred add show up for approval on their own.
+
+   **`sweepPendingCampaignEntityCopies`** runs on the fast cron as a safety net for pending resources that hook cannot reach — discovery that completed before the resource was marked pending, a worker that died mid-copy, or a RAG-complete file that never got a discovery row at all.
 
 ## Campaign resource columns (migration 0022)
 

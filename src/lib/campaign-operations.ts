@@ -21,6 +21,11 @@ export interface AddResourceOptions {
 	resourceId: string;
 	fileKey: string;
 	fileName: string;
+	/**
+	 * The file is still indexing, so the resource lands as `pending_library` and
+	 * its shards arrive later. Only changes the member notification wording.
+	 */
+	deferred?: boolean;
 }
 
 // Create a new campaign with RAG initialization
@@ -86,6 +91,7 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
 		resourceId,
 		fileKey,
 		fileName,
+		deferred,
 	} = options;
 
 	const campaignDAO = getDAOFactory(env).campaignDAO;
@@ -110,12 +116,17 @@ export async function addResourceToCampaign(options: AddResourceOptions) {
 				campaign.name,
 				() => ({
 					type: NOTIFICATION_TYPES.CAMPAIGN_FILE_ADDED,
-					title: "File added to campaign",
-					message: `📄 "${fileName}" was added to "${campaign.name}".`,
+					title: deferred
+						? "File queued for campaign"
+						: "File added to campaign",
+					message: deferred
+						? `⏳ "${fileName}" is still processing. It will finish being added to "${campaign.name}" automatically, and shards will appear for approval.`
+						: `📄 "${fileName}" was added to "${campaign.name}".`,
 					data: {
 						campaignId,
 						campaignName: campaign.name,
 						fileName,
+						pending: !!deferred,
 					},
 				}),
 				[]

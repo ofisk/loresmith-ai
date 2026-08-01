@@ -1,7 +1,6 @@
 import type { Context } from "hono";
 import { MEMORY_LIMIT_COPY } from "@/app-constants";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
-import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import {
@@ -25,7 +24,12 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
-import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
+import {
+	isFilePipelineInFlight,
+	isFileQueueableForCampaignAdd,
+	isLibraryEntityDiscoveryInFlight,
+	willCampaignAddBeDeferred,
+} from "@/lib/library-entity-pipeline";
 import { getRequestLogger } from "@/lib/logger";
 import {
 	getBlockedExtensionsDescription,
@@ -646,10 +650,11 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			);
 		}
 
-		// Check if file is fully indexed (status should be 'completed')
-		if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
+		// A file whose upload/RAG pipeline is still running is accepted and finished
+		// later (see step 5); only terminal-failure states are rejected outright.
+		if (!isFileQueueableForCampaignAdd(fileRecord)) {
 			log.error(
-				`[Server] ERROR: File ${id} is not yet indexed but UI allowed addition. Current status: ${fileRecord.status}. This indicates a UI state sync issue.`
+				`[Server] File ${id} cannot be added to a campaign. Current status: ${fileRecord.status}.`
 			);
 
 			// Automatically trigger re-indexing to resolve the issue
@@ -689,24 +694,22 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			);
 		}
 
+		// The add is deferred when RAG has not finished, or when library entity
+		// discovery is still in flight. The resource row is created now and marked
+		// `pending_library`; entities (and their shards) are copied in when
+		// discovery completes.
 		const libEntityDao = new LibraryEntityDAO(c.env.DB);
+		let discoveryStatus: string | null = null;
 		if (await libEntityDao.isSchemaReady()) {
-			const discovery = await libEntityDao.getDiscovery(id);
-			if (discovery && isLibraryEntityDiscoveryInFlight(discovery.status)) {
-				return c.json(
-					{
-						error:
-							"Entity indexing is still in progress. Try again when the library shows ready.",
-						code: "LIBRARY_DISCOVERY_IN_PROGRESS",
-						libraryEntityDiscoveryStatus: discovery.status,
-					},
-					409
-				);
-			}
+			discoveryStatus = (await libEntityDao.getDiscovery(id))?.status ?? null;
 		}
+		const isDeferredAdd = willCampaignAddBeDeferred({
+			status: fileRecord.status,
+			library_entity_discovery_status: discoveryStatus,
+		});
 
 		log.debug(
-			`[Server] File ${id} is indexed and ready. Status: ${fileRecord.status}`
+			`[Server] File ${id} accepted for campaign add. Status: ${fileRecord.status}, discovery: ${discoveryStatus ?? "none"}, deferred: ${isDeferredAdd}`
 		);
 
 		// 3b) Validate file type (allowlist + magic-byte check). Use stored file_name if provided name has no allowed extension (e.g. agent sends display name without extension).
@@ -775,6 +778,7 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 			resourceId,
 			fileKey: id,
 			fileName,
+			deferred: isDeferredAdd,
 		});
 
 		await ResourceAddRateLimitService.recordAdd(
@@ -832,10 +836,22 @@ export async function handleAddResourceToCampaign(c: ContextWithAuth) {
 		}
 
 		// Return success response immediately (entity extraction happens in background)
-		const response = buildResourceAdditionResponse(
-			{ id: resourceId, file_name: name || id },
-			"Resource added to campaign. Entity extraction is processing in the background. You'll receive a notification when it's complete."
-		);
+		const response = {
+			...buildResourceAdditionResponse(
+				{ id: resourceId, file_name: name || id },
+				isDeferredAdd
+					? `"${name || fileName}" is still processing. It is queued and will finish being added to the campaign automatically — shards will appear for approval when it does.`
+					: "Resource added to campaign. Entity extraction is processing in the background. You'll receive a notification when it's complete."
+			),
+			pending: isDeferredAdd,
+			...(isDeferredAdd && {
+				pendingReason: isFilePipelineInFlight(fileRecord.status)
+					? ("file_processing" as const)
+					: ("entity_indexing" as const),
+				fileStatus: fileRecord.status,
+				libraryEntityDiscoveryStatus: discoveryStatus,
+			}),
+		};
 		return c.json(response);
 	} catch (error) {
 		log.error("Error adding resource to campaign:", error);

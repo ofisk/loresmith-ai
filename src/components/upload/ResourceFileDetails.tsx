@@ -5,6 +5,7 @@ import { Tooltip } from "@/components/tooltip/Tooltip";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { FILE_UPLOAD_STATUS } from "@/lib/file/file-upload-status";
 import {
+	isFileQueueableForCampaignAdd,
 	isFileReadyForCampaignAdd,
 	isLibraryEntityDiscoveryInFlight,
 } from "@/lib/library-entity-pipeline";
@@ -51,7 +52,11 @@ export function ResourceFileDetails({
 	retryLimitDisabled = false,
 	retryLimitTooltip,
 }: ResourceFileDetailsProps) {
-	const canAddToCampaign = isFileReadyForCampaignAdd(file);
+	// A file that is still indexing can be added — the server queues it and
+	// finishes the add (staging shards for approval) once processing completes.
+	// Only terminal-failure states block the button.
+	const canAddToCampaign = isFileQueueableForCampaignAdd(file);
+	const addWillBeQueued = canAddToCampaign && !isFileReadyForCampaignAdd(file);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [retryingEntityPipeline, setRetryingEntityPipeline] = useState(false);
 	const discoveryInFlight = isLibraryEntityDiscoveryInFlight(
@@ -305,21 +310,31 @@ export function ResourceFileDetails({
 						return null;
 					})()}
 				{availableCampaigns.length > 0 && onAddToCampaign && (
-					<Button
-						onClick={() => {
-							onAddToCampaign(file);
-						}}
-						variant="secondary"
-						size="sm"
-						className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
-						disabled={!canAddToCampaign}
-					>
-						{canAddToCampaign
-							? "Add to campaign"
-							: discoveryInFlight
-								? "Indexing entities…"
-								: "File not ready"}
-					</Button>
+					<>
+						<Button
+							onClick={() => {
+								onAddToCampaign(file);
+							}}
+							variant="secondary"
+							size="sm"
+							className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
+							disabled={!canAddToCampaign}
+							title={
+								addWillBeQueued
+									? "This file is still processing. The add is queued and completes automatically."
+									: undefined
+							}
+						>
+							{canAddToCampaign ? "Add to campaign" : "File not ready"}
+						</Button>
+						{addWillBeQueued && (
+							<p className="text-xs text-neutral-500 dark:text-neutral-400">
+								{discoveryInFlight
+									? "Still indexing entities — the add is queued and completes automatically."
+									: "Still processing — the add is queued and completes automatically."}
+							</p>
+						)}
+					</>
 				)}
 				{showRetryEntityExtraction && (
 					<Button

@@ -290,6 +290,8 @@ Add a file resource to a campaign.
 
 **Entity staging:** The worker copies **pre-discovered** library entities into the campaign when possible. If library discovery is still running or failed, the resource may be created with `entity_copy_status: "pending_library"` until discovery completes and the copy runs (or fails). Shards appear for approval after entities are staged in the campaign.
 
+**Files that are still processing are queued, not rejected.** Adding a file whose upload/indexing or entity discovery is still in flight returns `200` with `pending: true` and a `pendingReason` of `"file_processing"` or `"entity_indexing"`. The resource row is created immediately as `pending_library`, and entities (and therefore shards for approval) are copied in automatically once processing finishes. Only files in a terminal state (`error`, `unindexed`) return `400`; that path also auto-triggers a re-index.
+
 ### Remove Resource from Campaign
 
 **DELETE** `/api/campaigns/:campaignId/resources/:resourceId`
