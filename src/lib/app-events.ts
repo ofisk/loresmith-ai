@@ -20,6 +20,10 @@ export const APP_EVENT_TYPE = {
 	OPEN_SOURCE_RESOURCE: "open-source-resource",
 	/** Open an entity's details, e.g. from a citation in a chat response. */
 	OPEN_SOURCE_ENTITY: "open-source-entity",
+	/** Reopen the Campaigns list dialog, e.g. after cancelling out of Create Campaign. */
+	REOPEN_CAMPAIGNS_LIST: "reopen-campaigns-list",
+	/** Reopen the Resources list dialog, e.g. after cancelling out of Add Resource. */
+	REOPEN_RESOURCES_LIST: "reopen-resources-list",
 } as const;
 
 export type AppEventType = (typeof APP_EVENT_TYPE)[keyof typeof APP_EVENT_TYPE];

@@ -13,6 +13,7 @@ import { useCampaignManagement } from "@/hooks/useCampaignManagement";
 import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 import type { ResourceFileWithCampaigns } from "@/hooks/useResourceFiles";
 import { useResourceSidePanelState } from "@/hooks/useResourceSidePanelState";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { AuthService } from "@/services/core/auth-service";
 import type { Campaign } from "@/types/campaign";
 import { CampaignsSection } from "./CampaignsSection";
@@ -121,6 +122,31 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 	}, []);
 	const handleLibraryToggle = useCallback(() => {
 		setIsLibraryOpen((prev) => !prev);
+	}, []);
+
+	// Reopen the list dialog when navigating back out of a nested one
+	// (e.g. cancelling out of Create Campaign / Add Resource).
+	useEffect(() => {
+		const reopenCampaigns = () => setIsCampaignsOpen(true);
+		const reopenResources = () => setIsLibraryOpen(true);
+		window.addEventListener(
+			APP_EVENT_TYPE.REOPEN_CAMPAIGNS_LIST,
+			reopenCampaigns
+		);
+		window.addEventListener(
+			APP_EVENT_TYPE.REOPEN_RESOURCES_LIST,
+			reopenResources
+		);
+		return () => {
+			window.removeEventListener(
+				APP_EVENT_TYPE.REOPEN_CAMPAIGNS_LIST,
+				reopenCampaigns
+			);
+			window.removeEventListener(
+				APP_EVENT_TYPE.REOPEN_RESOURCES_LIST,
+				reopenResources
+			);
+		};
 	}, []);
 
 	const {
