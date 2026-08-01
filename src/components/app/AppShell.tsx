@@ -84,9 +84,9 @@ export function AppShell() {
 					},
 				}}
 			/>
-			<div className="h-dvh w-full p-0 sm:p-4 md:p-6 flex justify-center items-center bg-fixed">
+			<div className="h-dvh w-full bg-fixed">
 				<div
-					className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[var(--width-container-xl)] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden"
+					className="h-full w-full flex flex-col relative bg-white dark:bg-neutral-950 overflow-hidden"
 					data-testid="app-main"
 				>
 					<AppHeader
@@ -107,7 +107,7 @@ export function AppShell() {
 						billingTier={ctx.billingStatus?.tier}
 					/>
 
-					<div className="flex-1 flex min-h-0 overflow-hidden rounded-bl-2xl rounded-br-2xl relative">
+					<div className="flex-1 flex min-h-0 overflow-hidden relative">
 						<ResourceSidePanel className="hidden md:flex" />
 
 						{ctx.isSidebarOpen && (
