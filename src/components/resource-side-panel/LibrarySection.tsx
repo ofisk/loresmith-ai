@@ -37,6 +37,7 @@ interface LibrarySectionProps {
 	isAddingToCampaigns?: boolean;
 	addLocalNotification?: (type: string, title: string, message: string) => void;
 	onShowUsageLimits?: () => void;
+	isCollapsed?: boolean;
 }
 
 export function LibrarySection({
@@ -50,6 +51,7 @@ export function LibrarySection({
 	isAddingToCampaigns = false,
 	addLocalNotification,
 	onShowUsageLimits,
+	isCollapsed = false,
 }: LibrarySectionProps) {
 	const authReady = useAuthReady();
 	const uploadQueue = useUploadQueue();
@@ -275,24 +277,32 @@ export function LibrarySection({
 					<button
 						type="button"
 						onClick={onToggle}
-						className="w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+						title={isCollapsed ? "Resources" : undefined}
+						aria-label={isCollapsed ? "Resources" : undefined}
+						className={
+							isCollapsed
+								? "w-full p-1.5 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+								: "w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+						}
 					>
 						<img
 							src={libraryIcon}
 							alt="Library"
-							className="w-8 h-8"
+							className="w-8 h-8 shrink-0"
 							width={32}
 							height={32}
 						/>
-						<span className="flex flex-col min-w-0">
-							<span className="font-medium text-sm">Resources</span>
-							{displayFiles.length > 0 && (
-								<span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-									{readyCount} ready
-									{processingCount > 0 && `, ${processingCount} processing`}
-								</span>
-							)}
-						</span>
+						{!isCollapsed && (
+							<span className="flex flex-col min-w-0">
+								<span className="font-medium text-sm">Resources</span>
+								{displayFiles.length > 0 && (
+									<span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+										{readyCount} ready
+										{processingCount > 0 && `, ${processingCount} processing`}
+									</span>
+								)}
+							</span>
+						)}
 					</button>
 				</Card>
 			</section>

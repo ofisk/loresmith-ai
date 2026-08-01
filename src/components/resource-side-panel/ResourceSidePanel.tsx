@@ -71,6 +71,8 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 		notifications,
 		dismissNotification,
 		clearAllNotifications,
+		isDesktopSidebarCollapsed,
+		onToggleDesktopSidebarCollapse,
 		canReviewShards,
 		visibleShardGroups,
 		shardsLoading,
@@ -133,18 +135,26 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 
 	return (
 		<div
-			className={`tour-sidebar w-full md:w-80 h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${className}`}
+			className={`tour-sidebar h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${isDesktopSidebarCollapsed ? "w-16" : "w-full md:w-72"} ${className}`}
 		>
 			<AppHeader
 				onSessionRecapRequest={onSessionRecapRequest}
 				selectedCampaignId={selectedCampaignId}
+				onToggleSidebarCollapse={onToggleDesktopSidebarCollapse}
+				isCollapsed={isDesktopSidebarCollapsed}
 			/>
 
 			{/* Content - scrollable pane so both sections are reachable */}
 			<div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-				<div className="flex flex-col gap-3 p-4">
+				<div
+					className={
+						isDesktopSidebarCollapsed
+							? "flex flex-col items-center gap-2 p-2"
+							: "flex flex-col gap-2 pt-4 pr-4 pb-4 pl-2"
+					}
+				>
 					{/* Campaigns Section */}
-					<div className="flex-shrink-0">
+					<div className="flex-shrink-0 w-full">
 						<CampaignsSection
 							campaigns={managedCampaigns}
 							campaignsLoading={campaignsLoading}
@@ -153,11 +163,12 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							isOpen={isCampaignsOpen}
 							onCreateCampaign={onCreateCampaign ?? noop}
 							onCampaignClick={onCampaignClick ?? noop}
+							isCollapsed={isDesktopSidebarCollapsed}
 						/>
 					</div>
 
 					{/* Library Section */}
-					<div className="flex-shrink-0">
+					<div className="flex-shrink-0 w-full">
 						<LibrarySection
 							isOpen={isLibraryOpen}
 							onToggle={handleLibraryToggle}
@@ -169,35 +180,41 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							isAddingToCampaigns={isAddingToCampaigns}
 							addLocalNotification={addLocalNotification}
 							onShowUsageLimits={onShowUsageLimits}
+							isCollapsed={isDesktopSidebarCollapsed}
 						/>
 					</div>
 
 					{/* Notifications */}
-					<div className="flex-shrink-0">
+					<div className="flex-shrink-0 w-full">
 						<TopBarNotifications
 							notifications={notifications}
 							onDismiss={dismissNotification}
 							onDismissAll={clearAllNotifications}
+							isCollapsed={isDesktopSidebarCollapsed}
 						/>
 					</div>
 
 					{/* Pending shards (players/GMs with review access) */}
 					{canReviewShards && (
-						<div className="flex-shrink-0">
+						<div className="flex-shrink-0 w-full">
 							<ShardsSection
 								shards={visibleShardGroups}
 								isLoading={shardsLoading}
 								onShardsProcessed={onShardsProcessed}
 								getJwt={getStoredJwt}
 								onRefresh={onShardRefresh}
+								isCollapsed={isDesktopSidebarCollapsed}
 							/>
 						</div>
 					)}
 
 					{/* Telemetry (admin only) */}
 					{isAdmin && onAdminDashboardOpen && (
-						<div className="flex-shrink-0">
-							<TelemetrySection onOpen={onAdminDashboardOpen} />
+						<div className="flex-shrink-0 w-full">
+							<TelemetrySection
+								onOpen={onAdminDashboardOpen}
+								isCollapsed={isDesktopSidebarCollapsed}
+							/>
 						</div>
 					)}
 				</div>
@@ -205,37 +222,61 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 
 			{/* Username Display and Menu - At the very bottom */}
 			{isAuthenticated && (
-				<div className="flex-shrink-0 p-4">
+				<div
+					className={
+						isDesktopSidebarCollapsed
+							? "flex-shrink-0 p-2 flex justify-center"
+							: "flex-shrink-0 p-4"
+					}
+				>
 					<div className="relative user-menu-container tour-user-menu">
-						<button
-							type="button"
-							onClick={() => setShowUserMenu?.(!showUserMenu)}
-							aria-expanded={showUserMenu}
-							aria-haspopup="menu"
-							className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
-						>
-							<span className="w-2 h-2 bg-purple-500 rounded-full shrink-0"></span>
-							<span className="truncate">
-								{AuthService.getUsernameFromStoredJwt()}
-							</span>
-							{billingTier && (
-								<span
-									className="h-5 px-1.5 rounded-full text-[10px] font-medium capitalize bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 inline-flex items-center cursor-default shrink-0"
-									title="Subscription tier"
-								>
-									{billingTier}
+						{isDesktopSidebarCollapsed ? (
+							<button
+								type="button"
+								onClick={() => setShowUserMenu?.(!showUserMenu)}
+								aria-expanded={showUserMenu}
+								aria-haspopup="menu"
+								title={AuthService.getUsernameFromStoredJwt() ?? undefined}
+								aria-label={
+									AuthService.getUsernameFromStoredJwt() ?? "Account menu"
+								}
+								className="w-8 h-8 rounded-full bg-purple-600 dark:bg-purple-500 text-white text-sm font-medium flex items-center justify-center hover:bg-purple-700 dark:hover:bg-purple-400 transition-colors"
+							>
+								{(AuthService.getUsernameFromStoredJwt() ?? "?")
+									.charAt(0)
+									.toUpperCase()}
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={() => setShowUserMenu?.(!showUserMenu)}
+								aria-expanded={showUserMenu}
+								aria-haspopup="menu"
+								className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors w-full"
+							>
+								<span className="w-2 h-2 bg-purple-500 rounded-full shrink-0"></span>
+								<span className="truncate">
+									{AuthService.getUsernameFromStoredJwt()}
 								</span>
-							)}
-							<CaretDown
-								size={16}
-								className="transition-transform duration-200 ml-auto"
-								aria-hidden="true"
-							/>
-						</button>
+								{billingTier && (
+									<span
+										className="h-5 px-1.5 rounded-full text-[10px] font-medium capitalize bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 inline-flex items-center cursor-default shrink-0"
+										title="Subscription tier"
+									>
+										{billingTier}
+									</span>
+								)}
+								<CaretDown
+									size={16}
+									className="transition-transform duration-200 ml-auto"
+									aria-hidden="true"
+								/>
+							</button>
+						)}
 
 						{/* Dropdown Menu */}
 						{showUserMenu && (
-							<div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50">
+							<div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50">
 								<div className="py-1">
 									<a
 										href="/billing"

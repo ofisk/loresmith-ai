@@ -46,6 +46,9 @@ export interface AppShellContextValue {
 	/** Close the mobile sidebar without toggling (e.g. Escape). No-op on desktop layout. */
 	closeMobileSidebar: () => void;
 	isSidebarOpen: boolean;
+	/** Persistent desktop sidebar collapse (independent of the mobile off-canvas sidebar). */
+	isDesktopSidebarCollapsed: boolean;
+	onToggleDesktopSidebarCollapse: () => void;
 
 	// Modal / auth
 	modalState: ReturnType<typeof useAppOrchestration>["modalState"];
@@ -200,6 +203,13 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 
 	const tour = useTourState({ authState });
 
+	const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] =
+		useState(false);
+	const onToggleDesktopSidebarCollapse = useCallback(
+		() => setIsDesktopSidebarCollapsed((p) => !p),
+		[]
+	);
+
 	const username = AuthService.getJwtPayload()?.username ?? null;
 	const conversationId =
 		username !== null
@@ -352,6 +362,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			onToggleSidebar,
 			closeMobileSidebar,
 			isSidebarOpen: isMobileSidebarOpen,
+			isDesktopSidebarCollapsed,
+			onToggleDesktopSidebarCollapse,
 			modalState,
 			authState,
 			handleLogout,
@@ -426,6 +438,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			onToggleSidebar,
 			closeMobileSidebar,
 			isMobileSidebarOpen,
+			isDesktopSidebarCollapsed,
+			onToggleDesktopSidebarCollapse,
 			modalState,
 			authState,
 			handleLogout,

@@ -1,10 +1,12 @@
-import { NotePencil } from "@phosphor-icons/react";
+import { NotePencil, SidebarSimple } from "@phosphor-icons/react";
 import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 
 interface AppHeaderProps {
 	onSessionRecapRequest?: () => void;
 	selectedCampaignId: string | null;
+	onToggleSidebarCollapse?: () => void;
+	isCollapsed?: boolean;
 }
 
 /**
@@ -15,9 +17,54 @@ interface AppHeaderProps {
 export function AppHeader({
 	onSessionRecapRequest,
 	selectedCampaignId,
+	onToggleSidebarCollapse,
+	isCollapsed = false,
 }: AppHeaderProps) {
+	if (isCollapsed) {
+		return (
+			<div className="app-header px-2 pt-4 pb-3 flex flex-col items-center gap-2">
+				{onToggleSidebarCollapse && (
+					<div className="hidden md:block">
+						<Button
+							variant="ghost"
+							size="md"
+							shape="circular"
+							onClick={onToggleSidebarCollapse}
+							tooltip="Expand sidebar"
+							aria-label="Expand sidebar"
+						>
+							<SidebarSimple size={18} />
+						</Button>
+					</div>
+				)}
+				{onSessionRecapRequest && (
+					<Button
+						variant="ghost"
+						size="md"
+						shape="square"
+						className="tour-session-recap !h-8 !w-8 rounded-full flex items-center justify-center"
+						onClick={onSessionRecapRequest}
+						disabled={!selectedCampaignId}
+						tooltip={
+							selectedCampaignId
+								? "Record session recap"
+								: "Select a campaign to record a session recap"
+						}
+						aria-label={
+							selectedCampaignId
+								? "Record session recap"
+								: "Select a campaign to record a session recap"
+						}
+					>
+						<NotePencil size={18} />
+					</Button>
+				)}
+			</div>
+		);
+	}
+
 	return (
-		<div className="app-header px-4 pt-4 pb-3 border-b border-neutral-200/50 dark:border-neutral-700/50 flex flex-col gap-3">
+		<div className="app-header px-4 pt-4 pb-3 flex flex-col gap-3">
 			<div className="flex items-center gap-3">
 				<div
 					className="flex items-center justify-center shrink-0"
@@ -34,6 +81,20 @@ export function AppHeader({
 				<h1 className="font-medium text-lg whitespace-nowrap text-neutral-700 dark:text-neutral-300">
 					LoreSmith
 				</h1>
+				{onToggleSidebarCollapse && (
+					<div className="hidden md:block ml-auto">
+						<Button
+							variant="ghost"
+							size="md"
+							shape="circular"
+							onClick={onToggleSidebarCollapse}
+							tooltip="Collapse sidebar"
+							aria-label="Collapse sidebar"
+						>
+							<SidebarSimple size={18} />
+						</Button>
+					</div>
+				)}
 			</div>
 
 			<div className="flex flex-wrap items-center gap-2">

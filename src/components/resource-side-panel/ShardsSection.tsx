@@ -12,6 +12,7 @@ interface ShardsSectionProps {
 	onShardsProcessed: (shardIds: string[]) => void;
 	getJwt: () => string | null;
 	onRefresh?: () => void;
+	isCollapsed?: boolean;
 }
 
 export function ShardsSection({
@@ -20,6 +21,7 @@ export function ShardsSection({
 	onShardsProcessed,
 	getJwt,
 	onRefresh,
+	isCollapsed = false,
 }: ShardsSectionProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	// See NotificationBell: portal to <body> to escape ResourceSidePanel's
@@ -39,16 +41,36 @@ export function ShardsSection({
 				<button
 					type="button"
 					onClick={() => setIsOpen(true)}
-					className="w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					title={isCollapsed ? "Shards" : undefined}
+					aria-label={isCollapsed ? "Shards" : undefined}
+					className={
+						isCollapsed
+							? "w-full p-1.5 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+							: "w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					}
 				>
-					<span className="w-8 h-8 flex items-center justify-center shrink-0">
-						<PuzzlePiece size={20} />
+					<span className="relative w-8 h-8 flex items-center justify-center shrink-0">
+						<PuzzlePiece
+							size={20}
+							weight="light"
+							className="text-purple-600 dark:text-purple-400"
+						/>
+						{isCollapsed && totalShards > 0 && (
+							<span
+								className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-500"
+								aria-hidden
+							/>
+						)}
 					</span>
-					<span className="font-medium text-sm">Shards</span>
-					{totalShards > 0 && (
-						<span className="ml-auto h-5 min-w-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center leading-none shrink-0">
-							{displayCount}
-						</span>
+					{!isCollapsed && (
+						<>
+							<span className="font-medium text-sm">Shards</span>
+							{totalShards > 0 && (
+								<span className="ml-auto h-5 min-w-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center leading-none shrink-0">
+									{displayCount}
+								</span>
+							)}
+						</>
 					)}
 				</button>
 			</Card>

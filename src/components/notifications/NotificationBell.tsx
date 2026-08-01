@@ -10,12 +10,14 @@ interface NotificationBellProps {
 	notifications: NotificationPayload[];
 	onDismiss: (notificationId: string) => void;
 	onDismissAll?: () => void;
+	isCollapsed?: boolean;
 }
 
 export function NotificationBell({
 	notifications,
 	onDismiss,
 	onDismissAll,
+	isCollapsed = false,
 }: NotificationBellProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	// Rendered inside ResourceSidePanel, whose root has backdrop-blur-sm —
@@ -90,16 +92,36 @@ export function NotificationBell({
 				<button
 					type="button"
 					onClick={() => setIsOpen(true)}
-					className="w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					title={isCollapsed ? "Notifications" : undefined}
+					aria-label={isCollapsed ? "Notifications" : undefined}
+					className={
+						isCollapsed
+							? "w-full p-1.5 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+							: "w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					}
 				>
-					<span className="w-8 h-8 flex items-center justify-center shrink-0">
-						<Bell size={20} />
+					<span className="relative w-8 h-8 flex items-center justify-center shrink-0">
+						<Bell
+							size={20}
+							weight="light"
+							className="text-purple-600 dark:text-purple-400"
+						/>
+						{isCollapsed && notifications.length > 0 && (
+							<span
+								className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-500"
+								aria-hidden
+							/>
+						)}
 					</span>
-					<span className="font-medium text-sm">Notifications</span>
-					{notifications.length > 0 && (
-						<span className="ml-auto h-5 min-w-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center leading-none shrink-0">
-							{notifications.length > 99 ? "99+" : notifications.length}
-						</span>
+					{!isCollapsed && (
+						<>
+							<span className="font-medium text-sm">Notifications</span>
+							{notifications.length > 0 && (
+								<span className="ml-auto h-5 min-w-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center leading-none shrink-0">
+									{notifications.length > 99 ? "99+" : notifications.length}
+								</span>
+							)}
+						</>
 					)}
 				</button>
 			</Card>

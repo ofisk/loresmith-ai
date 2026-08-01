@@ -15,6 +15,7 @@ interface CampaignsSectionProps {
 	isOpen: boolean;
 	onCreateCampaign: () => void;
 	onCampaignClick?: (campaign: Campaign) => void;
+	isCollapsed?: boolean;
 }
 
 export function CampaignsSection({
@@ -25,6 +26,7 @@ export function CampaignsSection({
 	isOpen,
 	onCreateCampaign,
 	onCampaignClick,
+	isCollapsed = false,
 }: CampaignsSectionProps) {
 	// See NotificationBell: portal to <body> to escape ResourceSidePanel's
 	// backdrop-blur-sm containing block for `position: fixed`.
@@ -37,23 +39,31 @@ export function CampaignsSection({
 				<button
 					type="button"
 					onClick={onToggle}
-					className="w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					title={isCollapsed ? "Campaigns" : undefined}
+					aria-label={isCollapsed ? "Campaigns" : undefined}
+					className={
+						isCollapsed
+							? "w-full p-1.5 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+							: "w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					}
 				>
 					<img
 						src={campaignIcon}
 						alt="Campaign"
-						className="w-8 h-8"
+						className="w-8 h-8 shrink-0"
 						width={32}
 						height={32}
 					/>
-					<span className="flex flex-col min-w-0">
-						<span className="font-medium text-sm">Campaigns</span>
-						{!campaignsLoading && campaigns.length > 0 && (
-							<span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-								{campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
-							</span>
-						)}
-					</span>
+					{!isCollapsed && (
+						<span className="flex flex-col min-w-0">
+							<span className="font-medium text-sm">Campaigns</span>
+							{!campaignsLoading && campaigns.length > 0 && (
+								<span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+									{campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
+								</span>
+							)}
+						</span>
+					)}
 				</button>
 			</Card>
 
