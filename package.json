@@ -139,7 +139,7 @@
 		"mammoth": "^1.12.0",
 		"partyserver": "^0.5.5",
 		"pdf-lib": "^1.17.1",
-		"pdfjs-serverless": "^1.1.0",
+		"pdfjs-serverless": "^1.3.0",
 		"react": "19.2.8",
 		"react-dom": "19.2.8",
 		"react-joyride": "^3.1.0",
