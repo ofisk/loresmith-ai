@@ -206,10 +206,19 @@ describe("LLMCostEventDAO", () => {
 	});
 
 	it("pruneOldRows deletes beyond the retention horizon", async () => {
+		mockStmt.all.mockResolvedValue({ results: [{ name: "llm_cost_events" }] });
 		mockStmt.run.mockResolvedValue({ meta: { changes: 12 } });
 		const deleted = await dao.pruneOldRows(90);
 		expect(deleted).toBe(12);
 		expect(mockStmt.bind).toHaveBeenCalledWith("-90 days");
+	});
+
+	it("pruneOldRows is a no-op before the migration has run", async () => {
+		// The 5-minute cron calls this; on a Worker deployed ahead of its
+		// migration it must not throw `no such table` on every tick.
+		mockStmt.all.mockResolvedValue({ results: [] });
+		await expect(dao.pruneOldRows(90)).resolves.toBe(0);
+		expect(mockStmt.run).not.toHaveBeenCalled();
 	});
 
 	it("isAvailable is false before the migration has run", async () => {

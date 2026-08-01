@@ -1,4 +1,5 @@
 import { BaseDAOClass } from "@/dao/base-dao";
+import { D1_IN_LIST_CHUNK_SIZE } from "@/dao/d1-limits";
 import type { SqlParams } from "@/types/utils";
 
 /**
@@ -177,7 +178,12 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
 	}
 
 	/**
-	 * Per-file aggregate chunk stats for many files in one query (GET /library/files).
+	 * Per-file aggregate chunk stats for many files (GET /library/files).
+	 *
+	 * The key list is the caller's entire library, which grows without bound, so
+	 * the `IN (…)` list is batched at {@link D1_IN_LIST_CHUNK_SIZE}. Binding one
+	 * placeholder per file exceeds D1's 100-bound-parameter ceiling and fails the
+	 * whole statement with `too many SQL variables` once a user passes ~100 files.
 	 */
 	async getFileChunkStatsForFileKeys(fileKeys: string[]): Promise<
 		Map<
@@ -204,8 +210,10 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
 		if (fileKeys.length === 0) {
 			return out;
 		}
-		const ph = fileKeys.map(() => "?").join(", ");
-		const sql = `
+		for (let i = 0; i < fileKeys.length; i += D1_IN_LIST_CHUNK_SIZE) {
+			const chunk = fileKeys.slice(i, i + D1_IN_LIST_CHUNK_SIZE);
+			const ph = chunk.map(() => "?").join(", ");
+			const sql = `
       SELECT
         file_key,
         COUNT(*) as total,
@@ -217,22 +225,23 @@ export class FileProcessingChunksDAO extends BaseDAOClass {
       WHERE file_key IN (${ph})
       GROUP BY file_key
     `;
-		const rows = await this.queryAll<{
-			file_key: string;
-			total?: number;
-			completed?: number;
-			failed?: number;
-			pending?: number;
-			processing?: number;
-		}>(sql, fileKeys);
-		for (const row of rows) {
-			out.set(row.file_key, {
-				total: row.total ?? 0,
-				completed: row.completed ?? 0,
-				failed: row.failed ?? 0,
-				pending: row.pending ?? 0,
-				processing: row.processing ?? 0,
-			});
+			const rows = await this.queryAll<{
+				file_key: string;
+				total?: number;
+				completed?: number;
+				failed?: number;
+				pending?: number;
+				processing?: number;
+			}>(sql, chunk);
+			for (const row of rows) {
+				out.set(row.file_key, {
+					total: row.total ?? 0,
+					completed: row.completed ?? 0,
+					failed: row.failed ?? 0,
+					pending: row.pending ?? 0,
+					processing: row.processing ?? 0,
+				});
+			}
 		}
 		return out;
 	}

@@ -70,7 +70,7 @@ function n(value: number | null | undefined): number {
 
 export class LLMCostEventDAO extends BaseDAOClass {
 	/**
-	 * False until migration 0030 has been applied. Read paths check this so the
+	 * False until migration 0031 has been applied. Read paths check this so the
 	 * admin dashboard degrades to "no data" instead of erroring on an environment
 	 * that has not migrated yet.
 	 */
@@ -308,9 +308,18 @@ export class LLMCostEventDAO extends BaseDAOClass {
 		}));
 	}
 
+	/**
+	 * No-op when the table is absent. This runs from the 5-minute cron, so a
+	 * Worker deployed ahead of its migration would otherwise log a `no such
+	 * table` failure on every tick — and, because it shares a try/catch with the
+	 * rate-limit ledger prune, bury that prune's own errors behind the noise.
+	 */
 	async pruneOldRows(
 		retentionDays: number = COST_EVENT_RETENTION_DAYS
 	): Promise<number> {
+		if (!(await this.isAvailable())) {
+			return 0;
+		}
 		const result = await this.db
 			.prepare(
 				`DELETE FROM llm_cost_events WHERE created_at < datetime('now', ?)`
