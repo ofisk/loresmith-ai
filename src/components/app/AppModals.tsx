@@ -351,7 +351,7 @@ export function AppModals({
 					!modalState.isCreateCampaignModalOpen
 				}
 				onClose={modalState.handleAddResourceClose}
-				className="modal-size-lg"
+				className="modal-size-md"
 			>
 				<ResourceUpload
 					initialFiles={modalState.addResourceInitialFiles}

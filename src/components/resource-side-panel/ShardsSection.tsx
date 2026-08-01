@@ -80,7 +80,7 @@ export function ShardsSection({
 					<Modal
 						isOpen={isOpen}
 						onClose={() => setIsOpen(false)}
-						className="modal-size-lg"
+						className="modal-size-md"
 						options={{ clickOutsideToClose: true }}
 					>
 						<div className="h-full flex flex-col">

@@ -336,7 +336,7 @@ export function LibrarySection({
 					<Modal
 						isOpen={isOpen}
 						onClose={onToggle}
-						className="modal-size-lg"
+						className="modal-size-md"
 						options={{ clickOutsideToClose: true }}
 					>
 						<div className="h-full flex flex-col">

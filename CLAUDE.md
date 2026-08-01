@@ -32,6 +32,21 @@ Other dev targets (need a Cloudflare account + `CLOUDFLARE_ACCOUNT_ID`, already 
 - `npm run dev:cloudflare` — backend against the real `-dev` Cloudflare resources (port 8787)
 - `npm run deploy:dev` — deploy to the `loresmith-ai-dev` Worker
 
+## Modal sizing
+
+App content dialogs (resources, campaigns, notifications, shards, telemetry,
+etc.) use exactly two sizes — don't introduce a third:
+
+- `modal-size-md` ("Medium") — the default centered dialog. Use this unless
+  the content is genuinely dashboard-dense.
+- `modal-size-xl` ("Large") — near-fullscreen, for content-dense views
+  (e.g. the telemetry dashboard) that need most of the viewport.
+
+`modal-size-sm`/`modal-size-standard`/`modal-size-auth` still exist for a
+handful of small transactional dialogs that predate this convention
+(confirmations, auth, rate-limit/quota notices) — don't add new usages of
+them, and don't add new one-off `modal-size-*` classes either.
+
 ## Testing
 
 ```bash

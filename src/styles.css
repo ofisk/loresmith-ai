@@ -5,7 +5,6 @@
 	/* Layout tokens */
 	--width-modal-mobile: 96vw;
 	--width-modal-sm: 28rem;
-	--width-modal-md: 45rem;
 	--width-modal-lg: 60rem;
 	--width-container-xl: 87.5rem;
 	--width-overlay-expanded: 50vw;
@@ -78,9 +77,20 @@
 	}
 }
 
+/*
+ * The two standard app dialog sizes. Every content dialog (resources,
+ * campaigns, notifications, shards, telemetry, etc.) should use one of
+ * these two - not a one-off size. `-sm`/`-standard`/`-auth` below remain
+ * only for small transactional dialogs (confirmations, auth, rate-limit
+ * notices) that predate this convention; don't add new usages of them.
+ *
+ * - modal-size-md ("Medium"): the default centered dialog.
+ * - modal-size-xl ("Large"): near-fullscreen, for content-dense views
+ *   (dashboards, long lists) that need most of the viewport.
+ */
 .modal-size-md {
 	width: var(--width-modal-mobile);
-	max-width: var(--width-modal-md);
+	max-width: var(--width-modal-lg);
 	height: var(--height-modal-max);
 }
 @media (min-width: 768px) {
@@ -90,19 +100,6 @@
 	}
 }
 
-.modal-size-lg {
-	width: var(--width-modal-mobile);
-	max-width: var(--width-modal-lg);
-	height: var(--height-modal-max);
-}
-@media (min-width: 768px) {
-	.modal-size-lg {
-		height: 80dvh;
-		max-height: 47.5rem;
-	}
-}
-
-/* Near-fullscreen, for content-dense views (e.g. dashboards) that need most of the viewport */
 .modal-size-xl {
 	width: var(--width-modal-mobile);
 	height: var(--height-modal-max);
