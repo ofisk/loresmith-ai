@@ -1,9 +1,4 @@
-import {
-	CaretDown,
-	CreditCard,
-	EnvelopeSimple,
-	SignOut,
-} from "@phosphor-icons/react";
+import { CreditCard, EnvelopeSimple, SignOut } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppHeader } from "@/components/app/AppHeader";
@@ -307,11 +302,6 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 										{billingTier}
 									</span>
 								)}
-								<CaretDown
-									size={16}
-									className="transition-transform duration-200 ml-auto"
-									aria-hidden="true"
-								/>
 							</button>
 						)}
 
