@@ -7,6 +7,44 @@ on:
     branches: [main]
 
 jobs:
+  # Gate for D1 migrations. Needs no Cloudflare credentials: the static checks are
+  # pure git + SQL parsing, and the apply simulation runs against a local Miniflare
+  # D1. Production migrations are applied by the Workers Builds deploy command
+  # (npm run deploy:prod:ci), not here — see docs/DATABASE_MIGRATIONS.md.
+  migrations:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Needs the base branch to tell new migrations from already-merged ones.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+
+      - name: Resolve base ref
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            echo "MIGRATION_BASE_REF=origin/${{ github.base_ref }}" >> "$GITHUB_ENV"
+          else
+            echo "MIGRATION_BASE_REF=HEAD^" >> "$GITHUB_ENV"
+          fi
+
+      # Static: filename format, duplicate sequence numbers, edits to
+      # already-merged migrations, and schema missing from d1-bootstrap.sql.
+      - name: Check migrations
+        run: npm run migrate:check
+
+      # Behavioural: rebuild the database as it exists at the base ref, then apply
+      # only the migrations this branch adds — the same thing production does on
+      # merge, using the same script the deploy command runs.
+      - name: Simulate the production migration
+        run: npm run migrate:simulate
+
   validate:
     runs-on: ubuntu-latest
     permissions:
