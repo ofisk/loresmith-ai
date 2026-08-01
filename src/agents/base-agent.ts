@@ -12,6 +12,7 @@ import {
 } from "@/lib/agent-role-utils";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
+import { dropEmptyContentMessages } from "@/lib/chat-message-sanitization";
 import {
 	buildSummaryState,
 	CONVERSATION_SUMMARY_STORAGE_KEY,
@@ -803,8 +804,15 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		// (see buildConversationContext) rather than simply dropped.
 		const MAX_CONTEXT_MESSAGES = 32;
 
-		const userAssistantMessages = this.messages.filter(
-			(msg) => msg.role === "user" || msg.role === "assistant"
+		// Empty-content turns (tool-call-only replies, turns interrupted before any
+		// text streamed) are dropped here rather than at the provider call: they
+		// would otherwise occupy slots in the trailing window and be fed to the
+		// summarizer, and Anthropic rejects the entire request if even one empty
+		// text block reaches it.
+		const userAssistantMessages = dropEmptyContentMessages(
+			this.messages.filter(
+				(msg) => msg.role === "user" || msg.role === "assistant"
+			)
 		);
 		const { messages: recentMessages, summaryBlock } =
 			await this.buildConversationContext(

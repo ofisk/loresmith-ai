@@ -6,6 +6,7 @@ import { resolveClaimedPlayerContext } from "@/lib/agent-role-utils";
 import type { AgentType } from "@/lib/agent-router";
 import { AgentRouter } from "@/lib/agent-router";
 import { extractJwtFromHeader, sanitizeApiKey } from "@/lib/auth-utils";
+import { dropEmptyContentMessages } from "@/lib/chat-message-sanitization";
 import { getCampaignIdFromConversationId } from "@/lib/conversation-id-utils";
 import { getEnvVar } from "@/lib/env-utils";
 import {
@@ -270,6 +271,22 @@ export class Chat extends SimpleChatAgent<Env> {
 							...(data != null && { data }),
 						};
 					});
+					// A turn that only made tool calls — or that was interrupted before
+					// any text streamed — flattens to empty content above. Sending one
+					// of those makes the provider reject the whole request, and since
+					// the client replays the full history every turn, the conversation
+					// would never recover. Drop them at the door.
+					const flattened = this.messages;
+					this.messages = dropEmptyContentMessages(flattened);
+					if (this.messages.length !== flattened.length) {
+						createLogger(this.env as Record<string, unknown>, "[ChatDO]").debug(
+							"Dropped empty-content messages from incoming history",
+							{
+								dropped: flattened.length - this.messages.length,
+								kept: this.messages.length,
+							}
+						);
+					}
 					// Ensure last user message has jwt and campaignId for agent tools.
 					// Merge from body.data (transport sends these) and conversationId fallback.
 					const conversationId =
