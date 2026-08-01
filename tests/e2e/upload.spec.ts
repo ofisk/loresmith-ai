@@ -53,13 +53,15 @@ test.describe("file upload", () => {
 
 		await uploadModal.uploadFile(UploadModal.sampleFilePath);
 
-		// Modal closes on success; file appears in sidebar library (collapsed by default).
-		// Expand the library section so the file list is visible.
-		await uploadModal.librarySectionButton.click();
+		// Modal closes on success; the file list lives in the resources dialog,
+		// which is opened from the sidebar rail.
+		await uploadModal.openLibraryDialog();
 
 		// Wait for FILE_UPLOAD.COMPLETED to trigger fetchResources and for the file to render
-		await expect(page.getByText("sample.txt")).toBeVisible({
-			timeout: 20_000,
-		});
+		await expect(uploadModal.libraryDialog.getByText("sample.txt")).toBeVisible(
+			{
+				timeout: 20_000,
+			}
+		);
 	});
 });

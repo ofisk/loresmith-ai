@@ -46,6 +46,7 @@ export function CampaignsSection({
 				<button
 					type="button"
 					onClick={onToggle}
+					data-testid="campaigns-toggle"
 					title={isCollapsed ? "Campaigns" : undefined}
 					aria-label={isCollapsed ? "Campaigns" : undefined}
 					className={
@@ -82,13 +83,17 @@ export function CampaignsSection({
 						className="modal-size-md"
 						options={{ clickOutsideToClose: true }}
 					>
-						<div className="h-full flex flex-col">
+						<div
+							className="h-full flex flex-col"
+							data-testid="campaigns-dialog"
+						>
 							<div className="flex-shrink-0 p-4 pr-12 border-b border-neutral-200 dark:border-neutral-700">
 								<h3 className="font-medium text-lg text-neutral-900 dark:text-neutral-100 mb-2">
 									Campaigns
 								</h3>
 								<button
 									type="button"
+									data-testid="create-campaign-trigger"
 									onClick={() => {
 										onToggle();
 										onCreateCampaign();

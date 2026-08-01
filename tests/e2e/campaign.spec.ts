@@ -16,10 +16,12 @@ test.describe("campaign management", () => {
 		const campaignName = uniqueCampaignName("E2E Test Campaign");
 
 		await appShell.waitForReady();
-		await appShell.createCampaignButton.click();
+		await appShell.openCreateCampaign();
 
 		await createModal.createCampaign(campaignName, { waitForApi: true });
+		await createModal.doneButton.click();
 
+		await appShell.openCampaignsDialog();
 		await expect(appShell.getCampaignButton(campaignName)).toBeVisible({
 			timeout: 10_000,
 		});
@@ -29,22 +31,27 @@ test.describe("campaign management", () => {
 		const appShell = new AppShellPage(page);
 		const createModal = new CreateCampaignModal(page);
 		const campaignDetails = new CampaignDetailsPage(page);
+		const originalName = uniqueCampaignName("Original Name");
+		const editedName = uniqueCampaignName("Edited Name");
 
 		await appShell.waitForReady();
-		await appShell.createCampaignButton.click();
-		await createModal.createCampaign("Original Name", { waitForApi: true });
+		await appShell.openCreateCampaign();
+		await createModal.createCampaign(originalName, { waitForApi: true });
 
 		await createModal.doneButton.click();
-		await expect(appShell.getCampaignButton(/Original Name/)).toBeVisible({
+		await appShell.openCampaignsDialog();
+		await expect(appShell.getCampaignButton(originalName)).toBeVisible({
 			timeout: 10_000,
 		});
-		await appShell.getCampaignButton(/Original Name/).click();
+		// Opening a campaign closes the campaigns dialog and opens its details.
+		await appShell.getCampaignButton(originalName).click();
 
 		await campaignDetails.editButton.click();
-		await createModal.fillName("Edited Name");
+		await createModal.fillName(editedName);
 		await campaignDetails.saveButton.click();
 
-		await expect(appShell.getCampaignButton(/Edited Name/)).toBeVisible({
+		await appShell.openCampaignsDialog();
+		await expect(appShell.getCampaignButton(editedName)).toBeVisible({
 			timeout: 10_000,
 		});
 	});
@@ -53,23 +60,25 @@ test.describe("campaign management", () => {
 		const appShell = new AppShellPage(page);
 		const createModal = new CreateCampaignModal(page);
 		const campaignDetails = new CampaignDetailsPage(page);
+		const campaignName = uniqueCampaignName("To Delete");
 
 		await appShell.waitForReady();
-		await appShell.createCampaignButton.click();
-		await createModal.createCampaign("To Delete", { waitForApi: true });
+		await appShell.openCreateCampaign();
+		await createModal.createCampaign(campaignName, { waitForApi: true });
 
 		await createModal.doneButton.click();
-		await expect(appShell.getCampaignButton(/To Delete/)).toBeVisible({
+		await appShell.openCampaignsDialog();
+		await expect(appShell.getCampaignButton(campaignName)).toBeVisible({
 			timeout: 10_000,
 		});
-		await appShell.getCampaignButton(/To Delete/).click();
+		await appShell.getCampaignButton(campaignName).click();
 
 		await campaignDetails.deleteCampaignButton.click();
 		await campaignDetails.confirmDeleteButton.click();
 
-		await expect(page.getByRole("button", { name: /To Delete/ })).toHaveCount(
-			0,
-			{ timeout: 10_000 }
-		);
+		await appShell.openCampaignsDialog();
+		await expect(
+			appShell.campaignItems.filter({ hasText: campaignName })
+		).toHaveCount(0, { timeout: 10_000 });
 	});
 });

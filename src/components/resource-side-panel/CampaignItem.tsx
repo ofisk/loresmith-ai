@@ -23,6 +23,7 @@ export function CampaignItem({ campaign, onCampaignClick }: CampaignItemProps) {
 	return (
 		<button
 			type="button"
+			data-testid="campaign-item"
 			className="w-full p-3 border-b border-neutral-200 dark:border-neutral-700 last:border-b-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer group text-left"
 			onClick={() => onCampaignClick?.(campaign)}
 		>

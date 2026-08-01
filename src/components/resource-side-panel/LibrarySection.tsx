@@ -300,6 +300,7 @@ export function LibrarySection({
 				<Card className="tour-library-section p-0 flex flex-col">
 					<button
 						type="button"
+						data-testid="library-toggle"
 						onClick={onToggle}
 						title={isCollapsed ? "Resources" : undefined}
 						aria-label={isCollapsed ? "Resources" : undefined}
@@ -339,7 +340,7 @@ export function LibrarySection({
 						className="modal-size-md"
 						options={{ clickOutsideToClose: true }}
 					>
-						<div className="h-full flex flex-col">
+						<div className="h-full flex flex-col" data-testid="library-dialog">
 							<div className="flex-shrink-0 p-4 pr-12 space-y-2 border-b border-neutral-200 dark:border-neutral-700">
 								<h3 className="font-medium text-lg text-neutral-900 dark:text-neutral-100 mb-2">
 									Resources

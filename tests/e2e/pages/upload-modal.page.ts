@@ -16,8 +16,21 @@ export class UploadModal {
 		return this.page.getByRole("button", { name: /^Upload$/ });
 	}
 
+	/** Sidebar rail button that opens the resources (library) dialog. */
 	get librarySectionButton() {
-		return this.page.getByRole("button", { name: /your resource library/i });
+		return this.page.getByTestId("library-toggle");
+	}
+
+	/** The resources dialog listing uploaded files. */
+	get libraryDialog() {
+		return this.page.getByTestId("library-dialog");
+	}
+
+	/** Open the resources dialog, or leave it open if it already is. */
+	async openLibraryDialog(): Promise<void> {
+		if (await this.libraryDialog.isVisible()) return;
+		await this.librarySectionButton.click();
+		await this.libraryDialog.waitFor({ state: "visible" });
 	}
 
 	/** Upload a file and wait for the PUT request to complete. */
