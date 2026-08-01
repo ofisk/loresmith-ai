@@ -96,6 +96,9 @@ export function useCampaignAddition(
 
 				let lastResourceId: string | undefined;
 				const addedCampaignIds: string[] = [];
+				// Campaigns where the file was accepted but is still processing: the
+				// server finishes the add (and stages shards) when indexing completes.
+				const deferredCampaignIds: string[] = [];
 				// Add file to each selected campaign with progress updates
 				for (let i = 0; i < campaignIds.length; i++) {
 					const campaignId = campaignIds[i];
@@ -273,31 +276,6 @@ export function useCampaignAddition(
 								// Fall through to throw
 							}
 						}
-						if (response.status === 409) {
-							try {
-								const errBody = JSON.parse(errorText) as {
-									code?: string;
-									error?: string;
-								};
-								if (errBody.code === "LIBRARY_DISCOVERY_IN_PROGRESS") {
-									addLocalNotification(
-										NOTIFICATION_TYPES.ERROR,
-										"File not ready",
-										errBody.error ??
-											"Entity indexing is still in progress. Try again when the library shows ready."
-									);
-									setCampaignAdditionProgress((prev) => {
-										const next = { ...prev };
-										delete next[fileKey];
-										return next;
-									});
-									setIsAddingToCampaigns(false);
-									return;
-								}
-							} catch {
-								// fall through
-							}
-						}
 						const { parseErrorResponse, formatErrorForNotification } =
 							await import("@/lib/error-parsing");
 						const parsedError = parseErrorResponse(errorText, response.status);
@@ -306,9 +284,13 @@ export function useCampaignAddition(
 
 					const data = (await response.json()) as {
 						resource?: { id?: string };
+						pending?: boolean;
 					};
 					if (data?.resource?.id) {
 						lastResourceId = data.resource.id;
+					}
+					if (data?.pending) {
+						deferredCampaignIds.push(campaignId);
 					}
 					addedCampaignIds.push(campaignId);
 				}
@@ -317,11 +299,23 @@ export function useCampaignAddition(
 				setCampaignAdditionProgress({ [fileKey]: 100 });
 
 				if (addedCampaignIds.length > 0) {
-					addLocalNotification(
-						NOTIFICATION_TYPES.SUCCESS,
-						"File added to campaign",
-						`Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
-					);
+					const allDeferred =
+						deferredCampaignIds.length === addedCampaignIds.length;
+					if (deferredCampaignIds.length > 0) {
+						addLocalNotification(
+							NOTIFICATION_TYPES.SUCCESS,
+							"Queued until processing finishes",
+							allDeferred
+								? `"${fileName}" is still processing. It's queued for ${addedCampaignIds.length} campaign(s) — shards will appear for approval automatically once processing completes.`
+								: `"${fileName}" was added to ${addedCampaignIds.length - deferredCampaignIds.length} campaign(s) and queued for ${deferredCampaignIds.length} more until processing completes.`
+						);
+					} else {
+						addLocalNotification(
+							NOTIFICATION_TYPES.SUCCESS,
+							"File added to campaign",
+							`Successfully added "${fileName}" to ${addedCampaignIds.length} campaign(s)`
+						);
+					}
 
 					window.dispatchEvent(
 						new CustomEvent(APP_EVENT_TYPE.CAMPAIGN_FILE_ADDED, {
@@ -329,6 +323,7 @@ export function useCampaignAddition(
 								file: selectedFile,
 								campaignIds: addedCampaignIds,
 								campaignCount: addedCampaignIds.length,
+								pendingCampaignIds: deferredCampaignIds,
 							},
 						})
 					);

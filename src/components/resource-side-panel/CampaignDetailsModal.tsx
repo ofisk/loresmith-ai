@@ -20,6 +20,7 @@ import { useRetryLimitStatus } from "@/hooks/useRetryLimitStatus";
 import { useSessionDigests } from "@/hooks/useSessionDigests";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getDisplayName } from "@/lib/display-name-utils";
+import { willCampaignAddBeDeferred } from "@/lib/library-entity-pipeline";
 import { API_CONFIG } from "@/shared-config";
 import type { Campaign, CampaignResource } from "@/types/campaign";
 import type {
@@ -1035,6 +1036,12 @@ export function CampaignDetailsModal({
 													<div className="font-medium text-neutral-900 dark:text-neutral-100">
 														{getDisplayName(file)}
 													</div>
+													{willCampaignAddBeDeferred(file) && (
+														<div className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+															Still processing — this add is queued and
+															completes automatically.
+														</div>
+													)}
 													{file.description && (
 														<div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
 															{file.description}

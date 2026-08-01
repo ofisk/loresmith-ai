@@ -1,6 +1,5 @@
 import type { Context } from "hono";
 import { CAMPAIGN_ROLES } from "@/constants/campaign-roles";
-import { FileDAO } from "@/dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { LibraryEntityDAO } from "@/dao/library-entity-dao";
 import {
@@ -11,7 +10,10 @@ import {
 	getExtension,
 	validateR2ObjectAndGetStream,
 } from "@/lib/file/file-upload-security";
-import { isLibraryEntityDiscoveryInFlight } from "@/lib/library-entity-pipeline";
+import {
+	isFileQueueableForCampaignAdd,
+	willCampaignAddBeDeferred,
+} from "@/lib/library-entity-pipeline";
 import { getRequestLogger } from "@/lib/logger";
 import {
 	notifyProposalApproved,
@@ -297,7 +299,9 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 		if (!fileRecord) {
 			return c.json({ error: "File not found in library" }, 404);
 		}
-		if (fileRecord.status !== FileDAO.STATUS.COMPLETED) {
+		// Same deferral rule as a direct add: a file that is still working its way
+		// through the pipeline is approved now and finished automatically.
+		if (!isFileQueueableForCampaignAdd(fileRecord)) {
 			return c.json(
 				{
 					error: "File is not yet indexed",
@@ -307,20 +311,15 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			);
 		}
 		const libEntityDao = new LibraryEntityDAO(c.env.DB);
+		let discoveryStatus: string | null = null;
 		if (await libEntityDao.isSchemaReady()) {
-			const discovery = await libEntityDao.getDiscovery(proposal.file_key);
-			if (discovery && isLibraryEntityDiscoveryInFlight(discovery.status)) {
-				return c.json(
-					{
-						error:
-							"Entity indexing is still in progress. Try again when the library shows ready.",
-						code: "LIBRARY_DISCOVERY_IN_PROGRESS",
-						libraryEntityDiscoveryStatus: discovery.status,
-					},
-					409
-				);
-			}
+			discoveryStatus =
+				(await libEntityDao.getDiscovery(proposal.file_key))?.status ?? null;
 		}
+		const isDeferredAdd = willCampaignAddBeDeferred({
+			status: fileRecord.status,
+			library_entity_discovery_status: discoveryStatus,
+		});
 
 		const resourceId = crypto.randomUUID();
 		await addResourceToCampaign({
@@ -330,6 +329,7 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 			resourceId,
 			fileKey: proposal.file_key,
 			fileName: proposal.file_name,
+			deferred: isDeferredAdd,
 		});
 
 		await ResourceAddRateLimitService.recordAdd(
@@ -400,7 +400,10 @@ export async function handleApproveResourceProposal(c: ContextWithAuth) {
 		return c.json({
 			success: true,
 			resourceId,
-			message: "Proposal approved; resource added",
+			pending: isDeferredAdd,
+			message: isDeferredAdd
+				? `Proposal approved. "${proposal.file_name}" is still processing and will finish being added automatically — shards will appear for approval when it does.`
+				: "Proposal approved; resource added",
 		});
 	} catch (error: unknown) {
 		if (

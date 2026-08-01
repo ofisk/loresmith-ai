@@ -612,6 +612,18 @@ export class CampaignDAO extends BaseDAOClass {
 		]);
 	}
 
+	/** Distinct files with at least one resource waiting on library extraction + copy. */
+	async listFileKeysPendingLibraryCopy(limit: number): Promise<string[]> {
+		const rows = await this.queryAll<{ file_key: string }>(
+			`SELECT DISTINCT file_key FROM campaign_resources
+       WHERE entity_copy_status = 'pending_library'
+       ORDER BY file_key
+       LIMIT ?`,
+			[limit]
+		);
+		return rows.map((r) => r.file_key);
+	}
+
 	async listResourcesPendingLibraryCopy(fileKey: string): Promise<
 		{
 			id: string;

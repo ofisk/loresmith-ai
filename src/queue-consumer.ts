@@ -16,6 +16,7 @@ import { R2Helper } from "./lib/r2";
 import type { Env } from "./middleware/auth";
 import { ChecklistStatusService } from "./services/campaign/checklist-status-service";
 import { LibraryEntityDiscoveryQueueService } from "./services/campaign/library-entity-discovery-queue-service";
+import { sweepPendingCampaignEntityCopies } from "./services/campaign/pending-campaign-entity-copy";
 import { ChunkedProcessingService } from "./services/file/chunked-processing-service";
 import { SyncQueueService } from "./services/file/sync-queue-service";
 import { CommunitySummaryService } from "./services/graph/community-summary-service";
@@ -405,6 +406,18 @@ async function runFastScheduledTasks(
 	}
 
 	await LibraryEntityDiscoveryQueueService.processPendingQueueItems(env);
+
+	// Deferred campaign adds (file added while still processing) normally finish
+	// via the discovery queue's completion hook; this sweep catches the ones that
+	// hook could not reach.
+	try {
+		const { swept } = await sweepPendingCampaignEntityCopies(env);
+		if (swept > 0) {
+			log.info("pending_campaign_entity_copies_swept", { files: swept });
+		}
+	} catch (error) {
+		log.error("pending_campaign_entity_copy_sweep_failed", error);
+	}
 
 	try {
 		const stuck =
