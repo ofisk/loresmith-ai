@@ -7,8 +7,10 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import libraryIcon from "@/assets/library.png";
-import { CollapsibleCard } from "@/components/collapsible/CollapsibleCard";
+import { Card } from "@/components/card/Card";
+import { Modal } from "@/components/modal/Modal";
 import { ActionQueueUI } from "@/components/queue/ActionQueueUI";
 import { RateLimitIndicator } from "@/components/rate-limit";
 import { StorageTracker } from "@/components/storage-tracker";
@@ -175,10 +177,16 @@ export function LibrarySection({
 		return [...queuedEntries, ...files];
 	}, [files, uploadQueue?.queue]);
 
+	const readyCount = Math.max(0, displayFiles.length - processingCount);
+
 	const fileDragDepthRef = useRef(0);
 	const [isFileDragOver, setIsFileDragOver] = useState(false);
 	const [librarySearchQuery, setLibrarySearchQuery] = useState("");
 	const librarySearchInputId = useId();
+	// See NotificationBell: portal to <body> to escape ResourceSidePanel's
+	// backdrop-blur-sm containing block for `position: fixed`.
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
 
 	// Deep link from a source cited in a chat response: open the library and
 	// narrow it to the cited file so the user lands on it.
@@ -250,21 +258,25 @@ export function LibrarySection({
 	);
 
 	return (
-		<section
-			aria-label="Your resource library"
-			className={cn(
-				"rounded-lg transition-shadow",
-				isFileDragOver &&
-					"ring-2 ring-purple-500/40 dark:ring-purple-400/35 ring-offset-2 ring-offset-neutral-50 dark:ring-offset-neutral-900"
-			)}
-			onDragEnter={handleLibraryDragEnter}
-			onDragLeave={handleLibraryDragLeave}
-			onDragOver={handleLibraryDragOver}
-			onDrop={handleLibraryDrop}
-		>
-			<CollapsibleCard
-				header={
-					<>
+		<>
+			<section
+				aria-label="Resources"
+				className={cn(
+					"rounded-lg transition-shadow",
+					isFileDragOver &&
+						"ring-2 ring-purple-500/40 dark:ring-purple-400/35 ring-offset-2 ring-offset-neutral-50 dark:ring-offset-neutral-900"
+				)}
+				onDragEnter={handleLibraryDragEnter}
+				onDragLeave={handleLibraryDragLeave}
+				onDragOver={handleLibraryDragOver}
+				onDrop={handleLibraryDrop}
+			>
+				<Card className="tour-library-section p-0 flex flex-col">
+					<button
+						type="button"
+						onClick={onToggle}
+						className="w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					>
 						<img
 							src={libraryIcon}
 							alt="Library"
@@ -272,92 +284,99 @@ export function LibrarySection({
 							width={32}
 							height={32}
 						/>
-						<span className="font-medium text-sm">Your resource library</span>
-					</>
-				}
-				headerSupplement={
-					processingCount > 0 ? (
-						<span
-							className="text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-							title={`${processingCount} file${processingCount === 1 ? "" : "s"} preparing`}
-						>
-							{processingCount} preparing
+						<span className="flex flex-col min-w-0">
+							<span className="font-medium text-sm">Resources</span>
+							{displayFiles.length > 0 && (
+								<span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+									{readyCount} ready
+									{processingCount > 0 && `, ${processingCount} processing`}
+								</span>
+							)}
 						</span>
-					) : undefined
-				}
-				isOpen={isOpen}
-				onToggle={onToggle}
-				tourClassName="tour-library-section"
-				className="border-t border-neutral-200 dark:border-neutral-700"
-			>
-				<div className="flex flex-col">
-					<div className="flex-shrink-0 p-2 space-y-2">
-						<button
-							type="button"
-							onClick={() => onAddToLibrary()}
-							className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
-						>
-							<Plus size={14} />
-							Add to library
-						</button>
-						<div className="relative">
-							<label htmlFor={librarySearchInputId} className="sr-only">
-								Search library
-							</label>
-							<MagnifyingGlass
-								className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-neutral-500 dark:text-neutral-400"
-								aria-hidden
-							/>
-							<input
-								id={librarySearchInputId}
-								type="search"
-								value={librarySearchQuery}
-								onChange={(e) => setLibrarySearchQuery(e.target.value)}
-								placeholder="Search library"
-								autoComplete="off"
-								className="w-full rounded-md border border-neutral-300 bg-neutral-100 py-1.5 pl-8 pr-2 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:ring-neutral-500"
-							/>
-						</div>
-					</div>
-					<div className="border-t border-neutral-200 dark:border-neutral-700 flex flex-col">
-						<div className="max-h-64 overflow-y-auto">
-							<ResourceList
-								files={displayFiles}
-								setFiles={setFiles}
-								loading={loading}
-								error={error}
-								setError={setError}
-								setLoading={setLoading}
-								fetchResources={fetchResources}
-								onAddToCampaign={onAddToCampaign}
-								onEditFile={onEditFile}
-								onOpenAddToLibrary={onAddToLibrary}
-								campaigns={campaigns}
-								campaignAdditionProgress={campaignAdditionProgress}
-								_isAddingToCampaigns={isAddingToCampaigns}
-								searchQuery={librarySearchQuery}
-							/>
-						</div>
-						<div className="flex-shrink-0">
-							<StorageTracker />
-							{uploadQueue && uploadQueue.queuedCount > 0 && (
-								<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
-									{uploadQueue.queuedCount} file
-									{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
-									when capacity is available
+					</button>
+				</Card>
+			</section>
+
+			{mounted &&
+				createPortal(
+					<Modal
+						isOpen={isOpen}
+						onClose={onToggle}
+						className="modal-size-lg"
+						options={{ clickOutsideToClose: true }}
+					>
+						<div className="h-full flex flex-col">
+							<div className="flex-shrink-0 p-4 pr-12 space-y-2 border-b border-neutral-200 dark:border-neutral-700">
+								<h3 className="font-medium text-lg text-neutral-900 dark:text-neutral-100 mb-2">
+									Resources
+								</h3>
+								<button
+									type="button"
+									onClick={() => onAddToLibrary()}
+									className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+								>
+									<Plus size={14} />
+									Add to library
+								</button>
+								<div className="relative">
+									<label htmlFor={librarySearchInputId} className="sr-only">
+										Search library
+									</label>
+									<MagnifyingGlass
+										className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-neutral-500 dark:text-neutral-400"
+										aria-hidden
+									/>
+									<input
+										id={librarySearchInputId}
+										type="search"
+										value={librarySearchQuery}
+										onChange={(e) => setLibrarySearchQuery(e.target.value)}
+										placeholder="Search library"
+										autoComplete="off"
+										className="w-full rounded-md border border-neutral-300 bg-neutral-100 py-1.5 pl-8 pr-2 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus-visible:ring-neutral-500"
+									/>
 								</div>
-							)}
-							<ActionQueueUI />
-							{addLocalNotification && onShowUsageLimits && (
-								<RateLimitIndicator
-									addLocalNotification={addLocalNotification}
-									onShowUsageLimits={onShowUsageLimits}
+							</div>
+
+							<div className="flex-1 overflow-y-auto">
+								<ResourceList
+									files={displayFiles}
+									setFiles={setFiles}
+									loading={loading}
+									error={error}
+									setError={setError}
+									setLoading={setLoading}
+									fetchResources={fetchResources}
+									onAddToCampaign={onAddToCampaign}
+									onEditFile={onEditFile}
+									onOpenAddToLibrary={onAddToLibrary}
+									campaigns={campaigns}
+									campaignAdditionProgress={campaignAdditionProgress}
+									_isAddingToCampaigns={isAddingToCampaigns}
+									searchQuery={librarySearchQuery}
 								/>
-							)}
+							</div>
+							<div className="flex-shrink-0 border-t border-neutral-200 dark:border-neutral-700">
+								<StorageTracker />
+								{uploadQueue && uploadQueue.queuedCount > 0 && (
+									<div className="px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
+										{uploadQueue.queuedCount} file
+										{uploadQueue.queuedCount === 1 ? "" : "s"} queued – retrying
+										when capacity is available
+									</div>
+								)}
+								<ActionQueueUI />
+								{addLocalNotification && onShowUsageLimits && (
+									<RateLimitIndicator
+										addLocalNotification={addLocalNotification}
+										onShowUsageLimits={onShowUsageLimits}
+									/>
+								)}
+							</div>
 						</div>
-					</div>
-				</div>
-			</CollapsibleCard>
-		</section>
+					</Modal>,
+					document.body
+				)}
+		</>
 	);
 }

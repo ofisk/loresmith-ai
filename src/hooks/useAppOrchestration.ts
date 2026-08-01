@@ -53,7 +53,7 @@ export function useAppOrchestration() {
 	const showBillingPage =
 		typeof window !== "undefined" && window.location.pathname === "/billing";
 
-	const { data: billingStatus } = useBillingStatus();
+	const { data: billingStatus } = useBillingStatus(authState.isAuthenticated);
 
 	const {
 		allNotifications,

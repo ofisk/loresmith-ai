@@ -12,15 +12,13 @@ export function TopBarNotifications({
 	onDismissAll,
 }: TopBarNotificationsProps) {
 	return (
-		<div className="ml-1">
-			<NotificationBell
-				notifications={notifications}
-				onDismiss={(notificationId) => {
-					const ts = parseInt(notificationId.split("-")[0], 10);
-					onDismiss(ts);
-				}}
-				onDismissAll={onDismissAll}
-			/>
-		</div>
+		<NotificationBell
+			notifications={notifications}
+			onDismiss={(notificationId) => {
+				const ts = parseInt(notificationId.split("-")[0], 10);
+				onDismiss(ts);
+			}}
+			onDismissAll={onDismissAll}
+		/>
 	);
 }

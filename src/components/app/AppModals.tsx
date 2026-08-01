@@ -642,7 +642,7 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isAdminDashboardModalOpen}
 				onClose={modalState.handleAdminDashboardClose}
-				className="modal-size-md"
+				className="modal-size-xl"
 			>
 				<TelemetryDashboard />
 			</Modal>
