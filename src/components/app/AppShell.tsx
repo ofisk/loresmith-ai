@@ -1,8 +1,6 @@
 import { Joyride } from "react-joyride";
-import { AppHeader } from "@/components/app/AppHeader";
 import { ChatArea } from "@/components/app/ChatArea";
 import { ResourceSidePanel } from "@/components/resource-side-panel";
-import { ShardOverlay } from "@/components/shard/ShardOverlay";
 import { useAppShellContext } from "@/contexts/AppShellContext";
 import { useDismissibleLayer } from "@/hooks/useDismissibleLayer";
 
@@ -84,30 +82,12 @@ export function AppShell() {
 					},
 				}}
 			/>
-			<div className="h-dvh w-full p-0 sm:p-4 md:p-6 flex justify-center items-center bg-fixed">
+			<div className="h-dvh w-full bg-fixed">
 				<div
-					className="h-full sm:h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full mx-auto max-w-[var(--width-container-xl)] flex flex-col shadow-2xl rounded-none sm:rounded-2xl relative border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-950 overflow-hidden"
+					className="h-full w-full flex flex-col relative bg-white dark:bg-neutral-950 overflow-hidden"
 					data-testid="app-main"
 				>
-					<AppHeader
-						onToggleSidebar={ctx.onToggleSidebar}
-						isSidebarOpen={ctx.isSidebarOpen}
-						onHelpAction={ctx.handleHelpAction}
-						onSessionRecapRequest={ctx.handleSessionRecapRequest}
-						onNextStepsRequest={ctx.handleNextStepsRequest}
-						notifications={ctx.allNotifications.map((n) => ({
-							...n,
-							message: n.message ?? "",
-						}))}
-						onDismissNotification={ctx.dismissNotification}
-						onClearAllNotifications={ctx.clearAllNotifications}
-						selectedCampaignId={ctx.selectedCampaignId}
-						onAdminDashboardOpen={ctx.modalState.handleAdminDashboardOpen}
-						selectedCampaignRole={ctx.selectedCampaign?.role ?? null}
-						billingTier={ctx.billingStatus?.tier}
-					/>
-
-					<div className="flex-1 flex min-h-0 overflow-hidden rounded-bl-2xl rounded-br-2xl relative">
+					<div className="flex-1 flex min-h-0 overflow-hidden relative">
 						<ResourceSidePanel className="hidden md:flex" />
 
 						{ctx.isSidebarOpen && (
@@ -123,6 +103,8 @@ export function AppShell() {
 
 						<div className="flex-1 flex flex-col min-h-0 min-w-0">
 							<ChatArea
+								onToggleSidebar={ctx.onToggleSidebar}
+								isSidebarOpen={ctx.isSidebarOpen}
 								chatContainerId={ctx.chatContainerId}
 								messages={ctx.messages}
 								chatHistoryLoading={!ctx.chatHistoryLoaded}
@@ -152,17 +134,6 @@ export function AppShell() {
 						</div>
 					</div>
 				</div>
-
-				{ctx.canReviewShards && (
-					<ShardOverlay
-						shards={ctx.visibleShardGroups}
-						isLoading={ctx.shardsLoading}
-						onShardsProcessed={ctx.onShardsProcessed}
-						getJwt={ctx.authState.getStoredJwt}
-						onAutoExpand={() => {}}
-						onRefresh={ctx.onShardRefresh}
-					/>
-				)}
 			</div>
 		</>
 	);

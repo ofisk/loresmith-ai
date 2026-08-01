@@ -151,6 +151,7 @@ dist
 .wrangler
 .dev.vars
 .vars
+wrangler.prod-local.jsonc
 
 # Uploaded files
 uploads/

@@ -5,6 +5,8 @@ import { FormField } from "@/components/input/FormField";
 interface CreateCampaignModalProps {
 	isOpen: boolean;
 	onClose: () => void;
+	/** Called when the user cancels without creating a campaign; falls back to onClose. */
+	onCancel?: () => void;
 	campaignName: string;
 	onCampaignNameChange: (name: string) => void;
 	campaignDescription: string;
@@ -17,6 +19,7 @@ interface CreateCampaignModalProps {
 export function CreateCampaignModal({
 	isOpen,
 	onClose,
+	onCancel,
 	campaignName,
 	onCampaignNameChange,
 	campaignDescription,
@@ -156,7 +159,11 @@ export function CreateCampaignModal({
 					>
 						{isSubmitting ? "Creating…" : "Create"}
 					</Button>
-					<Button appearance="form" onClick={onClose} variant="secondary">
+					<Button
+						appearance="form"
+						onClick={onCancel ?? onClose}
+						variant="secondary"
+					>
 						Cancel
 					</Button>
 				</div>

@@ -1,8 +1,19 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render as rtlRender,
+	screen,
+	waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResourceSidePanel } from "@/components/resource-side-panel/ResourceSidePanel";
+import { TooltipProvider } from "@/providers/TooltipProvider";
 import { makeCampaign } from "../factories";
+
+function render(ui: ReactElement) {
+	return rtlRender(<TooltipProvider>{ui}</TooltipProvider>);
+}
 
 // Mock the hooks and services
 vi.mock("@/hooks/useCampaignManagement", () => ({
@@ -17,6 +28,7 @@ vi.mock("@/services/core/auth-service", () => ({
 	AuthService: {
 		getUsernameFromStoredJwt: vi.fn(() => "testuser"),
 		isJwtExpired: vi.fn(() => false),
+		getJwtPayload: vi.fn(() => null),
 	},
 	getStoredJwt: vi.fn(() => "mock-jwt"),
 	isJwtExpired: vi.fn(() => false),
@@ -45,6 +57,19 @@ describe("ResourceSidePanel", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		Object.defineProperty(window, "matchMedia", {
+			writable: true,
+			value: vi.fn().mockImplementation((query: string) => ({
+				matches: false,
+				media: query,
+				onchange: null,
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+				dispatchEvent: vi.fn(),
+			})),
+		});
 	});
 
 	afterEach(() => {
@@ -93,13 +118,15 @@ describe("ResourceSidePanel", () => {
 		expect(mockOnAddResource).not.toHaveBeenCalled();
 
 		rerender(
-			<ResourceSidePanel
-				isAuthenticated={true}
-				campaigns={mockCampaigns}
-				onAddResource={mockOnAddResource}
-				onFileUploadTriggered={vi.fn()}
-				triggerFileUpload={true}
-			/>
+			<TooltipProvider>
+				<ResourceSidePanel
+					isAuthenticated={true}
+					campaigns={mockCampaigns}
+					onAddResource={mockOnAddResource}
+					onFileUploadTriggered={vi.fn()}
+					triggerFileUpload={true}
+				/>
+			</TooltipProvider>
 		);
 
 		await waitFor(() => {

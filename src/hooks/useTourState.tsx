@@ -214,16 +214,6 @@ export function useTourState(options: UseTourStateOptions) {
 				),
 			},
 			{
-				target: ".tour-next-steps",
-				content:
-					"Next steps: this prompts LoreSmith to provide an assessment of your campaign and prioritized suggestions for what to do next.",
-			},
-			{
-				target: ".tour-help-button",
-				content:
-					"Help: starts a chat with LoreSmith about app functionality—what it can help with, example questions you can ask, and best practices based on the docs.",
-			},
-			{
 				target: ".tour-admin-dashboard",
 				content: "Admin dashboard: shows telemetry and system metrics.",
 			},

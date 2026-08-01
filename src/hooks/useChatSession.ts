@@ -6,11 +6,8 @@ import {
 	CONTEXT_RECAP_PLACEHOLDER,
 	UI_INITIATED_PROMPTS,
 } from "@/app-constants";
-import { PLAYER_ROLES } from "@/constants/campaign-roles";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { APP_EVENT_TYPE } from "@/lib/app-events";
-import { getCachedHelp, setCachedHelp } from "@/lib/help-cache";
-import { getHelpContent } from "@/lib/help-content";
 import { createStatusInterceptingFetch } from "@/lib/stream-status-interceptor";
 import {
 	getToolPartInfo,
@@ -23,7 +20,6 @@ import type { campaignTools } from "@/tools/campaign";
 import type { fileTools } from "@/tools/file";
 import type { generalTools } from "@/tools/general";
 import type { Message } from "@/types/ai-message";
-import type { Campaign } from "@/types/campaign";
 
 // List of tools that require human confirmation
 // NOTE: this should match the keys in the executions object in tools.ts
@@ -47,17 +43,6 @@ const INTERRUPT_SETTLE_POLL_MS = 25;
 /** Hidden prompt used by "Continue" to resume an interrupted response. */
 const CONTINUE_GENERATION_PROMPT =
 	"Please continue your previous response from where it was interrupted. Do not repeat what you already said.";
-
-function extractMessageText(msg: Message): string {
-	if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
-	if (msg.parts?.length) {
-		return msg.parts
-			.filter((p) => p?.type === "text" && typeof p.text === "string")
-			.map((p) => (p as { text: string }).text)
-			.join("\n");
-	}
-	return "";
-}
 
 interface ChatHistoryResponse {
 	messages?: Message[];
@@ -84,7 +69,6 @@ export interface UseChatSessionOptions {
 		handleUsageLimitsOpen: () => void;
 	};
 	selectedCampaignId: string | null;
-	selectedCampaign: Campaign | null;
 	chatContainerId: string;
 	setTextareaHeight: (height: string) => void;
 	addLocalNotification: (type: string, title: string, message?: string) => void;
@@ -98,7 +82,6 @@ export function useChatSession(options: UseChatSessionOptions) {
 		authState,
 		modalState,
 		selectedCampaignId,
-		selectedCampaign,
 		chatContainerId,
 		setTextareaHeight,
 		addLocalNotification,
@@ -378,20 +361,6 @@ export function useChatSession(options: UseChatSessionOptions) {
 		if (wasStreaming && chatStatus === "ready") {
 			setAgentStatus(null);
 
-			const msgs = agentMessages;
-			if (msgs.length >= 2) {
-				const last = msgs[msgs.length - 1];
-				const prev = msgs[msgs.length - 2];
-				if (
-					last?.role === "assistant" &&
-					prev?.role === "user" &&
-					(prev?.data as { isHelpRequest?: boolean })?.isHelpRequest === true
-				) {
-					const text = extractMessageText(last);
-					if (text) setCachedHelp("open_help", text);
-				}
-			}
-
 			const jwt = authState.getStoredJwt();
 			if (jwt && authReady) {
 				const url = API_CONFIG.buildUrl(
@@ -443,7 +412,6 @@ export function useChatSession(options: UseChatSessionOptions) {
 		authReady,
 		authState.getStoredJwt,
 		setChatMessages,
-		agentMessages,
 	]);
 
 	useEffect(() => {
@@ -629,70 +597,6 @@ export function useChatSession(options: UseChatSessionOptions) {
 		]
 	);
 
-	const handleHelpAction = useCallback(
-		(action: string) => {
-			if (action === "open_help") {
-				const cached = getCachedHelp("open_help");
-				if (cached) {
-					void append({
-						role: "assistant",
-						content: cached,
-						data: authState.getStoredJwt()
-							? {
-									jwt: authState.getStoredJwt(),
-									campaignId: selectedCampaignId ?? null,
-								}
-							: { campaignId: selectedCampaignId ?? null },
-					});
-					setInput("");
-					return;
-				}
-				const jwt = authState.getStoredJwt();
-				const helpPrompt = UI_INITIATED_PROMPTS.HELP;
-				addToInvisible(helpPrompt);
-				void append({
-					role: "user",
-					content: helpPrompt,
-					data: jwt
-						? {
-								jwt,
-								campaignId: selectedCampaignId ?? null,
-								isHelpRequest: true,
-								agentType: "onboarding",
-							}
-						: {
-								campaignId: selectedCampaignId ?? null,
-								isHelpRequest: true,
-								agentType: "onboarding",
-							},
-				});
-				setInput("");
-				return;
-			}
-			if (action === "usage_limits") {
-				modalState.handleUsageLimitsOpen();
-				return;
-			}
-			const jwt = authState.getStoredJwt();
-			const response = getHelpContent(action);
-			void append({
-				role: "assistant",
-				content: response,
-				data: jwt
-					? { jwt, campaignId: selectedCampaignId ?? null }
-					: { campaignId: selectedCampaignId ?? null },
-			});
-			setInput("");
-		},
-		[
-			append,
-			authState.getStoredJwt,
-			selectedCampaignId,
-			modalState.handleUsageLimitsOpen,
-			addToInvisible,
-		]
-	);
-
 	const handleSessionRecapRequest = useCallback(async () => {
 		if (!selectedCampaignId) return;
 		try {
@@ -714,39 +618,6 @@ export function useChatSession(options: UseChatSessionOptions) {
 			});
 		} catch (_error) {}
 	}, [append, authState.getStoredJwt, selectedCampaignId, addToInvisible]);
-
-	const handleNextStepsRequest = useCallback(async () => {
-		if (!selectedCampaignId) return;
-		try {
-			const jwt = authState.getStoredJwt();
-			if (!jwt) return;
-
-			const role = selectedCampaign?.role ?? null;
-			const isPlayerRole = role !== null && PLAYER_ROLES.has(role as never);
-
-			const nextStepsMessage = isPlayerRole
-				? UI_INITIATED_PROMPTS.NEXT_STEPS_PLAYER
-				: UI_INITIATED_PROMPTS.NEXT_STEPS_GM;
-			addToInvisible(nextStepsMessage);
-
-			await append({
-				id: generateId(),
-				role: "user",
-				content: nextStepsMessage,
-				data: {
-					jwt: jwt,
-					campaignId: selectedCampaignId,
-					agentType: "recap",
-				},
-			});
-		} catch (_error) {}
-	}, [
-		append,
-		authState.getStoredJwt,
-		selectedCampaignId,
-		selectedCampaign,
-		addToInvisible,
-	]);
 
 	const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
 		m.parts?.some((part) => {
@@ -850,9 +721,7 @@ export function useChatSession(options: UseChatSessionOptions) {
 		handleFormSubmit,
 		handleKeyDown,
 		handleSuggestionSubmit,
-		handleHelpAction,
 		handleSessionRecapRequest,
-		handleNextStepsRequest,
 		stop: handleStop,
 		handleContinueGeneration,
 		pendingToolCallConfirmation,

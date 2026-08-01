@@ -4,23 +4,24 @@ interface TopBarNotificationsProps {
 	notifications: any[];
 	onDismiss: (timestamp: number) => void;
 	onDismissAll: () => void;
+	isCollapsed?: boolean;
 }
 
 export function TopBarNotifications({
 	notifications,
 	onDismiss,
 	onDismissAll,
+	isCollapsed,
 }: TopBarNotificationsProps) {
 	return (
-		<div className="ml-1">
-			<NotificationBell
-				notifications={notifications}
-				onDismiss={(notificationId) => {
-					const ts = parseInt(notificationId.split("-")[0], 10);
-					onDismiss(ts);
-				}}
-				onDismissAll={onDismissAll}
-			/>
-		</div>
+		<NotificationBell
+			notifications={notifications}
+			onDismiss={(notificationId) => {
+				const ts = parseInt(notificationId.split("-")[0], 10);
+				onDismiss(ts);
+			}}
+			onDismissAll={onDismissAll}
+			isCollapsed={isCollapsed}
+		/>
 	);
 }

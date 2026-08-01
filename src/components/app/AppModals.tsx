@@ -22,6 +22,7 @@ import type { useAppAuthentication } from "@/hooks/useAppAuthentication";
 import type { useCampaignAddition } from "@/hooks/useCampaignAddition";
 import type { useLocalNotifications } from "@/hooks/useLocalNotifications";
 import type { useModalState } from "@/hooks/useModalState";
+import { APP_EVENT_TYPE } from "@/lib/app-events";
 import { getDisplayName } from "@/lib/display-name-utils";
 import { getJoinIntent } from "@/lib/join-intent";
 import { logger } from "@/lib/logger";
@@ -253,6 +254,17 @@ export function AppModals({
 		[authState, modalState, refetchCampaigns, addLocalNotification]
 	);
 
+	// Cancelling out of a nested create/upload dialog should go back to the
+	// list dialog it was opened from, not vanish to the plain chat view.
+	const handleCancelCreateCampaign = useCallback(() => {
+		modalState.handleCreateCampaignClose();
+		window.dispatchEvent(new Event(APP_EVENT_TYPE.REOPEN_CAMPAIGNS_LIST));
+	}, [modalState.handleCreateCampaignClose]);
+	const handleCancelAddResource = useCallback(() => {
+		modalState.handleAddResourceClose();
+		window.dispatchEvent(new Event(APP_EVENT_TYPE.REOPEN_RESOURCES_LIST));
+	}, [modalState.handleAddResourceClose]);
+
 	// Filter out campaigns that already contain the selected file
 	const availableCampaigns = modalState.selectedFile
 		? campaigns.filter((campaign) => {
@@ -300,13 +312,14 @@ export function AppModals({
 			{/* Create Campaign Modal */}
 			<Modal
 				isOpen={modalState.isCreateCampaignModalOpen}
-				onClose={modalState.handleCreateCampaignClose}
+				onClose={handleCancelCreateCampaign}
 				className="modal-size-md"
 				ariaLabelledBy="create-campaign-modal-title"
 			>
 				<CreateCampaignModal
 					isOpen={modalState.isCreateCampaignModalOpen}
 					onClose={modalState.handleCreateCampaignClose}
+					onCancel={handleCancelCreateCampaign}
 					campaignName={modalState.campaignName}
 					onCampaignNameChange={modalState.setCampaignName}
 					campaignDescription={modalState.campaignDescription}
@@ -350,8 +363,8 @@ export function AppModals({
 					modalState.isAddResourceModalOpen &&
 					!modalState.isCreateCampaignModalOpen
 				}
-				onClose={modalState.handleAddResourceClose}
-				className="modal-size-lg"
+				onClose={handleCancelAddResource}
+				className="modal-size-md"
 			>
 				<ResourceUpload
 					initialFiles={modalState.addResourceInitialFiles}
@@ -407,7 +420,7 @@ export function AppModals({
 								: `${filesToQueue.length} file(s) queued – will retry when capacity is available.`
 						);
 					}}
-					onCancel={modalState.handleAddResourceClose}
+					onCancel={handleCancelAddResource}
 					className="border-0 p-0 shadow-none"
 					jwtUsername={authState.getStoredJwt() || ""}
 					campaigns={campaigns}
@@ -642,7 +655,7 @@ export function AppModals({
 			<Modal
 				isOpen={modalState.isAdminDashboardModalOpen}
 				onClose={modalState.handleAdminDashboardClose}
-				className="modal-size-md"
+				className="modal-size-xl"
 			>
 				<TelemetryDashboard />
 			</Modal>

@@ -637,7 +637,7 @@ export function CampaignDetailsModal({
 			<Modal
 				isOpen={isOpen}
 				onClose={onClose}
-				className="modal-size-lg"
+				className="modal-size-md"
 				ariaLabelledBy="campaign-details-modal-title"
 			>
 				<div className="p-4 md:p-6 h-full flex flex-col">

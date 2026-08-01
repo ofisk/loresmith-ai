@@ -1,6 +1,9 @@
 import { Plus } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import campaignIcon from "@/assets/campaign.png";
-import { CollapsibleCard } from "@/components/collapsible/CollapsibleCard";
+import { Card } from "@/components/card/Card";
+import { Modal } from "@/components/modal/Modal";
 import type { Campaign } from "@/types/campaign";
 import { CampaignItem } from "./CampaignItem";
 
@@ -12,6 +15,7 @@ interface CampaignsSectionProps {
 	isOpen: boolean;
 	onCreateCampaign: () => void;
 	onCampaignClick?: (campaign: Campaign) => void;
+	isCollapsed?: boolean;
 }
 
 export function CampaignsSection({
@@ -22,68 +26,128 @@ export function CampaignsSection({
 	isOpen,
 	onCreateCampaign,
 	onCampaignClick,
+	isCollapsed = false,
 }: CampaignsSectionProps) {
+	// See NotificationBell: portal to <body> to escape ResourceSidePanel's
+	// backdrop-blur-sm containing block for `position: fixed`.
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
+
+	// Close this dialog before opening the campaign details one, so they
+	// navigate from one to the other instead of stacking.
+	const handleCampaignItemClick = (campaign: Campaign) => {
+		onToggle();
+		onCampaignClick?.(campaign);
+	};
+
 	return (
-		<CollapsibleCard
-			header={
-				<>
+		<>
+			<Card className="tour-campaigns-section p-0 flex flex-col">
+				<button
+					type="button"
+					onClick={onToggle}
+					data-testid="campaigns-toggle"
+					title={isCollapsed ? "Campaigns" : undefined}
+					aria-label={isCollapsed ? "Campaigns" : undefined}
+					className={
+						isCollapsed
+							? "w-full p-1.5 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+							: "w-full p-2 flex items-center gap-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					}
+				>
 					<img
 						src={campaignIcon}
 						alt="Campaign"
-						className="w-8 h-8"
+						className="w-8 h-8 shrink-0"
 						width={32}
 						height={32}
 					/>
-					<span className="font-medium text-sm">Your campaigns</span>
-				</>
-			}
-			isOpen={isOpen}
-			onToggle={onToggle}
-			tourClassName="tour-campaigns-section"
-		>
-			<div className="p-2">
-				<button
-					type="button"
-					onClick={onCreateCampaign}
-					className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
-				>
-					<Plus size={14} />
-					Create campaign
+					{!isCollapsed && (
+						<span className="flex flex-col min-w-0">
+							<span className="font-medium text-sm">Campaigns</span>
+							{!campaignsLoading && campaigns.length > 0 && (
+								<span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+									{campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
+								</span>
+							)}
+						</span>
+					)}
 				</button>
-			</div>
-			{campaignsLoading ? (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 space-y-2">
-					{["a", "b", "c", "d"].map((id) => (
+			</Card>
+
+			{mounted &&
+				createPortal(
+					<Modal
+						isOpen={isOpen}
+						onClose={onToggle}
+						className="modal-size-md"
+						options={{ clickOutsideToClose: true }}
+					>
 						<div
-							key={id}
-							className="h-8 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse"
-							aria-hidden
-						/>
-					))}
-				</div>
-			) : campaignsError ? (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-					<div className="text-red-500 mb-2">Error loading campaigns</div>
-					<p className="text-sm text-muted-foreground">{campaignsError}</p>
-				</div>
-			) : campaigns.length === 0 ? (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 p-4 text-center">
-					<div className="text-muted-foreground mb-2">The table awaits</div>
-					<p className="text-sm text-muted-foreground">
-						Forge your first campaign to begin the adventure
-					</p>
-				</div>
-			) : (
-				<div className="border-t border-neutral-200 dark:border-neutral-700 max-h-48 overflow-y-auto">
-					{campaigns.map((campaign) => (
-						<CampaignItem
-							key={campaign.campaignId}
-							campaign={campaign}
-							onCampaignClick={onCampaignClick}
-						/>
-					))}
-				</div>
-			)}
-		</CollapsibleCard>
+							className="h-full flex flex-col"
+							data-testid="campaigns-dialog"
+						>
+							<div className="flex-shrink-0 p-4 pr-12 border-b border-neutral-200 dark:border-neutral-700">
+								<h3 className="font-medium text-lg text-neutral-900 dark:text-neutral-100 mb-2">
+									Campaigns
+								</h3>
+								<button
+									type="button"
+									data-testid="create-campaign-trigger"
+									onClick={() => {
+										onToggle();
+										onCreateCampaign();
+									}}
+									className="w-full px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 text-purple-600 dark:text-purple-400 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors flex items-center justify-center gap-2 text-sm"
+								>
+									<Plus size={14} />
+									Create campaign
+								</button>
+							</div>
+
+							<div className="flex-1 overflow-y-auto">
+								{campaignsLoading ? (
+									<div className="p-4 space-y-2">
+										{["a", "b", "c", "d"].map((id) => (
+											<div
+												key={id}
+												className="h-8 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse"
+												aria-hidden
+											/>
+										))}
+									</div>
+								) : campaignsError ? (
+									<div className="p-4 text-center">
+										<div className="text-red-500 mb-2">
+											Error loading campaigns
+										</div>
+										<p className="text-sm text-muted-foreground">
+											{campaignsError}
+										</p>
+									</div>
+								) : campaigns.length === 0 ? (
+									<div className="p-4 text-center">
+										<div className="text-muted-foreground mb-2">
+											The table awaits
+										</div>
+										<p className="text-sm text-muted-foreground">
+											Forge your first campaign to begin the adventure
+										</p>
+									</div>
+								) : (
+									campaigns.map((campaign) => (
+										<CampaignItem
+											key={campaign.campaignId}
+											campaign={campaign}
+											onCampaignClick={handleCampaignItemClick}
+										/>
+									))
+								)}
+							</div>
+						</div>
+					</Modal>,
+					document.body
+				)}
+		</>
 	);
 }

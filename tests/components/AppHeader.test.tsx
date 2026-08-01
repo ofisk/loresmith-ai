@@ -25,11 +25,8 @@ beforeEach(() => {
 
 describe("AppHeader", () => {
 	const baseProps = {
-		onHelpAction: vi.fn(),
 		onGuidanceRequest: vi.fn(),
-		notifications: [],
-		onDismissNotification: vi.fn(),
-		onClearAllNotifications: vi.fn(),
+		onSessionRecapRequest: vi.fn(),
 		selectedCampaignId: null,
 	};
 

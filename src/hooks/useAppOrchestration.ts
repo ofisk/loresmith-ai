@@ -53,7 +53,7 @@ export function useAppOrchestration() {
 	const showBillingPage =
 		typeof window !== "undefined" && window.location.pathname === "/billing";
 
-	const { data: billingStatus } = useBillingStatus();
+	const { data: billingStatus } = useBillingStatus(authState.isAuthenticated);
 
 	const {
 		allNotifications,
@@ -308,11 +308,6 @@ export function useAppOrchestration() {
 		});
 	}, [globalShards, campaignIdsWithShardApprovalPermission]);
 
-	const canReviewShards =
-		campaignIdsWithShardApprovalPermission.size > 0 &&
-		(!selectedCampaignId ||
-			campaignIdsWithShardApprovalPermission.has(selectedCampaignId));
-
 	const shardsReadyRefetchTimeoutRef = useRef<ReturnType<
 		typeof setTimeout
 	> | null>(null);
@@ -376,7 +371,6 @@ export function useAppOrchestration() {
 		fetchAllStagedShards,
 		removeProcessedShards,
 		visibleShardGroups,
-		canReviewShards,
 		shardsReadyRefetchTimeoutRef,
 		getProposalConfirmation,
 	};

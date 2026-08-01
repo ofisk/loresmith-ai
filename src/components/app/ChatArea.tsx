@@ -1,6 +1,7 @@
-import { MapTrifold, PaperPlaneRight, Stop } from "@phosphor-icons/react";
+import { List, MapTrifold, PaperPlaneRight, Stop } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/button/Button";
 import {
 	type PlayerCharacterOption,
 	PlayerCharacterSelectionModal,
@@ -17,15 +18,7 @@ import { API_CONFIG } from "@/shared-config";
 import type { Message } from "@/types/ai-message";
 import type { Campaign } from "@/types/campaign";
 
-const CHAT_PROMPTS = [
-	"Need some lore?",
-	"Consult the archives?",
-	"What's on your mind?",
-	"What can I help with?",
-];
-
-const getRandomPrompt = () =>
-	CHAT_PROMPTS[Math.floor(Math.random() * CHAT_PROMPTS.length)];
+const CHAT_PROMPT = "What's on your mind?";
 
 interface ChatAreaProps {
 	chatContainerId: string;
@@ -62,6 +55,9 @@ interface ChatAreaProps {
 	openPlanningTaskTitles?: string[];
 	/** Resumes the newest reply that was stopped before it finished. */
 	onContinueGeneration?: () => void;
+	/** Opens/closes the mobile off-canvas sidebar; button only renders when provided. */
+	onToggleSidebar?: () => void;
+	isSidebarOpen?: boolean;
 }
 
 /**
@@ -93,8 +89,9 @@ export function ChatArea({
 	onWorkOnNextStep,
 	openPlanningTaskTitles,
 	onContinueGeneration,
+	onToggleSidebar,
+	isSidebarOpen = false,
 }: ChatAreaProps) {
-	const [placeholder] = useState(() => getRandomPrompt());
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
 	const [canCreateNewCharacter, setCanCreateNewCharacter] = useState(false);
 	const [showCharacterClaimModal, setShowCharacterClaimModal] = useState(false);
@@ -303,6 +300,19 @@ export function ChatArea({
 		<div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
 			{/* Campaign Context Selector - at top of chat pane */}
 			<div className="px-4 md:px-8 py-2 md:py-3 flex-shrink-0 flex items-center gap-2">
+				{onToggleSidebar && (
+					<Button
+						variant="ghost"
+						size="md"
+						shape="square"
+						className="md:hidden !h-8 !w-8 rounded-full flex items-center justify-center -ml-1"
+						onClick={onToggleSidebar}
+						tooltip={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+						aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+					>
+						<List size={18} />
+					</Button>
+				)}
 				<MapTrifold
 					size={18}
 					className="text-neutral-500 dark:text-neutral-400 shrink-0"
@@ -409,7 +419,7 @@ export function ChatArea({
 							placeholder={
 								pendingToolCallConfirmation
 									? "Please respond to the tool confirmation above…"
-									: placeholder
+									: CHAT_PROMPT
 							}
 							aria-label="Chat message"
 							className="flex w-full border border-neutral-200/50 dark:border-neutral-700/50 px-3 py-2 text-base placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[var(--height-input-min)] max-h-[var(--height-input-max)] overflow-y-auto overflow-x-hidden break-words resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm"

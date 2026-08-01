@@ -46,6 +46,9 @@ export interface AppShellContextValue {
 	/** Close the mobile sidebar without toggling (e.g. Escape). No-op on desktop layout. */
 	closeMobileSidebar: () => void;
 	isSidebarOpen: boolean;
+	/** Persistent desktop sidebar collapse (independent of the mobile off-canvas sidebar). */
+	isDesktopSidebarCollapsed: boolean;
+	onToggleDesktopSidebarCollapse: () => void;
 
 	// Modal / auth
 	modalState: ReturnType<typeof useAppOrchestration>["modalState"];
@@ -106,14 +109,11 @@ export interface AppShellContextValue {
 	pendingToolCallConfirmation: boolean;
 	invisibleUserContents: Set<string>;
 	invisibleUserContentsVersion: number;
-	handleHelpAction: (action: string) => void;
 	handleSessionRecapRequest?: () => void;
-	handleNextStepsRequest: () => void;
 	chatError: Error | undefined;
 	onRegenerate: () => Promise<void>;
 
 	// Shard overlay
-	canReviewShards: boolean;
 	visibleShardGroups: StagedShardGroup[];
 	shardsLoading: boolean;
 	onShardsProcessed: (shardIds: string[]) => void;
@@ -193,7 +193,6 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		updateActivity,
 		authReady,
 		visibleShardGroups,
-		canReviewShards,
 		shardsLoading,
 		removeProcessedShards,
 		fetchAllStagedShards,
@@ -201,6 +200,13 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 	} = orchestration;
 
 	const tour = useTourState({ authState });
+
+	const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] =
+		useState(false);
+	const onToggleDesktopSidebarCollapse = useCallback(
+		() => setIsDesktopSidebarCollapsed((p) => !p),
+		[]
+	);
 
 	const username = AuthService.getJwtPayload()?.username ?? null;
 	const conversationId =
@@ -217,7 +223,6 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			handleUsageLimitsOpen: modalState.handleUsageLimitsOpen,
 		},
 		selectedCampaignId,
-		selectedCampaign,
 		chatContainerId,
 		setTextareaHeight,
 		addLocalNotification: (type, title, message?) =>
@@ -235,9 +240,7 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 		handleFormSubmit,
 		handleKeyDown,
 		handleSuggestionSubmit,
-		handleHelpAction,
 		handleSessionRecapRequest,
-		handleNextStepsRequest,
 		stop,
 		handleContinueGeneration,
 		pendingToolCallConfirmation,
@@ -357,6 +360,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			onToggleSidebar,
 			closeMobileSidebar,
 			isSidebarOpen: isMobileSidebarOpen,
+			isDesktopSidebarCollapsed,
+			onToggleDesktopSidebarCollapse,
 			modalState,
 			authState,
 			handleLogout,
@@ -401,15 +406,12 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			pendingToolCallConfirmation,
 			invisibleUserContents: invisibleUserContentsRef.current,
 			invisibleUserContentsVersion,
-			handleHelpAction,
 			handleSessionRecapRequest:
 				selectedCampaign?.role && !PLAYER_ROLES.has(selectedCampaign.role)
 					? handleSessionRecapRequest
 					: undefined,
-			handleNextStepsRequest,
 			chatError,
 			onRegenerate: () => regenerate(),
-			canReviewShards: canReviewShards ?? false,
 			visibleShardGroups,
 			shardsLoading,
 			onShardsProcessed: removeProcessedShards,
@@ -433,6 +435,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			onToggleSidebar,
 			closeMobileSidebar,
 			isMobileSidebarOpen,
+			isDesktopSidebarCollapsed,
+			onToggleDesktopSidebarCollapse,
 			modalState,
 			authState,
 			handleLogout,
@@ -474,12 +478,9 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 			setTextareaHeight,
 			pendingToolCallConfirmation,
 			invisibleUserContentsVersion,
-			handleHelpAction,
 			handleSessionRecapRequest,
-			handleNextStepsRequest,
 			chatError,
 			regenerate,
-			canReviewShards,
 			visibleShardGroups,
 			shardsLoading,
 			removeProcessedShards,

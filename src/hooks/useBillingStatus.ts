@@ -25,12 +25,16 @@ export interface BillingStatus {
 	creditsRemaining?: number;
 }
 
-export function useBillingStatus() {
+export function useBillingStatus(isAuthenticated: boolean) {
 	const [data, setData] = useState<BillingStatus | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
+		if (!isAuthenticated) {
+			setLoading(false);
+			return;
+		}
 		const jwt = localStorage.getItem(JWT_STORAGE_KEY);
 		if (!jwt) {
 			setLoading(false);
@@ -74,7 +78,7 @@ export function useBillingStatus() {
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [isAuthenticated]);
 
 	return { data, loading, error };
 }
