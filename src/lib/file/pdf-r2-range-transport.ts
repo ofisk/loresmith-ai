@@ -31,7 +31,8 @@ class R2PDFDataRangeTransport extends PDFDataRangeTransport {
 		super(length, null);
 		this.r2 = r2;
 		this.fileKey = fileKey;
-		this.transportReady();
+		// pdfjs-serverless >=1.3.0 calls transportReady(listener) itself from
+		// PDFDataTransportStream; subclasses must no longer invoke it.
 	}
 
 	override requestDataRange(begin: number, end: number): void {
@@ -92,8 +93,9 @@ export async function extractPdfPagesRangeFromR2(
 		);
 	}
 	const transport = new R2PDFDataRangeTransport(fileSize, r2, fileKey);
+	// `length` is no longer a DocumentInitParameters field in pdfjs-serverless
+	// >=1.3.0; it is read from the range transport (`transport.length`) instead.
 	const loadingTask = getDocument({
-		length: fileSize,
 		range: transport,
 		useSystemFonts: true,
 	});
