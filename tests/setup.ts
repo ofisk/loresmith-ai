@@ -26,6 +26,19 @@ vi.mock("partyserver", () => ({
 	},
 }));
 
+// jsdom implements no scroll methods at all — `Element.prototype.scrollTo` is
+// simply absent, so any call throws "scrollTo is not a function". Chat auto-scroll
+// runs from a 100ms timer (src/hooks/useChatSession.ts), which on a slow enough
+// machine fires after the test that scheduled it has finished. The throw then
+// surfaces as an unhandled error that fails the whole run even though every test
+// passed — a real CI failure that does not reproduce on a fast local box.
+if (typeof Element !== "undefined" && !Element.prototype.scrollTo) {
+	Element.prototype.scrollTo = function scrollTo() {
+		// No layout in jsdom, so there is nothing to scroll; existing as a callable
+		// no-op is the entire contract these tests need.
+	};
+}
+
 // Custom matchers (since jest-dom may not be available)
 declare module "vitest" {
 	interface Assertion<T = any> {
