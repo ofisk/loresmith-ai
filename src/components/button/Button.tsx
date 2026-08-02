@@ -27,8 +27,11 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 	loading?: boolean;
 	shape?: "base" | "square" | "circular";
 	size?: "sm" | "md" | "lg" | "base";
-	title?: string | ReactNode;
 	toggled?: boolean;
+	/**
+	 * Hover text rendered through `Tooltip`. Prefer this over the native `title`
+	 * attribute, which browsers style inconsistently and screen readers may skip.
+	 */
 	tooltip?: string;
 	variant?: SolidVariant | FormVariant;
 	/** When `appearance="form"`, shown before children; replaced by the loader while `loading`. */
@@ -69,7 +72,6 @@ const ButtonComponent = ({
 	loading,
 	shape = "base",
 	size = "base",
-	title,
 	toggled,
 	tooltip: _tooltip,
 	variant,
@@ -138,8 +140,6 @@ const ButtonComponent = ({
 			target={external ? "_blank" : undefined}
 			{...props}
 		>
-			{title}
-
 			{loading ? (
 				<span
 					className={cn("inline-flex shrink-0 items-center justify-center", {
