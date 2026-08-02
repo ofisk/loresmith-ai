@@ -100,6 +100,11 @@ const FILE_MAPPINGS = [
 		process: true,
 	},
 	{
+		src: "docs/FEATURE_FLAGS.md",
+		dest: "Technical/Feature-Flags.md",
+		process: true,
+	},
+	{
 		src: "docs/DEPLOYMENT.md",
 		dest: "Deployment.md",
 		process: true,
@@ -360,6 +365,7 @@ function createSidebar() {
 - [[Technical/Event-Bus-Guide|Event bus guide]]
 - [[Technical/Notification-System|Notification system]]
 - [[Technical/Model-Configuration|Model Configuration]]
+- [[Technical/Feature-Flags|Feature flags & experiments]]
 - [[Technical/D1-Indexes|D1 indexes]]
 
 ## Operations

@@ -1,4 +1,8 @@
 import type {
+	ExperimentArmExposure,
+	ExperimentArmOutcome,
+} from "@/types/experiments";
+import type {
 	AggregatedMetrics,
 	CreateTelemetryRecordInput,
 	MetricType,
@@ -248,6 +252,80 @@ export class TelemetryDAO extends BaseDAOClass {
 			value: row.value,
 			count: row.count,
 		}));
+	}
+
+	/**
+	 * Per-arm exposure counts for one experiment — the denominators.
+	 *
+	 * Uses SQLite's `json_extract` on `metadata` rather than adding columns to
+	 * `graphrag_telemetry`, because exposure is one metric type among twenty and
+	 * a pair of experiment columns would be NULL on every other row.
+	 */
+	async getExperimentExposures(
+		experimentKey: string,
+		fromDate: string
+	): Promise<ExperimentArmExposure[]> {
+		const rows = await this.queryAll<{
+			variant: string | null;
+			exposures: number;
+		}>(
+			`SELECT json_extract(metadata, '$.variant') AS variant,
+              COUNT(*) AS exposures
+       FROM graphrag_telemetry
+       WHERE metric_type = 'experiment_exposure'
+         AND json_extract(metadata, '$.experiment') = ?
+         AND recorded_at >= ?
+       GROUP BY variant
+       ORDER BY variant ASC`,
+			[experimentKey, fromDate]
+		);
+		return rows
+			.filter((row) => row.variant !== null)
+			.map((row) => ({
+				variant: row.variant as string,
+				exposures: Number(row.exposures ?? 0),
+			}));
+	}
+
+	/**
+	 * Per-arm aggregate of an outcome metric — the numerators.
+	 *
+	 * Only rows whose metadata was stamped by
+	 * `TelemetryService.withExperimentVariants` carry an arm, so metrics recorded
+	 * from background paths simply drop out of the comparison rather than being
+	 * mis-attributed.
+	 */
+	async getExperimentOutcomes(
+		experimentKey: string,
+		metricType: MetricType,
+		fromDate: string
+	): Promise<ExperimentArmOutcome[]> {
+		const rows = await this.queryAll<{
+			variant: string | null;
+			count: number;
+			avg: number;
+			sum: number;
+		}>(
+			`SELECT json_extract(metadata, '$.experiments.' || ?) AS variant,
+              COUNT(*) AS count,
+              AVG(metric_value) AS avg,
+              SUM(metric_value) AS sum
+       FROM graphrag_telemetry
+       WHERE metric_type = ?
+         AND recorded_at >= ?
+         AND json_extract(metadata, '$.experiments.' || ?) IS NOT NULL
+       GROUP BY variant
+       ORDER BY variant ASC`,
+			[experimentKey, metricType, fromDate, experimentKey]
+		);
+		return rows
+			.filter((row) => row.variant !== null)
+			.map((row) => ({
+				variant: row.variant as string,
+				count: Number(row.count ?? 0),
+				avg: Number(row.avg ?? 0),
+				sum: Number(row.sum ?? 0),
+			}));
 	}
 
 	private calculatePercentile(sorted: number[], percentile: number): number {

@@ -63,6 +63,30 @@ export async function requireUserJwt(
 	}
 }
 
+/**
+ * Require the caller to be an admin. Runs *after* `requireUserJwt`, which is
+ * what puts `userAuth` on the context — chain them as
+ * `middleware: [requireUserJwt, requireAdmin]`.
+ *
+ * Extracted here rather than repeated per handler (see the open-coded copies in
+ * `src/routes/telemetry.ts`) so that adding an admin route cannot accidentally
+ * ship without the check: forgetting the middleware is visible in the route
+ * definition, whereas forgetting a guard clause inside a 60-line handler is not.
+ */
+export async function requireAdmin(
+	c: Context,
+	next: () => Promise<void>
+): Promise<Response | undefined> {
+	const userAuth = (c as any).userAuth as AuthPayload | undefined;
+	if (!userAuth) {
+		return c.json({ error: "Missing or invalid Authorization header" }, 401);
+	}
+	if (!userAuth.isAdmin) {
+		return c.json({ error: "Admin access required" }, 403);
+	}
+	await next();
+}
+
 /** Optional JWT - attaches userAuth when valid token present, does not fail when absent */
 export async function optionalUserJwt(
 	c: Context,

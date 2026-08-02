@@ -367,6 +367,10 @@ export const ENDPOINTS = {
 		RATINGS: "/telemetry/ratings",
 		CONTEXT_ACCURACY: "/telemetry/context-accuracy",
 	},
+	/** Runtime feature flags / A/B experiments, resolved for the calling user. */
+	EXPERIMENTS: {
+		ASSIGNMENTS: "/experiments/assignments",
+	},
 	ADMIN: {
 		TELEMETRY: {
 			METRICS: "/admin/telemetry/metrics",
@@ -374,6 +378,13 @@ export const ENDPOINTS = {
 			OVERVIEW: "/admin/telemetry/overview",
 			ALERTS: "/admin/telemetry/alerts",
 			COST_ATTRIBUTION: "/admin/telemetry/cost-attribution",
+		},
+		EXPERIMENTS: {
+			LIST: "/admin/experiments",
+			CREATE: "/admin/experiments",
+			UPDATE: (key: string) => `/admin/experiments/${key}`,
+			DELETE: (key: string) => `/admin/experiments/${key}`,
+			RESULTS: (key: string) => `/admin/experiments/${key}/results`,
 		},
 	},
 } as const;
