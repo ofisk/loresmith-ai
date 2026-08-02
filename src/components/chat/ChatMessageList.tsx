@@ -3,8 +3,11 @@ import { Card } from "@/components/card/Card";
 import { CopyAsMarkdownButton } from "@/components/chat/CopyAsMarkdownButton";
 import { ExplainabilitySection } from "@/components/chat/ExplainabilitySection";
 import { InterruptedNotice } from "@/components/chat/InterruptedNotice";
+import { ToolReceiptsSection } from "@/components/chat/ToolReceiptsSection";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
+import { buildToolReceiptsFromParts } from "@/lib/tool-receipt-builder";
 import type { Message } from "@/types/ai-message";
+import type { ToolReceipts } from "@/types/tool-receipt";
 
 interface ChatMessageListProps {
 	messages: Message[];
@@ -145,6 +148,20 @@ function segmentsFromLabelSearch(
 		listItemLines,
 		afterList,
 	};
+}
+
+/**
+ * The receipt for a reply, from whichever source has it.
+ *
+ * The persisted copy (attached in base-agent's onFinish) is authoritative and
+ * survives a reload. Until it arrives — and it arrives one history round trip
+ * after the stream ends — the streamed tool parts carry the same information,
+ * so the receipt is present the moment the answer is.
+ */
+function receiptsForMessage(m: Message): ToolReceipts | null {
+	const persisted = m.data?.toolReceipts;
+	if (persisted && persisted.calls?.length > 0) return persisted;
+	return buildToolReceiptsFromParts(m.parts);
 }
 
 function getMessageText(m: Message): string {
@@ -421,6 +438,22 @@ export function ChatMessageList({
 																	/>
 																)}
 															</Card>
+															{isLastTextPart &&
+																!isUser &&
+																(() => {
+																	const receipts = receiptsForMessage(m);
+																	return receipts ? (
+																		<ToolReceiptsSection
+																			receipts={receipts}
+																			campaignId={
+																				typeof m.data?.campaignId === "string"
+																					? m.data.campaignId
+																					: null
+																			}
+																			collapsedByDefault
+																		/>
+																	) : null;
+																})()}
 															{isLastTextPart &&
 																!isUser &&
 																m.data?.explainability && (

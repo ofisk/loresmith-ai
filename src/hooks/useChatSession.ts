@@ -375,30 +375,36 @@ export function useChatSession(options: UseChatSessionOptions) {
 					.then((data) => {
 						const serverMessages = data?.messages ?? [];
 						const lastServer = serverMessages[serverMessages.length - 1];
-						if (
-							lastServer?.role !== "assistant" ||
-							!lastServer.data?.explainability
-						)
-							return;
+						if (lastServer?.role !== "assistant") return;
+						const explainability = lastServer.data?.explainability;
+						// Receipts render live from the streamed tool parts; the persisted
+						// copy still matters because those parts are gone after a reload.
+						const toolReceipts = lastServer.data?.toolReceipts;
+						if (!explainability && !toolReceipts) return;
 
 						setChatMessages((prev) => {
 							const prevList = prev as Message[];
 							const lastPrev = prevList[prevList.length - 1];
-							const explainability = lastServer?.data?.explainability;
-							if (
-								!explainability ||
-								lastPrev?.role !== "assistant" ||
-								lastPrev.data?.explainability
-							)
-								return prev;
+							if (lastPrev?.role !== "assistant") return prev;
+							const needsExplainability =
+								!!explainability && !lastPrev.data?.explainability;
+							const needsReceipts =
+								!!toolReceipts && !lastPrev.data?.toolReceipts;
+							if (!needsExplainability && !needsReceipts) return prev;
 							// campaignId rides along: the sources panel needs it to open a
-							// cited entity and to attribute a context-accuracy rating.
+							// cited entity and to attribute a context-accuracy rating, and
+							// receipts need it to link the entities a tool touched.
 							const campaignId = lastServer?.data?.campaignId;
 							return [
 								...prevList.slice(0, -1),
 								{
 									...lastPrev,
-									data: { ...lastPrev.data, campaignId, explainability },
+									data: {
+										...lastPrev.data,
+										campaignId,
+										...(needsExplainability ? { explainability } : {}),
+										...(needsReceipts ? { toolReceipts } : {}),
+									},
 								},
 							] as typeof prev;
 						});

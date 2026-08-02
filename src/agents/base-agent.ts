@@ -53,6 +53,7 @@ import {
 	estimateToolsTokens,
 	getSafeContextLimit,
 } from "@/lib/token-utils";
+import { buildToolReceiptsFromSteps } from "@/lib/tool-receipt-builder";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
 import { RulesContextService } from "@/services/campaign/rules-context-service";
 import { AuthService } from "@/services/core/auth-service";
@@ -61,6 +62,7 @@ import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
 import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
+import type { ToolReceipts } from "@/types/tool-receipt";
 import { type ChatMessage, SimpleChatAgent } from "./simple-chat-agent";
 import {
 	MESSAGE_HISTORY_CAPABILITY_RULE,
@@ -1192,6 +1194,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			text: string,
 			extra?: {
 				explainability?: Explainability | null;
+				toolReceipts?: ToolReceipts | null;
 				interrupted?: boolean;
 			}
 		) => {
@@ -1204,6 +1207,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				campaignId?: string | null;
 				sessionId?: string;
 				explainability?: Explainability | null;
+				toolReceipts?: ToolReceipts | null;
 				interrupted?: boolean;
 			} = {};
 			if (clientJwt) assistantData.jwt = clientJwt;
@@ -1217,6 +1221,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				`session-${Date.now()}`;
 			if (extra?.explainability)
 				assistantData.explainability = extra.explainability;
+			if (extra?.toolReceipts) assistantData.toolReceipts = extra.toolReceipts;
 			if (extra?.interrupted) assistantData.interrupted = true;
 
 			const assistantMessage: ChatMessage = {
@@ -1293,14 +1298,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					} catch (e) {
 						log.warn("Failed to build explainability", e);
 					}
-					void persistAssistantTurn(fullText, { explainability }).catch(
-						(error) => {
-							log.error(
-								"Failed to store assistant message to database:",
-								error
-							);
-						}
-					);
+					// Receipts are best-effort metadata: a builder failure must never
+					// cost the user the reply itself.
+					let toolReceipts: ToolReceipts | null = null;
+					try {
+						toolReceipts = buildToolReceiptsFromSteps(steps);
+					} catch (e) {
+						log.warn("Failed to build tool receipts", e);
+					}
+					void persistAssistantTurn(fullText, {
+						explainability,
+						toolReceipts,
+					}).catch((error) => {
+						log.error("Failed to store assistant message to database:", error);
+					});
 				} catch (persistError) {
 					log.error("Error while persisting assistant message:", persistError);
 				}
@@ -1337,7 +1348,18 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 				);
 
 				try {
-					await persistAssistantTurn(partialText, { interrupted: true });
+					// A stopped turn is exactly when "what did it already do?" matters
+					// most — the tools it ran before the stop still changed real state.
+					let abortedReceipts: ToolReceipts | null = null;
+					try {
+						abortedReceipts = buildToolReceiptsFromSteps(steps);
+					} catch (e) {
+						log.warn("Failed to build tool receipts for aborted turn", e);
+					}
+					await persistAssistantTurn(partialText, {
+						interrupted: true,
+						toolReceipts: abortedReceipts,
+					});
 				} catch (persistError) {
 					log.error(
 						"Error while persisting interrupted assistant message:",
