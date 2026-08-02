@@ -130,6 +130,7 @@ export function AppShell() {
 								agentStatus={ctx.agentStatus}
 								chatError={ctx.chatError}
 								onRegenerate={ctx.onRegenerate}
+								onSessionRecapRequest={ctx.handleSessionRecapRequest}
 							/>
 						</div>
 					</div>

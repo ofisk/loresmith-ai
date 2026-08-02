@@ -3,6 +3,7 @@ import { Card } from "@/components/card/Card";
 import { CopyAsMarkdownButton } from "@/components/chat/CopyAsMarkdownButton";
 import { ExplainabilitySection } from "@/components/chat/ExplainabilitySection";
 import { InterruptedNotice } from "@/components/chat/InterruptedNotice";
+import { MessageFeedback } from "@/components/chat/MessageFeedback";
 import { ToolReceiptsSection } from "@/components/chat/ToolReceiptsSection";
 import { MemoizedMarkdown } from "@/components/MemoizedMarkdown";
 import { buildToolReceiptsFromParts } from "@/lib/tool-receipt-builder";
@@ -22,6 +23,27 @@ interface ChatMessageListProps {
 	onContinueGeneration?: () => void;
 	/** Suppresses the Continue button while a turn is already in flight. */
 	isStreaming?: boolean;
+	/** When provided, each assistant response gets a regenerate button. */
+	onRegenerate?: (messageId?: string) => void | Promise<void>;
+}
+
+/**
+ * Wraps the show/hide condition for MessageFeedback so the big per-part render
+ * closure below (already large) doesn't pick up more branches for it.
+ */
+function AssistantMessageFeedback({
+	isLastTextPart,
+	isUser,
+	messageId,
+	onRegenerate,
+}: {
+	isLastTextPart: boolean;
+	isUser: boolean;
+	messageId: string | undefined;
+	onRegenerate?: (messageId?: string) => void | Promise<void>;
+}) {
+	if (!isLastTextPart || isUser || !messageId) return null;
+	return <MessageFeedback messageId={messageId} onRegenerate={onRegenerate} />;
 }
 
 /**
@@ -193,6 +215,7 @@ export function ChatMessageList({
 	openPlanningTaskTitles,
 	onContinueGeneration,
 	isStreaming,
+	onRegenerate,
 }: ChatMessageListProps) {
 	const visibleMessages = messages.filter((m: Message) => {
 		if (m.role === "system") return false;
@@ -268,7 +291,7 @@ export function ChatMessageList({
 																className={`p-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-sm min-w-0 ${
 																	isUser
 																		? "rounded-br-none"
-																		: "rounded-bl-none border-assistant-border"
+																		: "border-assistant-border"
 																} ${
 																	part.text.startsWith("scheduled message")
 																		? "border-accent/50"
@@ -467,6 +490,12 @@ export function ChatMessageList({
 																		collapsedByDefault
 																	/>
 																)}
+															<AssistantMessageFeedback
+																isLastTextPart={isLastTextPart}
+																isUser={isUser}
+																messageId={m.id}
+																onRegenerate={onRegenerate}
+															/>
 															<InterruptedNotice
 																interrupted={isInterrupted}
 																isLastTextPart={isLastTextPart}

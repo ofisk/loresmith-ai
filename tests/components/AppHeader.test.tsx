@@ -25,9 +25,7 @@ beforeEach(() => {
 
 describe("AppHeader", () => {
 	const baseProps = {
-		onGuidanceRequest: vi.fn(),
-		onSessionRecapRequest: vi.fn(),
-		selectedCampaignId: null,
+		onToggleSidebarCollapse: vi.fn(),
 	};
 
 	it("renders the LoreSmith logo and title", () => {

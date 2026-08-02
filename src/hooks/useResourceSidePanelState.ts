@@ -20,8 +20,6 @@ export interface ResourceSidePanelStateProps {
 	isAddingToCampaigns?: boolean;
 	addLocalNotification?: (type: string, title: string, message: string) => void;
 	onShowUsageLimits?: () => void;
-	selectedCampaignId?: string;
-	onSessionRecapRequest?: () => void;
 	onAdminDashboardOpen?: () => void;
 }
 
@@ -57,9 +55,7 @@ function resolveFromContext(ctx: AppShellContextValue) {
 		isAddingToCampaigns: ctx.isAddingToCampaigns,
 		addLocalNotification: ctx.addLocalNotification,
 		onShowUsageLimits: ctx.onShowUsageLimits,
-		onSessionRecapRequest: ctx.handleSessionRecapRequest,
 		onAdminDashboardOpen: ctx.modalState.handleAdminDashboardOpen,
-		selectedCampaignId: ctx.selectedCampaignId ?? null,
 		billingTier: ctx.billingStatus?.tier ?? null,
 		notifications: ctx.allNotifications.map(withFallbackMessage),
 		dismissNotification: ctx.dismissNotification,
@@ -97,9 +93,7 @@ function resolveFromProps(
 		isAddingToCampaigns: props.isAddingToCampaigns ?? false,
 		addLocalNotification: props.addLocalNotification,
 		onShowUsageLimits: props.onShowUsageLimits,
-		onSessionRecapRequest: props.onSessionRecapRequest,
 		onAdminDashboardOpen: props.onAdminDashboardOpen,
-		selectedCampaignId: props.selectedCampaignId ?? null,
 		billingTier: null,
 		notifications,
 		dismissNotification: noop,
