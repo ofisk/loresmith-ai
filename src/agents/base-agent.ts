@@ -1,4 +1,4 @@
-import { stepCountIs, streamText } from "ai";
+import { generateText, stepCountIs, streamText } from "ai";
 import {
 	getGenerationModelForProvider,
 	JWT_STORAGE_KEY,
@@ -10,6 +10,7 @@ import {
 	type ResolvedClaimedPlayerContext,
 	resolveClaimedPlayerContext,
 } from "@/lib/agent-role-utils";
+import { AgentRouter } from "@/lib/agent-router";
 import { getStatusMessageForTool } from "@/lib/agent-status-messages";
 import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
 import { dropEmptyContentMessages } from "@/lib/chat-message-sanitization";
@@ -58,6 +59,11 @@ import { RulesContextService } from "@/services/campaign/rules-context-service";
 import { AuthService } from "@/services/core/auth-service";
 import { EmailService } from "@/services/core/email-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import {
+	AGENT_HANDOFF_SYSTEM_RULE,
+	createAskAnotherAgentTool,
+	type DelegatedAgentResult,
+} from "@/tools/common/agent-handoff-tools";
 import { submitSupportRequestTool } from "@/tools/common/support-tools";
 import type { CampaignRole } from "@/types/campaign";
 import type { Explainability } from "@/types/explainability";
@@ -104,6 +110,13 @@ const LOW_BALANCE_SUPPORT_LAST_REPORTED_AT_KEY =
 
 /** Max steps per turn so the agent can use tools as needed until it sends a final text response. */
 const MAX_AGENT_STEPS = 20;
+/**
+ * Step budget for an agent running on another agent's behalf. Deliberately
+ * tighter than a top-level turn: a delegate answers one restated question, and
+ * the whole handoff has to fit inside the caller's turn without stalling the
+ * stream.
+ */
+const MAX_DELEGATED_AGENT_STEPS = 8;
 const MISSING_PLAYER_CHARACTER_MESSAGE =
 	"Choose your character before continuing. Open campaign details and select your character.";
 const RULES_AWARE_AGENT_TYPES = new Set([
@@ -1017,9 +1030,15 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			selectedCampaignId,
 			{ isStaleCommand },
 			toolsToUse,
-			{},
+			{ campaignRole },
 			claimedPlayerContext
 		);
+
+		// Tell the agent to hand off rather than deflect, but only when handing off
+		// is actually possible this turn.
+		if ("askAnotherAgent" in enhancedTools) {
+			supplementalSystemContext.push(AGENT_HANDOFF_SYSTEM_RULE);
+		}
 
 		// Determine tool choice: use "auto" to allow the agent to call tools when needed
 		// and generate a final text response after tool calls
@@ -1436,6 +1455,128 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		});
 	}
 
+	/** The agent type this class registers under, or null if it declares none. */
+	protected getAgentType(): string | null {
+		return (
+			(this.constructor as { agentMetadata?: { type?: string } }).agentMetadata
+				?.type ?? null
+		);
+	}
+
+	/**
+	 * Run another registered agent to completion on this agent's behalf and
+	 * return its answer.
+	 *
+	 * This is the mechanism behind `askAnotherAgent`. It reuses the target's
+	 * registered system prompt and its role-filtered tools, but not its class:
+	 * agents are Durable Objects, and standing up a second one mid-turn would be
+	 * both expensive and pointless when what a delegate needs is a prompt, a
+	 * toolset, and a model. The delegate's tools go through this agent's own
+	 * enhancement pipeline so the caller's JWT, campaign, and claimed-player
+	 * context carry across unchanged, and with delegation switched off so a
+	 * delegate cannot delegate again.
+	 */
+	protected async runDelegatedAgent(params: {
+		agentType: string;
+		request: string;
+		campaignRole: CampaignRole | null;
+		clientJwt: string | null;
+		selectedCampaignId: string | null;
+		claimedPlayerContext?: ResolvedClaimedPlayerContext | null;
+	}): Promise<DelegatedAgentResult> {
+		const log = createLogger(
+			this.env as Record<string, unknown>,
+			`[${this.constructor.name}]`
+		);
+		const systemPrompt = AgentRouter.getAgentSystemPrompt(params.agentType);
+		const delegateTools = AgentRouter.getAgentToolsForRole(
+			params.agentType,
+			params.campaignRole
+		);
+
+		if (Object.keys(delegateTools).length === 0) {
+			return {
+				agent: params.agentType,
+				answer: "",
+				toolsUsed: [],
+			};
+		}
+
+		const toolsUsed: string[] = [];
+		const enhancedTools = this.createEnhancedTools(
+			params.clientJwt,
+			params.selectedCampaignId,
+			undefined,
+			delegateTools,
+			{
+				onToolStart: (toolName) => toolsUsed.push(toolName),
+				allowDelegation: false,
+			},
+			params.claimedPlayerContext
+		);
+
+		log.info("Delegating to another agent", {
+			from: this.getAgentType(),
+			to: params.agentType,
+			toolCount: Object.keys(enhancedTools).length,
+		});
+
+		const result = await generateText({
+			model: this.model,
+			system: systemPrompt,
+			messages: [{ role: "user", content: params.request }],
+			tools: enhancedTools,
+			stopWhen: stepCountIs(MAX_DELEGATED_AGENT_STEPS),
+		});
+
+		return {
+			agent: params.agentType,
+			answer: (result.text ?? "").trim(),
+			toolsUsed,
+		};
+	}
+
+	/**
+	 * Build the delegation tool for this turn, or null when there is nowhere to
+	 * delegate. The registry is empty in unit tests that construct an agent
+	 * directly, and an agent that is the only one registered has no peers, so in
+	 * both cases the tool is simply left out rather than offered and broken.
+	 */
+	private buildAskAnotherAgentTool(context: {
+		clientJwt: string | null;
+		selectedCampaignId: string | null;
+		campaignRole: CampaignRole | null;
+		claimedPlayerContext?: ResolvedClaimedPlayerContext | null;
+	}): Record<string, any> {
+		let catalog: Array<{ agent: string; description: string }>;
+		try {
+			catalog = AgentRouter.getDelegationCatalog(
+				this.getAgentType() ?? undefined
+			);
+		} catch (_error) {
+			return {};
+		}
+
+		if (catalog.length === 0) {
+			return {};
+		}
+
+		return {
+			askAnotherAgent: createAskAnotherAgentTool({
+				catalog,
+				run: ({ agentType, request }) =>
+					this.runDelegatedAgent({
+						agentType,
+						request,
+						campaignRole: context.campaignRole,
+						clientJwt: context.clientJwt,
+						selectedCampaignId: context.selectedCampaignId,
+						claimedPlayerContext: context.claimedPlayerContext,
+					}),
+			}),
+		};
+	}
+
 	/**
 	 * Create enhanced tools that automatically include JWT for operations.
 	 * @param toolsOverride - Optional tool set to use instead of this.tools (for role-based filtering)
@@ -1445,7 +1586,12 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		selectedCampaignId: string | null,
 		staleGuard?: { isStaleCommand?: boolean },
 		toolsOverride?: Record<string, any>,
-		options?: { onToolStart?: (toolName: string) => void },
+		options?: {
+			onToolStart?: (toolName: string) => void;
+			/** False while running as someone else's delegate, so handoffs cannot nest. */
+			allowDelegation?: boolean;
+			campaignRole?: CampaignRole | null;
+		},
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null
 	): Record<string, any> {
 		const log = createLogger(
@@ -1456,6 +1602,14 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		const tools = {
 			...baseTools,
 			submitSupportRequest: submitSupportRequestTool,
+			...(options?.allowDelegation === false
+				? {}
+				: this.buildAskAnotherAgentTool({
+						clientJwt,
+						selectedCampaignId,
+						campaignRole: options?.campaignRole ?? null,
+						claimedPlayerContext,
+					})),
 		};
 		// Track tool calls to prevent infinite loops
 		const toolCallCounts = new Map<string, number>();

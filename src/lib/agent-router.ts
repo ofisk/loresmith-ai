@@ -12,6 +12,7 @@ import type { EnvWithSecrets } from "@/lib/env-utils";
 import { AgentNotRegisteredError } from "@/lib/errors";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { logVerboseLlmSpend } from "@/lib/llm-usage-verbose-log";
+import type { CampaignRole } from "@/types/campaign";
 import { createModel } from "./model-config";
 import { ModelManager } from "./model-manager";
 import {
@@ -413,5 +414,51 @@ export class AgentRouter {
 	static getAgentDescription(agentType: string): string {
 		const agentInfo = AgentRouter.agentRegistry[agentType];
 		return agentInfo?.description || `Handles ${agentType} operations`;
+	}
+
+	/**
+	 * Resolve the tool set a target agent would expose to a user holding `role`.
+	 *
+	 * Agents narrow their own toolset for players via a `getToolsForRole` instance
+	 * method. Delegation has to honour that narrowing, or handing a player's
+	 * question to another agent would quietly hand them GM-only tools too. Every
+	 * implementation is a pure role -> bundle lookup that never touches `this`, so
+	 * reading it off the prototype is safe and avoids constructing a second
+	 * Durable Object just to ask which tools it would use.
+	 *
+	 * Agents without the method expose the same tools to every role.
+	 */
+	static getAgentToolsForRole(
+		agentType: string,
+		role: CampaignRole | null
+	): Record<string, any> {
+		const agentInfo = AgentRouter.agentRegistry[agentType];
+		if (!agentInfo) {
+			throw new AgentNotRegisteredError(agentType);
+		}
+
+		const prototype = agentInfo.agentClass?.prototype;
+		const roleFilter = prototype?.getToolsForRole;
+		if (typeof roleFilter === "function") {
+			return roleFilter.call(prototype, role) ?? {};
+		}
+
+		return agentInfo.tools ?? {};
+	}
+
+	/**
+	 * The other agents a running agent may hand work to, with the descriptions the
+	 * router already uses to pick between them. Excluding the caller keeps an
+	 * agent from delegating to itself.
+	 */
+	static getDelegationCatalog(
+		excludeAgentType?: string
+	): Array<{ agent: string; description: string }> {
+		return Object.entries(AgentRouter.agentRegistry)
+			.filter(([agentType]) => agentType !== excludeAgentType)
+			.map(([agentType, agentInfo]) => ({
+				agent: agentType,
+				description: agentInfo.description,
+			}));
 	}
 }

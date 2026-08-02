@@ -99,6 +99,37 @@ flowchart TD
 - Routing uses an LLM to classify user intent and pick an agent type; the DO then instantiates the corresponding agent class with that type’s tools and system prompt.
 - See `AGENT_ROUTING_PROMPTS` and `routeAgentRequest` for how the routing request is built and executed.
 
+## Cross-agent handoff
+
+Routing picks one agent per turn, and that agent only holds its own tools. A request often needs more than one agent: "the core rulebook is added, what are The Foundling's trainings?" is a file question and a rules question in one sentence. Routing has to pick one, so the other half would otherwise go unanswered.
+
+The user must never be asked to route their own request. Telling them to "ask that in your main campaign conversation" is a dead end - they do not know that specialists exist, and it also breaks the standing rule against revealing LoreSmith's internals.
+
+So every agent gets an **`askAnotherAgent`** tool, injected in `createEnhancedTools` next to `submitSupportRequest`:
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Caller as Routed agent
+  participant Delegate as Another agent's prompt + tools
+
+  User->>Caller: Message needing two capabilities
+  Caller->>Caller: Own tools answer the part it can
+  Caller->>Delegate: askAnotherAgent(agentType, restated request)
+  Delegate->>Delegate: generateText with the target's prompt and tools
+  Delegate-->>Caller: Finished answer (tool result)
+  Caller-->>User: One combined reply, no mention of a handoff
+```
+
+Details that matter when changing this:
+
+- **No second Durable Object.** The delegate runs from the registry's system prompt and tools via `generateText`, not by constructing the target agent class. `BaseAgent.runDelegatedAgent` does this.
+- **Role filtering is preserved.** `AgentRouter.getAgentToolsForRole` reads the target's own `getToolsForRole` off the prototype, so delegating cannot hand a player GM-only tools.
+- **Auth context carries across.** The delegate's tools go through the caller's `createEnhancedTools`, so JWT, campaign, and claimed-player context are unchanged.
+- **Handoffs do not nest.** Delegated runs get `allowDelegation: false`, so a delegate has no `askAnotherAgent` of its own. Delegated runs also use a tighter step budget (`MAX_DELEGATED_AGENT_STEPS`) than a top-level turn.
+- **The delegate is blind to the conversation.** It receives only the `request` string, so that restatement must be self-contained.
+- **The rule is enforced in the prompt too.** `AGENT_HANDOFF_SYSTEM_RULE` is appended to the system prompt whenever the tool is available, and `tests/agents/agent-prompt-no-deflection.test.ts` fails the build if any agent's prompt starts telling users to ask elsewhere.
+
 ## BaseAgent behavior
 
 - **Constructor**: Takes Durable Object state (`ctx`), env (Cloudflare bindings), model, and tools. Subclasses pass their own tools and often override `agentMetadata`.
