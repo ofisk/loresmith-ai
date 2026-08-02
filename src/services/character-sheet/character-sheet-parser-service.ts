@@ -7,6 +7,10 @@ import { chunkTextByCharacterCount } from "@/lib/file/text-chunking-utils";
 import { formatCharacterSheetParsingPrompt } from "@/lib/prompts/character-sheet-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import {
+	type LlmResultCache,
+	NOOP_LLM_RESULT_CACHE,
+} from "@/services/llm/llm-result-cache";
 
 /**
  * Schema for parsed character data
@@ -158,7 +162,17 @@ const MAX_CHUNK_SIZE = 200000; // Characters per chunk for parsing (GPT-5 models
  * Game-system agnostic - extracts whatever fields are present without assuming a specific system.
  */
 export class CharacterSheetParserService {
-	constructor(private llmApiKey: string) {}
+	constructor(
+		private llmApiKey: string,
+		/**
+		 * Content-addressed result cache (issue #761, finding 8). This is the
+		 * expensive half of the character-sheet path — a full document on the
+		 * SESSION_PLANNING tier — so a re-upload or a retry is worth not paying
+		 * twice. Defaults to the no-op cache so existing construction sites are
+		 * unchanged.
+		 */
+		private resultCache: LlmResultCache = NOOP_LLM_RESULT_CACHE
+	) {}
 
 	/**
 	 * Parse character sheet text into structured character data
@@ -206,6 +220,26 @@ export class CharacterSheetParserService {
 	 * Parse a single chunk of character sheet text
 	 */
 	private async parseChunk(
+		chunkContent: string,
+		characterName?: string
+	): Promise<CharacterData> {
+		// Rendering the prompt with empty content gives the exact instruction text
+		// this call will send — including the name hint, which changes the prompt —
+		// so an edit to the template invalidates the cache on its own.
+		const { value } = await this.resultCache.getOrCompute<CharacterData>(
+			{
+				kind: "character_sheet_parse",
+				model: getGenerationModelForProvider("SESSION_PLANNING"),
+				promptPrefix: formatCharacterSheetParsingPrompt("", characterName),
+				variablePart: chunkContent,
+			},
+			() => this.callParseModel(chunkContent, characterName)
+		);
+		return value;
+	}
+
+	/** The model call itself, split out so the cache wraps exactly one thing. */
+	private async callParseModel(
 		chunkContent: string,
 		characterName?: string
 	): Promise<CharacterData> {

@@ -387,6 +387,10 @@ async function runFastScheduledTasks(
 		// Cost attribution keeps a much longer horizon than the rate-limit ledger
 		// (90 days vs 25 hours) so month-over-month comparisons stay possible.
 		await daoFactory.llmCostEventDAO.pruneOldRows();
+		// Cached model results are only ever re-derivable, so age is the whole
+		// eviction policy: a row nothing has asked for in 90 days is storage, not
+		// a saving.
+		await daoFactory.llmResultCacheDAO.pruneOldRows();
 	} catch (error) {
 		log.error("Failed to prune LLM usage log", error);
 	}

@@ -21,6 +21,8 @@
  * verdict is `ambiguous` and full extraction runs.
  */
 
+import { commonWordRatio, tokenizeWords } from "@/lib/english-prose-stats";
+
 export type ChunkGateVerdict =
 	/** Confidently not worth extracting — skip. */
 	| "non-substantive"
@@ -55,66 +57,6 @@ const BOILERPLATE_PHRASES = [
 	"copyright ©",
 ];
 
-/**
- * Words common enough that a chunk of real prose will contain several. A run of
- * page numbers or a heading index will contain almost none.
- */
-const COMMON_WORDS = new Set([
-	"the",
-	"a",
-	"an",
-	"and",
-	"or",
-	"but",
-	"if",
-	"of",
-	"to",
-	"in",
-	"on",
-	"at",
-	"for",
-	"with",
-	"from",
-	"by",
-	"as",
-	"is",
-	"are",
-	"was",
-	"were",
-	"be",
-	"been",
-	"has",
-	"have",
-	"had",
-	"can",
-	"may",
-	"will",
-	"would",
-	"this",
-	"that",
-	"they",
-	"their",
-	"you",
-	"your",
-	"it",
-	"its",
-	"not",
-	"when",
-	"which",
-	"who",
-	"all",
-	"any",
-	"each",
-	"more",
-	"than",
-	"then",
-	"into",
-	"out",
-	"up",
-	"do",
-	"does",
-]);
-
 export interface ChunkTextStats {
 	length: number;
 	/** Share of characters that are whitespace. */
@@ -122,7 +64,7 @@ export interface ChunkTextStats {
 	/** Share of non-whitespace characters that are digits or separators. */
 	digitRatio: number;
 	wordCount: number;
-	/** Share of words that appear in {@link COMMON_WORDS}. */
+	/** Share of words that appear in the shared common-word list. */
 	commonWordRatio: number;
 	/** Share of lines that end in a bare number (TOC / page-footer shape). */
 	pageNumberLineRatio: number;
@@ -152,8 +94,7 @@ export function computeChunkTextStats(text: string): ChunkTextStats {
 	const nonWhitespace = length - whitespaceCount;
 	const digitCount = (text.match(/[\d.,:;·—–\-|]/g) ?? []).length;
 
-	const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
-	const commonWordCount = words.filter((w) => COMMON_WORDS.has(w)).length;
+	const words = tokenizeWords(text);
 
 	const lines = text
 		.split("\n")
@@ -185,7 +126,7 @@ export function computeChunkTextStats(text: string): ChunkTextStats {
 		whitespaceRatio: whitespaceCount / length,
 		digitRatio: nonWhitespace === 0 ? 0 : digitCount / nonWhitespace,
 		wordCount: words.length,
-		commonWordRatio: words.length === 0 ? 0 : commonWordCount / words.length,
+		commonWordRatio: commonWordRatio(words),
 		pageNumberLineRatio:
 			lines.length === 0 ? 0 : pageNumberLines / lines.length,
 		repeatedLineRatio: lines.length === 0 ? 0 : repeatedLines / lines.length,

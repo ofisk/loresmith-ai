@@ -16,6 +16,10 @@ import { RPG_EXTRACTION_PROMPTS } from "@/lib/prompts/rpg-extraction-prompts";
 import { parseOrThrow } from "@/lib/zod-utils";
 import type { StructuredPromptParts } from "@/services/llm/llm-provider";
 import { createLLMProvider } from "@/services/llm/llm-provider-factory";
+import {
+	type LlmResultCache,
+	NOOP_LLM_RESULT_CACHE,
+} from "@/services/llm/llm-result-cache";
 import type { TelemetryService } from "@/services/telemetry/telemetry-service";
 
 /**
@@ -91,6 +95,12 @@ export interface ExtractEntitiesOptions {
 	) => void | Promise<void>;
 	/** Called when Anthropic JSON repair pass runs (after first-pass parse failure). */
 	onJsonRepair?: () => void | Promise<void>;
+	/**
+	 * Set internally when the payload came from the result cache, so extraction
+	 * telemetry can separate "we extracted this" from "we already had it".
+	 * Callers do not set this.
+	 */
+	servedFromResultCache?: boolean;
 }
 
 export interface ExtractedRelationship {
@@ -115,9 +125,20 @@ export function extractionModelId(): string {
 }
 
 /**
- * Split the extraction prompt into the stable instruction prefix (identical for
- * every chunk of every document from the same source name — the part worth
+ * Split the extraction prompt into the stable instruction prefix (the part worth
  * caching) and the chunk-specific suffix.
+ *
+ * The prefix is identical for **every chunk of every document**, not just those
+ * sharing a source name: `formatStructuredContentPrompt` substitutes whole-word
+ * "document" into the template, and the template contains no whole-word match
+ * (`"doc": "document_id"` does not qualify — `_` is a word character). So
+ * `sourceName` never reaches the model, and the ~3.8k-token prefix is shared
+ * across the whole corpus. That is good for the prompt cache and for the result
+ * cache keyed on it; it also means the prompt's instruction to emit
+ * `"source": {"doc": ...}` asks for an id the model was never given. Nothing
+ * reads that field, so it is dead intent rather than a live defect — but see
+ * `tests/services/rag/entity-extraction-result-cache.test.ts`, which pins the
+ * premise so a prompt edit cannot silently change the cache's scope.
  *
  * Exported so the Message Batches path builds byte-identical prompts to the
  * inline path; see {@link import("@/lib/llm-structured-output")}.
@@ -183,7 +204,13 @@ export function parseExtractionResponseText(
 export class EntityExtractionService {
 	constructor(
 		private readonly llmApiKey: string | null = null,
-		private readonly telemetryService: TelemetryService | null = null
+		private readonly telemetryService: TelemetryService | null = null,
+		/**
+		 * Content-addressed result cache (issue #761, finding 8). Defaults to the
+		 * no-op cache so every existing construction site — and every unit test —
+		 * behaves exactly as before until an env-backed cache is passed in.
+		 */
+		private readonly resultCache: LlmResultCache = NOOP_LLM_RESULT_CACHE
 	) {}
 
 	async extractEntities(
@@ -209,15 +236,33 @@ export class EntityExtractionService {
 					}
 				: undefined;
 
-		// Use OpenAIProvider to generate structured JSON output
-		const parsed = await this.callStructuredModel(
-			promptParts.fullPrompt,
-			apiKey,
+		// The cached value is the validated payload, taken before entity IDs are
+		// minted below — those are campaign-scoped, and re-minting them per
+		// campaign is what lets the same document hit the cache in a second one.
+		const { value: parsed, cached } = await this.resultCache.getOrCompute<
+			z.infer<typeof EntityExtractionSchema> | undefined
+		>(
 			{
-				username: options.username,
-				onUsage: options.onUsage,
-				onJsonRepair: options.onJsonRepair,
-				structuredPromptParts,
+				kind: "entity_extraction",
+				model: extractionModelId(),
+				promptPrefix: promptParts.cacheablePrefix,
+				variablePart: promptParts.variableSuffix,
+			},
+			async () => {
+				const result = await this.callStructuredModel(
+					promptParts.fullPrompt,
+					apiKey,
+					{
+						username: options.username,
+						onUsage: options.onUsage,
+						onJsonRepair: options.onJsonRepair,
+						structuredPromptParts,
+					}
+				);
+				// A null here is the model producing no usable output, not an
+				// extraction that legitimately found nothing. Returning undefined
+				// keeps it out of the cache so the next attempt retries the model.
+				return result ?? undefined;
 			}
 		);
 
@@ -225,7 +270,10 @@ export class EntityExtractionService {
 			return [];
 		}
 
-		return this.mapExtractionPayload(parsed, options);
+		return this.mapExtractionPayload(parsed, {
+			...options,
+			servedFromResultCache: cached,
+		});
 	}
 
 	/**
@@ -286,6 +334,10 @@ export class EntityExtractionService {
 							sourceName: options.sourceName,
 							sourceType: options.sourceType,
 							sourceId: options.sourceId,
+							// A cached payload cost no tokens; without this the
+							// extraction count and the spend log disagree and neither
+							// explains why.
+							servedFromResultCache: options.servedFromResultCache === true,
 						},
 					})
 					.catch((_error) => {}),
