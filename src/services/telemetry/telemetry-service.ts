@@ -7,7 +7,30 @@ import type {
 } from "@/types/telemetry";
 
 export class TelemetryService {
+	/**
+	 * Variant map stamped onto every metric this instance records. Populated by
+	 * {@link withExperimentVariants} for request paths that know the current
+	 * user; empty for background paths (queue consumers, cron) that do not.
+	 */
+	private experimentVariants: Record<string, string> | null = null;
+
 	constructor(private readonly telemetryDAO: TelemetryDAO) {}
+
+	/**
+	 * Attach the caller's active experiment arms so that every metric recorded
+	 * afterwards can be split by arm at query time.
+	 *
+	 * This is opt-in per request rather than global because the worker has no
+	 * ambient "current user": queue consumers and cron jobs record metrics with
+	 * nobody logged in, and stamping them with someone else's arms would corrupt
+	 * the comparison. Only running experiments are stamped — `on`/`off` flags
+	 * have a single arm and would just bloat every metadata blob.
+	 */
+	withExperimentVariants(variants: Record<string, string>): this {
+		this.experimentVariants =
+			Object.keys(variants).length > 0 ? variants : null;
+		return this;
+	}
 
 	/**
 	 * Record a metric
@@ -26,7 +49,36 @@ export class TelemetryService {
 			metricType,
 			metricValue,
 			campaignId: options.campaignId || null,
-			metadata: options.metadata,
+			metadata: this.stampVariants(options.metadata),
+		});
+	}
+
+	/**
+	 * Nested under `experiments` rather than spread across the top level so an
+	 * experiment key can never collide with a metric's own metadata field.
+	 */
+	private stampVariants(
+		metadata: Record<string, unknown> | undefined
+	): Record<string, unknown> | undefined {
+		if (!this.experimentVariants) return metadata;
+		return { ...(metadata ?? {}), experiments: this.experimentVariants };
+	}
+
+	/**
+	 * One exposure row per running experiment, recorded when a user's assignments
+	 * are resolved for a session. Deliberately fire-and-forget at the call site:
+	 * losing an exposure skews a denominator, failing the request loses the app.
+	 */
+	async recordExperimentExposure(
+		experimentKey: string,
+		variant: string
+	): Promise<void> {
+		await this.telemetryDAO.recordMetric({
+			id: crypto.randomUUID(),
+			metricType: "experiment_exposure",
+			metricValue: 1,
+			campaignId: null,
+			metadata: { experiment: experimentKey, variant },
 		});
 	}
 

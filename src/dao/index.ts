@@ -43,6 +43,9 @@ export type {
 } from "./entity-importance-dao";
 // Entity Importance DAO
 export { EntityImportanceDAO } from "./entity-importance-dao";
+export type { ExperimentRow } from "./experiment-dao";
+// Experiment DAO (runtime feature flags / A/B tests)
+export { ExperimentDAO } from "./experiment-dao";
 export type { FileMetadata, FileWithChunks, PDFChunk } from "./file/file-dao";
 // File DAO (library file metadata + chunk pipeline; see src/dao/file/)
 export { FileDAO } from "./file/file-dao";

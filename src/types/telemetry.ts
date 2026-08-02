@@ -21,7 +21,14 @@ export type MetricType =
 	| "entities_extracted"
 	| "relationship_extraction_count"
 	| "dm_satisfaction"
-	| "context_accuracy";
+	| "context_accuracy"
+	/**
+	 * One row per (user, running experiment) per session, written when the client
+	 * fetches its assignments. This is the denominator an A/B result needs: without
+	 * it you can count outcomes per arm but have no idea how many users each arm
+	 * had a chance to convert. `metadata` carries `{ experiment, variant }`.
+	 */
+	| "experiment_exposure";
 
 export interface TelemetryRecord {
 	id: string;

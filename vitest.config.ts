@@ -54,8 +54,6 @@ export default defineConfig({
 				"**/lib/rebuild-config.ts",
 				"**/lib/importance-config.ts",
 				"**/lib/agent-status-messages.ts",
-				"**/lib/feature-flags.ts",
-				"**/lib/feature-flags-react.ts",
 				"**/lib/campaign-planning-checklist.ts",
 				"**/lib/db-utils.ts",
 				"**/lib/api/cors.ts",

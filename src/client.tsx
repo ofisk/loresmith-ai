@@ -1,6 +1,7 @@
 import "./styles.css";
 import { createRoot } from "react-dom/client";
 import { ActionQueueProvider } from "@/contexts/ActionQueueContext";
+import { ExperimentProvider } from "@/contexts/ExperimentContext";
 import { UploadQueueProvider } from "@/contexts/UploadQueueContext";
 import { Providers } from "@/providers";
 import App from "./app";
@@ -12,22 +13,27 @@ const root = createRoot(document.getElementById("app")!);
 
 root.render(
 	<Providers>
-		<NotificationProvider>
-			<div
-				className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100 font-sans min-w-0 max-w-full overflow-x-hidden"
-				style={{
-					fontFamily:
-						'-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-					lineHeight: "1.75",
-					letterSpacing: "-0.011em",
-				}}
-			>
-				<UploadQueueProvider>
-					<ActionQueueProvider>
-						<App />
-					</ActionQueueProvider>
-				</UploadQueueProvider>
-			</div>
-		</NotificationProvider>
+		{/* Outermost app provider so both the chrome and the routed pages read the
+		    same resolved flags; it fetches once per session and seeds the sync
+		    module cache that non-React callers of isFeatureEnabled() read. */}
+		<ExperimentProvider>
+			<NotificationProvider>
+				<div
+					className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100 font-sans min-w-0 max-w-full overflow-x-hidden"
+					style={{
+						fontFamily:
+							'-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+						lineHeight: "1.75",
+						letterSpacing: "-0.011em",
+					}}
+				>
+					<UploadQueueProvider>
+						<ActionQueueProvider>
+							<App />
+						</ActionQueueProvider>
+					</UploadQueueProvider>
+				</div>
+			</NotificationProvider>
+		</ExperimentProvider>
 	</Providers>
 );

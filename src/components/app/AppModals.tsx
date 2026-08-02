@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { TelemetryDashboard } from "@/components/admin/TelemetryDashboard";
+import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { BlockingAuthenticationModal } from "@/components/BlockingAuthenticationModal";
 import { QuotaWarningModal } from "@/components/billing/QuotaWarningModal";
 import { Button } from "@/components/button/Button";
@@ -657,7 +657,7 @@ export function AppModals({
 				onClose={modalState.handleAdminDashboardClose}
 				className="modal-size-xl"
 			>
-				<TelemetryDashboard />
+				<AdminDashboard />
 			</Modal>
 
 			{/* Rate limit reached modal */}

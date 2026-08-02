@@ -7,6 +7,7 @@ import { registerBillingRoutes } from "@/routes/billing/index";
 import { registerCampaignRoutes } from "@/routes/campaigns/index";
 import { registerChatRoutes } from "@/routes/chat/index";
 import type { Env } from "@/routes/env";
+import { registerExperimentRoutes } from "@/routes/experiments/index";
 import { registerExternalResourcesRoutes } from "@/routes/external-resources/index";
 import { registerFileAnalysisRoutes } from "@/routes/file-analysis/index";
 import { registerLibraryRoutes } from "@/routes/library/index";
@@ -34,6 +35,7 @@ export function registerRoutes(
 	registerOnboardingRoutes(app);
 	registerExternalResourcesRoutes(app);
 	registerTelemetryRoutes(app);
+	registerExperimentRoutes(app);
 	registerLibraryRoutes(app);
 	registerNotificationsRoutes(app);
 	registerUploadRoutes(app);

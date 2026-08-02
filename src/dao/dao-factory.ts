@@ -21,6 +21,7 @@ import { CommunitySummaryDAO } from "./community-summary-dao";
 import { ContinuityFindingDAO } from "./continuity-finding-dao";
 import { EntityDAO } from "./entity-dao";
 import { EntityImportanceDAO } from "./entity-importance-dao";
+import { ExperimentDAO } from "./experiment-dao";
 import { FileDAO } from "./file/file-dao";
 import { FileRetryUsageDAO } from "./file-retry-usage-dao";
 import { GraphRebuildDirtyDAO } from "./graph-rebuild-dirty-dao";
@@ -71,6 +72,7 @@ export interface DAOFactory {
 	communitySummaryDAO: CommunitySummaryDAO;
 	continuityFindingDAO: ContinuityFindingDAO;
 	entityImportanceDAO: EntityImportanceDAO;
+	experimentDAO: ExperimentDAO;
 	sessionDigestDAO: SessionDigestDAO;
 	sessionDigestTemplateDAO: SessionDigestTemplateDAO;
 	sessionPlanReadoutDAO: SessionPlanReadoutDAO;
@@ -118,6 +120,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly communitySummaryDAO: CommunitySummaryDAO;
 	public readonly continuityFindingDAO: ContinuityFindingDAO;
 	public readonly entityImportanceDAO: EntityImportanceDAO;
+	public readonly experimentDAO: ExperimentDAO;
 	public readonly sessionDigestDAO: SessionDigestDAO;
 	public readonly sessionDigestTemplateDAO: SessionDigestTemplateDAO;
 	public readonly sessionPlanReadoutDAO: SessionPlanReadoutDAO;
@@ -161,6 +164,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.communitySummaryDAO = new CommunitySummaryDAO(db);
 		this.continuityFindingDAO = new ContinuityFindingDAO(db);
 		this.entityImportanceDAO = new EntityImportanceDAO(db);
+		this.experimentDAO = new ExperimentDAO(db);
 		this.sessionDigestDAO = new SessionDigestDAO(db);
 		this.sessionDigestTemplateDAO = new SessionDigestTemplateDAO(db);
 		this.sessionPlanReadoutDAO = new SessionPlanReadoutDAO(db);

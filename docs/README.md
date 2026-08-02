@@ -81,6 +81,11 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - Changing models
   - Performance tuning
 
+- **[Feature flags & experiments](FEATURE_FLAGS.md)** - Runtime flags and A/B tests, toggled from the admin UI without a deploy
+  - The three statuses: `off`, `on`, `experiment`
+  - Deterministic bucketing and why there is no assignments table
+  - The 60s in-isolate cache and the build-time fallback layer
+
 - **[LLM batch processing](LLM_BATCH_PROCESSING.md)** - Routing queue-driven extraction through the Anthropic Message Batches API
   - Submit / poll / collect across cron ticks
   - Inline fallback policy
