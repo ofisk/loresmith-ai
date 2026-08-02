@@ -117,6 +117,65 @@ describe("tool-utils", () => {
 			const result = createToolError("Fail", 123, 400, "tc-3");
 			expect(result.result.data.error).toBe("123");
 		});
+
+		// The whole result is handed to the chat model, so nothing in it may name
+		// the technology behind LoreSmith.
+		describe("redacts implementation detail", () => {
+			it("replaces a message naming a vendor or missing config", () => {
+				const result = createToolError(
+					"OpenAI API key not configured",
+					new Error("AI is not configured for this environment."),
+					503,
+					"tc-4"
+				);
+				expect(result.result.message).not.toMatch(/openai/i);
+				expect(result.result.message).not.toMatch(/configured/i);
+				expect(result.result.data.error).not.toMatch(/environment/i);
+			});
+
+			it("redacts the detail even when the message is already clean", () => {
+				const result = createToolError(
+					"Could not build the session digest",
+					new Error("Vectorize index unavailable"),
+					500,
+					"tc-5"
+				);
+				expect(result.result.message).toBe(
+					"Could not build the session digest"
+				);
+				expect(result.result.data.error).not.toMatch(/vectorize/i);
+			});
+
+			it("drops the campaign suffix from a redacted message", () => {
+				const result = createToolError(
+					"Direct database access is required for loot generation.",
+					"err",
+					500,
+					"tc-6",
+					null,
+					"Campaign X"
+				);
+				expect(result.result.message).not.toMatch(/database/i);
+				expect(result.result.message).not.toMatch(/for campaign/i);
+				// Still reported in structured data for the UI.
+				expect(result.result.data.campaignName).toBe("Campaign X");
+			});
+
+			it("leaves ordinary failures and their campaign suffix intact", () => {
+				const result = createToolError(
+					"Campaign not found",
+					new Error("no row"),
+					404,
+					"tc-7",
+					null,
+					"Campaign X"
+				);
+				expect(result.result.message).toBe(
+					'Campaign not found for campaign "Campaign X"'
+				);
+				expect(result.result.data.error).toBe("no row");
+			});
+		});
 	});
 
 	describe("createToolSuccess", () => {
