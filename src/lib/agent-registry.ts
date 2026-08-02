@@ -88,6 +88,7 @@ export class AgentRegistryService {
 		const { EncounterBuilderAgent } = await import(
 			"../agents/encounter-builder-agent"
 		);
+		const { AudioAgent } = await import("../agents/audio-agent");
 		const { AgentRouter } = await import("./agent-router");
 
 		// Register Campaign Agent
@@ -205,6 +206,15 @@ export class AgentRegistryService {
 			EncounterBuilderAgent.agentMetadata.tools,
 			EncounterBuilderAgent.agentMetadata.systemPrompt,
 			EncounterBuilderAgent.agentMetadata.description
+		);
+
+		// Register Audio Agent (generated campaign audio)
+		AgentRouter.registerAgent(
+			AudioAgent.agentMetadata.type as AgentType,
+			AudioAgent,
+			AudioAgent.agentMetadata.tools,
+			AudioAgent.agentMetadata.systemPrompt,
+			AudioAgent.agentMetadata.description
 		);
 
 		AgentRegistryService.initialized = true;

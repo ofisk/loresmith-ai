@@ -20,6 +20,7 @@ import {
 } from "./prompts/agent-routing-prompts";
 
 export type AgentType =
+	| "audio"
 	| "campaign"
 	| "campaign-context"
 	| "recap"

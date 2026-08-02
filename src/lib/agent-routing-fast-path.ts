@@ -137,28 +137,75 @@ const DECISIVE_PHRASE_LOOKUP: ReadonlyMap<
 );
 
 /**
+ * Anchored patterns for intents whose vocabulary has exactly one destination.
+ *
+ * Unlike the phrase table these match a *prefix* of the message, so they cover
+ * open-ended objects ("generate music for this campaign", "make ambience for
+ * the crypt scene") that no fixed phrase list could enumerate. They are still
+ * decisive, so the same bar applies: the pattern must be anchored at the start
+ * of the message and must not fire on a request that merely mentions the topic.
+ *
+ * The anchoring is what keeps them honest. "generate music" is an audio
+ * request; "generate a summary of the music the bards play" is a campaign
+ * question, and the determiner group deliberately excludes it by requiring the
+ * audio noun to be the direct object of the verb.
+ */
+const DECISIVE_PATTERNS: ReadonlyArray<{
+	rule: string;
+	agent: string;
+	reason: string;
+	pattern: RegExp;
+}> = [
+	{
+		rule: "pattern:audio-generation",
+		agent: "audio",
+		reason: "Audio generation request",
+		pattern:
+			/^(?:please\s+|hey,?\s+|ok(?:ay)?,?\s+|can you\s+|could you\s+|go ahead and\s+|i want you to\s+|i'?d like you to\s+)*(?:generate|make|create|produce|compose)\s+(?:me\s+)?(?:some\s+|a\s+|an\s+|the\s+)?(?:new\s+|short\s+|long\s+|quick\s+|custom\s+|looping\s+|background\s+)*(?:music|ambience|ambiance|soundscape|sound\s?effects?|sfx|audio(?:\s+track)?|theme\s+(?:music|song|tune)|creature\s+(?:sound|noise|vocali[sz]ation)s?)\b/i,
+	},
+	{
+		rule: "pattern:audio-library",
+		agent: "audio",
+		reason: "Generated audio library request",
+		pattern:
+			/^(?:please\s+|can you\s+|could you\s+)*(?:list|show(?:\s+me)?|delete|remove|what)\s+(?:me\s+)?(?:all\s+|the\s+|my\s+|any\s+)?(?:audio\s+tracks?|generated\s+audio|audio\s+for\s+this\s+campaign)\b/i,
+	},
+];
+
+/**
  * Layer 2: match a message we can route without a model call.
  *
- * Matching is whole-message equality on the normalized text, never substring
- * containment — "what should I do next about the grappling rules" is genuinely
- * ambiguous between `recap` and `rules-reference`, so it must reach the
- * classifier. Returns null for anything not in the table.
+ * Phrase matching is whole-message equality on the normalized text, never
+ * substring containment — "what should I do next about the grappling rules" is
+ * genuinely ambiguous between `recap` and `rules-reference`, so it must reach
+ * the classifier.
+ *
+ * Anchored patterns run second, for intents whose object is open-ended and so
+ * cannot be enumerated as phrases. Returns null when neither layer matches.
  */
 export function matchDecisiveRoute(userMessage: string): FastPathMatch | null {
 	const normalized = normalizeForMatching(userMessage);
 	if (!normalized) {
 		return null;
 	}
+
 	const hit = DECISIVE_PHRASE_LOOKUP.get(normalized);
-	if (!hit) {
-		return null;
+	if (hit) {
+		return {
+			agent: hit.agent,
+			confidence: 100,
+			reason: hit.reason,
+			rule: `phrase:${normalized.slice(0, 40)}`,
+		};
 	}
-	return {
-		agent: hit.agent,
-		confidence: 100,
-		reason: hit.reason,
-		rule: `phrase:${normalized.slice(0, 40)}`,
-	};
+
+	for (const { rule, agent, reason, pattern } of DECISIVE_PATTERNS) {
+		if (pattern.test(normalized)) {
+			return { agent, confidence: 100, reason, rule };
+		}
+	}
+
+	return null;
 }
 
 /**
@@ -238,6 +285,15 @@ const ADVISORY_RULES: ReadonlyArray<{
 		agent: "onboarding",
 		pattern:
 			/\b(how do i (use|upload|get started)|which boost|help me choose a boost|running out of capacity)/i,
+	},
+	{
+		// Last, deliberately: "build an encounter with creepy ambience" is an
+		// encounter request that happens to mention sound, and the rules above
+		// should claim it first. What reaches here is audio and nothing else.
+		rule: "advisory:audio",
+		agent: "audio",
+		pattern:
+			/\b(ambience|ambiance|soundscape|sound effects?|theme (music|song)|background music|creature (sound|noise)|npc voice|in (the|his|her|their) voice|what does .{1,40} sound like)\b/i,
 	},
 ];
 
