@@ -9,6 +9,8 @@ const MINIMAL_CONFIG = {
 	workflowGuidelines: ["Test guideline"],
 };
 
+const ALL_PRESETS = ["minimal", "dataRetrieval"] as const;
+
 describe("buildSystemPrompt", () => {
 	it("produces valid prompt with minimal config", () => {
 		const prompt = buildSystemPrompt(MINIMAL_CONFIG);
@@ -49,27 +51,21 @@ describe("buildSystemPrompt", () => {
 	// The user is a storyteller, not an engineer. These rules are not optional
 	// per-agent, because any agent can hit a failure and try to explain it.
 	describe("user-facing voice rules apply to every preset", () => {
-		it.each(["minimal", "dataRetrieval"] as const)(
-			"%s includes PLAIN LANGUAGE",
-			(preset) => {
-				const prompt = buildSystemPrompt({
-					...MINIMAL_CONFIG,
-					conversationRules: preset,
-				});
-				expect(prompt).toContain("PLAIN LANGUAGE");
-			}
-		);
+		it.each(ALL_PRESETS)("%s includes PLAIN LANGUAGE", (preset) => {
+			const prompt = buildSystemPrompt({
+				...MINIMAL_CONFIG,
+				conversationRules: preset,
+			});
+			expect(prompt).toContain("PLAIN LANGUAGE");
+		});
 
-		it.each(["minimal", "dataRetrieval"] as const)(
-			"%s forbids revealing how LoreSmith is built",
-			(preset) => {
-				const prompt = buildSystemPrompt({
-					...MINIMAL_CONFIG,
-					conversationRules: preset,
-				});
-				expect(prompt).toContain("NEVER REVEAL HOW LORESMITH IS BUILT");
-			}
-		);
+		it.each(ALL_PRESETS)("%s hides how LoreSmith is built", (preset) => {
+			const prompt = buildSystemPrompt({
+				...MINIMAL_CONFIG,
+				conversationRules: preset,
+			});
+			expect(prompt).toContain("NEVER REVEAL HOW LORESMITH IS BUILT");
+		});
 
 		it("names the specific things that must not be mentioned", () => {
 			const prompt = buildSystemPrompt(MINIMAL_CONFIG);
