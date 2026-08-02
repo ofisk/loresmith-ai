@@ -162,6 +162,29 @@ showing what the retrieval actually read:
 Sources are derived from tool results that have already passed the role-based
 sanitizers, so a player never sees a GM-only source in a citation list.
 
+**Tool Receipts ("what the agent ran")**
+
+One reply can trigger many tool calls across several model round trips. Each
+assistant response carries a collapsed receipt of what actually ran:
+
+![Tool call receipts under an assistant reply](images/tool-call-receipts.png)
+
+- Collapsed to a single line — `4 actions` plus a **changes** badge whenever the
+  turn wrote to your campaign, so "did it change anything?" is answerable without
+  expanding anything
+- Writes carry a violet rail and a pencil; reads stay flat and grey. Tools whose
+  effect can't be determined from their name are labelled neither way rather than
+  claimed as read-only
+- Failures are shown as failures. A call that failed and then succeeded on retry
+  stays two rows, so the failure is visible rather than folded into the retry
+- Entities a call touched are links into the entity graph, the same deep link the
+  Sources panel uses
+- Repeat calls collapse into one row marked `ran 2×`
+
+Receipts render from the streamed tool parts as soon as the reply lands, and are
+persisted with the message so they survive a reload
+(`src/lib/tool-receipt-builder.ts`).
+
 **Semantic Search**
 
 - Meaning-based search (not just keywords)

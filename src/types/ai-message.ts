@@ -1,4 +1,5 @@
 import type { Explainability } from "./explainability";
+import type { ToolReceipts } from "./tool-receipt";
 
 /** Legacy tool part (tool-invocation) - supported for backward compatibility. */
 export interface LegacyToolInvocationPart {
@@ -37,6 +38,9 @@ export interface Message {
 		| { type: string; text?: string; [key: string]: unknown }
 	>;
 	createdAt?: Date | string;
-	/** May include explainability, jwt, campaignId, sessionId, etc. */
-	data?: Record<string, unknown> & { explainability?: Explainability | null };
+	/** May include explainability, toolReceipts, jwt, campaignId, sessionId, etc. */
+	data?: Record<string, unknown> & {
+		explainability?: Explainability | null;
+		toolReceipts?: ToolReceipts | null;
+	};
 }
