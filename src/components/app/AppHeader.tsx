@@ -1,10 +1,8 @@
-import { NotePencil, SidebarSimple } from "@phosphor-icons/react";
+import { SidebarSimple } from "@phosphor-icons/react";
 import loresmith from "@/assets/loresmith.png";
 import { Button } from "@/components/button/Button";
 
 interface AppHeaderProps {
-	onSessionRecapRequest?: () => void;
-	selectedCampaignId: string | null;
 	onToggleSidebarCollapse?: () => void;
 	isCollapsed?: boolean;
 }
@@ -15,8 +13,6 @@ interface AppHeaderProps {
  * desktop sidebar and the off-canvas mobile sidebar.
  */
 export function AppHeader({
-	onSessionRecapRequest,
-	selectedCampaignId,
 	onToggleSidebarCollapse,
 	isCollapsed = false,
 }: AppHeaderProps) {
@@ -36,28 +32,6 @@ export function AppHeader({
 							<SidebarSimple size={18} />
 						</Button>
 					</div>
-				)}
-				{onSessionRecapRequest && (
-					<Button
-						variant="ghost"
-						size="md"
-						shape="square"
-						className="tour-session-recap !h-8 !w-8 rounded-full flex items-center justify-center"
-						onClick={onSessionRecapRequest}
-						disabled={!selectedCampaignId}
-						tooltip={
-							selectedCampaignId
-								? "Record session recap"
-								: "Select a campaign to record a session recap"
-						}
-						aria-label={
-							selectedCampaignId
-								? "Record session recap"
-								: "Select a campaign to record a session recap"
-						}
-					>
-						<NotePencil size={18} />
-					</Button>
 				)}
 			</div>
 		);
@@ -94,31 +68,6 @@ export function AppHeader({
 							<SidebarSimple size={18} />
 						</Button>
 					</div>
-				)}
-			</div>
-
-			<div className="flex flex-wrap items-center gap-2">
-				{onSessionRecapRequest && (
-					<Button
-						variant="ghost"
-						size="md"
-						shape="square"
-						className="tour-session-recap !h-8 !w-8 rounded-full flex items-center justify-center"
-						onClick={onSessionRecapRequest}
-						disabled={!selectedCampaignId}
-						tooltip={
-							selectedCampaignId
-								? "Record session recap"
-								: "Select a campaign to record a session recap"
-						}
-						aria-label={
-							selectedCampaignId
-								? "Record session recap"
-								: "Select a campaign to record a session recap"
-						}
-					>
-						<NotePencil size={18} />
-					</Button>
 				)}
 			</div>
 		</div>

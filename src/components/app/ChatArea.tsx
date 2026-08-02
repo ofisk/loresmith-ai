@@ -1,6 +1,14 @@
-import { List, MapTrifold, PaperPlaneRight, Stop } from "@phosphor-icons/react";
+import {
+	Lightbulb,
+	List,
+	MapTrifold,
+	NotePencil,
+	PaperPlaneRight,
+	Stop,
+} from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { UI_INITIATED_PROMPTS } from "@/app-constants";
 import { Button } from "@/components/button/Button";
 import {
 	type PlayerCharacterOption,
@@ -47,8 +55,8 @@ interface ChatAreaProps {
 	agentStatus?: string | null;
 	/** Error from chat request; when set, show error banner with retry */
 	chatError?: Error | undefined;
-	/** Retry failed request (e.g. after error) */
-	onRegenerate?: () => Promise<void>;
+	/** Retry failed request (e.g. after error), or regenerate a specific message. */
+	onRegenerate?: (messageId?: string) => Promise<void>;
 	/** When provided, "Work on this" buttons are shown for next steps in agent messages; called with the step label. */
 	onWorkOnNextStep?: (stepLabel: string) => void;
 	/** When provided, used as step labels for "Work on this" buttons (e.g. from planning-tasks API). */
@@ -58,6 +66,8 @@ interface ChatAreaProps {
 	/** Opens/closes the mobile off-canvas sidebar; button only renders when provided. */
 	onToggleSidebar?: () => void;
 	isSidebarOpen?: boolean;
+	/** Records a session recap for the selected campaign; button only renders when provided. */
+	onSessionRecapRequest?: () => void;
 }
 
 /**
@@ -91,6 +101,7 @@ export function ChatArea({
 	onContinueGeneration,
 	onToggleSidebar,
 	isSidebarOpen = false,
+	onSessionRecapRequest,
 }: ChatAreaProps) {
 	const [claimOptions, setClaimOptions] = useState<PlayerCharacterOption[]>([]);
 	const [canCreateNewCharacter, setCanCreateNewCharacter] = useState(false);
@@ -109,6 +120,10 @@ export function ChatArea({
 					) ?? null)
 				: null,
 		[campaigns, selectedCampaignId]
+	);
+
+	const isPlayerRole = !!(
+		selectedCampaign?.role && PLAYER_ROLES.has(selectedCampaign.role)
 	);
 
 	useEffect(() => {
@@ -338,7 +353,55 @@ export function ChatArea({
 						</option>
 					))}
 				</select>
+				<div className="flex items-center gap-1 ml-1 shrink-0">
+					<button
+						type="button"
+						onClick={() =>
+							onSuggestionSubmit(
+								isPlayerRole
+									? UI_INITIATED_PROMPTS.NEXT_STEPS_PLAYER
+									: UI_INITIATED_PROMPTS.NEXT_STEPS_GM
+							)
+						}
+						disabled={!selectedCampaignId}
+						title={
+							selectedCampaignId
+								? "Idea"
+								: "Select a campaign to get next-step suggestions"
+						}
+						aria-label="Idea"
+						className="shrink-0 p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+					>
+						<Lightbulb size={20} weight="fill" aria-hidden />
+					</button>
+					{onSessionRecapRequest && (
+						<button
+							type="button"
+							onClick={onSessionRecapRequest}
+							disabled={!selectedCampaignId || messages.length === 0}
+							title={
+								!selectedCampaignId
+									? "Select a campaign to record a session recap"
+									: messages.length === 0
+										? "Start a session before recording a recap"
+										: "Record session recap"
+							}
+							aria-label="Record session recap"
+							className="tour-session-recap shrink-0 p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+						>
+							<NotePencil size={20} weight="fill" aria-hidden />
+						</button>
+					)}
+				</div>
 			</div>
+
+			{!selectedCampaignId && (
+				<div className="px-4 md:px-8 pb-2 flex-shrink-0 -mt-2">
+					<p className="text-xs text-neutral-500 dark:text-neutral-400">
+						Select a campaign for a more targeted experience
+					</p>
+				</div>
+			)}
 
 			{selectedCampaign?.hasProcessingDocuments && (
 				<div className="px-4 md:px-8 pt-0 pb-2 flex-shrink-0">
@@ -393,6 +456,7 @@ export function ChatArea({
 					openPlanningTaskTitles={openPlanningTaskTitles}
 					onContinueGeneration={onContinueGeneration}
 					isStreaming={isLoading}
+					onRegenerate={onRegenerate}
 				/>
 
 				{/* Thinking Spinner - shown when agent is processing */}

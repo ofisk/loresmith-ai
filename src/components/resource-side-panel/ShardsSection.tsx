@@ -50,11 +50,7 @@ export function ShardsSection({
 					}
 				>
 					<span className="relative w-8 h-8 flex items-center justify-center shrink-0">
-						<PuzzlePiece
-							size={20}
-							weight="light"
-							className="text-purple-600 dark:text-purple-400"
-						/>
+						<PuzzlePiece size={20} weight="light" className="text-primary" />
 						{isCollapsed && totalShards > 0 && (
 							<span
 								className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-500"

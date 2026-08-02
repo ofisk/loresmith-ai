@@ -21,7 +21,6 @@ interface ResourceSidePanelProps {
 	/** Used when rendered outside AppShellProvider (e.g. tests) */
 	isAuthenticated?: boolean;
 	campaigns?: Campaign[];
-	selectedCampaignId?: string;
 	onLogout?: () => Promise<void>;
 	showUserMenu?: boolean;
 	setShowUserMenu?: (show: boolean) => void;
@@ -37,7 +36,6 @@ interface ResourceSidePanelProps {
 	addLocalNotification?: (type: string, title: string, message: string) => void;
 	onShowUsageLimits?: () => void;
 	/** Header controls (used when rendered outside AppShellProvider, e.g. tests) */
-	onSessionRecapRequest?: () => void;
 	onAdminDashboardOpen?: () => void;
 }
 
@@ -61,9 +59,7 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 		isAddingToCampaigns,
 		addLocalNotification,
 		onShowUsageLimits,
-		onSessionRecapRequest,
 		onAdminDashboardOpen,
-		selectedCampaignId,
 		billingTier,
 		notifications,
 		dismissNotification,
@@ -173,8 +169,6 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 			className={`tour-sidebar h-full bg-neutral-50/80 dark:bg-neutral-900/80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col backdrop-blur-sm ${isDesktopSidebarCollapsed ? "w-16" : "w-full md:w-72"} ${className}`}
 		>
 			<AppHeader
-				onSessionRecapRequest={onSessionRecapRequest}
-				selectedCampaignId={selectedCampaignId}
 				onToggleSidebarCollapse={onToggleDesktopSidebarCollapse}
 				isCollapsed={isDesktopSidebarCollapsed}
 			/>
@@ -188,6 +182,16 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							: "flex flex-col gap-2 pt-4 pr-4 pb-4 pl-2"
 					}
 				>
+					{/* Notifications */}
+					<div className="flex-shrink-0 w-full">
+						<TopBarNotifications
+							notifications={notifications}
+							onDismiss={dismissNotification}
+							onDismissAll={clearAllNotifications}
+							isCollapsed={isDesktopSidebarCollapsed}
+						/>
+					</div>
+
 					{/* Campaigns Section */}
 					<div className="flex-shrink-0 w-full">
 						<CampaignsSection
@@ -215,16 +219,6 @@ export function ResourceSidePanel(props: ResourceSidePanelProps) {
 							isAddingToCampaigns={isAddingToCampaigns}
 							addLocalNotification={addLocalNotification}
 							onShowUsageLimits={onShowUsageLimits}
-							isCollapsed={isDesktopSidebarCollapsed}
-						/>
-					</div>
-
-					{/* Notifications */}
-					<div className="flex-shrink-0 w-full">
-						<TopBarNotifications
-							notifications={notifications}
-							onDismiss={dismissNotification}
-							onDismissAll={clearAllNotifications}
 							isCollapsed={isDesktopSidebarCollapsed}
 						/>
 					</div>

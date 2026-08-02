@@ -24,11 +24,7 @@ export function TelemetrySection({
 				}
 			>
 				<span className="w-8 h-8 flex items-center justify-center shrink-0">
-					<ChartBar
-						size={20}
-						weight="light"
-						className="text-purple-600 dark:text-purple-400"
-					/>
+					<ChartBar size={20} weight="light" className="text-primary" />
 				</span>
 				{!isCollapsed && <span className="font-medium text-sm">Telemetry</span>}
 			</button>

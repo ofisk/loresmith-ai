@@ -111,7 +111,7 @@ export interface AppShellContextValue {
 	invisibleUserContentsVersion: number;
 	handleSessionRecapRequest?: () => void;
 	chatError: Error | undefined;
-	onRegenerate: () => Promise<void>;
+	onRegenerate: (messageId?: string) => Promise<void>;
 
 	// Shard overlay
 	visibleShardGroups: StagedShardGroup[];
@@ -411,7 +411,8 @@ export function AppShellProvider({ children }: AppShellProviderProps) {
 					? handleSessionRecapRequest
 					: undefined,
 			chatError,
-			onRegenerate: () => regenerate(),
+			onRegenerate: (messageId?: string) =>
+				regenerate(messageId ? { messageId } : undefined),
 			visibleShardGroups,
 			shardsLoading,
 			onShardsProcessed: removeProcessedShards,
