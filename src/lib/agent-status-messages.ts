@@ -66,6 +66,9 @@ const TOOL_STATUS_MESSAGES: Record<string, string> = {
 	updateEntityTypeTool: "Updating entity type...",
 	deleteEntityTool: "Deleting entity...",
 	generateDigestFromNotesTool: "Generating digest from notes...",
+	// A handoff runs another specialist end to end, so it is one of the slower
+	// waits. Worded as one assistant doing more work, never as a handoff.
+	askAnotherAgent: "Digging deeper into that...",
 };
 
 const DEFAULT_MESSAGE = "Gathering information...";
