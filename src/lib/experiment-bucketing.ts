@@ -54,9 +54,12 @@ export function clampRolloutPct(pct: number): number {
 }
 
 /**
- * `variants[0]` is control and `variants[1]` is treatment. A malformed or
- * single-element array degrades to control-only rather than throwing, because a
- * bad row in the flags table must not take down every request that reads flags.
+ * `variants[0]` is control and `variants[1]` is treatment.
+ *
+ * Nothing here throws, because a bad row in the flags table must not take down
+ * every request that reads flags. A missing or empty array falls back to the
+ * default two arms; a single-element array has no treatment to hand out, so
+ * both arms collapse to that one value and every user stays on control.
  */
 export function armsOf(variants: string[] | undefined): {
 	control: string;
