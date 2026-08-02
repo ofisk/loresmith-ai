@@ -3,6 +3,10 @@
  */
 
 import type { ToolResult } from "@/app-constants";
+import {
+	containsImplementationDetail,
+	sanitizeUserFacingText,
+} from "@/lib/user-facing-language";
 
 /** Format message with campaign context. */
 export function formatMessageWithCampaign(
@@ -42,7 +46,13 @@ export function createAuthHeaders(jwt?: string | null): Record<string, string> {
 	};
 }
 
-/** Standard error response for tool execution. */
+/**
+ * Standard error response for tool execution.
+ *
+ * The whole `result` is handed to the chat model, so both the message and the
+ * error detail are redacted when they name infrastructure (see
+ * {@link sanitizeUserFacingText}). The originals go to the log, not the model.
+ */
 export function createToolError(
 	message: string,
 	error: unknown,
@@ -51,9 +61,28 @@ export function createToolError(
 	_campaignId?: string | null,
 	campaignName?: string | null
 ): ToolResult {
-	const formattedMessage = campaignName
-		? formatMessageWithCampaign(message, campaignName)
-		: message;
+	const rawDetail = error instanceof Error ? error.message : String(error);
+
+	if (
+		containsImplementationDetail(message) ||
+		containsImplementationDetail(rawDetail)
+	) {
+		console.error("[tool-error] redacted from chat:", {
+			toolCallId,
+			code,
+			message,
+			detail: rawDetail,
+		});
+	}
+
+	// A redacted message is a complete sentence; appending `for campaign "X"` to
+	// it reads as a fragment, so the suffix is only added to messages we kept.
+	const safeMessage = sanitizeUserFacingText(message);
+	const wasRedacted = safeMessage !== message;
+	const formattedMessage =
+		campaignName && !wasRedacted
+			? formatMessageWithCampaign(safeMessage, campaignName)
+			: safeMessage;
 
 	return {
 		toolCallId,
@@ -61,7 +90,7 @@ export function createToolError(
 			success: false,
 			message: formattedMessage,
 			data: {
-				error: error instanceof Error ? error.message : String(error),
+				error: sanitizeUserFacingText(rawDetail),
 				errorCode: code,
 				...(campaignName ? { campaignName } : {}),
 			},

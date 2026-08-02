@@ -178,7 +178,7 @@ function getUserFacingErrorMessage(error: unknown): string {
 		errorMessage.includes("too many tokens") ||
 		errorMessage.includes("reduce the length");
 	if (isContextLengthError) {
-		return "I encountered an issue: the context retrieved from your campaign is too large for me to process. I've automatically trimmed the least relevant information, but the request still exceeds my capacity. Please try a more specific query to narrow down the results.";
+		return "That pulled in more of your campaign than I can read at once. Could you narrow it down a bit, maybe to a single character, place, or session, and ask again?";
 	}
 	return "I apologize, but I encountered an error while processing your request. Please try again.";
 }

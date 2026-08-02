@@ -29,22 +29,66 @@ describe("buildSystemPrompt", () => {
 		const minimalTokens = estimateTokenCount(minimalPrompt);
 		const dataRetrievalTokens = estimateTokenCount(dataRetrievalPrompt);
 		expect(minimalTokens).toBeLessThan(dataRetrievalTokens);
-		// Document expected savings: dataRetrieval adds NO IMPROVISATION + PLAIN LANGUAGE (~220 tokens)
+		// Document expected savings: dataRetrieval adds NO IMPROVISATION (~150 tokens)
 		expect(dataRetrievalTokens - minimalTokens).toBeGreaterThan(100);
 	});
 
-	it("default (dataRetrieval) includes NO IMPROVISATION and PLAIN LANGUAGE", () => {
+	it("default (dataRetrieval) includes NO IMPROVISATION", () => {
 		const defaultPrompt = buildSystemPrompt(MINIMAL_CONFIG);
 		expect(defaultPrompt).toContain("NO IMPROVISATION");
-		expect(defaultPrompt).toContain("PLAIN LANGUAGE");
 	});
 
-	it("minimal excludes NO IMPROVISATION and PLAIN LANGUAGE", () => {
+	it("minimal excludes NO IMPROVISATION", () => {
 		const minimalPrompt = buildSystemPrompt({
 			...MINIMAL_CONFIG,
 			conversationRules: "minimal",
 		});
 		expect(minimalPrompt).not.toContain("NO IMPROVISATION");
-		expect(minimalPrompt).not.toContain("PLAIN LANGUAGE");
+	});
+
+	// The user is a storyteller, not an engineer. These rules are not optional
+	// per-agent, because any agent can hit a failure and try to explain it.
+	describe("user-facing voice rules apply to every preset", () => {
+		it.each(["minimal", "dataRetrieval"] as const)(
+			"%s includes PLAIN LANGUAGE",
+			(preset) => {
+				const prompt = buildSystemPrompt({
+					...MINIMAL_CONFIG,
+					conversationRules: preset,
+				});
+				expect(prompt).toContain("PLAIN LANGUAGE");
+			}
+		);
+
+		it.each(["minimal", "dataRetrieval"] as const)(
+			"%s forbids revealing how LoreSmith is built",
+			(preset) => {
+				const prompt = buildSystemPrompt({
+					...MINIMAL_CONFIG,
+					conversationRules: preset,
+				});
+				expect(prompt).toContain("NEVER REVEAL HOW LORESMITH IS BUILT");
+			}
+		);
+
+		it("names the specific things that must not be mentioned", () => {
+			const prompt = buildSystemPrompt(MINIMAL_CONFIG);
+			for (const forbidden of [
+				"hosting platforms",
+				"AI vendors",
+				"API keys",
+				"databases",
+				"tool names",
+				"stack traces",
+			]) {
+				expect(prompt).toContain(forbidden);
+			}
+		});
+
+		it("forbids inventing a support escalation path", () => {
+			const prompt = buildSystemPrompt(MINIMAL_CONFIG);
+			expect(prompt).toContain("escalate to");
+			expect(prompt).toContain("You have no way to contact anyone");
+		});
 	});
 });

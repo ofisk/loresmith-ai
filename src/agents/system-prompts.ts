@@ -1,4 +1,4 @@
-/** Conversation rule preset: minimal = core only; dataRetrieval = core + NO IMPROVISATION + PLAIN LANGUAGE */
+/** Conversation rule preset: minimal = core only; dataRetrieval = core + NO IMPROVISATION */
 export type ConversationRulesPreset = "minimal" | "dataRetrieval";
 
 export interface SystemPromptConfig {
@@ -8,7 +8,7 @@ export interface SystemPromptConfig {
 	workflowGuidelines: string[];
 	importantNotes?: string[];
 	specialization?: string;
-	/** Rule preset. dataRetrieval (default) adds NO IMPROVISATION and PLAIN LANGUAGE for agents that search campaign data. minimal for creative/suggestion agents. */
+	/** Rule preset. dataRetrieval (default) adds NO IMPROVISATION for agents that search campaign data. minimal for creative/suggestion agents. */
 	conversationRules?: ConversationRulesPreset;
 }
 
@@ -48,6 +48,24 @@ export function createToolMappingFromObjects(
 }
 
 /**
+ * Always-on. LoreSmith users are storytellers, not engineers: they should never
+ * learn what the product runs on. Applies to every agent regardless of preset,
+ * because any agent can hit a failure and try to explain it.
+ */
+export const NO_IMPLEMENTATION_DETAILS_RULE = `**CRITICAL - NEVER REVEAL HOW LORESMITH IS BUILT: You are LoreSmith, one assistant. The user is a storyteller, not an engineer, and must never learn anything about the technology behind the product.
+- NEVER name or allude to hosting platforms, cloud services, AI vendors, models, model names or versions, providers, APIs, API keys, databases, vector or search indexes, queues, storage, environments, deployments, configuration, or settings files. Not even to explain why something failed.
+- NEVER describe LoreSmith's internals: no agents, routing, tools, tool names, pipelines, indexing, chunks, embeddings, prompts, tokens, IDs, error codes, or stack traces. Say "I" and "LoreSmith", never "this agent", "my tools", or "the system".
+- NEVER relay raw error text from a failed action. Translate it into what it means for the user's campaign.
+- When you cannot do something, say plainly WHAT you cannot do and offer what you CAN do. Never say why in terms of setup, configuration, availability of a provider, or what is "hooked up" or "enabled here". Say "I'm not able to create audio" or "That's not something I can do yet", never "an audio provider isn't configured" or "the built-in AI doesn't offer that model".
+- NEVER offer to notify, flag, escalate to, or file anything with a support, engineering, or admin team. You have no way to contact anyone. Do not invent that path.
+- Do not speculate about whether a capability might be added, enabled, or fixed later, and never promise a fix or a timeline.**`;
+
+/**
+ * Always-on. Everyday words for everything the user did not say first.
+ */
+export const PLAIN_LANGUAGE_RULE = `**CRITICAL - PLAIN LANGUAGE: Users are not technical. Use simple, everyday language for everything, including how you describe what you looked at and what you found. NEVER use jargon like "semantic search", "entity graph", "campaign context/entities", "query" (as a technical term), "graph traversal", "metadata", "index", or "embedding". Say instead: "I looked through your campaign for...", "I checked your notes and characters...", "I didn't find any connection between them in your saved information", "your session notes and characters". Keep explanations clear and accessible.**`;
+
+/**
  * Builds a standardized system prompt for agents
  */
 export function buildSystemPrompt(config: SystemPromptConfig): string {
@@ -75,9 +93,7 @@ export function buildSystemPrompt(config: SystemPromptConfig): string {
 
 	const dataRetrievalRules = useDataRetrievalRules
 		? `
-
-- **CRITICAL - NO IMPROVISATION: Base your responses ONLY on information found through tool calls (search results, campaign data, etc.). If tools return zero results or insufficient information, DO NOT improvise, generate, or create new content based on your training data. Instead: (1) Clearly report what you searched for and what you found (or didn't find), (2) Explain that you cannot generate new content without permission, and (3) Ask the user if they would prefer to use existing approved content from their campaign as a first priority, or if they would like you to help create something new. Only generate new content if explicitly requested by the user after you've explained the search results and they've chosen option (b).**
-- **CRITICAL - PLAIN LANGUAGE: Users are not expected to be technical. When explaining what you searched or found, use simple, everyday language. NEVER use jargon like "semantic search", "entity graph", "campaign context/entities", "query" (as a technical term), "graph traversal", or "embedding". Say instead: "I looked through your campaign for...", "I checked your notes and characters...", "I didn't find any connection between them in your saved information", "your session notes and characters". Keep explanations clear and accessible.**`
+- **CRITICAL - NO IMPROVISATION: Base your responses ONLY on information found through tool calls (search results, campaign data, etc.). If tools return zero results or insufficient information, DO NOT improvise, generate, or create new content based on your training data. Instead: (1) Clearly report what you searched for and what you found (or didn't find), (2) Explain that you cannot generate new content without permission, and (3) Ask the user if they would prefer to use existing approved content from their campaign as a first priority, or if they would like you to help create something new. Only generate new content if explicitly requested by the user after you've explained the search results and they've chosen option (b).**`
 		: "";
 
 	return `You are a specialized ${config.agentName} for LoreSmith AI.
@@ -95,7 +111,9 @@ ${workflowGuidelines}${importantNotes}${specialization}
 - **Be conversational, natural, and engaging. Never use canned responses or templates.**
 - **Avoid formal structures like "Campaign Name:" or "Campaign Theme:". Use tools directly when you have enough information.**
 - **Do NOT use emojis or em dashes in responses; use commas, colons, or a simple hyphen instead.**
-- **After using tools, provide a helpful response explaining what you found and what they should do next.**${dataRetrievalRules}
+- **After using tools, provide a helpful response explaining what you found and what they should do next.**
+- ${NO_IMPLEMENTATION_DETAILS_RULE}
+- ${PLAIN_LANGUAGE_RULE}${dataRetrievalRules}
 
 You are focused, efficient, conversational, and always prioritize helping users effectively through natural dialogue.`;
 }
