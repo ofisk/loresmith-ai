@@ -319,11 +319,6 @@ export function ResourceFileDetails({
 							size="sm"
 							className="w-full !text-purple-600 dark:!text-purple-400 hover:!text-purple-700 dark:hover:!text-purple-300 border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600"
 							disabled={!canAddToCampaign}
-							title={
-								addWillBeQueued
-									? "This file is still processing. The add is queued and completes automatically."
-									: undefined
-							}
 						>
 							{canAddToCampaign ? "Add to campaign" : "File not ready"}
 						</Button>
