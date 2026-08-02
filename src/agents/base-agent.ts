@@ -1272,6 +1272,29 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			// keeps billing) server-side long after the client stopped listening.
 			...(abortSignal ? { abortSignal } : {}),
 			stopWhen: stepCountIs(MAX_AGENT_STEPS),
+			// This is the *second* truncation strategy in this method, and it is not
+			// redundant with the first: `buildConversationContext` folds older turns
+			// into a summary before the call, while this one bounds the messages a
+			// long tool loop adds during it. They cannot be merged — the summariser
+			// runs once, before any step exists.
+			//
+			// They do interfere, in two ways worth knowing before #734 places a
+			// message-level cache breakpoint (issue #761, finding 9):
+			//
+			// 1. `MAX_CONTEXT_MESSAGES` above keeps up to 32 recent turns. Once that
+			//    window is full this branch fires on step *one*, before any tool
+			//    traffic, and cuts it to 15. The effective history is therefore 15,
+			//    not 32, on exactly the long conversations the summariser is for.
+			//    (The summary block itself survives — it rides in the system prompt.)
+			// 2. Slicing from the front rewrites the message prefix on every later
+			//    step, so any message-level cache entry is discarded precisely when a
+			//    long loop would benefit most. #734's target is the system+tools
+			//    prefix, which renders before messages and is unaffected — but a
+			//    message breakpoint added later must not sit above this slice.
+			//
+			// Left as-is here deliberately: changing the window changes chat
+			// behaviour, and truncating from anywhere but the end risks orphaning a
+			// tool-call/tool-result pair, which Anthropic rejects outright.
 			prepareStep: async ({ messages }) => {
 				if (messages.length > MESSAGE_COMPRESSION_THRESHOLD) {
 					log.debug("Compressing message history for long agent loop", {

@@ -36,6 +36,7 @@ import { ProviderEmbeddingService } from "@/services/embedding/provider-embeddin
 import { EntityGraphService } from "@/services/graph/entity-graph-service";
 import { EntityImportanceService } from "@/services/graph/entity-importance-service";
 import { getLLMRateLimitService } from "@/services/llm/llm-rate-limit-service";
+import { createLlmResultCache } from "@/services/llm/llm-result-cache";
 import type { ExtractedEntity } from "@/services/rag/entity-extraction-service";
 import { EntityExtractionService } from "@/services/rag/entity-extraction-service";
 import {
@@ -657,7 +658,12 @@ async function stageEntitiesFromResourceImpl(
 
 		// Check if this is a character sheet before normal entity extraction
 		try {
-			const detectionService = new CharacterSheetDetectionService(llmApiKey);
+			const resultCache = await createLlmResultCache(env);
+			const detectionService = new CharacterSheetDetectionService(
+				llmApiKey,
+				resultCache,
+				env
+			);
 			const rateLimitService = getLLMRateLimitService(env);
 			const detectionResult = await detectionService.detectCharacterSheet(
 				fileContent,
@@ -684,7 +690,10 @@ async function stageEntitiesFromResourceImpl(
 
 			if (detectionService.isConfidentDetection(detectionResult)) {
 				// Parse the character sheet
-				const parserService = new CharacterSheetParserService(llmApiKey);
+				const parserService = new CharacterSheetParserService(
+					llmApiKey,
+					resultCache
+				);
 				const characterData = await parserService.parseCharacterSheet(
 					fileContent,
 					detectionResult.characterName || undefined
@@ -874,8 +883,15 @@ async function stageEntitiesFromResourceImpl(
 			}
 		}
 
-		// Extract entities from each chunk and merge results
-		const extractionService = new EntityExtractionService(llmApiKey);
+		// Extract entities from each chunk and merge results.
+		// The result cache is content-addressed, so re-indexing a file whose chunks
+		// have not changed — or adding the same document to a second campaign —
+		// skips the Sonnet call per unchanged chunk (issue #761, finding 8).
+		const extractionService = new EntityExtractionService(
+			llmApiKey,
+			null,
+			await createLlmResultCache(env)
+		);
 		const allExtractedEntities: Map<string, ExtractedEntity> = new Map();
 		let jsonRepairCount = 0;
 		let batchServedChunks = 0;

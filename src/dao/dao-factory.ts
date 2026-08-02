@@ -27,6 +27,7 @@ import { FileRetryUsageDAO } from "./file-retry-usage-dao";
 import { GraphRebuildDirtyDAO } from "./graph-rebuild-dirty-dao";
 import { LlmBatchJobDAO } from "./llm-batch-job-dao";
 import { LLMCostEventDAO } from "./llm-cost-event-dao";
+import { LlmResultCacheDAO } from "./llm-result-cache-dao";
 import { LLMUsageDAO } from "./llm-usage-dao";
 import { MessageHistoryDAO } from "./message-history-dao";
 import { PlanningTaskDAO } from "./planning-task-dao";
@@ -68,6 +69,7 @@ export interface DAOFactory {
 	llmUsageDAO: LLMUsageDAO;
 	llmCostEventDAO: LLMCostEventDAO;
 	llmBatchJobDAO: LlmBatchJobDAO;
+	llmResultCacheDAO: LlmResultCacheDAO;
 	communityDAO: CommunityDAO;
 	communitySummaryDAO: CommunitySummaryDAO;
 	continuityFindingDAO: ContinuityFindingDAO;
@@ -116,6 +118,7 @@ export class DAOFactoryImpl implements DAOFactory {
 	public readonly llmUsageDAO: LLMUsageDAO;
 	public readonly llmCostEventDAO: LLMCostEventDAO;
 	public readonly llmBatchJobDAO: LlmBatchJobDAO;
+	public readonly llmResultCacheDAO: LlmResultCacheDAO;
 	public readonly communityDAO: CommunityDAO;
 	public readonly communitySummaryDAO: CommunitySummaryDAO;
 	public readonly continuityFindingDAO: ContinuityFindingDAO;
@@ -160,6 +163,7 @@ export class DAOFactoryImpl implements DAOFactory {
 		this.llmUsageDAO = new LLMUsageDAO(db);
 		this.llmCostEventDAO = new LLMCostEventDAO(db);
 		this.llmBatchJobDAO = new LlmBatchJobDAO(db);
+		this.llmResultCacheDAO = new LlmResultCacheDAO(db);
 		this.communityDAO = new CommunityDAO(db);
 		this.communitySummaryDAO = new CommunitySummaryDAO(db);
 		this.continuityFindingDAO = new ContinuityFindingDAO(db);
