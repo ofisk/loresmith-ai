@@ -30,6 +30,7 @@ function formatDuration(seconds: number | null): string {
 
 const KIND_LABEL: Record<string, string> = {
 	ambience: "Ambience",
+	sfx: "Effect",
 	music: "Music",
 	creature: "Creature",
 	voice: "Voice",

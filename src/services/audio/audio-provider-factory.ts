@@ -18,14 +18,21 @@ import { WorkersAiTtsProvider } from "./workers-ai-tts-provider";
  * model at all, so the *capability* is what selects the provider, and a kind can
  * legitimately have no provider.
  *
- * Preference order per kind is "first-party if it can do the job, external
- * otherwise". The one nuance is `creature`: Workers AI can approximate a growl by
- * steering a low TTS voice, but a real sound model does it properly, so the
- * gateway provider wins that kind when configured.
+ * Preference order is "external provider if configured, first-party otherwise".
+ * An external key is only ever present because someone deliberately set it, and
+ * a dedicated audio vendor beats a general TTS model on every kind it serves —
+ * including `creature`, where Workers AI can only approximate a growl by
+ * steering a low TTS voice. Workers AI remains the floor, so removing the key
+ * degrades the feature to voice and creature rather than breaking it.
  */
 
 export interface AudioProviderEnv extends GatewayAudioEnv {
 	AI?: WorkersAiBinding;
+	/**
+	 * Pin `voice` to a specific provider. Only `workers-ai` is meaningful; it
+	 * forces NPC dialogue onto the free first-party model. See `preferenceFor`.
+	 */
+	AUDIO_VOICE_PROVIDER?: string;
 }
 
 export interface AudioCapability {
@@ -43,6 +50,7 @@ const UNAVAILABLE_REASON: Record<AudioKind, string> = {
 		"Creature sounds are unavailable because neither the Workers AI binding nor an external audio provider is configured.",
 	ambience:
 		"Scene ambience needs a sound-effect model. Cloudflare Workers AI does not offer one yet, and no external audio provider is configured for this environment.",
+	sfx: "Sound effects need a sound-effect model. Cloudflare Workers AI does not offer one yet, and no external audio provider is configured for this environment.",
 	music:
 		"Theme music needs a music model. Cloudflare Workers AI does not offer one yet, and no external audio provider is configured for this environment.",
 };
@@ -63,15 +71,29 @@ function buildCandidates(env: AudioProviderEnv): AudioProvider[] {
 }
 
 /**
- * Speech kinds should prefer Workers AI (free-tier, first-party, no vendor);
- * sound and music kinds have no first-party option, so they take whatever
- * supports them.
+ * Pick the provider for a kind from the candidates that can serve it.
+ *
+ * `voice` is the only kind with a real choice, and the choice is a cost/quality
+ * tradeoff rather than a capability one. Configuring an external provider is
+ * taken as opting into it — a GM who supplied an ElevenLabs key wants ElevenLabs
+ * voices, and a dedicated speech model is audibly better than steering a generic
+ * TTS voice.
+ *
+ * That default is deliberately reversible, because voice is the one kind whose
+ * volume is unbounded: ambience and music are generated a handful of times per
+ * campaign, but NPC dialogue is per line, and it bills per character. Setting
+ * `AUDIO_VOICE_PROVIDER=workers-ai` pins voice back to the free first-party
+ * model while leaving ambience, effects, and music on the vendor.
  */
-function preferenceFor(kind: AudioKind, providers: AudioProvider[]) {
+function preferenceFor(
+	kind: AudioKind,
+	providers: AudioProvider[],
+	env: AudioProviderEnv
+) {
 	const supporting = providers.filter((p) => p.supports(kind));
 	if (supporting.length === 0) return null;
 
-	if (kind === "voice") {
+	if (kind === "voice" && env.AUDIO_VOICE_PROVIDER === "workers-ai") {
 		return supporting.find((p) => p.name === "workers-ai") ?? supporting[0];
 	}
 	return supporting[0];
@@ -81,7 +103,7 @@ export function resolveAudioProvider(
 	env: AudioProviderEnv,
 	kind: AudioKind
 ): AudioProvider {
-	const provider = preferenceFor(kind, buildCandidates(env));
+	const provider = preferenceFor(kind, buildCandidates(env), env);
 	if (!provider) {
 		throw new AudioKindUnavailableError(kind, UNAVAILABLE_REASON[kind]);
 	}
@@ -101,7 +123,7 @@ export function describeAudioCapabilities(
 	const providers = buildCandidates(env);
 
 	return AUDIO_KINDS.map((kind) => {
-		const provider = preferenceFor(kind, providers);
+		const provider = preferenceFor(kind, providers, env);
 		return {
 			kind,
 			available: provider !== null,

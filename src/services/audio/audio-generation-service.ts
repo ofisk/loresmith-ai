@@ -61,6 +61,8 @@ export interface GenerateAudioRequest {
 	/** Provider voice/speaker id for the speech kinds. */
 	voice?: string | null;
 	durationSec?: number | null;
+	/** For `music`: allow vocals. Defaults to instrumental, which tables want. */
+	instrumental?: boolean | null;
 	title?: string | null;
 	description?: string | null;
 	loopable?: boolean | null;
@@ -79,6 +81,8 @@ const AUDIO_SECRET_KEYS = [
 	"AI_GATEWAY_ACCOUNT_ID",
 	"AI_GATEWAY_ID",
 	"AUDIO_GATEWAY_BASE_URL",
+	"ELEVENLABS_VOICE_ID",
+	"AUDIO_VOICE_PROVIDER",
 ] as const;
 
 /**
@@ -283,6 +287,11 @@ export async function runAudioGeneration(
 			prompt: record.prompt,
 			durationSec: request.durationSec ?? undefined,
 			voice: request.voice ?? undefined,
+			// Taken from the persisted row, not the request: `loopable` is where the
+			// per-kind default was already resolved, so asking the model to render a
+			// seamless wrap and marking the track as looping can never disagree.
+			loop: record.loopable,
+			instrumental: request.instrumental ?? undefined,
 		});
 
 		const r2Key = buildAudioR2Key(record.campaignId, record.id);

@@ -23,6 +23,41 @@ const CAMPAIGN: AudioCampaignContext = {
 };
 
 describe("buildAudioPrompt", () => {
+	/**
+	 * Effects and ambience share a vendor endpoint, so the only thing keeping a
+	 * door slam from coming back as a five-second wash is that they build
+	 * opposite prompts. That opposition is the behaviour worth pinning.
+	 */
+	describe("sfx", () => {
+		it("asks for a transient one-shot, not a bed", () => {
+			const prompt = buildAudioPrompt({
+				kind: "sfx",
+				campaign: CAMPAIGN,
+				hint: "an iron portcullis slamming shut",
+			});
+
+			expect(prompt).toContain("an iron portcullis slamming shut");
+			expect(prompt).toContain("sharp transient");
+			expect(prompt).toContain("no continuous background ambience");
+		});
+
+		it("does not ask for the loopable steadiness ambience wants", () => {
+			const sfx = buildAudioPrompt({
+				kind: "sfx",
+				campaign: CAMPAIGN,
+				hint: "a sword striking a shield",
+			});
+			const ambience = buildAudioPrompt({
+				kind: "ambience",
+				campaign: CAMPAIGN,
+				hint: "a battlefield",
+			});
+
+			expect(ambience).toContain("loopable");
+			expect(sfx).not.toContain("loopable");
+		});
+	});
+
 	describe("ambience", () => {
 		it("mines audible detail out of campaign and entity prose", () => {
 			const prompt = buildAudioPrompt({

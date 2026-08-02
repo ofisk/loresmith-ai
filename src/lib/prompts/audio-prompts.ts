@@ -206,6 +206,30 @@ function buildAmbiencePrompt(input: BuildAudioPromptInput): string {
 }
 
 /**
+ * A one-shot sound effect: a door slam, a spell discharge, a blade on shield.
+ *
+ * The inverse of the ambience prompt in every respect, which is why it is a
+ * separate builder rather than a flag. Ambience asks for something steady with
+ * no transitions, because it plays under a GM talking; an effect is *entirely*
+ * transient, and asking for a loopable bed would produce a five-second wash
+ * where a single sharp hit was wanted. Campaign context is used sparingly here —
+ * a door slam does not need the campaign's tone, and mining the entity graph for
+ * atmosphere would smear the hit into a bed.
+ */
+function buildSfxPrompt(input: BuildAudioPromptInput): string {
+	const subject =
+		input.hint?.trim() || input.entity?.name || input.scene || "sound effect";
+
+	const parts = [
+		`Single isolated sound effect for a tabletop RPG: ${subject}.`,
+		"One discrete event, close and dry, sharp transient, silence before and after.",
+		"No music, no speech, no continuous background ambience.",
+	];
+
+	return clamp(parts.join(" "));
+}
+
+/**
  * Campaign theme music: instrumentation and mood, plus an explicit request for a
  * short recognizable motif.
  *
@@ -272,6 +296,8 @@ export function buildAudioPrompt(input: BuildAudioPromptInput): string {
 	switch (input.kind) {
 		case "ambience":
 			return buildAmbiencePrompt(input);
+		case "sfx":
+			return buildSfxPrompt(input);
 		case "music":
 			return buildMusicPrompt(input);
 		case "creature":
@@ -295,6 +321,7 @@ export function buildAudioTitle(input: BuildAudioPromptInput): string {
 
 	const label: Record<AudioKind, string> = {
 		ambience: "Ambience",
+		sfx: "Effect",
 		music: "Theme",
 		creature: "Sound",
 		voice: "Voice",
