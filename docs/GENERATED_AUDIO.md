@@ -58,6 +58,66 @@ HTTP route ─┘         │                         (routes on kind)    └─
 | `src/dao/campaign-audio-dao.ts` | `campaign_audio` rows |
 | `src/routes/campaign-audio.ts` | GM-only HTTP surface |
 | `src/tools/campaign-context/audio-tools.ts` | Conversational access |
+| `src/agents/audio-agent.ts` | The agent that owns those tools in chat |
+
+## Reaching it from chat
+
+Audio is its own agent, not a set of extra responsibilities on the campaign
+context agent. That split is the fix for
+[#788](https://github.com/ofisk/loresmith-ai/issues/788), where the entire
+feature shipped working and unreachable: the tools were registered inside
+`campaignContextToolsBundle`, whose routing description mentions entities,
+search, and world state and says nothing about sound. `AgentRouter` builds its
+classifier prompt from exactly those descriptions, so "generate music" had no
+signal pointing anywhere useful and landed on an agent that truthfully answered
+that it could not produce audio.
+
+The lesson generalizes past audio: **a tool is only reachable if some agent's
+routing description describes it.** Registering a tool in a bundle is not
+enough, and the failure is silent — it looks like a hallucinated capability
+denial rather than a configuration problem.
+
+Routing to `audio` happens on two layers:
+
+- **Deterministic** (`agent-routing-fast-path.ts`) — anchored patterns match
+  requests whose audio noun is the direct object of a generation verb
+  ("generate music", "make ambience for the crypt scene"). These skip the
+  classifier entirely. The anchoring is what keeps them safe: "generate a
+  summary of the music the bards play" is a campaign question and does not
+  match.
+- **Classifier** — everything looser, steered by the agent description and the
+  routing rule in `agent-routing-prompts.ts`.
+
+The agent is GM-only with **no** player subset. `buildAudioTitle` names tracks
+after campaign entities, so "Theme: The Betrayer's Reveal" spoils a session
+merely by appearing in a list. `getToolsForRole` returns an empty bundle for
+player roles, matching the route-level gate in `src/routes/campaign-audio.ts`.
+
+Two prompt rules exist to prevent specific regressions:
+
+- A capability gap is stated once and never retried. The agent may not offer a
+  retry, suggest trying later, or speculate that the capability might arrive.
+- The agent must never fall back to writing a prompt for an external music,
+  sound, or voice service. Handing the GM text to paste into another product is
+  the exact behavior this feature was built to replace, and it is what #788
+  observed in production.
+
+### The gap is stated, not explained
+
+`UNAVAILABLE_REASON` in the provider factory is written for developers, and it
+names the platform and the missing vendor. The GM never reads it.
+`sanitizeUserFacingText` (added in
+[#787](https://github.com/ofisk/loresmith-ai/issues/787)) redacts any tool error
+containing that vocabulary — "Cloudflare", "Workers AI", "audio provider", "not
+configured" all match — and replaces the whole message with "That's not
+something I can do right now." The raw text is logged instead.
+
+So when you are debugging an unavailable kind, read the logs; the chat
+transcript will only ever show the plain-language stand-in. This is deliberate:
+#788 originally asked for the gap to be explained to the GM as "music requires
+an external provider that is not configured", and #787 superseded that. The
+substance survives — no retry, no rival-service prompt, a clear statement that
+it cannot be done — and only the reason is withheld.
 
 ## Generation is always asynchronous
 

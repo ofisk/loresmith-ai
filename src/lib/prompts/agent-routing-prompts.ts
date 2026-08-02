@@ -47,6 +47,7 @@ Routing rules:
 - Loot and rewards (encounter loot, dragon hoard treasure, meaningful magic item rewards, track distributed loot) → "loot-reward"
 - Rules reference questions (grappling, concentration checks, action economy, spellcasting rules, stat block lookups, "what does the rule say", "does our house rule apply") → "rules-reference"
 - Encounter building and scaling (build an encounter, scale this fight, medium-difficulty combat near a location, prepare monster lineup and tactics) → "encounter-builder"
+- Generated audio (generate music, make ambience for a scene, a one-shot sound effect, a creature vocalization, speaking an NPC line aloud, listing or deleting generated tracks, "what does X sound like") → "audio". Route here even when the request also names a location, NPC, or monster: the audio agent resolves that entity itself. Do NOT route to "campaign-context" merely because an entity is mentioned.
 - General help/how-to questions about using the application → "onboarding"
 - Boost/credits selection (which boost, help me choose, running out of capacity when adding documents, need more room for documents) → "onboarding"
 
@@ -72,6 +73,12 @@ Examples:
 - "Build a medium-difficulty encounter for a level 7 party near Ashfen Marsh" → encounter-builder|95|Encounter generation
 - "Scale this encounter up for five level 9 characters" → encounter-builder|95|Encounter scaling
 - "let's do a readout" / "construct the readout" / "give me the session plan" / "I'm ready for the readout" → recap|95|Session plan readout (from completed next steps)
+- "generate music for this campaign" → audio|95|Audio generation
+- "Make ambience for the crypt scene" → audio|95|Scene ambience generation
+- "Give me a door-slam sound effect" → audio|95|Sound effect generation
+- "What does the Betrayer's theme sound like?" → audio|90|Theme music generation
+- "Read this line in Sera's voice: 'You should not have come here.'" → audio|95|NPC voice generation
+- "What audio tracks does this campaign have?" → audio|90|Generated audio listing
 - "how do I upload files?" → onboarding|85|General help
 - "which boost should I get?" / "help me choose a boost" / "I'm running out of capacity" → onboarding|90|Boost selection`;
 }

@@ -32,6 +32,7 @@ const AGENTS = [
 	"onboarding",
 	"resources",
 	"rules-reference",
+	"audio",
 ] as const;
 
 function registerTestAgents() {
@@ -104,6 +105,29 @@ describe("AgentRouter.routeMessage layering", () => {
 		expect(recap.agent).toBe("session-digest");
 		expect(recap.source).toBe("deterministic");
 
+		expect(generateTextMock).not.toHaveBeenCalled();
+	});
+
+	// Issue #788: this exact message reached an agent with no audio tools and
+	// was answered with a flat "I cannot generate audio".
+	it("routes audio generation to the audio agent without calling the model", async () => {
+		const intent = await AgentRouter.routeMessage(
+			"generate music for this campaign"
+		);
+
+		expect(intent.agent).toBe("audio");
+		expect(intent.source).toBe("deterministic");
+		expect(intent.confidence).toBe(100);
+		expect(generateTextMock).not.toHaveBeenCalled();
+	});
+
+	it("routes scene ambience to the audio agent without calling the model", async () => {
+		const intent = await AgentRouter.routeMessage(
+			"Make ambience for the crypt scene"
+		);
+
+		expect(intent.agent).toBe("audio");
+		expect(intent.source).toBe("deterministic");
 		expect(generateTextMock).not.toHaveBeenCalled();
 	});
 

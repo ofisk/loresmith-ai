@@ -3,11 +3,6 @@
 import { showCampaignDetails } from "@/tools/campaign/core-tools";
 import { searchVisualInspirationTool } from "@/tools/campaign/file-tools";
 import { getMessageHistory } from "@/tools/message-history-tools";
-import {
-	deleteCampaignAudioTool,
-	generateCampaignAudioTool,
-	listCampaignAudioTool,
-} from "./audio-tools";
 import { getChecklistStatusTool } from "./checklist-tools";
 import { captureConversationalContext } from "./context-capture-tools";
 import {
@@ -82,11 +77,11 @@ export const campaignContextToolsBundle = {
 	captureConversationalContext,
 	generateHandoutTool,
 	exportHandoutTool,
-	// Generated audio (#756). GM-only: a track title is built from campaign
-	// entities, so listing tracks reveals what is coming.
-	generateCampaignAudioTool,
-	listCampaignAudioTool,
-	deleteCampaignAudioTool,
+	// Generated audio (#756) is deliberately NOT here. It lives on the audio
+	// agent (#788): this agent's prompt never documented the audio tools, so the
+	// model was handed capabilities it was never told it had, while the router
+	// had no description pointing audio requests at this agent in the first
+	// place. See `src/tools/campaign-context/audio-agent-tools-bundle.ts`.
 };
 
 /** Player-facing subset: search, list (sanitized), campaign details, message history */

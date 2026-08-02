@@ -69,6 +69,21 @@ describe("Role-based tool filtering", () => {
 			expect(campaignContextToolsBundle.exportHandoutTool).toBeDefined();
 		});
 
+		// Issue #788: the audio tools used to live here, on an agent whose prompt
+		// never documented them and whose routing description never mentioned
+		// sound. They belong to the audio agent now.
+		it("campaignContextToolsBundle should not carry the audio tools", () => {
+			expect(
+				(campaignContextToolsBundle as any).generateCampaignAudioTool
+			).toBeUndefined();
+			expect(
+				(campaignContextToolsBundle as any).listCampaignAudioTool
+			).toBeUndefined();
+			expect(
+				(campaignContextToolsBundle as any).deleteCampaignAudioTool
+			).toBeUndefined();
+		});
+
 		it("playerCampaignContextToolsBundle should exclude GM-only tools", () => {
 			expect(
 				playerCampaignContextToolsBundle.searchCampaignContext
