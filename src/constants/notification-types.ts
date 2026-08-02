@@ -30,6 +30,12 @@ export const NOTIFICATION_TYPES = {
 	// Next steps / planning tasks
 	NEXT_STEPS_CREATED: "next_steps_created",
 
+	// Generated campaign audio (issue #756). Generation takes seconds to a
+	// minute, so it is always async and always reports back through these.
+	AUDIO_GENERATION_STARTED: "audio_generation_started",
+	AUDIO_READY: "audio_ready",
+	AUDIO_GENERATION_FAILED: "audio_generation_failed",
+
 	// Graph rebuild notifications
 	REBUILD_STARTED: "rebuild_started",
 	REBUILD_COMPLETED: "rebuild_completed",

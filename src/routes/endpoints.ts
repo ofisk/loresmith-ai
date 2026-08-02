@@ -165,6 +165,17 @@ export const ENDPOINTS = {
 			EXPORT_HTML: (campaignId: string, runsheetId: string) =>
 				`/campaigns/${campaignId}/runsheets/${runsheetId}/export.html`,
 		},
+		/** Generated campaign audio: ambience, theme music, creature/NPC voices. */
+		AUDIO: {
+			BASE: (campaignId: string) => `/campaigns/${campaignId}/audio`,
+			CAPABILITIES: (campaignId: string) =>
+				`/campaigns/${campaignId}/audio/capabilities`,
+			DETAILS: (campaignId: string, audioId: string) =>
+				`/campaigns/${campaignId}/audio/${audioId}`,
+			/** Authenticated playback; R2 is never exposed publicly. */
+			STREAM: (campaignId: string, audioId: string) =>
+				`/campaigns/${campaignId}/audio/${audioId}/stream`,
+		},
 		PLANNING_TASKS: {
 			BASE: (campaignId: string) => `/campaigns/${campaignId}/planning-tasks`,
 			DETAILS: (campaignId: string, taskId: string) =>

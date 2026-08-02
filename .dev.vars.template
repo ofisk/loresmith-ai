@@ -15,6 +15,29 @@ OPENAI_API_KEY=your-openai-api-key-here
 # Cheap LLM chunk gate before full entity extraction (default off). Set true to skip full extraction on clearly non-substantive chunks.
 # EXTRACTION_CHUNK_GATE_ENABLED=true
 
+# Generated audio (see docs/GENERATED_AUDIO.md).
+# NPC voices and creature sounds need none of these — they run on the Workers AI
+# binding. Ambience, sound effects, and theme music need an external sound/music
+# model, because the Workers AI catalog has neither. Leave these unset and those
+# kinds report as unavailable in the UI with the reason; nothing breaks.
+#
+# All THREE are required together. The key alone does nothing: without a gateway
+# to route through, the provider stays inactive rather than calling the vendor
+# directly. Create a gateway at Cloudflare dashboard -> AI -> AI Gateway; the
+# account id and gateway id are both in that gateway's API endpoint URL.
+# ELEVENLABS_API_KEY=
+# AI_GATEWAY_ACCOUNT_ID=
+# AI_GATEWAY_ID=
+# Overrides the gateway URL entirely. For tests, or to point at another vendor.
+# AUDIO_GATEWAY_BASE_URL=
+# ElevenLabs voice id used for NPC dialogue. Defaults to a premade voice.
+# ELEVENLABS_VOICE_ID=
+# Setting the key above moves NPC voice onto ElevenLabs too, which is better but
+# bills per character on the highest-volume kind. Set this to `workers-ai` to
+# keep voice on the free first-party model while ambience/sfx/music use the
+# vendor.
+# AUDIO_VOICE_PROVIDER=
+
 # JWT signing secret (required for auth - use a random string)
 JWT_SECRET=your-jwt-secret-here
 

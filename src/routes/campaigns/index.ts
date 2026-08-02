@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { RequestLogger } from "@/lib/logger";
 import type { Env } from "@/routes/env";
+import { registerCampaignAudioRoutes } from "./audio-routes";
 import { registerCampaignCommunitiesRoutes } from "./communities-routes";
 import { registerCampaignContinuityRoutes } from "./continuity-routes";
 import { registerCampaignCoreRoutes } from "./core-routes";
@@ -27,6 +28,7 @@ export function registerCampaignRoutes(
 	registerCampaignPlayerRecapRoutes(app);
 	registerCampaignEntitiesRoutes(app);
 	registerCampaignCommunitiesRoutes(app);
+	registerCampaignAudioRoutes(app);
 	registerCampaignGraphragRoutes(app);
 	registerCampaignGraphRebuildRoutes(app);
 }

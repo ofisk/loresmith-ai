@@ -24,6 +24,11 @@ There is **no** separate GitHub Actions `deploy.yml` for production—Cloudflare
 **Optional (for username/password auth and email verification):** Set these as **secrets** the same way:
 - `RESEND_API_KEY` – Resend API key for verification emails. Without this, registration succeeds but no verification email is sent; users see a message directing them to use "Resend verification email" or contact support. To set for dev: `wrangler secret put RESEND_API_KEY --config wrangler.dev.jsonc`
 
+**Optional (for generated ambience, sound effects, and theme music):** Set these as **secrets** the same way. See [Generated audio](GENERATED_AUDIO.md).
+- `ELEVENLABS_API_KEY` – External sound/music model, reached through AI Gateway. Without it, NPC voices and creature sounds still work (they run on the Workers AI binding), but ambience, sound effects, and music report as unavailable in the UI with the reason. Nothing errors. To set for dev: `wrangler secret put ELEVENLABS_API_KEY --config wrangler.dev.jsonc`
+- `AI_GATEWAY_ACCOUNT_ID`, `AI_GATEWAY_ID` – Identify the AI Gateway the audio calls route through. **Required alongside the key** — the key on its own does nothing, because without both the provider stays inactive so no request can bypass the gateway. Create the gateway at Cloudflare dashboard → AI → AI Gateway; both ids appear in its API endpoint URL.
+- `AUDIO_VOICE_PROVIDER` *(optional)* – Setting the key above also moves NPC voice onto ElevenLabs, which bills per character on the highest-volume kind. Set this to `workers-ai` to keep voice on the free first-party model.
+
 **Dev Worker URL:** `https://loresmith-ai-dev.<account-subdomain>.workers.dev` (e.g. `https://loresmith-ai-dev.oren-t-fisk.workers.dev`). Check the Cloudflare dashboard or deploy logs for your exact URL.
 
 Staging uses a dedicated D1 database (`loresmith-db-dev`). R2 and Vectorize are shared with production.

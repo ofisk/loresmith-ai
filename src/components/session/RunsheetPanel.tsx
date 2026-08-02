@@ -6,6 +6,7 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button/Button";
+import { LazyRunsheetAudioStrip } from "@/components/campaign-audio/LazyCampaignAudioPanel";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
 import { API_CONFIG } from "@/shared-config";
 import type { RunsheetSummary, RunsheetWithData } from "@/types/runsheet";
@@ -466,6 +467,8 @@ export function RunsheetPanel({ campaignId, canEdit }: RunsheetPanelProps) {
 					>
 						<BulletList items={data.openThreads.map((thread) => thread.text)} />
 					</Section>
+
+					<LazyRunsheetAudioStrip campaignId={campaignId} />
 
 					<section>
 						<h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 pb-1 mb-2">
