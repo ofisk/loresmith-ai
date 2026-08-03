@@ -1,6 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
-import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider } from "@/app-constants";
 import { sanitizeApiKey } from "./auth-utils";
 import { LLMProviderAPIKeyError } from "./errors";
 
@@ -27,7 +26,6 @@ export class ModelManager {
 		}
 
 		const trimmedKey = sanitizeApiKey(apiKey);
-		const provider = MODEL_CONFIG.PROVIDER.DEFAULT;
 
 		// Validate that the API key is not a placeholder
 		if (
@@ -44,18 +42,8 @@ export class ModelManager {
 			return;
 		}
 
-		// Create provider-aware model instance without mutating process environment.
-		if (provider === "anthropic") {
-			const anthropic = createAnthropic({ apiKey: trimmedKey });
-			this.model = anthropic(
-				getGenerationModelForProvider("INTERACTIVE", provider) as any
-			);
-		} else {
-			const openAI = createOpenAI({ apiKey: trimmedKey });
-			this.model = openAI(
-				getGenerationModelForProvider("INTERACTIVE", provider) as any
-			);
-		}
+		const anthropic = createAnthropic({ apiKey: trimmedKey });
+		this.model = anthropic(getGenerationModelForProvider("INTERACTIVE") as any);
 		this.apiKey = trimmedKey;
 	}
 

@@ -11,7 +11,7 @@ npm run dev     # backend: wrangler dev --local, port 8787 (wraps package.json s
 npm run start   # frontend: vite dev, port 5173, proxies /api to :8787
 ```
 
-Requires `.dev.vars` to exist (copy from `.dev.vars.template` if missing — `ADMIN_SECRET` is the only required value for local dev).
+Requires `.dev.vars` to exist (copy from `.dev.vars.template` if missing). `ADMIN_SECRET` is the only value required to boot the app, but chat needs `ANTHROPIC_API_KEY` (the only LLM provider — there is no OpenAI chat fallback) and embeddings need `OPENAI_API_KEY`; without them the relevant features fail at request time rather than at boot.
 
 Health checks:
 ```bash

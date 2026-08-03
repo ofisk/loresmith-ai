@@ -738,10 +738,14 @@ export async function handleGenerateShardField(c: ContextWithAuth) {
 			);
 		}
 
-		const openaiApiKeyRaw = await getEnvVar(c.env, "OPENAI_API_KEY", false);
-		const openaiApiKey = openaiApiKeyRaw.trim() || undefined;
-		if (!openaiApiKey) {
-			return c.json({ error: "OpenAI API key not configured" }, 503);
+		const anthropicApiKeyRaw = await getEnvVar(
+			c.env,
+			"ANTHROPIC_API_KEY",
+			false
+		);
+		const anthropicApiKey = anthropicApiKeyRaw.trim() || undefined;
+		if (!anthropicApiKey) {
+			return c.json({ error: "Anthropic API key not configured" }, 503);
 		}
 
 		const contentObj =
@@ -772,7 +776,7 @@ Rules:
 - Do not invent facts not implied by the name/type; keep it generic if little context exists.`;
 
 		const provider = createLLMProvider({
-			apiKey: openaiApiKey,
+			apiKey: anthropicApiKey,
 			defaultMaxTokens: 500,
 		});
 		const rateLimitService = getLLMRateLimitService(c.env);

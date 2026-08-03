@@ -58,11 +58,7 @@ export class DigestQualityService {
 
 	private getResolvedLlmApiKey(): string | undefined {
 		if (this.llmApiKey?.trim()) return this.llmApiKey.trim();
-		const providerKeyName =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? "ANTHROPIC_API_KEY"
-				: "OPENAI_API_KEY";
-		const fromEnv = this.env?.[providerKeyName];
+		const fromEnv = this.env?.ANTHROPIC_API_KEY;
 		return typeof fromEnv === "string" && fromEnv.trim().length > 0
 			? fromEnv.trim()
 			: undefined;

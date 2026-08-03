@@ -192,19 +192,15 @@ export const planSession = tool({
 			const gmError = await requireGMRole(env, campaignId, userId, toolCallId);
 			if (gmError) return gmError;
 
-			const providerEnvVar =
-				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-					? "ANTHROPIC_API_KEY"
-					: "OPENAI_API_KEY";
 			const providerApiKeyRaw = await getEnvVar(
 				env as any,
-				providerEnvVar,
+				"ANTHROPIC_API_KEY",
 				false
 			);
 			const providerApiKey = providerApiKeyRaw.trim() || undefined;
 			if (!providerApiKey) {
 				return createToolError(
-					`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`,
+					"anthropic API key not configured",
 					"AI is not configured for this environment.",
 					503,
 					toolCallId
@@ -362,9 +358,7 @@ export const planSession = tool({
 				maxTokens: MODEL_CONFIG.PARAMETERS.SESSION_PLANNING_MAX_TOKENS,
 				// The requirements block is ~1.3k tokens and identical across every
 				// session of the same type — over Sonnet 5's 1,024-token minimum.
-				...(MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-					? { structuredPromptParts: promptParts }
-					: {}),
+				structuredPromptParts: promptParts,
 			});
 
 			const gaps = analyzeGaps(sessionScript, filteredEntities);

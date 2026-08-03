@@ -388,13 +388,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		const fromManager = ModelManager.getInstance().getApiKey();
 		if (fromManager) return fromManager;
 		try {
-			const envVar =
-				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-					? "ANTHROPIC_API_KEY"
-					: "OPENAI_API_KEY";
 			const raw = await getEnvVar(
 				this.env as unknown as Record<string, unknown>,
-				envVar,
+				"ANTHROPIC_API_KEY",
 				false
 			);
 			return raw.trim() || null;
@@ -1251,13 +1247,10 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			await this.storeMessageToDatabase(assistantMessage);
 		};
 
-		const sampling =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? anthropicSamplingParams(
-						modelId,
-						MODEL_CONFIG.PARAMETERS.CHAT_TEMPERATURE
-					)
-				: { temperature: MODEL_CONFIG.PARAMETERS.CHAT_TEMPERATURE };
+		const sampling = anthropicSamplingParams(
+			modelId,
+			MODEL_CONFIG.PARAMETERS.CHAT_TEMPERATURE
+		);
 
 		const result = streamText({
 			model: this.model,

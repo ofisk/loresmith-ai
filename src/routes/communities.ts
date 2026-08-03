@@ -1,5 +1,4 @@
 import type { Context } from "hono";
-import { MODEL_CONFIG } from "@/app-constants";
 import type { Community } from "@/dao/community-dao";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
@@ -57,11 +56,11 @@ export async function handleDetectCommunities(c: ContextWithAuth) {
 			minImprovement: body.minImprovement,
 		};
 
-		const providerKeyEnvVar =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? "ANTHROPIC_API_KEY"
-				: "OPENAI_API_KEY";
-		const providerApiKeyRaw = await getEnvVar(c.env, providerKeyEnvVar, false);
+		const providerApiKeyRaw = await getEnvVar(
+			c.env,
+			"ANTHROPIC_API_KEY",
+			false
+		);
 		const providerApiKey = providerApiKeyRaw.trim() || undefined;
 
 		// Create service
@@ -557,16 +556,16 @@ export async function handleGenerateCommunitySummary(c: ContextWithAuth) {
 			return c.json({ error: "Community not found" }, 404);
 		}
 
-		const providerKeyEnvVar =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? "ANTHROPIC_API_KEY"
-				: "OPENAI_API_KEY";
-		const providerApiKeyRaw = await getEnvVar(c.env, providerKeyEnvVar, false);
+		const providerApiKeyRaw = await getEnvVar(
+			c.env,
+			"ANTHROPIC_API_KEY",
+			false
+		);
 		const providerApiKey = providerApiKeyRaw.trim() || undefined;
 		if (!providerApiKey) {
 			return c.json(
 				{
-					error: `${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`,
+					error: "anthropic API key not configured",
 					message: "AI is not configured for this environment.",
 				},
 				503

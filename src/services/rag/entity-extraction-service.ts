@@ -28,8 +28,7 @@ import type { TelemetryService } from "@/services/telemetry/telemetry-service";
  * Entity extraction uses PIPELINE_STRUCTURED (e.g. claude-sonnet-5 on Anthropic).
  * Higher Anthropic budget leaves room for Sonnet 5 adaptive thinking + JSON.
  */
-export const MAX_EXTRACTION_RESPONSE_TOKENS =
-	MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 16384 : 16384;
+export const MAX_EXTRACTION_RESPONSE_TOKENS = 16384;
 
 // Zod schema for entity extraction response
 // This matches the structure expected by the RPG extraction prompt
@@ -219,7 +218,7 @@ export class EntityExtractionService {
 		const apiKey = options.llmApiKey || this.llmApiKey;
 		if (!apiKey) {
 			throw new LLMProviderAPIKeyError(
-				`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required for entity extraction.`
+				"Anthropic API key is required for entity extraction."
 			);
 		}
 
@@ -228,13 +227,10 @@ export class EntityExtractionService {
 			options.content
 		);
 
-		const structuredPromptParts: StructuredPromptParts | undefined =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? {
-						cacheablePrefix: promptParts.cacheablePrefix,
-						variableSuffix: promptParts.variableSuffix,
-					}
-				: undefined;
+		const structuredPromptParts: StructuredPromptParts = {
+			cacheablePrefix: promptParts.cacheablePrefix,
+			variableSuffix: promptParts.variableSuffix,
+		};
 
 		// The cached value is the validated payload, taken before entity IDs are
 		// minted below — those are campaign-scoped, and re-minting them per

@@ -24,7 +24,7 @@
 		"STAGING_PREFIX": "staging",
 		"READINESS_TIMEOUT_SEC": "600",
 		"READINESS_BACKOFF_MS": "2000"
-		// ADMIN_SECRET and OPENAI_API_KEY are loaded from .dev.vars file
+		// ADMIN_SECRET, ANTHROPIC_API_KEY (chat), and OPENAI_API_KEY (embeddings) are loaded from .dev.vars file
 	},
 	// Explicitly disable secrets store bindings for local development
 	"secrets_store_secrets": [],

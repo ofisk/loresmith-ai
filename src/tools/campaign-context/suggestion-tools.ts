@@ -448,11 +448,7 @@ async function analyzeMetadataCoverage(
 ): Promise<Record<string, boolean>> {
 	const coverage: Record<string, boolean> = {};
 
-	const providerEnvVar =
-		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-			? "ANTHROPIC_API_KEY"
-			: "OPENAI_API_KEY";
-	const providerApiKeyRaw = await getEnvVar(env, providerEnvVar, false);
+	const providerApiKeyRaw = await getEnvVar(env, "ANTHROPIC_API_KEY", false);
 	const providerApiKey = providerApiKeyRaw.trim();
 	if (!providerApiKey) {
 		return coverage;

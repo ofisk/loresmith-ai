@@ -1,5 +1,5 @@
 import type { Message } from "@cloudflare/workers-types";
-import { MODEL_CONFIG, PROCESSING_LIMITS } from "@/app-constants";
+import { PROCESSING_LIMITS } from "@/app-constants";
 import { FileDAO } from "@/dao";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -653,13 +653,9 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							}
 						);
 
-						const providerKeyEnvVar =
-							MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-								? "ANTHROPIC_API_KEY"
-								: "OPENAI_API_KEY";
 						const providerApiKeyRaw = await getEnvVar(
 							env,
-							providerKeyEnvVar,
+							"ANTHROPIC_API_KEY",
 							false
 						);
 						const providerApiKey = providerApiKeyRaw.trim() || undefined;
@@ -700,7 +696,7 @@ async function checkAndTriggerRebuilds(env: Env): Promise<void> {
 							});
 						} else {
 							log.warn(
-								`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
+								`Anthropic API key not available, skipping summary generation for ${communitiesWithFallbackNames.length} communities`
 							);
 						}
 					}

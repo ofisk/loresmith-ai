@@ -264,27 +264,6 @@ const REASONING_MODELS = new Set([
 // call sites (routing, suggestions, some analysis) use PIPELINE_LIGHT or other tiers—audit
 // each getGenerationModelForProvider(...) usage before changing tiers.
 export const MODEL_CONFIG = {
-	// OpenAI Models
-	OPENAI: {
-		// Primary model for chat and general tasks
-		PRIMARY: "gpt-5-mini",
-		// Model for user-facing interactive chat/tool orchestration
-		INTERACTIVE: "gpt-5-mini",
-		// Model for metadata generation and analysis
-		ANALYSIS: "gpt-5-mini",
-		// Model for non-interactive structured/background pipeline steps
-		PIPELINE_STRUCTURED: "gpt-5-mini",
-		// Lighter model for low-complexity structured extraction (entity extraction, summaries, metadata)
-		PIPELINE_LIGHT: "gpt-4o-mini",
-		// Model for non-interactive analysis/evaluation pipeline steps
-		PIPELINE_ANALYSIS: "gpt-5-mini",
-		// Model for metadata analysis (checklist coverage, campaign readiness)
-		METADATA_ANALYSIS: "gpt-5-mini",
-		// Model for session planning and script generation
-		SESSION_PLANNING: "gpt-5.2",
-		// Model for embeddings (if using OpenAI embeddings)
-		EMBEDDINGS: "text-embedding-3-small",
-	},
 	// Anthropic Models
 	// Sonnet 5 for quality-critical tiers; Haiku for light/analysis (see cost plan).
 	// Sonnet 5: use effort medium via anthropic-model-options (not temperature).
@@ -319,18 +298,13 @@ export const MODEL_CONFIG = {
 	},
 	// LLM Provider configuration
 	PROVIDER: {
-		// Default provider for LLM operations
+		// The only supported LLM provider for text generation
 		DEFAULT: "anthropic" as const,
 	},
 	// Check if model is a reasoning model (temperature not supported)
 	isReasoningModel: (modelId: string): boolean =>
 		REASONING_MODELS.has(modelId.toLowerCase()),
 } as const;
-
-export type GenerationProviderType = keyof Pick<
-	typeof MODEL_CONFIG,
-	"OPENAI" | "ANTHROPIC"
->;
 
 export type TextGenerationTier =
 	| "PRIMARY"
@@ -343,12 +317,9 @@ export type TextGenerationTier =
 	| "SESSION_PLANNING";
 
 export function getGenerationModelForProvider(
-	tier: TextGenerationTier,
-	provider: "openai" | "anthropic" = MODEL_CONFIG.PROVIDER.DEFAULT
+	tier: TextGenerationTier
 ): string {
-	return provider === "anthropic"
-		? MODEL_CONFIG.ANTHROPIC[tier]
-		: MODEL_CONFIG.OPENAI[tier];
+	return MODEL_CONFIG.ANTHROPIC[tier];
 }
 
 /** Per-tier tph/qph/tpd/qpd derived from Anthropic org limits; see `src/config/anthropic-org-rate-budget.ts`. */
