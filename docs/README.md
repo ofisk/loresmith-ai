@@ -117,6 +117,16 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - GraphRAG query endpoints
   - Examples and usage
 
+#### Frontend & Design
+
+- **[UI Consistency System](UI_CONSISTENCY_SYSTEM.md)** - Proposal (draft) for
+  enforcing consistent colors, components, and interaction states across
+  screens
+  - Design tokens vs. raw Tailwind utilities
+  - Component API hardening
+  - Automated enforcement gate
+  - Phased rollout plan
+
 #### Testing & Quality
 
 - **[Testing Guide](TESTING_GUIDE.md)** - Testing documentation
