@@ -46,7 +46,6 @@ test.describe("campaign management", () => {
 		// Opening a campaign closes the campaigns dialog and opens its details.
 		await appShell.getCampaignButton(originalName).click();
 
-		await campaignDetails.editButton.click();
 		await createModal.fillName(editedName);
 		await campaignDetails.saveButton.click();
 

@@ -774,7 +774,8 @@ html {
 
 .add-disable:disabled {
 	color: var(--text-color-ob-base-100);
-	cursor: not-allowed;
+	cursor: default;
+	pointer-events: none;
 }
 
 .add-size-sm {

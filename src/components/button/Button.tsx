@@ -40,7 +40,7 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const formBaseClass =
 	"inline-flex max-w-full shrink-0 items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 font-semibold text-sm shadow-none transition-colors select-none " +
-	"disabled:cursor-not-allowed disabled:opacity-50 " +
+	"disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 " +
 	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 " +
 	"focus-visible:ring-offset-white dark:focus-visible:ring-neutral-500 dark:focus-visible:ring-offset-neutral-900";
 

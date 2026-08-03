@@ -3,7 +3,8 @@ import type { Campaign } from "@/types/campaign";
 
 interface CampaignDetailsTabProps {
 	campaign: Campaign;
-	isEditing: boolean;
+	/** Whether the current user (campaign owner) can edit these fields. */
+	canEdit: boolean;
 	editedName: string;
 	editedDescription: string;
 	nameId: string;
@@ -14,11 +15,12 @@ interface CampaignDetailsTabProps {
 
 /**
  * Details tab content: campaign name, description, and metadata.
- * Edit/save/cancel and view graph actions stay in the modal footer.
+ * Fields are always editable for the owner (save/delete/share actions stay
+ * in the modal footer); other roles see a read-only view.
  */
 export function CampaignDetailsTab({
 	campaign,
-	isEditing,
+	canEdit,
 	editedName,
 	editedDescription,
 	nameId,
@@ -28,7 +30,7 @@ export function CampaignDetailsTab({
 }: CampaignDetailsTabProps) {
 	return (
 		<div className="space-y-4">
-			{isEditing ? (
+			{canEdit ? (
 				<FormField
 					id={nameId}
 					label="Campaign name"
@@ -49,7 +51,7 @@ export function CampaignDetailsTab({
 				</div>
 			)}
 
-			{isEditing ? (
+			{canEdit ? (
 				<FormField
 					id={descriptionId}
 					label="Description"
