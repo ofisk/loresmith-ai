@@ -12,10 +12,14 @@ convention in `CLAUDE.md`. But nothing stops a screen from bypassing it, and
 in practice screens drift:
 
 - **Brand color drift.** `--color-primary` exists as the one lavender token,
-  but 18 files still reach for stock Tailwind `purple-600`/`purple-400`/etc
-  directly (44 occurrences) instead of `text-primary`/`bg-primary`. Two of
-  these were shipped as visibly-different shades of "brand purple" in the
-  same sidebar before being caught by eye and fixed.
+  but files still reach for stock Tailwind `purple-*` utilities directly
+  instead of `text-primary`/`bg-primary` — two of these were shipped as
+  visibly-different shades of "brand purple" in the same sidebar before
+  being caught by eye and fixed. The Phase 0 audit (below) found this is
+  one symptom of a much larger pattern: 620 raw semantic-color utility
+  occurrences across 65 files app-wide, spanning every color family
+  Tailwind ships (red, blue, purple, amber, green, and more), not just the
+  brand color.
 - **Size drift.** Modal dialogs organically grew a third and fourth
   `modal-size-*` variant before being consolidated down to two
   (`modal-size-md`, `modal-size-xl`) — see the "Modal sizing" section of
@@ -90,23 +94,36 @@ Each phase should ship as its own PR, pass the standard checks
 (`npm run check`, `npx vitest run`), and not change any screen's visual
 behavior except where explicitly noted.
 
-### Phase 0 — Audit (no code changes to app behavior)
+### Phase 0 — Audit (no code changes to app behavior) — done
 
-Produce an inventory, checked into `docs/`, of:
-- every raw Tailwind color utility in `src/` that duplicates a design
-  concept `--color-primary` or `.add-disable` already covers (start from
-  the 44 known `purple-*` occurrences and extend to `red-*`/other
-  semantic colors used for destructive/success/warning states)
-- every distinct `modal-size-*`/button-variant/badge-style combination in
-  use today, so the "finite set" in the next phase is grounded in reality,
-  not guessed
+`scripts/check/audit-design-tokens.mjs` scans `src/**/*.{ts,tsx}` and
+reports:
+- every raw semantic-color Tailwind utility (all shades of red, orange,
+  amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo,
+  violet, purple, fuchsia, pink, rose — deliberately excluding the
+  structural neutrals, which aren't drift candidates) that bypasses a
+  design token
+- every `modal-size-*` usage, by size
+- every explicit `<Button variant="...">` usage, by variant
+
+Run `node scripts/check/audit-design-tokens.mjs --write` to regenerate the
+checked-in report at [`UI_TOKEN_AUDIT.md`](UI_TOKEN_AUDIT.md). Current
+snapshot: **620 raw color-utility occurrences across 65 files** (122 of
+them `purple`), 22 `modal-size-*` usages across 5 distinct sizes, 51
+explicit `Button` variant usages across 4 variants. This is the real
+baseline Phase 1–2 work against — re-run with `--write` after each Phase 2
+migration batch to track progress toward zero.
 
 **Test steps:**
-- Audit script (if written) has its own unit test asserting it finds the
-  known 44 `purple-*` occurrences as a regression check
-- No `src/` behavior changes in this phase, so `npx vitest run` and
-  `npm run check` must be a no-op diff (nothing beyond the audit script
-  itself and its output doc)
+- `tests/scripts/audit-design-tokens.test.ts`: synthetic-fixture unit
+  tests assert the scanner correctly finds/ignores known inputs (color
+  utilities, neutrals, `modal-size-*`, `Button variant=`) independent of
+  live codebase content, plus a real-codebase sanity check with generous
+  floors that fails loudly if the regex ever regresses to matching ~0
+  (`npx vitest run tests/scripts/audit-design-tokens.test.ts`)
+- No `src/` behavior changes in this phase — confirmed via `npx vitest run`
+  (full suite) and `npm run check`, both a no-op diff beyond the audit
+  script, its test, and the generated report
 
 ### Phase 1 — Token coverage
 
