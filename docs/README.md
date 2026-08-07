@@ -127,6 +127,10 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - Automated enforcement gate
   - Phased rollout plan
 
+- **[UI Token Audit](UI_TOKEN_AUDIT.md)** - Generated inventory of raw color
+  utilities, modal sizes, and Button variants in use today (Phase 0 of the
+  UI Consistency System)
+
 #### Testing & Quality
 
 - **[Testing Guide](TESTING_GUIDE.md)** - Testing documentation
