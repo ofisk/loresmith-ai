@@ -51,6 +51,23 @@ describe("logger transport", () => {
 		expect(spy).toHaveBeenCalled();
 	});
 
+	it("writes each log exactly once", () => {
+		// The module owns the sink twice over: the pretty middleware ends tslog's
+		// pipeline, and `type: "hidden"` silences its built-in output. Remove both and
+		// every line is written twice, so count across all four console channels
+		// rather than just the one this level is expected to use.
+		const calls: string[] = [];
+		for (const method of ["log", "info", "warn", "error"] as const) {
+			vi.spyOn(console, method).mockImplementation(() => {
+				calls.push(method);
+			});
+		}
+
+		createLogger({}, "[Test]").error("only once");
+
+		expect(calls).toEqual(["error"]);
+	});
+
 	it("writes scoped-logger errors to console.error", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
