@@ -36,6 +36,29 @@ export type VerboseLlmSpendPayload = {
 	promptTokens?: number;
 	completionTokens?: number;
 	totalTokens?: number;
+	/**
+	 * Cache-read tokens. The only proof a `cache_control` breakpoint is being
+	 * honoured: a breakpoint that never hits and one that always hits produce
+	 * identical `tokens` totals, so without this field the two are
+	 * indistinguishable from the drain.
+	 */
+	cachedInputTokens?: number;
+	/** Cache-write tokens — non-zero on the call that populates the prefix. */
+	cacheWriteTokens?: number;
+	/**
+	 * HTTP attempts the provider made for this call, when the provider counts
+	 * them. `> 1` means the AI SDK retried; a prompt that reliably fails costs
+	 * its full price on every attempt, so a persistently high value is spend
+	 * that no token total explains.
+	 */
+	attempts?: number;
+	/** Anthropic effort level used, when the model takes one (Sonnet 5+). */
+	effort?: string;
+	/** Tier the model was selected from — the grouping key for a per-tier sweep. */
+	modelRole?: string;
+	/** Agent class name, when the spend happened inside an agent. */
+	agent?: string;
+	provider?: string;
 	/** Small, bounded context — never full prompts */
 	extras?: Record<string, unknown>;
 };

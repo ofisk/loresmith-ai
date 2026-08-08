@@ -1,3 +1,4 @@
+import type { TextGenerationTier } from "@/app-constants";
 import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
 
 /**
@@ -13,6 +14,15 @@ export interface UsageCallbackContext {
  */
 export interface LLMOptions {
 	model?: string;
+	/**
+	 * Tier this call was selected from. Purely descriptive — it does not pick the
+	 * model (`model` already does) — but it selects the Anthropic effort level via
+	 * `effortForTier`, and it is the grouping key a per-tier effort sweep needs.
+	 *
+	 * Optional because omitting it yields today's behaviour exactly: the default
+	 * effort, and no `modelRole` on the spend log.
+	 */
+	tier?: TextGenerationTier;
 	temperature?: number;
 	maxTokens?: number;
 	/**

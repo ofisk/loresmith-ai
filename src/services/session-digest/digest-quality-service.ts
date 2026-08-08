@@ -12,6 +12,12 @@ import { EntityExtractionService } from "@/services/rag/entity-extraction-servic
 import { createPlanningContextService } from "@/services/rag/rag-service-factory";
 import { EntityEmbeddingService } from "@/services/vectorize/entity-embedding-service";
 import type { SessionDigestData } from "@/types/session-digest";
+import {
+	measureDigestSubstance,
+	triageDigestConsistencyAdvisory,
+	triageDigestConsistencyDecisively,
+} from "./digest-consistency-triage";
+import { logDigestConsistencyDecision } from "./digest-consistency-triage-telemetry";
 
 export interface DigestQualityResult {
 	score: number; // 0-10
@@ -267,6 +273,7 @@ Return:
 				defaultModel: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: 2200,
+				defaultTier: "PIPELINE_ANALYSIS",
 			});
 			const result = await llmProvider.generateStructuredOutput<{
 				specificity?: { score?: number; issues?: string[] };
@@ -338,14 +345,37 @@ Return:
 			this.vectorize &&
 			this.env
 		) {
-			try {
-				const aiIssues = await this.checkConsistencyWithGraphRAG(
-					digestData,
-					campaignId
-				);
-				issues.push(...aiIssues);
-			} catch (_error) {
-				// Continue with basic checks if GraphRAG check fails
+			// Cheap triage before the expensive pass, the same shape
+			// ContinuityAdjudicationService uses. The pass costs a Sonnet 5 entity
+			// extraction, an embedding request, N vector searches and a Haiku call —
+			// all to compare a digest against the graph. A digest with no narrative
+			// text has nothing to compare, and the pass already returns no issues for
+			// it, so this removes spend rather than a finding.
+			const decisive = triageDigestConsistencyDecisively(digestData);
+			if (decisive?.verdict === "skip") {
+				logDigestConsistencyDecision(this.env, {
+					source: "deterministic",
+					ranConsistencyPass: false,
+					rule: decisive.rule,
+					reason: decisive.reason,
+					narrativeEntries: measureDigestSubstance(digestData).narrativeEntries,
+					campaignId,
+				});
+			} else {
+				try {
+					const aiIssues = await this.checkConsistencyWithGraphRAG(
+						digestData,
+						campaignId
+					);
+					issues.push(...aiIssues);
+					this.logAdvisoryConsistencyTriage(
+						digestData,
+						campaignId,
+						aiIssues.length
+					);
+				} catch (_error) {
+					// Continue with basic checks if GraphRAG check fails
+				}
 			}
 		}
 
@@ -355,6 +385,37 @@ Return:
 		const score = Math.max(0, 10 - issuePenalty * 10);
 
 		return { score, issues: issues.slice(0, 15) }; // Limit issues to first 15
+	}
+
+	/**
+	 * Record what the broader triage rules would have decided, against what the
+	 * expensive pass actually found.
+	 *
+	 * Never routes on the advisory verdict — it exists purely to produce the
+	 * per-rule false-skip rate that would justify promoting a rule into
+	 * `triageDigestConsistencyDecisively`. An `ambiguous` verdict is a deferral,
+	 * so it is recorded without a suppression judgement rather than counted as
+	 * agreement.
+	 */
+	private logAdvisoryConsistencyTriage(
+		digestData: SessionDigestData,
+		campaignId: string,
+		issueCount: number
+	): void {
+		const advisory = triageDigestConsistencyAdvisory(digestData);
+		logDigestConsistencyDecision(this.env, {
+			source: "expensive",
+			ranConsistencyPass: true,
+			advisoryVerdict: advisory.verdict,
+			advisoryRule: advisory.rule,
+			advisorySuppressedFindings:
+				advisory.verdict === "ambiguous"
+					? undefined
+					: advisory.verdict === "skip" && issueCount > 0,
+			issueCount,
+			narrativeEntries: measureDigestSubstance(digestData).narrativeEntries,
+			campaignId,
+		});
 	}
 
 	/**
@@ -537,6 +598,7 @@ Return:
 			defaultModel: getGenerationModelForProvider("PIPELINE_ANALYSIS"),
 			defaultTemperature: 0.1,
 			defaultMaxTokens: 1500,
+			defaultTier: "PIPELINE_ANALYSIS",
 		});
 
 		try {

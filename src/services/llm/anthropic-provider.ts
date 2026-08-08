@@ -1,7 +1,16 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, type ModelMessage } from "ai";
-import { MODEL_CONFIG } from "@/app-constants";
-import { anthropicSamplingParams } from "@/lib/anthropic-model-options";
+import { MODEL_CONFIG, type TextGenerationTier } from "@/app-constants";
+import {
+	type AttemptCounter,
+	createAttemptCounter,
+	reportableAttempts,
+} from "@/lib/anthropic-attempt-counter";
+import {
+	anthropicSamplingParams,
+	effortForTier,
+	isSonnet5OrNewer,
+} from "@/lib/anthropic-model-options";
 import { LLMProviderAPIKeyError } from "@/lib/errors";
 import { repairJsonDeterministically } from "@/lib/json-repair";
 import { describeLlmFailure, wrapLlmError } from "@/lib/llm-error-utils";
@@ -14,6 +23,7 @@ import {
 } from "@/lib/llm-structured-output";
 import {
 	addTokenBreakdowns,
+	type LlmTokenBreakdown,
 	toTokenBreakdown,
 	totalUsageTokens,
 } from "@/lib/llm-usage-breakdown";
@@ -129,6 +139,40 @@ function buildJsonRepairPrompt(
 		.join("\n\n");
 }
 
+/**
+ * Narrow a model response to the JSON object inside it, or throw.
+ *
+ * Both failure modes are "the model produced nothing usable", and neither is
+ * recoverable here — the caller's catch turns them into the same
+ * no-object-generated signal.
+ */
+function requireJsonText(rawText: string | undefined): string {
+	if (!rawText || rawText.trim().length === 0) {
+		throw new Error("Anthropic API returned empty structured output");
+	}
+	const jsonText = extractJsonObjectText(rawText);
+	if (!jsonText) {
+		throw new Error("Anthropic API returned non-JSON structured output");
+	}
+	return jsonText;
+}
+
+/**
+ * Map a structured-output failure onto the error the callers expect.
+ *
+ * Malformed JSON surfaces as "no object generated" so extraction can treat the
+ * chunk as empty rather than triggering expensive retries.
+ */
+function asStructuredOutputError(error: unknown): Error {
+	const errorMessage = error instanceof Error ? error.message : String(error);
+	if (isJsonParseFailure(error, errorMessage)) {
+		return new Error(
+			"AI_NoObjectGeneratedError: could not parse the response as JSON"
+		);
+	}
+	return new Error(`Failed to generate structured output: ${errorMessage}`);
+}
+
 function truncateForPrompt(text: string, maxChars: number): string {
 	if (text.length <= maxChars) {
 		return text;
@@ -144,6 +188,7 @@ export class AnthropicProvider implements LLMProvider {
 	private readonly defaultModel: string;
 	private readonly defaultTemperature: number;
 	private readonly defaultMaxTokens: number;
+	private readonly defaultTier?: TextGenerationTier;
 
 	constructor(
 		apiKey: string,
@@ -151,6 +196,7 @@ export class AnthropicProvider implements LLMProvider {
 			defaultModel?: string;
 			defaultTemperature?: number;
 			defaultMaxTokens?: number;
+			defaultTier?: TextGenerationTier;
 		} = {}
 	) {
 		if (!apiKey) {
@@ -164,6 +210,55 @@ export class AnthropicProvider implements LLMProvider {
 			options.defaultModel || MODEL_CONFIG.ANTHROPIC.INTERACTIVE;
 		this.defaultTemperature = options.defaultTemperature ?? 0.3;
 		this.defaultMaxTokens = options.defaultMaxTokens ?? 2000;
+		this.defaultTier = options.defaultTier;
+	}
+
+	/**
+	 * Effort actually sent for this call, or `undefined` on models that take no
+	 * effort parameter. Reported alongside spend so a per-tier sweep can group by
+	 * it instead of inferring it from the tier table at read time.
+	 */
+	private reportedEffort(
+		modelId: string,
+		tier: TextGenerationTier | undefined
+	): string | undefined {
+		return isSonnet5OrNewer(modelId) ? effortForTier(tier) : undefined;
+	}
+
+	/**
+	 * Hand one call's spend to `onUsage`, with the diagnostics that explain spend
+	 * the token split cannot: retried attempts (billed, but reporting no usage)
+	 * and the effort level a per-tier sweep groups by.
+	 *
+	 * Shared by both generation methods so the two cannot drift in what they
+	 * report. Zero-token results are dropped — they are failures, not spend.
+	 */
+	private async reportUsage(
+		options: LLMOptions,
+		call: {
+			modelId: string;
+			tier: TextGenerationTier | undefined;
+			counter: AttemptCounter;
+			tokens: number;
+			queryCount: number;
+			breakdown: LlmTokenBreakdown;
+		}
+	): Promise<void> {
+		if (call.tokens <= 0 || !options.onUsage) {
+			return;
+		}
+		await options.onUsage(
+			{
+				tokens: call.tokens,
+				queryCount: call.queryCount,
+				...call.breakdown,
+				// Counts any JSON-repair call's attempts too: it shares the model
+				// handle, and its spend is already folded into `tokens`.
+				attempts: reportableAttempts(call.counter.attempts()),
+				effort: this.reportedEffort(call.modelId, call.tier),
+			},
+			{ username: options.username, model: call.modelId }
+		);
 	}
 
 	async generateSummary(
@@ -173,11 +268,16 @@ export class AnthropicProvider implements LLMProvider {
 		const modelId = options.model || this.defaultModel;
 		const temperature = options.temperature ?? this.defaultTemperature;
 		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
+		const tier = options.tier ?? this.defaultTier;
+		const counter = createAttemptCounter();
 
 		try {
-			const anthropic = createAnthropic({ apiKey: this.apiKey });
+			const anthropic = createAnthropic({
+				apiKey: this.apiKey,
+				fetch: counter.fetch,
+			});
 			const model = anthropic(modelId as any);
-			const sampling = anthropicSamplingParams(modelId, temperature);
+			const sampling = anthropicSamplingParams(modelId, temperature, tier);
 
 			const parts = options.structuredPromptParts;
 			if (parts) {
@@ -209,17 +309,14 @@ export class AnthropicProvider implements LLMProvider {
 				);
 			}
 
-			const tokens = getUsageTokens(result.usage);
-			if (tokens > 0 && options.onUsage) {
-				await options.onUsage(
-					{
-						tokens,
-						queryCount: 1,
-						...toTokenBreakdown(result.usage, result.providerMetadata),
-					},
-					{ username: options.username, model: modelId }
-				);
-			}
+			await this.reportUsage(options, {
+				modelId,
+				tier,
+				counter,
+				tokens: getUsageTokens(result.usage),
+				queryCount: 1,
+				breakdown: toTokenBreakdown(result.usage, result.providerMetadata),
+			});
 			return text;
 		} catch (error) {
 			if (error instanceof LLMProviderAPIKeyError) {
@@ -247,6 +344,7 @@ export class AnthropicProvider implements LLMProvider {
 			modelId: string;
 			maxTokens: number;
 			parsedSchema: Record<string, unknown> | null;
+			tier?: TextGenerationTier;
 			onJsonRepair?: () => void | Promise<void>;
 		}
 	): Promise<{
@@ -270,7 +368,7 @@ export class AnthropicProvider implements LLMProvider {
 			const repairResult = await generateText({
 				model: ctx.model,
 				prompt: buildJsonRepairPrompt(jsonText, ctx.parsedSchema, parseError),
-				...anthropicSamplingParams(ctx.modelId, 0),
+				...anthropicSamplingParams(ctx.modelId, 0, ctx.tier),
 				maxOutputTokens: Math.max(ctx.maxTokens, 3000),
 			});
 
@@ -297,13 +395,18 @@ export class AnthropicProvider implements LLMProvider {
 		const temperature = options.temperature ?? this.defaultTemperature;
 		const maxTokens = options.maxTokens ?? this.defaultMaxTokens;
 		const parsedSchema = parseStructuredSchema(options.schema);
+		const tier = options.tier ?? this.defaultTier;
+		const counter = createAttemptCounter();
 
-		const anthropic = createAnthropic({ apiKey: this.apiKey });
+		const anthropic = createAnthropic({
+			apiKey: this.apiKey,
+			fetch: counter.fetch,
+		});
 		const model = anthropic(modelId as any);
 		const input = buildStructuredInput(prompt, parsedSchema, modelId, options);
 
 		try {
-			const sampling = anthropicSamplingParams(modelId, temperature);
+			const sampling = anthropicSamplingParams(modelId, temperature, tier);
 			const result = await generateText({
 				model,
 				...input,
@@ -311,54 +414,36 @@ export class AnthropicProvider implements LLMProvider {
 				maxOutputTokens: maxTokens,
 			});
 
-			const rawText = result.text;
-			if (!rawText || rawText.trim().length === 0) {
-				throw new Error("Anthropic API returned empty structured output");
-			}
-			const jsonText = extractJsonObjectText(rawText);
-			if (!jsonText) {
-				throw new Error("Anthropic API returned non-JSON structured output");
-			}
-			const parsed = await this.parseOrRepairJson<T>(jsonText, {
-				model,
-				modelId,
-				maxTokens,
-				parsedSchema,
-				onJsonRepair: options.onJsonRepair,
-			});
+			const parsed = await this.parseOrRepairJson<T>(
+				requireJsonText(result.text),
+				{
+					model,
+					modelId,
+					maxTokens,
+					parsedSchema,
+					tier,
+					onJsonRepair: options.onJsonRepair,
+				}
+			);
 			const output = parsed.output;
 			const repairBreakdown = parsed.repairBreakdown;
 
-			const tokens = getUsageTokens(result.usage) + (parsed.repairTokens ?? 0);
-			const queryCount = parsed.repairTokens === undefined ? 1 : 2;
-			if (tokens > 0 && options.onUsage) {
-				await options.onUsage(
-					{
-						tokens,
-						queryCount,
-						// A JSON-repair retry is real spend on the same intent — fold it
-						// into the same event rather than losing it.
-						...addTokenBreakdowns(
-							toTokenBreakdown(result.usage, result.providerMetadata),
-							repairBreakdown
-						),
-					},
-					{ username: options.username, model: modelId }
-				);
-			}
+			await this.reportUsage(options, {
+				modelId,
+				tier,
+				counter,
+				tokens: getUsageTokens(result.usage) + (parsed.repairTokens ?? 0),
+				queryCount: parsed.repairTokens === undefined ? 1 : 2,
+				// A JSON-repair retry is real spend on the same intent — fold it into
+				// the same event rather than losing it.
+				breakdown: addTokenBreakdowns(
+					toTokenBreakdown(result.usage, result.providerMetadata),
+					repairBreakdown
+				),
+			});
 			return output as T;
 		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
-
-			// Surface malformed JSON as "no object generated" so extraction can
-			// treat this chunk as empty instead of triggering expensive retries.
-			if (isJsonParseFailure(error, errorMessage)) {
-				throw new Error(
-					"AI_NoObjectGeneratedError: could not parse the response as JSON"
-				);
-			}
-			throw new Error(`Failed to generate structured output: ${errorMessage}`);
+			throw asStructuredOutputError(error);
 		}
 	}
 }

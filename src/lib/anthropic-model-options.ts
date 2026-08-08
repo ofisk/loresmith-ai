@@ -5,10 +5,52 @@
  * temperature / top_p / top_k return 400. We default effort to "medium" for cost.
  */
 
+import type { TextGenerationTier } from "@/app-constants";
+
 export type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 /** Default effort for Sonnet 5+ generation (cost step-down from API default "high"). */
 export const DEFAULT_SONNET5_EFFORT: AnthropicEffort = "medium";
+
+/**
+ * Effort per generation tier.
+ *
+ * Effort trades output tokens — and therefore latency and money — for reasoning
+ * depth, and the right setting is not uniform: a tier whose output shape is
+ * pinned by a JSON schema has less to gain from thinking longer than one writing
+ * free prose. `PIPELINE_STRUCTURED` (entity extraction) is the obvious sweep
+ * candidate for that reason.
+ *
+ * **Every tier is deliberately at the previous global default.** This table is
+ * the knob, not the sweep. Before lowering a row, run the tier at both settings
+ * with `LORESMITH_VERBOSE_LLM_USAGE=true` and compare output quality against the
+ * `effort` and `modelRole` fields now carried on `llm_token_spend` — the issue's
+ * standing rule is measure before committing, and effort is exactly the kind of
+ * change that looks free until quality moves.
+ *
+ * Only consulted on models that take an effort parameter (Sonnet 5+); Haiku
+ * tiers are listed for completeness and are inert today.
+ */
+const TIER_EFFORT: Readonly<Record<TextGenerationTier, AnthropicEffort>> = {
+	PRIMARY: DEFAULT_SONNET5_EFFORT,
+	INTERACTIVE: DEFAULT_SONNET5_EFFORT,
+	ANALYSIS: DEFAULT_SONNET5_EFFORT,
+	PIPELINE_STRUCTURED: DEFAULT_SONNET5_EFFORT,
+	PIPELINE_LIGHT: DEFAULT_SONNET5_EFFORT,
+	PIPELINE_ANALYSIS: DEFAULT_SONNET5_EFFORT,
+	METADATA_ANALYSIS: DEFAULT_SONNET5_EFFORT,
+	SESSION_PLANNING: DEFAULT_SONNET5_EFFORT,
+};
+
+/**
+ * Effort for a tier, or {@link DEFAULT_SONNET5_EFFORT} when the caller did not
+ * declare one. An unknown tier falls back rather than throwing: a mistyped tier
+ * should cost the default, not a generation.
+ */
+export function effortForTier(tier?: TextGenerationTier): AnthropicEffort {
+	if (!tier) return DEFAULT_SONNET5_EFFORT;
+	return TIER_EFFORT[tier] ?? DEFAULT_SONNET5_EFFORT;
+}
 
 /**
  * True for Claude Sonnet 5 and newer Sonnet IDs that reject non-default sampling
@@ -90,13 +132,14 @@ export function getAnthropicSonnet5ProviderOptions(
  */
 export function anthropicBatchModelParams(
 	modelId: string,
-	temperature?: number
+	temperature?: number,
+	tier?: TextGenerationTier
 ): {
 	temperature?: number;
 	output_config?: { effort: AnthropicEffort };
 } {
 	if (isSonnet5OrNewer(modelId)) {
-		return { output_config: { effort: DEFAULT_SONNET5_EFFORT } };
+		return { output_config: { effort: effortForTier(tier) } };
 	}
 	if (temperature === undefined) {
 		return {};
@@ -110,14 +153,15 @@ export function anthropicBatchModelParams(
  */
 export function anthropicSamplingParams(
 	modelId: string,
-	temperature: number | undefined
+	temperature: number | undefined,
+	tier?: TextGenerationTier
 ): {
 	temperature?: number;
 	providerOptions?: ReturnType<typeof getAnthropicSonnet5ProviderOptions>;
 } {
 	if (isSonnet5OrNewer(modelId)) {
 		return {
-			providerOptions: getAnthropicSonnet5ProviderOptions(),
+			providerOptions: getAnthropicSonnet5ProviderOptions(effortForTier(tier)),
 		};
 	}
 	if (temperature === undefined) {

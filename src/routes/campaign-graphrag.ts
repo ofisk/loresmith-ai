@@ -7,7 +7,7 @@ import {
 	isStubContentSufficient,
 } from "@/lib/entity/entity-required-fields";
 import { getEnvVar } from "@/lib/env-utils";
-import { pickTokenBreakdown } from "@/lib/llm-usage-breakdown";
+import { pickSpendMeta } from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { createLogger, getRequestLogger } from "@/lib/logger";
 import { notifyCampaignMembers } from "@/lib/notifications";
@@ -791,7 +791,7 @@ Rules:
 					{
 						intent: LLM_SPEND_INTENT.graph_rebuild,
 						source: "campaign_graphrag:generate_shard_field",
-						...pickTokenBreakdown(usage),
+						...pickSpendMeta(usage),
 						campaignId,
 						shardId,
 						field,

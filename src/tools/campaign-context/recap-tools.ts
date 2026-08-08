@@ -19,7 +19,7 @@ import {
 	isLikelyTransientLlmFailure,
 } from "@/lib/llm-error-utils";
 import type { LlmUsageReport } from "@/lib/llm-usage-breakdown";
-import { pickTokenBreakdown } from "@/lib/llm-usage-breakdown";
+import { pickSpendMeta } from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { createLogger } from "@/lib/logger";
 import type { SessionPlanReadoutStep } from "@/lib/prompts/recap-prompts";
@@ -257,7 +257,7 @@ function sessionReadoutGenerateSummaryOptions(
 					{
 						intent: LLM_SPEND_INTENT.session_plan_readout,
 						source,
-						...pickTokenBreakdown(usage),
+						...pickSpendMeta(usage),
 						campaignId,
 					}
 				);
