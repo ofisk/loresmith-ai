@@ -1,6 +1,6 @@
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
-import { pickTokenBreakdown } from "@/lib/llm-usage-breakdown";
+import { pickSpendMeta } from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import type { Env } from "@/middleware/auth";
 import { OpenAIEmbeddingService } from "@/services/embedding/openai-embedding-service";
@@ -81,7 +81,7 @@ export class ShardEmbeddingQueueProcessor {
 								{
 									intent: LLM_SPEND_INTENT.shard_embedding,
 									source: "shard_embedding_queue_processor:batch",
-									...pickTokenBreakdown(usage),
+									...pickSpendMeta(usage),
 									campaignId,
 									entityCount: chunk.length,
 								}

@@ -458,8 +458,14 @@ export class LLMRateLimitService {
 				completionTokens,
 				cachedInputTokens,
 				cacheWriteTokens,
+				attempts,
+				effort,
 				...extras
 			} = meta;
+			// Every field pulled out of `meta` above must be re-attached here.
+			// Destructuring them purely to keep them out of `extras` drops them from
+			// the drain entirely — which is how cache-read counts, the one proof a
+			// breakpoint is being honoured, went missing from `llm_token_spend`.
 			logVerboseLlmSpend(this.env, {
 				intent,
 				source,
@@ -467,8 +473,15 @@ export class LLMRateLimitService {
 				tokens,
 				queryCount,
 				model: model ?? metaModel,
+				modelRole,
+				agent,
+				provider,
 				promptTokens,
 				completionTokens,
+				cachedInputTokens,
+				cacheWriteTokens,
+				attempts: typeof attempts === "number" ? attempts : undefined,
+				effort: typeof effort === "string" ? effort : undefined,
 				extras:
 					Object.keys(extras).length > 0
 						? (extras as Record<string, unknown>)

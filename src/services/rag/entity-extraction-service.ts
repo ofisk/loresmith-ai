@@ -391,6 +391,7 @@ export class EntityExtractionService {
 				defaultModel: getGenerationModelForProvider("PIPELINE_STRUCTURED"),
 				defaultTemperature: 0.1,
 				defaultMaxTokens: MAX_EXTRACTION_RESPONSE_TOKENS,
+				defaultTier: "PIPELINE_STRUCTURED",
 			});
 
 			// Generate structured output (returns parsed JSON)

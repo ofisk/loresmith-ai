@@ -30,7 +30,7 @@ import { normalizeMessageHistoryScope } from "@/lib/get-message-history-query";
 import {
 	addTokenBreakdowns,
 	type LlmTokenBreakdown,
-	pickTokenBreakdown,
+	pickSpendMeta,
 	toTokenBreakdown,
 	totalUsageTokens,
 } from "@/lib/llm-usage-breakdown";
@@ -1180,7 +1180,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						source,
 						agent: this.constructor.name,
 						modelRole: "INTERACTIVE",
-						...pickTokenBreakdown(usage),
+						...pickSpendMeta(usage),
 						totalTokens: tokens,
 					});
 					return;

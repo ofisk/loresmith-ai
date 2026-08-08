@@ -16,10 +16,7 @@ import {
 	truncateContentAtSentenceBoundary,
 } from "@/lib/file/text-chunking-utils";
 import { getLibrarySyntheticCampaignId } from "@/lib/library-entity-id";
-import {
-	type LlmUsageReport,
-	pickTokenBreakdown,
-} from "@/lib/llm-usage-breakdown";
+import { type LlmUsageReport, pickSpendMeta } from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import { notifyCampaignMembers } from "@/lib/notifications";
 import { R2Helper } from "@/lib/r2";
@@ -248,7 +245,7 @@ async function resolveVisualInspirationTitle(params: {
 					{
 						intent: LLM_SPEND_INTENT.visual_inspiration_title,
 						source: "entity_staging:visual_inspiration_title",
-						...pickTokenBreakdown(usage),
+						...pickSpendMeta(usage),
 						campaignId: params.campaignId,
 						fileKey: params.fileKey,
 						libraryMode: params.libraryMode,
@@ -337,7 +334,7 @@ async function resolveChunkGate(params: {
 				{
 					intent: LLM_SPEND_INTENT.entity_extraction,
 					source: "entity_staging:extraction_chunk_gate",
-					...pickTokenBreakdown(usage),
+					...pickSpendMeta(usage),
 					phase: "chunk_gate",
 					campaignId,
 					fileKey,
@@ -677,7 +674,7 @@ async function stageEntitiesFromResourceImpl(
 							{
 								intent: LLM_SPEND_INTENT.character_sheet_detection,
 								source: "entity_staging:character_sheet_detection",
-								...pickTokenBreakdown(usage),
+								...pickSpendMeta(usage),
 								campaignId,
 								fileKey: normalizedResource.file_key || undefined,
 								libraryMode,
@@ -1002,7 +999,7 @@ async function stageEntitiesFromResourceImpl(
 							{
 								intent: LLM_SPEND_INTENT.entity_extraction,
 								source: "entity_staging:extract_entities",
-								...pickTokenBreakdown(usage),
+								...pickSpendMeta(usage),
 								phase: "extract_entities",
 								campaignId,
 								fileKey: normalizedResource.file_key || undefined,

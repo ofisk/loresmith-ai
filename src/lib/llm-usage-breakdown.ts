@@ -23,6 +23,14 @@ export interface LlmTokenBreakdown {
 export interface LlmUsageReport extends LlmTokenBreakdown {
 	tokens: number;
 	queryCount: number;
+	/**
+	 * HTTP attempts the provider made, when it counted them. Only present when
+	 * greater than 1 — i.e. when the AI SDK retried. Retried attempts are billed
+	 * but report no usage, so this is spend the token fields cannot show.
+	 */
+	attempts?: number;
+	/** Anthropic effort level used, when the model takes one. */
+	effort?: string;
 }
 
 /**
@@ -137,17 +145,25 @@ export function addTokenBreakdowns(
 }
 
 /**
- * Narrow a provider's usage report to just the priced fields, for spreading into
- * `recordUsage` metadata without dragging `tokens`/`queryCount` along.
+ * Narrow a provider's usage report to the fields `recordUsage` metadata wants,
+ * for spreading into it without dragging `tokens`/`queryCount` along.
+ *
+ * Carries the priced token split plus the two diagnostics that explain spend the
+ * split alone cannot — retry attempts and effort level. Every call site already
+ * spreads this into its meta object, so widening it here is what puts those on
+ * `llm_token_spend` everywhere rather than at one hand-wired call site.
  */
-export function pickTokenBreakdown(
-	usage: LlmTokenBreakdown | undefined
-): LlmTokenBreakdown {
+export function pickSpendMeta(
+	usage: LlmUsageReport | LlmTokenBreakdown | undefined
+): LlmTokenBreakdown & { attempts?: number; effort?: string } {
+	const report = usage as LlmUsageReport | undefined;
 	return {
 		promptTokens: usage?.promptTokens,
 		completionTokens: usage?.completionTokens,
 		cachedInputTokens: usage?.cachedInputTokens,
 		cacheWriteTokens: usage?.cacheWriteTokens,
+		attempts: report?.attempts,
+		effort: report?.effort,
 	};
 }
 

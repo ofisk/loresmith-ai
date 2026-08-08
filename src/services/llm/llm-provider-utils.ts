@@ -25,10 +25,14 @@ export function createProviderForTier(params: {
 	maxTokens: number;
 }) {
 	const { apiKey, tier, temperature, maxTokens } = params;
+	// The tier is forwarded, not just consumed to pick a model: it selects the
+	// Anthropic effort level and tags spend with `modelRole`, which is what makes
+	// a per-tier effort comparison groupable in the drain.
 	return createLLMProvider({
 		apiKey,
 		defaultModel: getGenerationModelForProvider(tier),
 		defaultTemperature: temperature,
 		defaultMaxTokens: maxTokens,
+		defaultTier: tier,
 	});
 }

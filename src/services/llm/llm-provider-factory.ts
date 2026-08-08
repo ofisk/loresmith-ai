@@ -1,3 +1,4 @@
+import type { TextGenerationTier } from "@/app-constants";
 import { AnthropicProvider } from "./anthropic-provider";
 import type { LLMProvider } from "./llm-provider";
 
@@ -9,6 +10,15 @@ export interface LLMProviderFactoryOptions {
 	defaultModel?: string;
 	defaultTemperature?: number;
 	defaultMaxTokens?: number;
+	/**
+	 * Tier every call from this provider belongs to, when the caller builds one
+	 * provider per tier — which is the common shape here, since `defaultModel` is
+	 * almost always `getGenerationModelForProvider(tier)`.
+	 *
+	 * Sets the Anthropic effort level (`effortForTier`) and tags spend with
+	 * `modelRole`. Omitting it preserves today's behaviour exactly.
+	 */
+	defaultTier?: TextGenerationTier;
 }
 
 /**
@@ -21,5 +31,6 @@ export function createLLMProvider(
 		defaultModel: options.defaultModel,
 		defaultTemperature: options.defaultTemperature,
 		defaultMaxTokens: options.defaultMaxTokens,
+		defaultTier: options.defaultTier,
 	});
 }

@@ -19,7 +19,7 @@ import {
 	computeOrphanNodes,
 	type GraphFilters,
 } from "@/lib/graph/graph-visualization-helpers";
-import { pickTokenBreakdown } from "@/lib/llm-usage-breakdown";
+import { pickSpendMeta } from "@/lib/llm-usage-breakdown";
 import { LLM_SPEND_INTENT } from "@/lib/llm-usage-intents";
 import type { Env } from "@/middleware/auth";
 import type { AuthPayload } from "@/services/core/auth-service";
@@ -466,7 +466,7 @@ export async function handleSearchEntityInGraph(c: ContextWithAuth) {
 								{
 									intent: LLM_SPEND_INTENT.graph_visualization,
 									source: "graph_visualization:search_entity_embedding",
-									...pickTokenBreakdown(usage),
+									...pickSpendMeta(usage),
 									campaignId,
 									entityName,
 								}

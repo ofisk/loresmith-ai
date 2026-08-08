@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	addTokenBreakdowns,
 	hasPriceableSplit,
-	pickTokenBreakdown,
+	pickSpendMeta,
 	toTokenBreakdown,
 	totalUsageTokens,
 } from "@/lib/llm-usage-breakdown";
@@ -115,18 +115,45 @@ describe("addTokenBreakdowns", () => {
 	});
 });
 
-describe("pickTokenBreakdown", () => {
+describe("pickSpendMeta", () => {
 	it("drops tokens/queryCount so they do not leak into metadata", () => {
-		const picked = pickTokenBreakdown({
+		const picked = pickSpendMeta({
+			tokens: 6,
+			queryCount: 1,
 			promptTokens: 5,
 			completionTokens: 1,
 		} as never);
+		expect(picked).not.toHaveProperty("tokens");
+		expect(picked).not.toHaveProperty("queryCount");
 		expect(Object.keys(picked).sort()).toEqual([
+			"attempts",
 			"cacheWriteTokens",
 			"cachedInputTokens",
 			"completionTokens",
+			"effort",
 			"promptTokens",
 		]);
+	});
+
+	// Every call site spreads this into its spend metadata, so carrying the two
+	// diagnostics here is what puts retries and effort on `llm_token_spend`
+	// everywhere rather than at one hand-wired call site.
+	it("carries retry attempts and effort through to metadata", () => {
+		expect(
+			pickSpendMeta({
+				tokens: 6,
+				queryCount: 1,
+				promptTokens: 5,
+				attempts: 3,
+				effort: "medium",
+			})
+		).toMatchObject({ attempts: 3, effort: "medium" });
+	});
+
+	it("leaves the diagnostics undefined when the provider omitted them", () => {
+		const picked = pickSpendMeta({ promptTokens: 5 });
+		expect(picked.attempts).toBeUndefined();
+		expect(picked.effort).toBeUndefined();
 	});
 });
 
