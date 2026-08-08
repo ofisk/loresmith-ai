@@ -134,7 +134,7 @@
 		"clsx": "^2.1.1",
 		"cytoscape": "^3.34.0",
 		"hono": "^4.12.30",
-		"jose": "^6.2.2",
+		"jose": "^6.2.8",
 		"lucide-react": "^1.28.0",
 		"mammoth": "^1.12.0",
 		"partyserver": "^0.5.9",
