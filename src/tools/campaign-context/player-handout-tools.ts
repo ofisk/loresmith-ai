@@ -49,7 +49,7 @@ async function getLlmProvider(env: unknown, toolCallId: string) {
 	if (!providerApiKey) {
 		return {
 			error: createToolError(
-				`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`,
+				"anthropic API key not configured",
 				"AI is not configured for this environment.",
 				503,
 				toolCallId

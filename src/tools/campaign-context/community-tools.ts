@@ -2,7 +2,6 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { tool } from "ai";
 import { z } from "zod";
 import type { ToolResult } from "@/app-constants";
-import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { getEnvVar } from "@/lib/env-utils";
 import { buildCommunityHierarchyTree } from "@/lib/graph/community-utils";
@@ -137,13 +136,9 @@ export const detectCommunitiesTool = tool({
 					);
 					if (gmError) return gmError;
 
-					const providerKeyEnvVar =
-						MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-							? "ANTHROPIC_API_KEY"
-							: "OPENAI_API_KEY";
 					const providerApiKeyRaw = await getEnvVar(
 						env as any,
-						providerKeyEnvVar,
+						"ANTHROPIC_API_KEY",
 						false
 					);
 					const providerApiKey = providerApiKeyRaw.trim() || undefined;

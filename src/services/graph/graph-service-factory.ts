@@ -1,4 +1,3 @@
-import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { WorldStateChangelogDAO } from "@/dao/world-state-changelog-dao";
 import { getEnvVar } from "@/lib/env-utils";
@@ -42,11 +41,7 @@ export async function getRebuildPipelineService(
 	}
 
 	const daoFactory = getDAOFactory(env);
-	const providerKeyEnvVar =
-		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-			? "ANTHROPIC_API_KEY"
-			: "OPENAI_API_KEY";
-	const providerApiKeyRaw = await getEnvVar(env, providerKeyEnvVar, false);
+	const providerApiKeyRaw = await getEnvVar(env, "ANTHROPIC_API_KEY", false);
 	const providerApiKey = normalizeApiKey(providerApiKeyRaw);
 	const worldStateChangelogDAO = new WorldStateChangelogDAO(env.DB);
 

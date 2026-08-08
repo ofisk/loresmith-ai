@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { getGenerationModelForProvider, MODEL_CONFIG } from "@/app-constants";
+import { getGenerationModelForProvider } from "@/app-constants";
 import {
 	matchAdvisoryRoute,
 	matchDecisiveRoute,
@@ -367,12 +367,7 @@ export class AgentRouter {
 		const routedModelId =
 			(modelToUse as { modelId?: string })?.modelId ??
 			getGenerationModelForProvider("PIPELINE_LIGHT");
-		const sampling =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-				? anthropicSamplingParams(routedModelId, 0)
-				: !MODEL_CONFIG.isReasoningModel(routedModelId.toLowerCase())
-					? { temperature: 0 }
-					: {};
+		const sampling = anthropicSamplingParams(routedModelId, 0);
 		const result = await generateText({
 			model: modelToUse,
 			system: systemPrompt,

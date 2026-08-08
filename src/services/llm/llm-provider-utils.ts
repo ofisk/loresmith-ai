@@ -1,17 +1,12 @@
 import {
 	getGenerationModelForProvider,
-	MODEL_CONFIG,
 	type TextGenerationTier,
 } from "@/app-constants";
 import { getEnvVar } from "@/lib/env-utils";
 import { createLLMProvider } from "./llm-provider-factory";
 
-export function getDefaultProviderEnvVar():
-	| "ANTHROPIC_API_KEY"
-	| "OPENAI_API_KEY" {
-	return MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-		? "ANTHROPIC_API_KEY"
-		: "OPENAI_API_KEY";
+export function getDefaultProviderEnvVar(): "ANTHROPIC_API_KEY" {
+	return "ANTHROPIC_API_KEY";
 }
 
 export async function getDefaultProviderApiKey(
@@ -31,7 +26,6 @@ export function createProviderForTier(params: {
 }) {
 	const { apiKey, tier, temperature, maxTokens } = params;
 	return createLLMProvider({
-		provider: MODEL_CONFIG.PROVIDER.DEFAULT,
 		apiKey,
 		defaultModel: getGenerationModelForProvider(tier),
 		defaultTemperature: temperature,

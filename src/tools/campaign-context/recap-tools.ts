@@ -1033,13 +1033,9 @@ async function createSessionReadoutLlmProvider(env: unknown): Promise<{
 	temperature: number;
 	maxTokens: number;
 } | null> {
-	const providerEnvVar =
-		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-			? "ANTHROPIC_API_KEY"
-			: "OPENAI_API_KEY";
 	const providerApiKeyRaw = await getEnvVar(
 		env as Record<string, unknown>,
-		providerEnvVar,
+		"ANTHROPIC_API_KEY",
 		false
 	);
 	const providerApiKey = providerApiKeyRaw?.trim() ?? "";
@@ -1086,9 +1082,7 @@ async function generateAndPersistSessionPlan(params: {
 }): Promise<string> {
 	const llmConfig = await createSessionReadoutLlmProvider(params.env);
 	if (!llmConfig) {
-		throw new Error(
-			`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`
-		);
+		throw new Error("Anthropic API key not configured");
 	}
 
 	const transformedPlan = await generateSessionPlanFromReadoutSteps(
@@ -1304,7 +1298,7 @@ export const getSessionReadoutContext = tool({
 						})
 					);
 					return createToolError(
-						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
+						"Anthropic API key not configured",
 						"AI is not configured for this environment.",
 						503,
 						toolCallId
@@ -1684,7 +1678,7 @@ export const stitchSessionReadout = tool({
 					})
 				);
 				return createToolError(
-					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
+					"Anthropic API key not configured",
 					"AI is not configured for this environment.",
 					503,
 					toolCallId

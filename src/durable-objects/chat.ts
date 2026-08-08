@@ -1,6 +1,6 @@
 import type { Schedule } from "agents";
 import { SimpleChatAgent } from "@/agents/simple-chat-agent";
-import { JWT_STORAGE_KEY, MODEL_CONFIG } from "@/app-constants";
+import { JWT_STORAGE_KEY } from "@/app-constants";
 import { AgentRegistryService } from "@/lib/agent-registry";
 import { resolveClaimedPlayerContext } from "@/lib/agent-role-utils";
 import type { AgentType } from "@/lib/agent-router";
@@ -100,10 +100,8 @@ export class Chat extends SimpleChatAgent<Env> {
 		return jwtToken || null;
 	}
 
-	private getProviderEnvVarName(): "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" {
-		return MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-			? "ANTHROPIC_API_KEY"
-			: "OPENAI_API_KEY";
+	private getProviderEnvVarName(): "ANTHROPIC_API_KEY" {
+		return "ANTHROPIC_API_KEY";
 	}
 
 	private async getServerProviderKey(): Promise<string | null> {
@@ -148,7 +146,7 @@ export class Chat extends SimpleChatAgent<Env> {
 			modelManager.initializeModel(providerApiKey);
 		} else {
 			throw new LLMProviderAPIKeyError(
-				`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
+				`Anthropic API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 			);
 		}
 
@@ -490,7 +488,7 @@ export class Chat extends SimpleChatAgent<Env> {
 				const serverKey = await this.getServerProviderKey();
 				if (!serverKey) {
 					throw new LLMProviderAPIKeyError(
-						`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
+						`Anthropic API key is required. Please configure ${this.getProviderEnvVarName()} on the server.`
 					);
 				}
 				await this.initializeAgents(serverKey);

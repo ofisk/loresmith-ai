@@ -131,19 +131,15 @@ export const generateDigestFromNotesTool = tool({
 			}
 
 			// Get provider API key
-			const providerEnvVar =
-				MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-					? "ANTHROPIC_API_KEY"
-					: "OPENAI_API_KEY";
 			const providerApiKeyRaw = await getEnvVar(
 				env as unknown as Record<string, unknown>,
-				providerEnvVar,
+				"ANTHROPIC_API_KEY",
 				false
 			);
 			const providerApiKey = providerApiKeyRaw.trim();
 			if (!providerApiKey) {
 				return createToolError(
-					`${MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? "Anthropic" : "OpenAI"} API key not configured`,
+					"Anthropic API key not configured",
 					"AI is not configured for this environment.",
 					503,
 					toolCallId

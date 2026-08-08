@@ -1,4 +1,3 @@
-import { MODEL_CONFIG } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import {
 	LibraryEntityDAO,
@@ -322,18 +321,14 @@ export class LibraryEntityDiscoveryQueueService {
 					continue;
 				}
 
-				const providerKeyEnvVar =
-					MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-						? "ANTHROPIC_API_KEY"
-						: "OPENAI_API_KEY";
-				const llmApiKeyRaw = await getEnvVar(env, providerKeyEnvVar, false);
+				const llmApiKeyRaw = await getEnvVar(env, "ANTHROPIC_API_KEY", false);
 				const llmApiKey = llmApiKeyRaw.trim();
 				if (!llmApiKey) {
 					const out = await recordDiscoveryError(
 						env,
 						libDao,
 						row,
-						`${MODEL_CONFIG.PROVIDER.DEFAULT} API key not configured`
+						"anthropic API key not configured"
 					);
 					if (out === "failed") failed++;
 					else processed++;

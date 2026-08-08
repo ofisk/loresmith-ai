@@ -1,8 +1,7 @@
 import { AnthropicProvider } from "./anthropic-provider";
 import type { LLMProvider } from "./llm-provider";
-import { OpenAIProvider } from "./openai-provider";
 
-export type ProviderType = "openai" | "anthropic";
+export type ProviderType = "anthropic";
 
 export interface LLMProviderFactoryOptions {
 	provider?: ProviderType;
@@ -13,27 +12,14 @@ export interface LLMProviderFactoryOptions {
 }
 
 /**
- * Factory function to create appropriate LLM provider
+ * Factory function to create the LLM provider
  */
 export function createLLMProvider(
 	options: LLMProviderFactoryOptions
 ): LLMProvider {
-	const providerType = options.provider || "openai";
-
-	switch (providerType) {
-		case "openai":
-			return new OpenAIProvider(options.apiKey, {
-				defaultModel: options.defaultModel,
-				defaultTemperature: options.defaultTemperature,
-				defaultMaxTokens: options.defaultMaxTokens,
-			});
-		case "anthropic":
-			return new AnthropicProvider(options.apiKey, {
-				defaultModel: options.defaultModel,
-				defaultTemperature: options.defaultTemperature,
-				defaultMaxTokens: options.defaultMaxTokens,
-			});
-		default:
-			throw new Error(`Unknown provider type: ${providerType}`);
-	}
+	return new AnthropicProvider(options.apiKey, {
+		defaultModel: options.defaultModel,
+		defaultTemperature: options.defaultTemperature,
+		defaultMaxTokens: options.defaultMaxTokens,
+	});
 }

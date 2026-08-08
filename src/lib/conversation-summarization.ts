@@ -339,17 +339,10 @@ export async function summarizeConversation(params: {
 	const model = params.model ?? createModel(modelId, apiKey);
 	const resolvedModelId = (model as { modelId?: string })?.modelId ?? modelId;
 
-	const sampling =
-		MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic"
-			? anthropicSamplingParams(
-					resolvedModelId,
-					MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE
-				)
-			: MODEL_CONFIG.isReasoningModel(resolvedModelId.toLowerCase())
-				? {}
-				: {
-						temperature: MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE,
-					};
+	const sampling = anthropicSamplingParams(
+		resolvedModelId,
+		MODEL_CONFIG.PARAMETERS.METADATA_ANALYSIS_TEMPERATURE
+	);
 
 	const result = await generateText({
 		model: model as Parameters<typeof generateText>[0]["model"],

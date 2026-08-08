@@ -1,7 +1,6 @@
 // Entity staging service for campaign resources
 // Extracts entities from file content and stages them for user approval/rejection
 
-import { MODEL_CONFIG } from "@/app-constants";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { getDAOFactory } from "@/dao/dao-factory";
 import { TelemetryDAO } from "@/dao/telemetry-dao";
@@ -532,7 +531,7 @@ async function stageEntitiesFromResourceImpl(
 					campaignName,
 					normalizedResourceEarly.id,
 					normalizedResourceEarly.file_name || normalizedResourceEarly.id,
-					`${MODEL_CONFIG.PROVIDER.DEFAULT} API key was not configured.`
+					"anthropic API key was not configured."
 				);
 			}
 			return {
@@ -828,8 +827,7 @@ async function stageEntitiesFromResourceImpl(
 
 		// Chunk content conservatively for provider reliability.
 		// Anthropic structured extraction is far more stable with smaller chunks.
-		const MAX_CHUNK_SIZE =
-			MODEL_CONFIG.PROVIDER.DEFAULT === "anthropic" ? 12000 : 42464;
+		const MAX_CHUNK_SIZE = 12000;
 
 		const chunks =
 			fileContent.length > MAX_CHUNK_SIZE
