@@ -1,8 +1,14 @@
-import type { TextGenerationTier } from "@/app-constants";
+import type { TextGenerationTier, TierLimits } from "@/app-constants";
 import { deriveBatchRequestBudget } from "@/config/anthropic-org-rate-budget";
 import { estimateCostUsd } from "@/config/model-pricing";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { CostEventInsert } from "@/dao/llm-cost-event-dao";
+import type { FreeTierAllowance } from "@/lib/free-tier-allowance";
+import {
+	computeFreeTierAllowance,
+	nextMonthlyResetAt,
+	splitSpendAcrossBuckets,
+} from "@/lib/free-tier-allowance";
 import type { LlmTokenBreakdown } from "@/lib/llm-usage-breakdown";
 import { hasPriceableSplit } from "@/lib/llm-usage-breakdown";
 import type { LlmSpendIntent } from "@/lib/llm-usage-intents";
@@ -128,8 +134,67 @@ function buildCostEvent(
 	};
 }
 
+/**
+ * Message shown when both free-tier buckets are drained.
+ *
+ * It has to say the allowance comes back. The old copy ("Upgrade for more
+ * capacity") described a dead end, which was accurate then and is not now —
+ * and a user who believes their account is finished has no reason to return.
+ */
+function freeTierExhaustedReason(limits: TierLimits): string {
+	const monthly = limits.monthlyTokens ?? 0;
+	if (monthly <= 0) {
+		return "Token allowance used up. Upgrade or purchase credits for more capacity.";
+	}
+	const resetsOn = new Date(nextMonthlyResetAt()).toLocaleDateString("en-US", {
+		month: "long",
+		day: "numeric",
+	});
+	return `Free token allowance used up. Your ${monthly.toLocaleString()} monthly tokens refresh on ${resetsOn} — your campaigns stay readable in the meantime. Upgrade or purchase credits to keep generating now.`;
+}
+
 export class LLMRateLimitService {
 	constructor(private env: Env) {}
+
+	/** True when the tier is governed by token buckets rather than tph/tpd alone. */
+	private hasTokenAllowance(limits: TierLimits): boolean {
+		return (
+			limits.monthlyTokens !== undefined || limits.trialTokens !== undefined
+		);
+	}
+
+	/**
+	 * Read both free-tier buckets plus credits in one round of parallel queries.
+	 *
+	 * Callers must have checked {@link hasTokenAllowance} first; a tier with
+	 * neither bucket would compute a zero limit and read as exhausted.
+	 */
+	private async loadFreeTierAllowance(
+		username: string,
+		limits: TierLimits
+	): Promise<FreeTierAllowance> {
+		const dao = getDAOFactory(this.env);
+		const monthlyTokens = limits.monthlyTokens ?? 0;
+		const trialTokens = limits.trialTokens ?? 0;
+
+		const [monthUsed, trialUsed, credits] = await Promise.all([
+			monthlyTokens > 0
+				? dao.userMonthlyUsageDAO.getCurrentMonthUsage(username)
+				: Promise.resolve(0),
+			trialTokens > 0
+				? dao.userFreeTierUsageDAO.getTrialUsage(username)
+				: Promise.resolve(0),
+			dao.userCreditsDAO.getCredits(username),
+		]);
+
+		return computeFreeTierAllowance({
+			monthlyTokens,
+			trialTokens,
+			monthUsed,
+			trialUsed,
+			credits,
+		});
+	}
 
 	async checkLimit(
 		username: string,
@@ -146,36 +211,14 @@ export class LLMRateLimitService {
 		const dao = getDAOFactory(this.env);
 		let creditsRemaining = 0;
 
-		if (limits.lifetimeTokens !== undefined) {
-			const [lifetimeUsage, credits] = await Promise.all([
-				dao.userFreeTierUsageDAO.getLifetimeUsage(username),
-				dao.userCreditsDAO.getCredits(username),
-			]);
-			creditsRemaining = credits;
-			const effectiveLimit = limits.lifetimeTokens + credits;
-			if (lifetimeUsage >= effectiveLimit) {
+		if (this.hasTokenAllowance(limits)) {
+			const allowance = await this.loadFreeTierAllowance(username, limits);
+			creditsRemaining = allowance.credits;
+			if (allowance.exhausted) {
 				return {
 					allowed: false,
-					reason: `Trial token limit (${effectiveLimit.toLocaleString()}) exceeded. Upgrade for more capacity.`,
-					limitType: "daily",
-				};
-			}
-		} else if (limits.monthlyTokens !== undefined) {
-			const [monthlyUsage, credits] = await Promise.all([
-				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
-				dao.userCreditsDAO.getCredits(username),
-			]);
-			creditsRemaining = credits;
-			const effectiveLimit = limits.monthlyTokens + credits;
-			if (monthlyUsage >= effectiveLimit) {
-				return {
-					allowed: false,
-					reason: `Monthly token limit (${effectiveLimit.toLocaleString()}) exceeded. Upgrade or purchase credits for more.`,
-					nextResetAt: new Date(
-						new Date().getFullYear(),
-						new Date().getMonth() + 1,
-						1
-					).toISOString(),
+					reason: freeTierExhaustedReason(limits),
+					nextResetAt: nextMonthlyResetAt(),
 					limitType: "daily",
 				};
 			}
@@ -277,92 +320,34 @@ export class LLMRateLimitService {
 		const tier = await subService.getTier(username);
 		const limits = subService.getTierLimits(tier);
 
-		// Free tier: check lifetime trial or monthly cap with estimated tokens
-		if (limits.lifetimeTokens !== undefined) {
-			const dao = getDAOFactory(this.env);
-			const [lifetimeUsage, creditsRemaining] = await Promise.all([
-				dao.userFreeTierUsageDAO.getLifetimeUsage(username),
-				dao.userCreditsDAO.getCredits(username),
-			]);
-			const effectiveLimit = limits.lifetimeTokens + creditsRemaining;
-			const wouldExceed = lifetimeUsage + estimatedTokens > effectiveLimit;
-			const alreadyExceeded = lifetimeUsage >= effectiveLimit;
+		// Free tier: check the combined allowance against an estimate of the work
+		if (this.hasTokenAllowance(limits)) {
+			const allowance = await this.loadFreeTierAllowance(username, limits);
+			const blocked = {
+				allowed: false,
+				wouldExceed: true,
+				monthlyUsage: allowance.used,
+				monthlyLimit: allowance.limit,
+				creditsRemaining: allowance.credits,
+				nextResetAt: nextMonthlyResetAt(),
+			};
 
-			if (alreadyExceeded) {
-				return {
-					allowed: false,
-					reason: `Trial token limit (${effectiveLimit.toLocaleString()}) exceeded. Upgrade for more capacity.`,
-					wouldExceed: true,
-					monthlyUsage: lifetimeUsage,
-					monthlyLimit: effectiveLimit,
-					creditsRemaining,
-				};
+			if (allowance.exhausted) {
+				return { ...blocked, reason: freeTierExhaustedReason(limits) };
 			}
-			if (wouldExceed) {
+			if (allowance.remaining < estimatedTokens) {
 				return {
-					allowed: false,
-					reason: `This action would exceed your trial token limit. You have ${(effectiveLimit - lifetimeUsage).toLocaleString()} tokens remaining.`,
-					wouldExceed: true,
-					monthlyUsage: lifetimeUsage,
-					monthlyLimit: effectiveLimit,
-					creditsRemaining,
+					...blocked,
+					reason: `This needs about ${estimatedTokens.toLocaleString()} tokens and you have ${allowance.remaining.toLocaleString()} left. Purchase credits, upgrade, or wait for your monthly allowance to refresh.`,
 				};
 			}
 			return {
 				allowed: true,
-				monthlyUsage: lifetimeUsage,
-				monthlyLimit: effectiveLimit,
-				creditsRemaining,
+				monthlyUsage: allowance.used,
+				monthlyLimit: allowance.limit,
+				creditsRemaining: allowance.credits,
 			};
 		}
-		if (limits.monthlyTokens !== undefined) {
-			const dao = getDAOFactory(this.env);
-			const [monthlyUsage, creditsRemaining] = await Promise.all([
-				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
-				dao.userCreditsDAO.getCredits(username),
-			]);
-			const effectiveLimit = limits.monthlyTokens + creditsRemaining;
-			const wouldExceed = monthlyUsage + estimatedTokens > effectiveLimit;
-			const alreadyExceeded = monthlyUsage >= effectiveLimit;
-
-			if (alreadyExceeded) {
-				return {
-					allowed: false,
-					reason: `Monthly token limit (${effectiveLimit.toLocaleString()}) exceeded. Purchase credits or upgrade for more.`,
-					wouldExceed: true,
-					monthlyUsage,
-					monthlyLimit: effectiveLimit,
-					creditsRemaining,
-					nextResetAt: new Date(
-						new Date().getFullYear(),
-						new Date().getMonth() + 1,
-						1
-					).toISOString(),
-				};
-			}
-			if (wouldExceed) {
-				return {
-					allowed: false,
-					reason: `This action would exceed your monthly token limit. You have ${(effectiveLimit - monthlyUsage).toLocaleString()} tokens remaining.`,
-					wouldExceed: true,
-					monthlyUsage,
-					monthlyLimit: effectiveLimit,
-					creditsRemaining,
-					nextResetAt: new Date(
-						new Date().getFullYear(),
-						new Date().getMonth() + 1,
-						1
-					).toISOString(),
-				};
-			}
-			return {
-				allowed: true,
-				monthlyUsage,
-				monthlyLimit: effectiveLimit,
-				creditsRemaining,
-			};
-		}
-
 		// Paid tiers: use standard rate limit check
 		const result = await this.checkLimit(username, isAdmin);
 		return {
@@ -506,10 +491,28 @@ export class LLMRateLimitService {
 			);
 		}
 
-		if (limits.lifetimeTokens !== undefined) {
-			await dao.userFreeTierUsageDAO.incrementUsage(username, tokens);
-		} else if (limits.monthlyTokens !== undefined) {
-			await dao.userMonthlyUsageDAO.incrementUsage(username, tokens);
+		// Free tier: draw from the recurring monthly allowance first and let the
+		// overflow fall to the one-time welcome grant, so the grant is spent only
+		// on months the monthly bucket could not cover.
+		if (this.hasTokenAllowance(limits)) {
+			const monthlyTokens = limits.monthlyTokens ?? 0;
+			const monthUsed =
+				monthlyTokens > 0
+					? await dao.userMonthlyUsageDAO.getCurrentMonthUsage(username)
+					: 0;
+			const { toMonthly, toTrial } = splitSpendAcrossBuckets(
+				tokens,
+				monthlyTokens,
+				monthUsed
+			);
+			await Promise.all([
+				toMonthly > 0
+					? dao.userMonthlyUsageDAO.incrementUsage(username, toMonthly)
+					: Promise.resolve(),
+				toTrial > 0 && limits.trialTokens !== undefined
+					? dao.userFreeTierUsageDAO.incrementUsage(username, toTrial)
+					: Promise.resolve(),
+			]);
 		}
 	}
 
@@ -569,23 +572,16 @@ export class LLMRateLimitService {
 
 		const dao = getDAOFactory(this.env);
 
-		// Free tier: include usage and credits for UI (lifetime trial or monthly)
+		// Free tier: report the combined allowance for the UI.
 		// Paid tiers: fetch credits so effective limits reflect purchased one-offs
 		let monthlyUsage: number | undefined;
 		let monthlyLimit: number | undefined;
 		let creditsRemaining: number | undefined;
-		if (limits.lifetimeTokens !== undefined) {
-			[monthlyUsage, creditsRemaining] = await Promise.all([
-				dao.userFreeTierUsageDAO.getLifetimeUsage(username),
-				dao.userCreditsDAO.getCredits(username),
-			]);
-			monthlyLimit = limits.lifetimeTokens + (creditsRemaining ?? 0);
-		} else if (limits.monthlyTokens !== undefined) {
-			[monthlyUsage, creditsRemaining] = await Promise.all([
-				dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
-				dao.userCreditsDAO.getCredits(username),
-			]);
-			monthlyLimit = limits.monthlyTokens + (creditsRemaining ?? 0);
+		if (this.hasTokenAllowance(limits)) {
+			const allowance = await this.loadFreeTierAllowance(username, limits);
+			monthlyUsage = allowance.used;
+			monthlyLimit = allowance.limit;
+			creditsRemaining = allowance.credits;
 		} else {
 			creditsRemaining = await dao.userCreditsDAO.getCredits(username);
 		}

@@ -10,8 +10,10 @@ export interface BillingLimits {
 	qph: number;
 	tpd: number;
 	qpd: number;
+	/** Recurring per-month allowance (free tier). */
 	monthlyTokens?: number;
-	lifetimeTokens?: number;
+	/** One-time welcome grant on top of the monthly allowance (free tier). */
+	trialTokens?: number;
 	resourcesPerCampaignPerHour?: number;
 }
 
@@ -21,8 +23,13 @@ export interface BillingStatus {
 	status: string;
 	currentPeriodEnd: string | null;
 	limits: BillingLimits;
+	/** Tokens spent across both free-tier buckets. */
 	monthlyUsage?: number;
 	creditsRemaining?: number;
+	/** Unused tokens in this month's allowance (free tier). */
+	monthlyRemaining?: number;
+	/** When the monthly allowance next refreshes (free tier). */
+	nextResetAt?: string;
 }
 
 export function useBillingStatus(isAuthenticated: boolean) {

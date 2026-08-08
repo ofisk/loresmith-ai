@@ -345,10 +345,17 @@ export interface TierLimits {
 	qph: number; // queries per hour (was qpm * 60)
 	tpd: number;
 	qpd: number;
-	/** Monthly token cap; undefined for paid tiers and when using lifetimeTokens */
+	/**
+	 * Recurring per-calendar-month token allowance; undefined for paid tiers,
+	 * which are governed by tph/tpd instead. Drawn down before `trialTokens`.
+	 */
 	monthlyTokens?: number;
-	/** One-time trial token cap for free tier; undefined for paid tiers. When set, replaces monthlyTokens. */
-	lifetimeTokens?: number;
+	/**
+	 * One-time welcome grant for the free tier, on top of `monthlyTokens`;
+	 * undefined for paid tiers. Never resets, but its exhaustion no longer ends
+	 * free usage — see `src/lib/free-tier-allowance.ts`.
+	 */
+	trialTokens?: number;
 	/** Per-file retries per day for indexation/entity extraction retry */
 	retriesPerFilePerDay: number;
 	/** Per-file retries per month for indexation/entity extraction retry */
@@ -357,13 +364,35 @@ export interface TierLimits {
 	resourcesPerCampaignPerHour: number;
 }
 
+/**
+ * Recurring monthly token allowance for the free tier (issue #746).
+ *
+ * Sized to keep a campaign warm between sessions — a digest, some planning
+ * chat, a few entity lookups — without covering a fresh rulebook index, which
+ * is what the one-time welcome grant is for. At the Haiku-tier rates in
+ * `src/config/model-pricing.ts` ($1/$5 per Mtok) this is single-digit cents of
+ * model spend per active free user per month, before prompt caching.
+ *
+ * Raise or lower this one constant to retune the free tier; nothing else
+ * encodes the number.
+ */
+export const FREE_TIER_MONTHLY_TOKENS = 50_000;
+
+/**
+ * One-time welcome grant for new free accounts, spent only after the monthly
+ * allowance runs out. Sized for the expensive onboarding burst: indexing a
+ * source book, creating a campaign, a first session readout.
+ */
+export const FREE_TIER_WELCOME_GRANT_TOKENS = 150_000;
+
 export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimits> = {
 	free: {
 		maxCampaigns: 1,
 		maxFiles: 5,
 		storageBytes: 25 * 1024 * 1024, // 25MB
 		...DERIVED_SUBSCRIPTION_RATES.free,
-		lifetimeTokens: 150_000, // One-time trial capacity; no monthly reset
+		monthlyTokens: FREE_TIER_MONTHLY_TOKENS,
+		trialTokens: FREE_TIER_WELCOME_GRANT_TOKENS,
 		retriesPerFilePerDay: 2,
 		retriesPerFilePerMonth: 6,
 		resourcesPerCampaignPerHour: 5,

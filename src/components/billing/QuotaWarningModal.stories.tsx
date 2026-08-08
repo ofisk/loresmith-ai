@@ -25,7 +25,8 @@ const meta = {
 	title: "Components/Quota warning modal",
 	component: ModalFrame,
 	args: {
-		reason: "You have used all tokens included in your trial.",
+		reason:
+			"Free token allowance used up. Your 50,000 monthly tokens refresh on September 1 — your campaigns stay readable in the meantime. Upgrade or purchase credits to keep generating now.",
 	},
 } satisfies Meta<typeof ModalFrame>;
 
@@ -45,10 +46,21 @@ export const WithMonthlyUsage: Story = {
 	},
 };
 
-export const TrialCopy: Story = {
+/** Free tier with both buckets drained: the copy must say the allowance returns. */
+export const FreeTierExhausted: Story = {
 	args: {
-		reason: "Your trial token allowance is exhausted.",
-		monthlyUsage: 50_000,
-		monthlyLimit: 50_000,
+		monthlyUsage: 200_000,
+		monthlyLimit: 200_000,
+		creditsRemaining: 0,
+	},
+};
+
+/** Blocked on one expensive action while allowance remains. */
+export const ActionTooLarge: Story = {
+	args: {
+		reason:
+			"This needs about 20,000 tokens and you have 5,000 left. Purchase credits, upgrade, or wait for your monthly allowance to refresh.",
+		monthlyUsage: 195_000,
+		monthlyLimit: 200_000,
 	},
 };
