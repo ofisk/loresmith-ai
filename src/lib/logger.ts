@@ -1,4 +1,4 @@
-import type { ILogObj } from "tslog";
+import type { ILogObj, LogMiddleware } from "tslog";
 import { Logger as TsLogger } from "tslog";
 
 export type LogLevelName =
@@ -116,6 +116,74 @@ function resolveLogFormat(env?: Record<string, unknown>): "json" | "pretty" {
 	return isProd ? "json" : "pretty";
 }
 
+/**
+ * tslog level ids: SILLY 0, TRACE 1, DEBUG 2, INFO 3, WARN 4, ERROR 5, FATAL 6.
+ *
+ * We drive tslog through `log(id, name, ...args)` rather than its named level
+ * methods. tslog v5 overloads those methods fields-first --
+ * `error(fields: object, message?: string, ...args)` / `error(message: string, ...args)`
+ * -- and spreading an `unknown[]` matches neither overload (TS2556). `log()` is the
+ * one entry point with a real `...args: unknown[]` rest parameter, so it is how this
+ * module's variadic API forwards without casting.
+ */
+const TSLOG_LEVEL_IDS: Record<Exclude<LogLevelName, "silent">, number> = {
+	trace: 1,
+	debug: 2,
+	info: 3,
+	warn: 4,
+	error: 5,
+};
+
+/**
+ * The single place this module writes.
+ *
+ * WARN/ERROR must reach console.warn/console.error so Workers `wrangler tail`
+ * classifies them and so tests spying on console.error observe them; the rest keep
+ * argument order on console.info/console.log. Args are passed through untouched, so
+ * `Error` objects stay live and inspectable rather than being stringified.
+ *
+ * Every branch must actually write. PR #552 turned the branches of this function's
+ * v4 predecessor into bare `return`s, discarding every log line the app produced for
+ * ~5 months -- `wrangler tail` showed `"logs": []` on every request. The failure mode
+ * is silence, which no "does not throw" test catches; tests/lib/logger-transport.test.ts
+ * is the guard.
+ */
+function writeToConsole(logLevelName: string, args: unknown[]): void {
+	switch (logLevelName.toUpperCase()) {
+		case "WARN":
+			console.warn(...args);
+			return;
+		case "ERROR":
+		case "FATAL":
+			console.error(...args);
+			return;
+		case "INFO":
+			console.info(...args);
+			return;
+		default:
+			console.log(...args);
+			return;
+	}
+}
+
+/**
+ * Pretty (development) sink.
+ *
+ * tslog v5 removed the whole v4 `overwrite.*` object. Middleware is the replacement
+ * that matters here because it is the only extension point still holding the raw
+ * `unknown[]` the caller passed -- and therefore the only place `Error` objects
+ * survive with their identity intact. By the time a `Transport` runs, args have been
+ * folded into a fields-first record (`{ 0, 1, 2, _logMeta }`) and rendered to a
+ * string, so neither argument order nor `Error` identity is recoverable there.
+ *
+ * Returning `null` ends the pipeline: nothing is formatted and no transport runs.
+ * That is what stops this from double-writing alongside the JSON transport below.
+ */
+const prettyConsoleSink: LogMiddleware<ILogObj> = (ctx) => {
+	writeToConsole(ctx.logLevelName, ctx.args);
+	return null;
+};
+
 let tslogInstance: TsLogger<ILogObj> | null = null;
 let tslogFormat: "json" | "pretty" | null = null;
 
@@ -129,43 +197,46 @@ function getTsLog(env?: Record<string, unknown>): TsLogger<ILogObj> {
 		return tslogInstance;
 	}
 	tslogFormat = format;
-	tslogInstance = new TsLogger({
+	tslogInstance = new TsLogger<ILogObj>({
 		name: "loresmith",
-		type: format,
-		overwrite: {
-			// Keep `Error` objects in the argument list so they remain inspectable
-			// (and so tests spying on `console.error` can assert `Error` args).
-			formatLogObj: (maskedArgs) => ({ args: maskedArgs, errors: [] }),
-
-			// Ensure WARN/ERROR use console.warn/error (and keep argument order),
-			// which also keeps existing tests that spy on console.error working.
-			//
-			// This overwrite REPLACES tslog's built-in transport, so every branch must
-			// actually write. PR #552 dropped the console.* calls here (and renamed
-			// `logArgs` to `_logArgs`, silencing the unused-param lint), which left each
-			// branch a bare `return` -- discarding every log line the app produced.
-			// Workers `wrangler tail` showed `"logs": []` on every request as a result.
-			transportFormatted: (_meta, logArgs, _errors, logMeta) => {
-				const level = (logMeta?.logLevelName || "").toUpperCase();
-				switch (level) {
-					case "WARN":
-						console.warn(...logArgs);
-						return;
-					case "ERROR":
-					case "FATAL":
-						console.error(...logArgs);
-						return;
-					case "INFO":
-						console.info(...logArgs);
-						return;
-					default:
-						console.log(...logArgs);
-						return;
-				}
-			},
-		},
+		// This module owns the sink; `hidden` suppresses tslog's own output while
+		// still running middleware and attached transports.
+		//
+		// That is deliberate. tslog v5's Node entry writes `type: "json"` lines
+		// through a batched `process.stdout.write`, while its browser/worker entry
+		// still uses `console.log`. Leaving the built-in sink on would make whether
+		// production logs appear depend on which conditional export the bundler
+		// resolved. Owning the sink keeps output identical on workerd, under
+		// `wrangler dev`, and in vitest.
+		type: "hidden",
+		// `shouldLog` has already gated the call before tslog sees it, so tslog must
+		// never drop a line we decided to emit.
+		minLevel: 0,
+		middleware: format === "pretty" ? [prettyConsoleSink] : [],
 	});
+
+	if (format === "json") {
+		// Production. tslog renders the structured line (fields, `_logMeta`, and
+		// error stacks); we still choose the console method so levels survive.
+		tslogInstance.attachTransport({
+			name: "console-json",
+			format: "json",
+			write: (record, line) => {
+				writeToConsole(record._logMeta.logLevelName, [line]);
+			},
+		});
+	}
+
 	return tslogInstance;
+}
+
+/** Forwards already-prefixed, already-level-gated args to tslog. */
+function emitToTsLog(
+	tslog: TsLogger<ILogObj>,
+	messageLevel: Exclude<LogLevelName, "silent">,
+	args: unknown[]
+): void {
+	tslog.log(TSLOG_LEVEL_IDS[messageLevel], messageLevel.toUpperCase(), ...args);
 }
 
 let GLOBAL_LEVEL: LogLevelName = resolveLogLevelName();
@@ -226,44 +297,26 @@ export function createLogger(
 	};
 
 	const logAt =
-		(messageLevel: LogLevelName, fn: (...a: unknown[]) => void) =>
+		(messageLevel: Exclude<LogLevelName, "silent">) =>
 		(...args: unknown[]) => {
 			if (!shouldLog(level, messageLevel)) return;
 			const prefixed = withPrefix(args);
-			fn(...mergeLogArgs(prefixed, ctx));
+			emitToTsLog(tslog, messageLevel, mergeLogArgs(prefixed, ctx));
 		};
 
 	return {
-		error: logAt("error", (...a) => tslog.error(...a)),
-		warn: logAt("warn", (...a) => tslog.warn(...a)),
-		info: logAt("info", (...a) => tslog.info(...a)),
-		debug: logAt("debug", (...a) => tslog.debug(...a)),
-		trace: logAt("trace", (...a) => tslog.trace(...a)),
+		error: logAt("error"),
+		warn: logAt("warn"),
+		info: logAt("info"),
+		debug: logAt("debug"),
+		trace: logAt("trace"),
 		once: (key: string, messageLevel: LogLevelName, ...args: unknown[]) => {
 			if (!shouldLog(level, messageLevel)) return;
 			if (ONCE_KEYS.has(key)) return;
 			ONCE_KEYS.add(key);
+			if (messageLevel === "silent") return;
 			const prefixed = withPrefix(args);
-			const merged = mergeLogArgs(prefixed, ctx);
-			switch (messageLevel) {
-				case "error":
-					tslog.error(...merged);
-					return;
-				case "warn":
-					tslog.warn(...merged);
-					return;
-				case "info":
-					tslog.info(...merged);
-					return;
-				case "debug":
-					tslog.debug(...merged);
-					return;
-				case "trace":
-					tslog.trace(...merged);
-					return;
-				default:
-					return;
-			}
+			emitToTsLog(tslog, messageLevel, mergeLogArgs(prefixed, ctx));
 		},
 		child: (childPrefix: string) => {
 			const combined =
@@ -305,39 +358,55 @@ export class ScopedLogger {
 	trace(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "trace")) return;
 		const merged = this.mergeContext(context);
-		getTsLog().trace(`${this.prefix} ${message}`, merged ?? undefined);
+		emitToTsLog(getTsLog(), "trace", [
+			`${this.prefix} ${message}`,
+			merged ?? undefined,
+		]);
 	}
 
 	debug(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "debug")) return;
 		const merged = this.mergeContext(context);
-		getTsLog().debug(`${this.prefix} ${message}`, merged ?? undefined);
+		emitToTsLog(getTsLog(), "debug", [
+			`${this.prefix} ${message}`,
+			merged ?? undefined,
+		]);
 	}
 
 	info(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "info")) return;
 		const merged = this.mergeContext(context);
-		getTsLog().info(`${this.prefix} ${message}`, merged ?? undefined);
+		emitToTsLog(getTsLog(), "info", [
+			`${this.prefix} ${message}`,
+			merged ?? undefined,
+		]);
 	}
 
 	warn(message: string, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "warn")) return;
 		const merged = this.mergeContext(context);
-		getTsLog().warn(`${this.prefix} ${message}`, merged ?? undefined);
+		emitToTsLog(getTsLog(), "warn", [
+			`${this.prefix} ${message}`,
+			merged ?? undefined,
+		]);
 	}
 
 	error(message: string, error?: unknown, context?: LogContext): void {
 		if (!shouldLog(GLOBAL_LEVEL, "error")) return;
 		const merged = this.mergeContext(context);
 		if (merged !== undefined) {
-			getTsLog().error(`${this.prefix} ${message}`, error, merged);
+			emitToTsLog(getTsLog(), "error", [
+				`${this.prefix} ${message}`,
+				error,
+				merged,
+			]);
 			return;
 		}
 		if (error !== undefined) {
-			getTsLog().error(`${this.prefix} ${message}`, error);
+			emitToTsLog(getTsLog(), "error", [`${this.prefix} ${message}`, error]);
 			return;
 		}
-		getTsLog().error(`${this.prefix} ${message}`);
+		emitToTsLog(getTsLog(), "error", [`${this.prefix} ${message}`]);
 	}
 
 	operation(

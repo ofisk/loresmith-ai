@@ -51,6 +51,22 @@ describe("logger transport", () => {
 		expect(spy).toHaveBeenCalled();
 	});
 
+	it("writes each log exactly once", () => {
+		// The pretty sink is middleware that writes and then returns `null` to end
+		// tslog's pipeline. Drop that `null` and the built-in sink writes the same
+		// line again on another channel, so count across all four.
+		const calls: string[] = [];
+		for (const method of ["log", "info", "warn", "error"] as const) {
+			vi.spyOn(console, method).mockImplementation(() => {
+				calls.push(method);
+			});
+		}
+
+		createLogger({}, "[Test]").error("only once");
+
+		expect(calls).toEqual(["error"]);
+	});
+
 	it("writes scoped-logger errors to console.error", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
