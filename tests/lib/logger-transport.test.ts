@@ -52,9 +52,10 @@ describe("logger transport", () => {
 	});
 
 	it("writes each log exactly once", () => {
-		// The pretty sink is middleware that writes and then returns `null` to end
-		// tslog's pipeline. Drop that `null` and the built-in sink writes the same
-		// line again on another channel, so count across all four.
+		// The module owns the sink twice over: the pretty middleware ends tslog's
+		// pipeline, and `type: "hidden"` silences its built-in output. Remove both and
+		// every line is written twice, so count across all four console channels
+		// rather than just the one this level is expected to use.
 		const calls: string[] = [];
 		for (const method of ["log", "info", "warn", "error"] as const) {
 			vi.spyOn(console, method).mockImplementation(() => {

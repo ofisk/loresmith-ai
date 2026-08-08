@@ -176,8 +176,10 @@ function writeToConsole(logLevelName: string, args: unknown[]): void {
  * folded into a fields-first record (`{ 0, 1, 2, _logMeta }`) and rendered to a
  * string, so neither argument order nor `Error` identity is recoverable there.
  *
- * Returning `null` ends the pipeline: nothing is formatted and no transport runs.
- * That is what stops this from double-writing alongside the JSON transport below.
+ * Returning `null` ends the pipeline: the record is never built and no transport
+ * runs, so nothing downstream can emit a second copy of this line. `type: "hidden"`
+ * below independently guarantees the same thing in pretty mode -- keeping both means
+ * neither a stray transport nor a changed `type` silently starts double-writing.
  */
 const prettyConsoleSink: LogMiddleware<ILogObj> = (ctx) => {
 	writeToConsole(ctx.logLevelName, ctx.args);
@@ -202,12 +204,17 @@ function getTsLog(env?: Record<string, unknown>): TsLogger<ILogObj> {
 		// This module owns the sink; `hidden` suppresses tslog's own output while
 		// still running middleware and attached transports.
 		//
-		// That is deliberate. tslog v5's Node entry writes `type: "json"` lines
-		// through a batched `process.stdout.write`, while its browser/worker entry
-		// still uses `console.log`. Leaving the built-in sink on would make whether
-		// production logs appear depend on which conditional export the bundler
-		// resolved. Owning the sink keeps output identical on workerd, under
-		// `wrangler dev`, and in vitest.
+		// In pretty mode the middleware below also short-circuits the pipeline, so
+		// either guard alone would stop a duplicate line. In json mode there is no
+		// middleware and `hidden` is the only one: without it tslog's built-in sink
+		// writes a second copy of every record.
+		//
+		// Owning the sink also decides *where* logs go. tslog v5's Node entry writes
+		// `type: "json"` through a batched `process.stdout.write`, while its
+		// browser/worker entry uses `console.log`. Left on, whether production logs
+		// reach `wrangler tail` would depend on which conditional export the bundler
+		// resolved -- and workerd has no `process.stdout`. This keeps output
+		// identical on workerd, under `wrangler dev`, and in vitest.
 		type: "hidden",
 		// `shouldLog` has already gated the call before tslog sees it, so tslog must
 		// never drop a line we decided to emit.
