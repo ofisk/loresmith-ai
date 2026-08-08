@@ -1,4 +1,4 @@
-import { FloppyDisk, PencilSimple, ShareNetwork } from "@phosphor-icons/react";
+import { FloppyDisk, ShareNetwork } from "@phosphor-icons/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/button/Button";
 import { PendingProposalsSection } from "@/components/campaign/PendingProposalsSection";
@@ -11,7 +11,6 @@ import { Modal } from "@/components/modal/Modal";
 import { RunsheetPanel } from "@/components/session/RunsheetPanel";
 import { SessionDigestBulkImport } from "@/components/session/SessionDigestBulkImport";
 import { SessionDigestModal } from "@/components/session/SessionDigestModal";
-import { Tooltip } from "@/components/tooltip/Tooltip";
 import { CAMPAIGN_ROLES, PLAYER_ROLES } from "@/constants/campaign-roles";
 import { NOTIFICATION_TYPES } from "@/constants/notification-types";
 import { useAuthenticatedRequest } from "@/hooks/useAuthenticatedRequest";
@@ -175,6 +174,75 @@ function AudioTabPanel({
 	);
 }
 
+function campaignFieldsChanged(
+	campaign: Campaign,
+	editedName: string,
+	editedDescription: string
+): boolean {
+	if (editedName !== campaign.name) return true;
+	return editedDescription !== (campaign.description || "");
+}
+
+interface CampaignDetailsActionsProps {
+	canShare: boolean;
+	isOwner: boolean;
+	isUpdating: boolean;
+	canSave: boolean;
+	onShare: () => void;
+	onSave: () => void;
+	onDelete: () => Promise<void>;
+}
+
+/**
+ * Footer actions for the details tab: Share, Save, Delete — always on the
+ * right, in that order. Extracted so the modal's own render body doesn't
+ * absorb these branches (keeps the complexity gate happy on this file).
+ */
+function CampaignDetailsActions({
+	canShare,
+	isOwner,
+	isUpdating,
+	canSave,
+	onShare,
+	onSave,
+	onDelete,
+}: CampaignDetailsActionsProps) {
+	return (
+		<div className="flex items-center justify-end gap-2 mt-4 md:mt-6 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
+			{canShare && (
+				<Button
+					appearance="form"
+					onClick={onShare}
+					icon={<ShareNetwork size={16} />}
+					variant="secondary"
+				>
+					Share
+				</Button>
+			)}
+			{isOwner && (
+				<Button
+					appearance="form"
+					onClick={onSave}
+					disabled={isUpdating || !canSave}
+					loading={isUpdating}
+					icon={<FloppyDisk size={16} />}
+					data-testid="campaign-details-save"
+				>
+					{isUpdating ? "Saving…" : "Save"}
+				</Button>
+			)}
+			{isOwner && (
+				<ConfirmDeleteButton
+					label="Delete campaign"
+					confirmLabel="Confirm delete"
+					onConfirm={onDelete}
+					disabled={isUpdating}
+				/>
+			)}
+		</div>
+	);
+}
+
 export function CampaignDetailsModal({
 	campaign,
 	isOpen,
@@ -189,7 +257,6 @@ export function CampaignDetailsModal({
 }: CampaignDetailsModalProps) {
 	const nameId = useId();
 	const descriptionId = useId();
-	const [isEditing, setIsEditing] = useState(false);
 	const [editedName, setEditedName] = useState(campaign?.name || "");
 	const [editedDescription, setEditedDescription] = useState(
 		campaign?.description || ""
@@ -625,7 +692,6 @@ export function CampaignDetailsModal({
 				name: editedName,
 				description: editedDescription,
 			});
-			setIsEditing(false);
 		} catch (_error) {
 		} finally {
 			setIsUpdating(false);
@@ -636,12 +702,6 @@ export function CampaignDetailsModal({
 		if (!campaign) return;
 		await onDelete(campaign.campaignId);
 		onClose();
-	};
-
-	const handleCancel = () => {
-		setEditedName(campaign?.name || "");
-		setEditedDescription(campaign?.description || "");
-		setIsEditing(false);
 	};
 
 	const handleCreateDigest = () => {
@@ -689,6 +749,11 @@ export function CampaignDetailsModal({
 	const role = campaign.role ?? null;
 	const isPlayerRole = role !== null && PLAYER_ROLES.has(role);
 	const isOwner = role === CAMPAIGN_ROLES.OWNER;
+	const hasChanges = campaignFieldsChanged(
+		campaign,
+		editedName,
+		editedDescription
+	);
 
 	return (
 		<>
@@ -830,7 +895,7 @@ export function CampaignDetailsModal({
 							>
 								<CampaignDetailsTab
 									campaign={campaign}
-									isEditing={isEditing}
+									canEdit={isOwner}
 									editedName={editedName}
 									editedDescription={editedDescription}
 									nameId={nameId}
@@ -941,80 +1006,15 @@ export function CampaignDetailsModal({
 
 					{/* Actions */}
 					{activeTab === "details" && (
-						<div className="flex items-center justify-between gap-2 mt-4 md:mt-6 pt-4 md:pt-6 border-t border-neutral-200 dark:border-neutral-700">
-							<div className="flex items-center gap-2">
-								{isEditing ? (
-									<>
-										<Button
-											appearance="form"
-											onClick={handleSave}
-											disabled={isUpdating || !editedName.trim()}
-											loading={isUpdating}
-											icon={<FloppyDisk size={16} />}
-											data-testid="campaign-details-save"
-										>
-											{isUpdating ? "Saving…" : "Save changes"}
-										</Button>
-										<Button
-											appearance="form"
-											onClick={handleCancel}
-											disabled={isUpdating}
-											variant="secondary"
-										>
-											Cancel
-										</Button>
-									</>
-								) : (
-									<>
-										{isOwner ? (
-											<Button
-												appearance="form"
-												onClick={() => setIsEditing(true)}
-												icon={<PencilSimple size={16} />}
-												data-testid="campaign-details-edit"
-											>
-												Edit
-											</Button>
-										) : (
-											<Tooltip
-												content="Only the campaign owner can edit campaign details"
-												contentClassName="left-4"
-											>
-												<span className="inline-flex">
-													<Button
-														appearance="form"
-														disabled
-														icon={<PencilSimple size={16} />}
-														className="opacity-50 cursor-not-allowed"
-													>
-														Edit
-													</Button>
-												</span>
-											</Tooltip>
-										)}
-										{canShare && (
-											<Button
-												appearance="form"
-												onClick={() => setIsShareModalOpen(true)}
-												icon={<ShareNetwork size={16} />}
-												variant="secondary"
-											>
-												Share
-											</Button>
-										)}
-									</>
-								)}
-							</div>
-
-							{!isEditing && isOwner && (
-								<ConfirmDeleteButton
-									label="Delete campaign"
-									confirmLabel="Confirm delete"
-									onConfirm={handleDeleteCampaign}
-									disabled={isUpdating}
-								/>
-							)}
-						</div>
+						<CampaignDetailsActions
+							canShare={canShare}
+							isOwner={isOwner}
+							isUpdating={isUpdating}
+							canSave={hasChanges && editedName.trim().length > 0}
+							onShare={() => setIsShareModalOpen(true)}
+							onSave={handleSave}
+							onDelete={handleDeleteCampaign}
+						/>
 					)}
 				</div>
 			</Modal>

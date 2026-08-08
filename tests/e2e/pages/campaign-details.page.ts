@@ -4,10 +4,6 @@ import type { Page } from "@playwright/test";
 export class CampaignDetailsPage {
 	constructor(readonly page: Page) {}
 
-	get editButton() {
-		return this.page.getByTestId("campaign-details-edit");
-	}
-
 	get saveButton() {
 		return this.page.getByTestId("campaign-details-save");
 	}
