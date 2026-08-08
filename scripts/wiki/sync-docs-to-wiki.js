@@ -135,6 +135,11 @@ const FILE_MAPPINGS = [
 		process: true,
 	},
 	{
+		src: "docs/AGENT_ACTIVITY.md",
+		dest: "Technical/Agent-Activity-Log.md",
+		process: true,
+	},
+	{
 		src: "docs/TOOL_SYSTEM.md",
 		dest: "Technical/Tool-System.md",
 		process: true,
@@ -338,6 +343,7 @@ function createSidebar() {
 
 ## Agents & Tools
 - [[Technical/Agent-Design|Agent design]]
+- [[Technical/Agent-Activity-Log|Agent activity log]]
 - [[Technical/Tool-System|Tool system]]
 - [[Technical/Tool-Patterns|Tool patterns]]
 

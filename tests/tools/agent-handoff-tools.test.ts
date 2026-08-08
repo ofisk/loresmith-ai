@@ -63,6 +63,10 @@ describe("createAskAnotherAgentTool", () => {
 		expect(run).toHaveBeenCalledWith({
 			agentType: "rules-reference",
 			request: "What trainings does The Foundling start with?",
+			// Null because nothing injected an activity row id here; when the
+			// BaseAgent tool wrapper is in play this carries the delegating call's
+			// id so the delegate's work links to it (issue #739).
+			parentActivityId: null,
 		});
 		expect(result.result.success).toBe(true);
 		expect(result.result.data.answer).toContain("Waterbending");

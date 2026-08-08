@@ -29,6 +29,12 @@ export interface DelegatedAgentResult {
 export type DelegatedAgentRunner = (input: {
 	agentType: string;
 	request: string;
+	/**
+	 * Activity-log row for this delegation, when logging is on (issue #739).
+	 * The delegate's own actions are recorded as children of it, so a turn that
+	 * crossed agents can be read back as one tree.
+	 */
+	parentActivityId?: string | null;
 }) => Promise<DelegatedAgentResult>;
 
 export interface DelegationCatalogEntry {
@@ -113,9 +119,16 @@ export function createAskAnotherAgentTool(params: {
 			}
 
 			try {
+				// Injected by the tool wrapper in BaseAgent, not part of the AI SDK's
+				// options, hence the cast.
+				const parentActivityId =
+					(options as { agentActivityId?: string | null } | undefined)
+						?.agentActivityId ?? null;
+
 				const delegated = await run({
 					agentType: input.agentType,
 					request: input.request,
+					parentActivityId,
 				});
 
 				if (!delegated.answer.trim()) {

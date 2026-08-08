@@ -56,6 +56,11 @@ import {
 } from "@/lib/token-utils";
 import { buildToolReceiptsFromSteps } from "@/lib/tool-receipt-builder";
 import { trimToolResultsByRelevancy } from "@/lib/tool-result-trimming";
+import {
+	type AgentActivityContext,
+	AgentActivityRecorder,
+	withActivityRecording,
+} from "@/services/agent-activity/agent-activity-recorder";
 import { RulesContextService } from "@/services/campaign/rules-context-service";
 import { AuthService } from "@/services/core/auth-service";
 import { EmailService } from "@/services/core/email-service";
@@ -1521,6 +1526,9 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		clientJwt: string | null;
 		selectedCampaignId: string | null;
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null;
+		/** The delegating agent's recorder and the row for its `askAnotherAgent` call. */
+		parentRecorder?: AgentActivityRecorder | null;
+		parentActivityId?: string | null;
 	}): Promise<DelegatedAgentResult> {
 		const log = createLogger(
 			this.env as Record<string, unknown>,
@@ -1541,6 +1549,16 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		}
 
 		const toolsUsed: string[] = [];
+		// The delegate's actions are recorded as the delegate's, not the caller's,
+		// and hang under the `askAnotherAgent` row — which is the join #281 renders
+		// as "which agent did what" without any agent knowing it is being watched.
+		const activityContext =
+			params.parentRecorder && params.parentActivityId
+				? params.parentRecorder.childContext(
+						params.parentActivityId,
+						params.agentType
+					)
+				: null;
 		const enhancedTools = this.createEnhancedTools(
 			params.clientJwt,
 			params.selectedCampaignId,
@@ -1549,6 +1567,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			{
 				onToolStart: (toolName) => toolsUsed.push(toolName),
 				allowDelegation: false,
+				activityContext,
 			},
 			params.claimedPlayerContext
 		);
@@ -1585,6 +1604,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		selectedCampaignId: string | null;
 		campaignRole: CampaignRole | null;
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null;
+		/** This turn's activity recorder, so the delegate's work links to ours. */
+		recorder?: AgentActivityRecorder | null;
 	}): Record<string, any> {
 		let catalog: Array<{ agent: string; description: string }>;
 		try {
@@ -1602,7 +1623,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 		return {
 			askAnotherAgent: createAskAnotherAgentTool({
 				catalog,
-				run: ({ agentType, request }) =>
+				run: ({ agentType, request, parentActivityId }) =>
 					this.runDelegatedAgent({
 						agentType,
 						request,
@@ -1610,6 +1631,8 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						clientJwt: context.clientJwt,
 						selectedCampaignId: context.selectedCampaignId,
 						claimedPlayerContext: context.claimedPlayerContext,
+						parentRecorder: context.recorder ?? null,
+						parentActivityId: parentActivityId ?? null,
 					}),
 			}),
 		};
@@ -1629,6 +1652,11 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			/** False while running as someone else's delegate, so handoffs cannot nest. */
 			allowDelegation?: boolean;
 			campaignRole?: CampaignRole | null;
+			/**
+			 * Set only when running as a delegate, to attribute the delegate's
+			 * actions to it and hang them under the delegating call (issue #739).
+			 */
+			activityContext?: AgentActivityContext | null;
 		},
 		claimedPlayerContext?: ResolvedClaimedPlayerContext | null
 	): Record<string, any> {
@@ -1636,6 +1664,20 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 			this.env as Record<string, unknown>,
 			`[${this.constructor.name}]`
 		);
+
+		// One recorder per tool set, so every tool this agent runs this turn is
+		// logged with no per-tool or per-agent instrumentation. Null whenever the
+		// log is off, there is no D1 binding, or the turn is unauthenticated.
+		const recorder = AgentActivityRecorder.create(
+			this.env as unknown as Record<string, unknown>,
+			options?.activityContext ?? {
+				username: parseUsernameFromClientJwt(clientJwt),
+				agentType: this.getAgentType() ?? this.constructor.name,
+				campaignId: selectedCampaignId,
+				sessionId: this.ctx?.id?.toString() ?? "",
+			}
+		);
+
 		const baseTools = toolsOverride ?? this.tools;
 		const tools = {
 			...baseTools,
@@ -1647,6 +1689,7 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 						selectedCampaignId,
 						campaignRole: options?.campaignRole ?? null,
 						claimedPlayerContext,
+						recorder,
 					})),
 		};
 		// Track tool calls to prevent infinite loops
@@ -1658,262 +1701,281 @@ export abstract class BaseAgent extends SimpleChatAgent<Env> {
 					toolName,
 					{
 						...tool,
-						execute: async (args: any, context: any) => {
-							options?.onToolStart?.(toolName);
+						/**
+						 * Wrapped so the activity record covers every exit path —
+						 * including the loop guard and the stale-command block below,
+						 * which return a failure envelope rather than throwing and would
+						 * otherwise look successful in the log (issue #739).
+						 *
+						 * The raw `args` are what get summarized, deliberately: the
+						 * enhancement step below injects the caller's JWT, and the log is
+						 * a display surface.
+						 */
+						execute: withActivityRecording(
+							recorder,
+							toolName,
+							async (args: any, context: any, activityId: string | null) => {
+								options?.onToolStart?.(toolName);
 
-							// Check for infinite loops
-							const callKey = `${toolName}_${JSON.stringify(args)}`;
-							const currentCount = toolCallCounts.get(callKey) || 0;
-							if (currentCount > 2) {
-								log.warn(
-									`Tool ${toolName} called ${currentCount} times, preventing infinite loop`
-								);
-								return {
-									toolCallId: context?.toolCallId || "unknown",
-									result: {
-										success: false,
-										message: `Tool ${toolName} called too many times, stopping to prevent infinite loop`,
-										data: null,
-									},
-								};
-							}
-							toolCallCounts.set(callKey, currentCount + 1);
-
-							// Ensure JWT is always included for operations that require it
-							const enhancedArgs = { ...args };
-
-							// Resolve schema for param checks: AI SDK v5 uses .parameters, v6 uses .inputSchema (Zod has .shape)
-							const schema =
-								(tool as any).inputSchema ?? (tool as any).parameters;
-							const shape =
-								schema &&
-								typeof schema === "object" &&
-								"shape" in schema &&
-								(schema as any).shape;
-
-							const hasJwtParam = !!shape && "jwt" in shape;
-							if (hasJwtParam) {
-								// Always use client JWT when available; never trust LLM-provided jwt (often invalid/placeholder)
-								if (clientJwt) {
-									enhancedArgs.jwt = clientJwt;
-								} else if (!("jwt" in enhancedArgs)) {
-									enhancedArgs.jwt = null;
-								}
-							}
-
-							const hasCampaignIdParam = !!shape && "campaignId" in shape;
-							if (hasCampaignIdParam && selectedCampaignId) {
-								// Always use the selectedCampaignId from the current message, overriding any LLM-provided value
-								const previousCampaignId = enhancedArgs.campaignId;
-								enhancedArgs.campaignId = selectedCampaignId;
-								if (
-									previousCampaignId &&
-									previousCampaignId !== selectedCampaignId
-								) {
-									log.debug(
-										"Overriding inferred campaignId with selected campaign",
-										{
-											toolName,
-										}
+								// Check for infinite loops
+								const callKey = `${toolName}_${JSON.stringify(args)}`;
+								const currentCount = toolCallCounts.get(callKey) || 0;
+								if (currentCount > 2) {
+									log.warn(
+										`Tool ${toolName} called ${currentCount} times, preventing infinite loop`
 									);
-								}
-							}
-
-							const hasSessionIdParam = !!shape && "sessionId" in shape;
-
-							if (hasSessionIdParam) {
-								if (toolName === "getMessageHistory") {
-									const ghArgs = enhancedArgs as {
-										historyScope?: string;
-										sessionId?: string;
-										campaignId?: string | null;
+									return {
+										toolCallId: context?.toolCallId || "unknown",
+										result: {
+											success: false,
+											message: `Tool ${toolName} called too many times, stopping to prevent infinite loop`,
+											data: null,
+										},
 									};
-									let historyScope = normalizeMessageHistoryScope(
-										ghArgs.historyScope
-									);
-									const hasCampaign = Boolean(
-										selectedCampaignId ||
-											(typeof ghArgs.campaignId === "string" &&
-												ghArgs.campaignId.length > 0)
-									);
-									if (historyScope === "campaign" && !hasCampaign) {
-										ghArgs.historyScope = "current_session";
-										historyScope = "current_session";
+								}
+								toolCallCounts.set(callKey, currentCount + 1);
+
+								// Ensure JWT is always included for operations that require it
+								const enhancedArgs = { ...args };
+
+								// Resolve schema for param checks: AI SDK v5 uses .parameters, v6 uses .inputSchema (Zod has .shape)
+								const schema =
+									(tool as any).inputSchema ?? (tool as any).parameters;
+								const shape =
+									schema &&
+									typeof schema === "object" &&
+									"shape" in schema &&
+									(schema as any).shape;
+
+								const hasJwtParam = !!shape && "jwt" in shape;
+								if (hasJwtParam) {
+									// Always use client JWT when available; never trust LLM-provided jwt (often invalid/placeholder)
+									if (clientJwt) {
+										enhancedArgs.jwt = clientJwt;
+									} else if (!("jwt" in enhancedArgs)) {
+										enhancedArgs.jwt = null;
 									}
+								}
+
+								const hasCampaignIdParam = !!shape && "campaignId" in shape;
+								if (hasCampaignIdParam && selectedCampaignId) {
+									// Always use the selectedCampaignId from the current message, overriding any LLM-provided value
+									const previousCampaignId = enhancedArgs.campaignId;
+									enhancedArgs.campaignId = selectedCampaignId;
 									if (
-										historyScope === "current_session" &&
-										!enhancedArgs.sessionId
+										previousCampaignId &&
+										previousCampaignId !== selectedCampaignId
 									) {
+										log.debug(
+											"Overriding inferred campaignId with selected campaign",
+											{
+												toolName,
+											}
+										);
+									}
+								}
+
+								const hasSessionIdParam = !!shape && "sessionId" in shape;
+
+								if (hasSessionIdParam) {
+									if (toolName === "getMessageHistory") {
+										const ghArgs = enhancedArgs as {
+											historyScope?: string;
+											sessionId?: string;
+											campaignId?: string | null;
+										};
+										let historyScope = normalizeMessageHistoryScope(
+											ghArgs.historyScope
+										);
+										const hasCampaign = Boolean(
+											selectedCampaignId ||
+												(typeof ghArgs.campaignId === "string" &&
+													ghArgs.campaignId.length > 0)
+										);
+										if (historyScope === "campaign" && !hasCampaign) {
+											ghArgs.historyScope = "current_session";
+											historyScope = "current_session";
+										}
+										if (
+											historyScope === "current_session" &&
+											!enhancedArgs.sessionId
+										) {
+											enhancedArgs.sessionId = this.ctx.id.toString();
+										}
+										if (
+											historyScope === "campaign" ||
+											historyScope === "account"
+										) {
+											delete enhancedArgs.sessionId;
+										}
+										if (historyScope === "account") {
+											delete enhancedArgs.campaignId;
+										}
+									} else if (!enhancedArgs.sessionId) {
 										enhancedArgs.sessionId = this.ctx.id.toString();
 									}
-									if (
-										historyScope === "campaign" ||
-										historyScope === "account"
-									) {
-										delete enhancedArgs.sessionId;
+								}
+
+								const claimedEntity = claimedPlayerContext?.entity;
+								if (claimedEntity && shape) {
+									if ("playerCharacterEntityId" in shape) {
+										enhancedArgs.playerCharacterEntityId = claimedEntity.id;
 									}
-									if (historyScope === "account") {
-										delete enhancedArgs.campaignId;
+									if ("claimedEntityId" in shape) {
+										enhancedArgs.claimedEntityId = claimedEntity.id;
 									}
-								} else if (!enhancedArgs.sessionId) {
-									enhancedArgs.sessionId = this.ctx.id.toString();
+									if ("playerCharacterName" in shape) {
+										enhancedArgs.playerCharacterName = claimedEntity.name;
+									}
 								}
-							}
 
-							const claimedEntity = claimedPlayerContext?.entity;
-							if (claimedEntity && shape) {
-								if ("playerCharacterEntityId" in shape) {
-									enhancedArgs.playerCharacterEntityId = claimedEntity.id;
-								}
-								if ("claimedEntityId" in shape) {
-									enhancedArgs.claimedEntityId = claimedEntity.id;
-								}
-								if ("playerCharacterName" in shape) {
-									enhancedArgs.playerCharacterName = claimedEntity.name;
-								}
-							}
-
-							// Pass sessionId and env in context for tools that need it (will be merged with existing enhancedContext below)
-							// Handle test environments where ctx.id might not exist
-							const sessionContext = {
-								sessionId: this.ctx?.id?.toString() || `session-${Date.now()}`,
-							};
-
-							if (hasCampaignIdParam && !selectedCampaignId) {
-								// Valid use case: User may not have a campaign selected but wants to interact with a specific campaign.
-								// In this case, we allow the LLM to infer the campaign ID from the user's request.
-								log.debug("No selected campaign ID for tool execution", {
-									toolName,
-								});
-							}
-
-							// Block mutating tools if the last user command is stale
-							// Note: Legacy shard tools removed - entity approval/rejection now handled via API routes
-							const mutatingTools = new Set([
-								"createShardsTool", // Keep for backward compatibility if still used
-							]);
-							if (staleGuard?.isStaleCommand && mutatingTools.has(toolName)) {
-								log.warn(
-									`Blocking mutating tool '${toolName}' due to stale user command`
-								);
-								return {
-									toolCallId: context?.toolCallId || "unknown",
-									result: {
-										success: false,
-										message:
-											"IGNORED_STALE_COMMAND: Mutating action was blocked because the originating user command is stale.",
-										data: null,
-									},
+								// Pass sessionId and env in context for tools that need it (will be merged with existing enhancedContext below)
+								// Handle test environments where ctx.id might not exist
+								const sessionContext = {
+									sessionId:
+										this.ctx?.id?.toString() || `session-${Date.now()}`,
 								};
-							}
 
-							if (!tool.execute) {
-								log.warn(`Tool ${toolName} has no execute function`);
-								return {
-									toolCallId: context?.toolCallId || "unknown",
-									result: {
-										success: false,
-										message: `Tool ${toolName} is not executable`,
-										data: null,
-									},
-								};
-							}
+								if (hasCampaignIdParam && !selectedCampaignId) {
+									// Valid use case: User may not have a campaign selected but wants to interact with a specific campaign.
+									// In this case, we allow the LLM to infer the campaign ID from the user's request.
+									log.debug("No selected campaign ID for tool execution", {
+										toolName,
+									});
+								}
 
-							// Pass environment and sessionId to tools that need it
-							const enhancedContext = {
-								...context,
-								env: this.env,
-								...sessionContext,
-								playerCharacter: claimedPlayerContext
-									? {
-											username: claimedPlayerContext.username,
-											role: claimedPlayerContext.role,
-											claim: claimedPlayerContext.claim,
-											entity: claimedPlayerContext.entity,
-										}
-									: null,
-							};
-							const toolResult = await tool.execute(
-								enhancedArgs,
-								enhancedContext
-							);
-							log.debug("Tool executed", { toolName });
-
-							// Trim tool results by relevancy if they're too large
-							// This prevents token overflow by keeping highest priority items
-							let trimmedResult = toolResult;
-							try {
-								const modelId =
-									this.model?.modelId ||
-									getGenerationModelForProvider("SESSION_PLANNING");
-								const contextLimit = getSafeContextLimit(modelId);
-
-								// Use a conservative limit for tool results: 30% of context limit
-								// This leaves room for system prompt, tools, messages, and response generation
-								const maxToolResultTokens = Math.floor(contextLimit * 0.3);
-
-								if (maxToolResultTokens > 0) {
-									trimmedResult = await trimToolResultsByRelevancy(
-										toolResult,
-										maxToolResultTokens,
-										this.env,
-										selectedCampaignId
+								// Block mutating tools if the last user command is stale
+								// Note: Legacy shard tools removed - entity approval/rejection now handled via API routes
+								const mutatingTools = new Set([
+									"createShardsTool", // Keep for backward compatibility if still used
+								]);
+								if (staleGuard?.isStaleCommand && mutatingTools.has(toolName)) {
+									log.warn(
+										`Blocking mutating tool '${toolName}' due to stale user command`
 									);
-								}
-							} catch (trimError) {
-								log.warn("Failed to trim tool result", trimError);
-								// Continue with original result if trimming fails
-							}
-
-							// Normalize results from ai.tool() to the expected ToolResult envelope
-							const normalized = (() => {
-								// If already in the expected envelope, use trimmed result so LLM gets trimmed content
-								if (
-									trimmedResult &&
-									typeof trimmedResult === "object" &&
-									"toolCallId" in trimmedResult &&
-									"result" in trimmedResult
-								) {
-									return trimmedResult as any;
-								}
-								if (
-									toolResult &&
-									typeof toolResult === "object" &&
-									"toolCallId" in toolResult &&
-									"result" in toolResult
-								) {
-									return toolResult as any;
+									return {
+										toolCallId: context?.toolCallId || "unknown",
+										result: {
+											success: false,
+											message:
+												"IGNORED_STALE_COMMAND: Mutating action was blocked because the originating user command is stale.",
+											data: null,
+										},
+									};
 								}
 
-								// Wrap plain results (use trimmed result)
-								const resultToWrap = trimmedResult;
-								const success =
-									resultToWrap &&
-									typeof resultToWrap === "object" &&
-									"success" in resultToWrap
-										? (resultToWrap as any).success
-										: true;
-								const message =
-									resultToWrap &&
-									typeof resultToWrap === "object" &&
-									"message" in resultToWrap
-										? (resultToWrap as any).message
-										: "ok";
-								const data =
-									resultToWrap &&
-									typeof resultToWrap === "object" &&
-									"data" in resultToWrap
-										? (resultToWrap as any).data
-										: resultToWrap;
+								if (!tool.execute) {
+									log.warn(`Tool ${toolName} has no execute function`);
+									return {
+										toolCallId: context?.toolCallId || "unknown",
+										result: {
+											success: false,
+											message: `Tool ${toolName} is not executable`,
+											data: null,
+										},
+									};
+								}
 
-								return {
-									toolCallId: enhancedContext?.toolCallId || "unknown",
-									result: { success, message, data },
+								// Pass environment and sessionId to tools that need it
+								const enhancedContext = {
+									...context,
+									env: this.env,
+									...sessionContext,
+									// Only `askAnotherAgent` reads this: it is the id of this
+									// call's activity row, which the delegate's own actions hang
+									// under so a multi-agent turn forms a tree (issue #739).
+									agentActivityId: activityId,
+									playerCharacter: claimedPlayerContext
+										? {
+												username: claimedPlayerContext.username,
+												role: claimedPlayerContext.role,
+												claim: claimedPlayerContext.claim,
+												entity: claimedPlayerContext.entity,
+											}
+										: null,
 								};
-							})();
+								const toolResult = await tool.execute(
+									enhancedArgs,
+									enhancedContext
+								);
+								log.debug("Tool executed", { toolName });
 
-							return normalized;
-						},
+								// Trim tool results by relevancy if they're too large
+								// This prevents token overflow by keeping highest priority items
+								let trimmedResult = toolResult;
+								try {
+									const modelId =
+										this.model?.modelId ||
+										getGenerationModelForProvider("SESSION_PLANNING");
+									const contextLimit = getSafeContextLimit(modelId);
+
+									// Use a conservative limit for tool results: 30% of context limit
+									// This leaves room for system prompt, tools, messages, and response generation
+									const maxToolResultTokens = Math.floor(contextLimit * 0.3);
+
+									if (maxToolResultTokens > 0) {
+										trimmedResult = await trimToolResultsByRelevancy(
+											toolResult,
+											maxToolResultTokens,
+											this.env,
+											selectedCampaignId
+										);
+									}
+								} catch (trimError) {
+									log.warn("Failed to trim tool result", trimError);
+									// Continue with original result if trimming fails
+								}
+
+								// Normalize results from ai.tool() to the expected ToolResult envelope
+								const normalized = (() => {
+									// If already in the expected envelope, use trimmed result so LLM gets trimmed content
+									if (
+										trimmedResult &&
+										typeof trimmedResult === "object" &&
+										"toolCallId" in trimmedResult &&
+										"result" in trimmedResult
+									) {
+										return trimmedResult as any;
+									}
+									if (
+										toolResult &&
+										typeof toolResult === "object" &&
+										"toolCallId" in toolResult &&
+										"result" in toolResult
+									) {
+										return toolResult as any;
+									}
+
+									// Wrap plain results (use trimmed result)
+									const resultToWrap = trimmedResult;
+									const success =
+										resultToWrap &&
+										typeof resultToWrap === "object" &&
+										"success" in resultToWrap
+											? (resultToWrap as any).success
+											: true;
+									const message =
+										resultToWrap &&
+										typeof resultToWrap === "object" &&
+										"message" in resultToWrap
+											? (resultToWrap as any).message
+											: "ok";
+									const data =
+										resultToWrap &&
+										typeof resultToWrap === "object" &&
+										"data" in resultToWrap
+											? (resultToWrap as any).data
+											: resultToWrap;
+
+									return {
+										toolCallId: enhancedContext?.toolCallId || "unknown",
+										result: { success, message, data },
+									};
+								})();
+
+								return normalized;
+							}
+						),
 					},
 				];
 			})
