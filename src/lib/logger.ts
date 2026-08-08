@@ -219,6 +219,15 @@ function getTsLog(env?: Record<string, unknown>): TsLogger<ILogObj> {
 		// `shouldLog` has already gated the call before tslog sees it, so tslog must
 		// never drop a line we decided to emit.
 		minLevel: 0,
+		// v4 shipped `maskValuesOfKeys: ["password"]`; v5 defaults `mask.keys` to `[]`,
+		// so leaving this out would silently start writing passwords in clear text to
+		// production logs. Restored as-was rather than widened -- broadening it to
+		// tokens/keys is a worthwhile follow-up, but not something to smuggle into a
+		// dependency bump.
+		//
+		// Only the json path below is covered: masking runs while the record is built,
+		// which is after middleware, so the pretty dev sink still sees raw args.
+		mask: { keys: ["password"] },
 		middleware: format === "pretty" ? [prettyConsoleSink] : [],
 	});
 

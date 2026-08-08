@@ -88,6 +88,26 @@ describe("logger json transport", () => {
 		expect(warn._logMeta.logLevelName).toBe("WARN");
 	});
 
+	it("still masks password values, as tslog v4 did by default", async () => {
+		// v4's `maskValuesOfKeys` defaulted to ["password"]; v5's `mask.keys` defaults
+		// to [], so this asserts the default was carried across the major bump rather
+		// than silently dropped.
+		const { createLogger } = await freshLogger();
+		const calls = captureConsole();
+
+		createLogger({ LOG_FORMAT: "json" }, "[Test]").info("login attempt", {
+			user: "ofisk",
+			password: "hunter2",
+		});
+
+		const line = String(calls[0].args[0]);
+		expect(line).not.toContain("hunter2");
+
+		const record = JSON.parse(line);
+		expect(record.user).toBe("ofisk");
+		expect(record.password).toBe("[***]");
+	});
+
 	it("does not double-write through tslog's built-in sink", async () => {
 		const { createLogger } = await freshLogger();
 		const calls = captureConsole();
