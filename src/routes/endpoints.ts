@@ -371,6 +371,16 @@ export const ENDPOINTS = {
 	EXPERIMENTS: {
 		ASSIGNMENTS: "/experiments/assignments",
 	},
+	/**
+	 * The agent activity log (issue #739). Read-only: rows are written from the
+	 * agents' tool path, never by a client.
+	 */
+	AGENT_ACTIVITY: {
+		LIST: "/agent-activity",
+		SUMMARY: "/agent-activity/summary",
+		/** One delegation tree — an `askAnotherAgent` call and its delegate's work. */
+		TREE: (rootId: string) => `/agent-activity/tree/${rootId}`,
+	},
 	ADMIN: {
 		TELEMETRY: {
 			METRICS: "/admin/telemetry/metrics",

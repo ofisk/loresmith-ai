@@ -137,6 +137,7 @@ Details that matter when changing this:
 - **Chat flow**: `onChatMessage` builds a minimal message context (current user message, last assistant message, essential system context), then calls `streamText` with the agent’s tools. JWT and `campaignId` are taken from the last user message’s `data`.
 - **Rules-aware injection**: For targeted agents (`campaign`, `campaign-context`, `campaign-analysis`, `recap`, `session-digest`), `onChatMessage` resolves campaign rules from multiple sources (`house_rule`, source `rules`, and rule-tagged context) and injects normalized rules plus conflict warnings before generation.
 - **Tool execution**: Tools receive a `context` object that includes `env` when running inside the DO, so they can use the database directly. When `context.env` is missing (e.g. in tests or external calls), tools fall back to HTTP API with `authenticatedFetch`. See [TOOL_PATTERNS.md](./TOOL_PATTERNS.md).
+- **Activity logging**: The same `createEnhancedTools` wrapper records every tool call to the `agent_activity` table — agent, campaign, timing, status, and delegation linkage — with no per-agent instrumentation. See [AGENT_ACTIVITY.md](./AGENT_ACTIVITY.md).
 
 ## Token handling
 

@@ -395,6 +395,21 @@ async function runFastScheduledTasks(
 		log.error("Failed to prune LLM usage log", error);
 	}
 
+	// Agent activity gains a row per tool call, so it is swept on the fast cron
+	// rather than left to grow. The second call closes out rows stranded
+	// `running` by a Worker that died mid-call — the finish write is best-effort
+	// by design, so without this the dashboard shows work that never ends.
+	try {
+		const daoFactory = getDAOFactory(env);
+		await daoFactory.agentActivityDAO.pruneOldRows();
+		const stranded = await daoFactory.agentActivityDAO.failStaleRunningRows();
+		if (stranded > 0) {
+			log.info("agent_activity_stale_rows_closed", { rows: stranded });
+		}
+	} catch (error) {
+		log.error("agent_activity_sweep_failed", error);
+	}
+
 	const processor = new FileProcessingQueue(env);
 	await processor.cleanupStaging();
 

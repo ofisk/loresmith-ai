@@ -96,6 +96,11 @@ Welcome to the LoreSmith AI documentation! This directory contains comprehensive
   - BaseAgent behavior
   - Tool invocation lifecycle
 
+- **[Agent Activity Log](AGENT_ACTIVITY.md)** - Durable record of what agents did
+  - Written from the shared tool wrapper, so every agent is logged
+  - Delegation trees, redaction, and buffered writes
+  - The read API behind the agent dashboard
+
 - **[Tool System](TOOL_SYSTEM.md)** - Tool architecture and how to add a new tool
   - Tool anatomy and result envelope
   - Context object and auto-injected parameters
