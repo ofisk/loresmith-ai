@@ -1,8 +1,13 @@
 import type { Context } from "hono";
 import type Stripe from "stripe";
+import type { SubscriptionTier, TierLimits } from "@/app-constants";
 import { getDAOFactory } from "@/dao/dao-factory";
 import type { SubscriptionStatus } from "@/dao/subscription-dao";
 import { getEnvVar } from "@/lib/env-utils";
+import {
+	computeFreeTierAllowance,
+	nextMonthlyResetAt,
+} from "@/lib/free-tier-allowance";
 import { getRequestLogger } from "@/lib/logger";
 import { getValidatedJsonBody, getValidatedQuery } from "@/lib/route-utils";
 import type { Env } from "@/routes/env";
@@ -173,6 +178,54 @@ async function syncSubscriptionFromStripe(
 	return true;
 }
 
+/**
+ * Free-tier quota fields for the billing status payload; empty for paid tiers.
+ *
+ * `monthlyUsage` deliberately spans **both** free-tier buckets — the recurring
+ * monthly allowance and the one-time welcome grant — so the UI can show one
+ * honest "x of y" without having to know how the spend was split. The split
+ * itself surfaces as `monthlyRemaining`.
+ */
+async function loadFreeTierQuotaFields(
+	env: Env,
+	username: string,
+	tier: SubscriptionTier,
+	limits: TierLimits
+): Promise<{
+	monthlyUsage?: number;
+	creditsRemaining?: number;
+	monthlyRemaining?: number;
+	nextResetAt?: string;
+}> {
+	const hasAllowance =
+		limits.trialTokens !== undefined || limits.monthlyTokens !== undefined;
+	if (tier !== "free" || !hasAllowance) {
+		return {};
+	}
+
+	const dao = getDAOFactory(env);
+	const [monthUsed, trialUsed, credits] = await Promise.all([
+		dao.userMonthlyUsageDAO.getCurrentMonthUsage(username),
+		dao.userFreeTierUsageDAO.getTrialUsage(username),
+		dao.userCreditsDAO.getCredits(username),
+	]);
+
+	const allowance = computeFreeTierAllowance({
+		monthlyTokens: limits.monthlyTokens ?? 0,
+		trialTokens: limits.trialTokens ?? 0,
+		monthUsed,
+		trialUsed,
+		credits,
+	});
+
+	return {
+		monthlyUsage: allowance.used,
+		creditsRemaining: allowance.credits,
+		monthlyRemaining: allowance.monthRemaining,
+		nextResetAt: nextMonthlyResetAt(),
+	};
+}
+
 export async function handleBillingStatus(c: ContextWithAuth) {
 	const auth = getUserAuth(c);
 	if (!auth?.username) {
@@ -203,20 +256,12 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 	const dao = getDAOFactory(c.env);
 	const sub = await dao.subscriptionDAO.getByUsername(auth.username);
 
-	// Free tier: include usage and credits for quota visibility (lifetime trial or monthly)
-	let monthlyUsage: number | undefined;
-	let creditsRemaining: number | undefined;
-	if (
-		tier === "free" &&
-		(limits.lifetimeTokens !== undefined || limits.monthlyTokens !== undefined)
-	) {
-		[monthlyUsage, creditsRemaining] = await Promise.all([
-			limits.lifetimeTokens !== undefined
-				? dao.userFreeTierUsageDAO.getLifetimeUsage(auth.username)
-				: dao.userMonthlyUsageDAO.getCurrentMonthUsage(auth.username),
-			dao.userCreditsDAO.getCredits(auth.username),
-		]);
-	}
+	const quota = await loadFreeTierQuotaFields(
+		c.env,
+		auth.username,
+		tier,
+		limits
+	);
 
 	return c.json({
 		tier,
@@ -232,11 +277,10 @@ export async function handleBillingStatus(c: ContextWithAuth) {
 			tpd: limits.tpd,
 			qpd: limits.qpd,
 			monthlyTokens: limits.monthlyTokens,
-			lifetimeTokens: limits.lifetimeTokens,
+			trialTokens: limits.trialTokens,
 			resourcesPerCampaignPerHour: limits.resourcesPerCampaignPerHour,
 		},
-		monthlyUsage,
-		creditsRemaining,
+		...quota,
 	});
 }
 

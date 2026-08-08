@@ -26,7 +26,7 @@ const mockAuthUserDAO = {
 const mockUserMonthlyUsageDAO = { getCurrentMonthUsage: vi.fn() };
 const mockUserCreditsDAO = { getCredits: vi.fn() };
 const mockUserFreeTierUsageDAO = {
-	getLifetimeUsage: vi.fn().mockResolvedValue(0),
+	getTrialUsage: vi.fn().mockResolvedValue(0),
 	incrementUsage: vi.fn().mockResolvedValue(undefined),
 };
 const mockDAOFactory = {

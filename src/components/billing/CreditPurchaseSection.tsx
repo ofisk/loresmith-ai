@@ -54,7 +54,7 @@ export function CreditPurchaseSection({
 
 	const hasFreeTierQuota =
 		status.limits.monthlyTokens !== undefined ||
-		status.limits.lifetimeTokens !== undefined;
+		status.limits.trialTokens !== undefined;
 
 	const jwt =
 		typeof window !== "undefined"
@@ -87,7 +87,7 @@ export function CreditPurchaseSection({
 	}
 
 	const baseLimit =
-		status.limits.lifetimeTokens ?? status.limits.monthlyTokens ?? 0;
+		(status.limits.monthlyTokens ?? 0) + (status.limits.trialTokens ?? 0);
 	const credits = status.creditsRemaining ?? 0;
 	const effectiveLimit = baseLimit + credits;
 	const monthlyUsage = status.monthlyUsage ?? 0;
@@ -132,14 +132,18 @@ export function CreditPurchaseSection({
 			{hasFreeTierQuota && (
 				<div className="mb-4">
 					<p className="text-sm text-neutral-600 dark:text-neutral-400">
-						{status.limits.lifetimeTokens !== undefined
-							? "Trial: "
-							: "This month: "}
+						{"Allowance used: "}
 						<strong className="text-neutral-800 dark:text-neutral-200">
 							{monthlyUsage.toLocaleString()} /{" "}
 							{effectiveLimit.toLocaleString()} tokens
 						</strong>
 					</p>
+					{status.limits.monthlyTokens !== undefined && (
+						<p className="text-sm text-neutral-500 dark:text-neutral-500 mt-0.5">
+							{(status.limits.monthlyTokens ?? 0).toLocaleString()} tokens
+							refresh on the 1st of each month
+						</p>
+					)}
 					{credits > 0 && (
 						<p className="text-sm text-neutral-500 dark:text-neutral-500 mt-0.5">
 							{credits.toLocaleString()} credits purchased

@@ -28,10 +28,12 @@ export function QuotaWarningModal({
 				{monthlyUsage !== undefined && monthlyLimit !== undefined && (
 					<p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 						Usage:{" "}
+						{/* No "this month" qualifier: the figure spans both free-tier
+						    buckets — the recurring monthly allowance and the one-time
+						    welcome grant — so it is not a purely monthly number. */}
 						<strong>
 							{monthlyUsage.toLocaleString()} / {monthlyLimit.toLocaleString()}{" "}
 							tokens
-							{reason.includes("trial") ? "" : " this month"}
 						</strong>
 					</p>
 				)}

@@ -403,25 +403,41 @@ export function BillingPage({ onBack }: BillingPageProps) {
 									{formatNumber(limits.tpd)}
 								</td>
 							</tr>
-							{(limits.lifetimeTokens !== undefined ||
+							{(limits.trialTokens !== undefined ||
 								limits.monthlyTokens !== undefined) && (
 								<>
 									<tr>
-										<td className="py-2">
-											{limits.lifetimeTokens !== undefined
-												? "Trial tokens"
-												: "Monthly tokens (free tier)"}
-										</td>
+										<td className="py-2">Token allowance</td>
 										<td className="py-2 text-right tabular-nums">
 											{status.monthlyUsage !== undefined
 												? `${formatNumber(status.monthlyUsage)} / `
 												: ""}
 											{formatNumber(
-												(limits.lifetimeTokens ?? limits.monthlyTokens ?? 0) +
+												(limits.monthlyTokens ?? 0) +
+													(limits.trialTokens ?? 0) +
 													(status.creditsRemaining ?? 0)
 											)}
 										</td>
 									</tr>
+									{limits.monthlyTokens !== undefined && (
+										<tr>
+											<td className="py-2">Refreshes monthly</td>
+											<td className="py-2 text-right tabular-nums">
+												{formatNumber(limits.monthlyTokens)}
+												{status.monthlyRemaining !== undefined
+													? ` (${formatNumber(status.monthlyRemaining)} left)`
+													: ""}
+											</td>
+										</tr>
+									)}
+									{limits.trialTokens !== undefined && (
+										<tr>
+											<td className="py-2">One-time welcome grant</td>
+											<td className="py-2 text-right tabular-nums">
+												{formatNumber(limits.trialTokens)}
+											</td>
+										</tr>
+									)}
 									{(status.creditsRemaining ?? 0) > 0 && (
 										<tr>
 											<td className="py-2">Credits purchased</td>

@@ -1,11 +1,17 @@
 import { BaseDAOClass } from "./base-dao";
 
 /**
- * Tracks cumulative token usage for free-tier one-time trial.
- * Usage never resets; when lifetimeTokens limit is exceeded, user must upgrade.
+ * Tracks tokens drawn from the free tier's one-time welcome grant.
+ *
+ * This counter never resets. It used to be the *only* free-tier bucket, so a
+ * user whose `tokens_used` reached the cap was permanently locked out. Since
+ * issue #746 the recurring monthly allowance in `user_monthly_usage` is drawn
+ * first and this bucket only absorbs the overflow — which means every existing
+ * row already holds exactly what it means under the new scheme (tokens taken
+ * from the grant), and no backfill is needed.
  */
 export class UserFreeTierUsageDAO extends BaseDAOClass {
-	async getLifetimeUsage(username: string): Promise<number> {
+	async getTrialUsage(username: string): Promise<number> {
 		const row = await this.queryFirst<{ tokens_used: number }>(
 			"SELECT tokens_used FROM user_free_tier_usage WHERE username = ?",
 			[username]

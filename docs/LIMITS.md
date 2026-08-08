@@ -33,18 +33,42 @@ Purchased one-off credits add directly to your daily and hourly token limits. If
 
 **TPH / QPH / TPD / QPD** are computed in `src/config/anthropic-org-rate-budget.ts` from Anthropic org limits (Console) and `expectedConcurrentActiveUsers`, then merged into `SUBSCRIPTION_TIERS` in `src/app-constants.ts`. Other columns are static in `SUBSCRIPTION_TIERS`.
 
-| Tier | Max campaigns | Max files | Storage | TPH / QPH / TPD / QPD | Trial tokens | Resources/campaign/hour | Retries/file/day | Retries/file/month |
-|------|---------------|-----------|---------|------------------------|--------------|-------------------------|------------------|--------------------|
-| Free | 1 | 5 | 25 MB | Derived (fraction of Basic) | 150k (one-time) | 5 | 2 | 6 |
-| Basic | 5 | 25 | 1 GB | Derived (org share ÷ concurrent users) | — | 20 | 3 | 15 |
-| Pro | 999,999 | 100 | 5 GB | Derived (2× Basic rates) | — | 50 | 5 | 50 |
+| Tier | Max campaigns | Max files | Storage | TPH / QPH / TPD / QPD | Monthly tokens | Welcome grant | Resources/campaign/hour | Retries/file/day | Retries/file/month |
+|------|---------------|-----------|---------|------------------------|----------------|---------------|-------------------------|------------------|--------------------|
+| Free | 1 | 5 | 25 MB | Derived (fraction of Basic) | 50k (resets monthly) | 150k (one-time) | 5 | 2 | 6 |
+| Basic | 5 | 25 | 1 GB | Derived (org share ÷ concurrent users) | — | — | 20 | 3 | 15 |
+| Pro | 999,999 | 100 | 5 GB | Derived (2× Basic rates) | — | — | 50 | 5 | 50 |
 
 - **TPH** = tokens per hour  
 - **QPH** = queries per hour  
 - **TPD** = tokens per day  
 - **QPD** = requests per day  
 - **Retries** = indexation/entity extraction retries per file  
-- **Free tier trial tokens** = 150k tokens total, ever (no reset). Supports a full "try the app" flow: 5 files, campaign creation, next steps, and session readout. One-time trial semantics; upgrade for recurring capacity.  
+
+### Free tier token allowance
+
+The free tier has **two** token buckets, both defined in `src/app-constants.ts` and combined by `src/lib/free-tier-allowance.ts`:
+
+| Bucket | Constant | Resets | Purpose |
+|--------|----------|--------|---------|
+| Monthly allowance | `FREE_TIER_MONTHLY_TOKENS` (50k) | 1st of each month | Keeps a campaign warm between sessions — a digest, some planning chat, entity lookups. |
+| Welcome grant | `FREE_TIER_WELCOME_GRANT_TOKENS` (150k) | Never | Covers the expensive onboarding burst: indexing a source book, creating a campaign, a first session readout. |
+
+Spend draws from the **monthly allowance first** and overflows into the welcome grant, so the grant is only consumed in months the recurring allowance could not cover. Purchased credits (`user_indexing_credits`) sit on top of both and raise the ceiling without being drawn down.
+
+A free account is blocked from *generating* only when both buckets and any credits are empty, and the block lifts on the 1st. Reads — campaigns, entities, digests, timeline — are never gated by token quota, so a returning GM always finds their world intact.
+
+Usage is tracked in two tables: `user_monthly_usage` (per `year_month`) and `user_free_tier_usage` (cumulative grant draw).
+
+The billing page reports the combined figure, plus when the monthly portion returns:
+
+![Free tier allowance on the billing page](images/free-tier-allowance.png)
+
+When every bucket is empty, the block names the refresh date rather than presenting a dead end:
+
+![Quota warning when the free allowance is exhausted](images/free-tier-allowance-exhausted.png)
+
+Before issue #746 the free tier was a single one-time 150k bucket that never reset, which left exhausted accounts permanently inert.  
 
 ## Authentication
 
